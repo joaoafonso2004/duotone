@@ -18,6 +18,7 @@ const RESOLVER = `${TS} --import ./scripts/registar-resolver.mjs`;
 const DUPLOS = `${TS} --import ./scripts/registar-duplos.mjs`;
 
 const TESTES = [
+  'scripts/test-fila-do-leitor.cjs',
   'scripts/test-smart-radio-relevance.cjs',
   'scripts/test-social-overview.cjs',
   'scripts/test-social-ios.cjs',

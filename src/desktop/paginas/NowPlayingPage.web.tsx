@@ -1,19 +1,17 @@
+import { CabecaDaFila, LinhasDaFila } from '../FilaDoLeitor.web';
+import { useFilaDoLeitor } from '../useFilaDoLeitor.web';
 import {ArtworkLyricsCube} from '../../components/ArtworkLyricsCube';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import {
   getGlitchMode, type GlitchMode,
   getEffectIntensity, setEffectIntensity, type EffectIntensity,
 } from '../../lib/prefs';
 import { usePlayer } from '../../state/player';
-import { ROTULO_DO_RADIO, useRadioDaFila } from '../../components/RadioQueueControl';
-import { useOuvirJuntos } from '../../state/ouvirJuntos';
-import { useSeguirAmigo } from '../../state/seguirAmigo';
 import { rotuloDaOrigem } from '../../lib/origemDaFila';
 import { trackKey } from '../../lib/shuffle';
 import { chaveDaFaixa } from '../../lib/equalizer';
-import { FilaArrastavel } from '../FilaArrastavel.web';
 import { PainelEqualizador } from '../PainelEqualizador.web';
 import { GlitchArtwork } from '../glitch/GlitchArtwork.web';
 import { mandarComando, useAparelhos } from '../../lib/connectSync';
@@ -25,8 +23,7 @@ import { COR, ESP } from '../tokens.web';
 import { BotaoVoltar, Artwork, Button, desktop, Dialog, Empty, IconButton, marcar, Page, ui } from '../ui.web';
 import { FundoDaCapa } from '../FundoDaCapa.web';
 import { preCarregarCapaGrande, useCapaGrande } from '../useCapaGrande.web';
-import { disposicaoDoLeitor, fimDaFila } from '../../lib/leitorDoPc';
-import { pertoDoFim } from '../../lib/grelhaQueCresce';
+import { disposicaoDoLeitor } from '../../lib/leitorDoPc';
 import type { CommonPageProps, NavegarFn, ShareTarget } from '../rotas';
 import type { Track } from '../../types';
 import { displayArtist, tituloDaFaixa } from '../../lib/artistName';
@@ -164,52 +161,6 @@ function PontosDaCapa({ letras, aoMudar }: { letras: boolean; aoMudar: (v: boole
   );
 }
 
-/** Linhas da fila montadas de cada vez. */
-const LINHAS_DA_FILA = 100;
-
-/**
- * O Radio no cabeçalho do Up next (5/10, variante A de `docs/radio-na-fila.html`):
- * uma pastilha transparente ao lado do "Clear". Era uma caixa opaca com um
- * interruptor por cima da fila, sem o vidro do resto do ecrã. A lógica é a
- * mesma do iPhone (`useRadioDaFila`).
- */
-function RadioNaFila() {
-  const radio = useRadioDaFila();
-  const ligado = radio.mode === 'on', aPreparar = radio.mode === 'preparing';
-  const apagada = !!radio.reason && radio.mode === 'off';
-  if (!radio.visivel) return null;
-  return (
-    <>
-      {radio.podeDesfazer ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Undo Radio and restore previous queue" onPress={radio.desfazer}
-          style={({ hovered }: any) => [styles.npFilaLimpar, hovered && { backgroundColor: RADIO_HOVER }]}>
-          <Text style={[styles.npFilaLimparTexto, { textDecorationLine: 'underline', fontWeight: '400' as any }]}>Undo</Text>
-        </Pressable>
-      ) : null}
-      <Pressable
-        accessibilityRole="switch"
-        accessibilityLabel="Radio"
-        accessibilityHint={radio.reason ?? radio.dica}
-        accessibilityState={{ checked: ligado, busy: aPreparar, disabled: apagada }}
-        onPress={radio.alternar}
-        style={({ hovered }: any) => [
-          styles.npRadio,
-          ligado && styles.npRadioLigado,
-          hovered && !apagada && { backgroundColor: ligado ? 'rgba(233,234,238,0.16)' : RADIO_HOVER },
-          apagada && { opacity: 0.45, cursor: 'default' as any },
-        ]}
-      >
-        {aPreparar ? <ActivityIndicator size={12} color={COR.texto} />
-          : <Ionicons name={ligado ? 'radio' : 'radio-outline'} size={15} color={ligado ? COR.texto : COR.textoMedio} />}
-        <Text style={[styles.npRadioTexto, (ligado || aPreparar) && { color: COR.texto }]}>
-          {aPreparar ? ROTULO_DO_RADIO.aPreparar : ligado ? ROTULO_DO_RADIO.ligado : ROTULO_DO_RADIO.desligado}
-        </Text>
-      </Pressable>
-    </>
-  );
-}
-const RADIO_HOVER = 'rgba(233,234,238,0.07)';
-
 export function NowPlayingPage({
   more, notify, currentIsSaved, toggleSaveCurrent, navigate, back, aoAdicionarAPlaylist, share, fundoNaJanela = false,
 }: CommonPageProps & {
@@ -225,14 +176,8 @@ export function NowPlayingPage({
 }) {
   // Esta página não usa a posição. Subscrever o store inteiro fazia a capa,
   // letras, fila e WebGL voltarem a renderizar a cada atualização da barra.
-  const current = usePlayer((s) => s.current);
-  const queue = usePlayer((s) => s.queue);
-  const queueIndex = usePlayer((s) => s.queueIndex);
-  const shuffle = usePlayer((s) => s.shuffle);
-  const shuffleOrder = usePlayer((s) => s.shuffleOrder);
-  const upcomingQueue = usePlayer((s) => s.upcomingQueue);
-  const playTrack = usePlayer((s) => s.playTrack);
-  const reordenarProximas = usePlayer((s) => s.reordenarProximas);
+  const fila = useFilaDoLeitor({ more, notify });
+  const { current, upNext, emJam } = fila;
   const eqGanhos = usePlayer((s) => s.eqGanhos);
   const setEqGanhos = usePlayer((s) => s.setEqGanhos);
   const playbackRate = usePlayer((s) => s.playbackRate);
@@ -243,44 +188,11 @@ export function NowPlayingPage({
   const origemDaFila = usePlayer((s) => s.origemDaFila);
   const doRadio = usePlayer((s) => s.doRadio);
   const sugeridas = usePlayer((s) => s.sugeridas);
-  // Num jam manda a fila partilhada, e a origem pessoal não diz nada sobre ela.
-  const emJam = useOuvirJuntos((s) => !!s.sessao);
-  // E a fila que vai tocar é a partilhada: a pessoal não decide nada numa
-  // sessão (é consumida a do Jam no fim de cada música). O PC mostrava a
-  // pessoal -- "Up next 0" com o Jam cheio (João, 27/9). O iPhone já fazia isto.
-  const filaDaSessao = useOuvirJuntos((s) => s.fila);
-  // A seguir um amigo ("Listen along"): as próximas DELE, só para ler.
-  const seguido = useSeguirAmigo((s) => s.seguindo);
-  const radioErro = usePlayer((s) => s.radioError);
-  const proximasDele = useSeguirAmigo((s) => s.aSeguir);
   const [showLyrics,setShowLyrics]=useState(false);
-  // Quantas linhas da fila estão montadas. A fila inteira podia ser a
-  // biblioteca toda (um "Play all" de 2700 faixas), e cada linha é um nó
-  // arrastável; montam-se às centenas, como na tabela das listas.
-  const [linhasDaFila, setLinhasDaFila] = useState(LINHAS_DA_FILA);
-  // O "Clear" pede um segundo clique: tirar quarenta faixas por engano não
-  // tem volta atrás.
-  const [aConfirmarLimpar, setAConfirmarLimpar] = useState(false);
-  useEffect(() => {
-    if (!aConfirmarLimpar) return;
-    const t = setTimeout(() => setAConfirmarLimpar(false), 4000);
-    return () => clearTimeout(t);
-  }, [aConfirmarLimpar]);
   useEffect(()=>setShowLyrics(false),[current?.source,current?.sourceId]);
   // A capa mede-se pela ÁREA da página (a janela menos a lateral e o leitor),
   // e não pela janela: é essa que tem de caber. Ver lib/leitorDoPc.ts.
   const [area, setArea] = useState({ largura: 0, altura: 0 });
-  const repeatMode = usePlayer((s) => s.repeatMode);
-  const autoplayRadio = usePlayer((s) => s.autoplayRadio);
-  // Uma vez por render: este ecrã redesenha a cada segundo (posição) e a
-  // lista percorre a fila toda.
-  const upNext = useMemo(
-    () => (seguido
-      ? proximasDele.map((t, n) => ({ track: t, index: n }))
-      : emJam ? filaDaSessao.map((i, n) => ({ track: i.track, index: n })) : upcomingQueue()),
-    [seguido, proximasDele, emJam, filaDaSessao, queue, queueIndex, shuffle, shuffleOrder, upcomingQueue]
-  );
-
   // A preferencia e lida uma vez e depois vem por evento, como a opacidade dos
   // paineis: as Definicoes sao outro ecra e este fica montado.
   const [eqAberto, setEqAberto] = useState(false);
@@ -352,7 +264,6 @@ export function NowPlayingPage({
     return <Page title="Now Playing" action={<BotaoVoltar onPress={back} />}><Empty icon="play-circle-outline" title="Silent" body="Start playing a track to see it here." /></Page>;
   }
   const { duasColunas, lado: ladoCapa } = disposicaoDoLeitor(area.largura || 1192, area.altura || 788);
-  const notaDoFim = fimDaFila({ emJam: emJam || !!seguido, repeatMode, autoplayRadio, vazia: upNext.length === 0 });
   // O artista sai do `displayArtist` e não do campo `artist`, que no YouTube é
   // o CANAL. A guarda é a mesma do iOS: sem nome não há para onde ir.
   const nomeDoArtista = displayArtist(track);
@@ -463,70 +374,8 @@ export function NowPlayingPage({
     </View>
   );
 
-  const cabecaDaFila = (
-    <View>
-    <View style={styles.npFilaCabeca}>
-      <Text style={styles.npFilaHeading}>Up next</Text>
-      <Text style={styles.npFilaContagem}>{upNext.length}</Text>
-      <View style={{ flex: 1 }} />
-      {/* O Radio ao lado do Clear: os dois mexem no que vem a seguir. Num Jam
-          é o Radio da sala (6/10); a seguir um amigo, ligar deixa de o seguir. */}
-      <RadioNaFila />
-      {/* Num Jam a fila é de todos: não se limpa daqui. */}
-      {!emJam && !seguido && upNext.length > 0 ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={aConfirmarLimpar ? `Confirm: clear ${upNext.length} tracks from the queue` : 'Clear the queue'}
-          onPress={() => {
-            if (!aConfirmarLimpar) { setAConfirmarLimpar(true); return; }
-            setAConfirmarLimpar(false);
-            const sairam = usePlayer.getState().limparProximas();
-            if (sairam > 0) notify(`Cleared ${sairam} ${sairam === 1 ? 'track' : 'tracks'} from the queue.`);
-          }}
-          style={({ hovered }: any) => [styles.npFilaLimpar, hovered && { backgroundColor: COR.hover }]}
-        >
-          <Text style={[styles.npFilaLimparTexto, aConfirmarLimpar && { color: COR.aviso }]}>
-            {aConfirmarLimpar ? `Clear ${upNext.length}?` : 'Clear'}
-          </Text>
-        </Pressable>
-      ) : null}
-    </View>
-    {radioErro && !emJam ? <Text accessibilityRole="alert" style={styles.npRadioErro}>{radioErro}</Text> : null}
-    </View>
-  );
-
-  /* A ordem que vai MESMO tocar: com shuffle ligado não é a ordem natural da
-     fila, e esta lista mentia. Arrastar mexe nessa ordem (reordenarProximas). */
-  const linhas = (
-    <>
-      <FilaArrastavel
-        entradas={upNext.slice(0, linhasDaFila)}
-        // Arrasta-se também com shuffle ligado (João, 25/9: "não dá para
-        // arrastar"): era `!shuffle`, e o PC usava o `moveQueueItem`, que só
-        // sabe a ordem da fila. O `reordenarProximas` mexe no percurso do
-        // shuffle -- é o que o iPhone já fazia.
-        podeArrastar={!emJam && !seguido}
-        // A seguir alguém, a fila é dele: tocar numa daqui não faz nada.
-        aoTocar={(t) => { if (!seguido) void playTrack(t, queue); }}
-        // Num Jam o índice não é o da fila pessoal: o menu não o leva (tirar e
-        // reordenar faz-se no painel do Jam, que sabe quem pode o quê).
-        aoMenu={(t, indiceReal) => (emJam ? more(t) : more(t, undefined, { fila: indiceReal }))}
-        aoMover={(de, para) => reordenarProximas(de, para)}
-      />
-      {/* O que acontece quando a fila acabar. Só com ela toda montada. */}
-      {notaDoFim && upNext.length <= linhasDaFila ? (
-        <Text style={styles.npFilaFim}>{notaDoFim}</Text>
-      ) : null}
-    </>
-  );
-  // Mais cem quando falta pouco para o fim: sem botão, como a grelha dos
-  // Artists (lib/grelhaQueCresce.ts).
-  const aoRolarAFila = (e: any) => {
-    const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
-    if (upNext.length > linhasDaFila && pertoDoFim(contentOffset.y, layoutMeasurement.height, contentSize.height)) {
-      setLinhasDaFila((n) => n + LINHAS_DA_FILA);
-    }
-  };
+  const cabecaDaFila = <CabecaDaFila fila={fila} />;
+  const linhas = <LinhasDaFila fila={fila} />;
 
   return (
     <View style={styles.npPagina} onLayout={(e) => {
@@ -574,14 +423,14 @@ export function NowPlayingPage({
           <View style={styles.npFila}>
             {cabecaDaFila}
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: ESP.xl }}
-              scrollEventThrottle={100} onScroll={aoRolarAFila}>
+              scrollEventThrottle={100} onScroll={fila.aoRolar}>
               {linhas}
             </ScrollView>
           </View>
         </View>
       ) : (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.npEstreito}
-          scrollEventThrottle={100} onScroll={aoRolarAFila}>
+          scrollEventThrottle={100} onScroll={fila.aoRolar}>
           {coluna}
           <View style={{ marginTop: ESP.xxl }}>
             {cabecaDaFila}

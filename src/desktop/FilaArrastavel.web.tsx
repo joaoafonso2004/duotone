@@ -54,6 +54,7 @@ export function FilaArrastavel({
   aoTocar,
   aoMenu,
   aoMover,
+  compacta = false,
 }: {
   entradas: Entrada[];
   /** Num Jam a fila é de todos: não se reordena daqui. */
@@ -67,6 +68,7 @@ export function FilaArrastavel({
    * mexer -- o mesmo que o iPhone já usava.
    */
   aoMover: (deVisivel: number, paraVisivel: number) => void;
+  compacta?: boolean;
 }) {
   const sugeridas = usePlayer((s) => s.sugeridas);
   const [arrasto, setArrasto] = useState<Arrasto | null>(null);
@@ -189,11 +191,11 @@ export function FilaArrastavel({
               aoMenu(entrada.track, entrada.index);
             }}
             style={{
-              minHeight: 56,
+              minHeight: compacta ? 52 : 56,
               padding: `0 ${ESP.sm}px`,
               display: 'flex',
               alignItems: 'center',
-              gap: `${ESP.md}px`,
+              gap: `${compacta ? ESP.sm : ESP.md}px`,
               cursor: !podeArrastar ? 'pointer' : arrastada ? 'grabbing' : 'grab',
               userSelect: 'none',
               // O ponteiro tem de continuar a chegar-nos mesmo por cima da
@@ -215,7 +217,7 @@ export function FilaArrastavel({
             {/* Ao passar o rato a capa mostra o ▶ (tocar esta), como nas
                 outras listas. Em CSS (`np-fila-*`): isto é um <div> a sério. */}
             <div className="np-fila-capa">
-              <Artwork track={entrada.track} size={40} />
+              <Artwork track={entrada.track} size={compacta ? 36 : 40} />
               <span className="np-fila-tocar" aria-hidden="true">
                 <Ionicons name="play" size={14} color="#fff" />
               </span>
@@ -227,7 +229,7 @@ export function FilaArrastavel({
                 {sugeridas.includes(trackKey(entrada.track)) ? <EstrelaInteligente tamanho={6} /> : null}
                 {/* O titulo limpo e o artista, como em todas as listas: aqui
                     aparecia o titulo cru do upload e o canal nao aparecia. */}
-                <Text numberOfLines={1} style={[styles.npFilaTitulo, { flex: 1 }]}>{tituloDaFaixa(entrada.track)}</Text>
+                <Text numberOfLines={1} style={[styles.npFilaTitulo, { flex: 1 }, compacta && { fontSize: 13 }]}>{tituloDaFaixa(entrada.track)}</Text>
               </View>
               {/* A estrela sozinha (6 px) não se via: numa fila de 50 as
                   sugestões pareciam não existir (João, 26/9). Dizem-no por

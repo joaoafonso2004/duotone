@@ -173,6 +173,7 @@ export function injectDesktopDocumentStyles() {
     .np-fila-mais { background: none; border: 0; padding: 6px; border-radius: 6px; cursor: pointer; }
     .np-fila-mais:hover { background: ${COR.hover}; }
     .np-fila-mais:focus-visible { opacity: 1; outline: 2px solid ${COR.texto}; }
+    [data-dt~="painel-do-leitor"] { transition: width 240ms cubic-bezier(.22,1,.36,1), transform 240ms cubic-bezier(.22,1,.36,1); }
     /* O fundo do Now Playing: a capa nova entra por cima da anterior. */
     [data-dt~="np-fundo"]{ animation: dt-np-fundo 700ms ease both; }
     /* A cor da capa a encher a janela ao abrir o Now Playing (26/9). */
@@ -366,6 +367,7 @@ export function injectDesktopDocumentStyles() {
     /* Quem pediu menos movimento no Windows nao leva nada disto. O estado
        final e o mesmo: aqui so morre o caminho ate la. */
     @media (prefers-reduced-motion: reduce){
+      [data-dt~="painel-do-leitor"] { transition: none !important; }
       [data-dt~="fila"], [data-dt~="dialogo"], [data-dt~="veu"], [data-dt~="aviso"], [data-dt~="coracao"],
       [data-dt~="menu-amigo"], [data-dt~="aviso-msg"],
       [data-dt~="pagina"], [data-dt~="pagina"] [data-dt~="cartao"], [data-dt~="carregar"],
