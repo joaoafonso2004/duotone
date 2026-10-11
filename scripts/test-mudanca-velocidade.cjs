@@ -235,6 +235,9 @@ function slider(initial=1){
   move:dx=>gesto().onGestureEvent({nativeEvent:{x:x0+dx}}),
   release:dx=>gesto().onHandlerStateChange({nativeEvent:{state:G.END,x:x0+dx}}),
   cancel:()=>gesto().onHandlerStateChange({nativeEvent:{state:G.CANCELLED,x:x0}}),
+  // A tap as iOS sends it: the pan only activates on movement, so a still
+  // finger goes BEGAN -> FAILED, with no ACTIVE and no END.
+  tap:x=>{gesto().onHandlerStateChange({nativeEvent:{state:G.BEGAN,x}});gesto().onHandlerStateChange({nativeEvent:{state:G.FAILED,x}});},
  };
 }
 let s=slider();s.grant(100);
@@ -244,6 +247,8 @@ assert.equal(s.bar().accessibilityValue.now,2,'visible value follows finger');
 s.release(200);assert.deepEqual(s.calls,[2],'one final value');
 s.release(200);assert.deepEqual(s.calls,[2],'duplicate release ignored');
 s=slider();s.grant(0);s.release(0);assert.deepEqual(s.calls,[0.5],'tap applies selected value');
+s=slider();s.tap(300);s.render();assert.deepEqual(s.calls,[2],'a still tap (BEGAN -> FAILED) applies too (11/10)');
+s=slider();s.tap(0);s.render();assert.deepEqual(s.calls,[0.5]);assert.equal(s.bar().accessibilityValue.now,1,'the preview clears; the value comes back from the store');
 s=slider();s.grant(100);s.release(0);assert.deepEqual(s.calls,[],'same value is a no-op');
 s=slider();s.grant(0);s.move(280);s.render();s.cancel();s.render();assert.deepEqual(s.calls,[]);assert.equal(s.bar().accessibilityValue.now,1);
 s=slider();s.grant(0);s.move(200);s.update(1.2);s.release(200);assert.deepEqual(s.calls,[],'external update cancels stale drag');

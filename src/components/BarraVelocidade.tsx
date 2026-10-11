@@ -94,7 +94,10 @@ export function BarraVelocidade({
       }
       return;
     }
-    if (state === State.END) {
+    // FAILED depois do BEGAN é um TOQUE (11/10): o pan com `minDist` 0 só ativa
+    // quando o dedo se mexe, e um dedo que toca e levanta parado acaba em
+    // FAILED, sem ACTIVE nem END. Deitado fora, só o arrasto mudava a velocidade.
+    if (state === State.END || state === State.FAILED) {
       if (previaRef.current === null) return;
       aplicar(x);
       const novo = previaRef.current;
@@ -103,7 +106,7 @@ export function BarraVelocidade({
       if (novo !== valorRef.current) aoMudarRef.current(novo);
       return;
     }
-    if (state === State.CANCELLED || state === State.FAILED) { previaRef.current = null; setPrevia(null); }
+    if (state === State.CANCELLED) { previaRef.current = null; setPrevia(null); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
