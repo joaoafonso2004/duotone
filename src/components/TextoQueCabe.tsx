@@ -22,6 +22,12 @@ type Props = {
    */
   rola?: boolean;
   onLongPress?: () => void;
+  /**
+   * O que cabe encosta à esquerda em vez de ficar ao centro (o título à
+   * esquerda da personalização, 11/10). Sem isto o título ficava ao centro e o
+   * artista, por baixo, à esquerda.
+   */
+  aEsquerda?: boolean;
 };
 
 /**
@@ -36,7 +42,7 @@ type Props = {
  * - **O artista encolhe à medida do nome**, para o toque acabar onde o nome
  *   acaba; o título ocupa a linha, que é toda dele.
  */
-export function TextoQueCabe({ texto, style, larguraDisponivel, rola = false, onLongPress }: Props) {
+export function TextoQueCabe({ texto, style, larguraDisponivel, rola = false, onLongPress, aEsquerda = false }: Props) {
   const reduzido = useReducedMotion();
   const [larguraDoTexto, setLarguraDoTexto] = useState(0);
   const [aAndar, setAAndar] = useState(false);
@@ -98,7 +104,7 @@ export function TextoQueCabe({ texto, style, larguraDisponivel, rola = false, on
         pointerEvents="none"
         showsHorizontalScrollIndicator={false}
         style={styles.rolo}
-        contentContainerStyle={styles.conteudo}
+        contentContainerStyle={[styles.conteudo, aEsquerda && styles.conteudoAEsquerda]}
       >
         <Animated.View style={[styles.fita, { transform: [{ translateX: deslocamento }] }]}>
           <Text
@@ -146,5 +152,6 @@ const styles = StyleSheet.create({
   rolo: { flexGrow: 0 },
   // Centra o que cabe; o que não cabe começa no limite esquerdo da caixa.
   conteudo: { flexGrow: 1, justifyContent: 'center' },
+  conteudoAEsquerda: { justifyContent: 'flex-start' },
   fita: { flexDirection: 'row' },
 });

@@ -178,6 +178,8 @@ assert.match(leitor, /outputRange: \[8, capaInteira \? 0 : 20\]/, 'sem cantos');
 assert.match(leitor, /raio=\{capaFlutuante \? CAPA_FLUTUANTE\.raio : capaInteira \? 0 : 20\}/);
 assert.match(leitor, /sombra: capaFlutuante \? 0 : capaInteira \? 0 :/, 'sem sombra');
 assert.match(leitor, /fonteDosTitulos\(ap\.titulos\)/, 'a letra do título do leitor');
+assert.match(leitor, /aEsquerda=\{!tituloAoCentro\}/, 'à esquerda, o título vai com o artista (11/10)');
+assert.match(ler('src/components/TextoQueCabe.tsx'), /aEsquerda && styles\.conteudoAEsquerda/, 'o que cabe encosta à esquerda');
 assert.match(leitor, /abrirJaNasLetras\(ap\.abrirNasLetras, expanded, letrasDaMusica\)/, 'abrir nas letras');
 assert.match(ler('src/components/Screen.tsx'), /fonteDosTitulos\(useAparencia\(\(s\) => s\.titulos\)\)/, 'os títulos das páginas');
 assert.match(ler('src/components/LyricsView.tsx'), /tamanhoDasLetras\(useAparencia\(s=>s\.tamanhoDasLetras\)\)/, 'o tamanho das letras');

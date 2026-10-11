@@ -1742,6 +1742,7 @@ export function PlayerRoot() {
                 texto={tituloNoLeitor(current)}
                 style={[styles.trackTitle, fonteDosTitulos(ap.titulos)]}
                 larguraDisponivel={larguraDoTitulo}
+                aEsquerda={!tituloAoCentro}
                 onLongPress={handleTitleLongPress}
               />
               {/* O nome do artista leva à página dele, como em todo o resto da
