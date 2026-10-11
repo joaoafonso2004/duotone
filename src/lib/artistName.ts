@@ -40,6 +40,13 @@
 // artista era "Eloy Ft.Randy", que nenhum catálogo conhece, e o Radio dessa
 // música não arrancava.
 const FEAT_RE = /\s+(?:(?:feat|ft)\.\s*(?=\S)|(?:feat\.?|ft\.?|featuring)\s+).*$/i;
+/**
+ * Um convidado entre parênteses: `(feat. X)`, `[ft. X]`, `(with X)` (11/10). O
+ * `FEAT_RE` só apanhava o ` feat. X` solto, e no "wokeuplikethis* (feat. Lil
+ * Uzi Vert)" a procura no título encontrava o convidado antes de olhar para o
+ * campo do artista: a música do Playboi Carti ficava "Lil Uzi Vert".
+ */
+const FEAT_ENTRE_PARENTESES_RE = /\s*[([](?:feat\.?|ft\.?|featuring|with)\s[^)\]]*[)\]]/gi;
 
 /** Separadores de colaboração. Repara que a VÍRGULA não está aqui: há nomes
  * que a levam no meio ("Tyler, The Creator"), e cortar por ela partia-os. */
@@ -548,7 +555,7 @@ function extrairBruto(
   // consultam aqui os canais aprendidos como fallback: foi isso que deixava
   // `Xan-Wrld999` ganhar por ser um nome mais comprido.
   if (limpo) {
-    const encontrado = procurarNoTexto(limpo.replace(FEAT_RE, ''), vocabulario);
+    const encontrado = procurarNoTexto(limpo.replace(FEAT_ENTRE_PARENTESES_RE, '').replace(FEAT_RE, ''), vocabulario);
     if (encontrado) return encontrado;
   }
 

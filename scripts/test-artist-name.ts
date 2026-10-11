@@ -388,6 +388,17 @@ console.log('\no artista e o título no sítio certo');
   eq('sem o vídeo conhecido fica como estava', displayArtist({ ...guardada, sourceId: 'outro' }, voc), 'Lil Uzi Vert');
   eq('a faixa nova da página (todos, o principal primeiro)', displayArtist({ ...guardada, artist: 'Playboi Carti & Lil Uzi Vert' }, voc), 'Playboi Carti');
   eq('registar o mesmo outra vez não muda nada', registarArtistasDoVideo('wokeup', ['Playboi Carti', 'Lil Uzi Vert']), false);
+  // O título do YouTube Music traz o convidado entre parênteses (11/10, a 4.9.2
+  // ainda dizia "Lil Uzi Vert"): a procura no título não o pode apanhar.
+  const vocDosDois = aprenderVocabulario([
+    { source: 'youtube', title: 'XO Tour Llif3', artist: 'Lil Uzi Vert - Topic' },
+    { source: 'youtube', title: 'Punk Monk', artist: 'Playboi Carti - Topic' },
+  ]);
+  const comFeat = { source: 'youtube', sourceId: 'w2', title: 'wokeuplikethis* (feat. Lil Uzi Vert)', artist: 'Playboi Carti & Lil Uzi Vert' };
+  eq('"(feat. X)" no título não ganha ao artista', displayArtist(comFeat, vocDosDois), 'Playboi Carti');
+  eq('"[ft. X]" também não', displayArtist({ ...comFeat, title: 'wokeuplikethis* [ft. Lil Uzi Vert]' }, vocDosDois), 'Playboi Carti');
+  registarArtistasDoVideo('w3', ['Playboi Carti', 'Lil Uzi Vert']);
+  eq('a guardada com o convidado, já aprendida', displayArtist({ ...comFeat, sourceId: 'w3', artist: 'Lil Uzi Vert' }, vocDosDois), 'Playboi Carti');
 }
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
