@@ -91,6 +91,10 @@ assert.match(fila, /useTheme/, 'o anel segue a cor do tema (que só segue a da c
 assert.match(ler('src/components/AmigosAOuvir.tsx'), /amigo\.musicActivity\s*\?\s*abrirFolhaDoAmigo\(amigo\.friendId\)/,
   'na Home, um amigo a ouvir abre a mesma folha');
 assert.match(ler('src/navigation/RootNavigator.tsx'), /<FolhaDoAmigo \/>/, 'a folha está montada uma vez no iPhone');
+// 11/10: fechava de um fotograma para o outro (o conteúdo saía antes da folha).
+const folhaDoAmigo = ler('src/components/FolhaDoAmigo.tsx');
+assert.match(folhaDoAmigo, /const amigoId = aberto \?\? ultimoRef\.current;/, 'o último amigo fica à vista enquanto a folha desce');
+assert.match(folhaDoAmigo, /const visivel = !!aberto && /, 'fechar é o id a null, não o conteúdo a desaparecer');
 // A conversa (fase 2).
 const hub = ler('src/components/SocialHub.tsx');
 assert.doesNotMatch(hub, /aOuvir=\{friend\.currentlyPlaying\?\.title/, 'o cabeçalho já não recebe o título cru');

@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
-import React, { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { shareItem } from '../api/social';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
@@ -66,7 +66,13 @@ function useCapa(t: Track | null): string | null {
  * canal do Social; só as Jams dos amigos (`jamsDosAmigos`, guardadas 2 min).
  */
 export function FolhaDoAmigo() {
-  const amigoId = useFolhaDoAmigo((s) => s.amigoId);
+  const aberto = useFolhaDoAmigo((s) => s.amigoId);
+  // O último amigo fica à vista enquanto a folha desce (11/10). Ao fechar, o
+  // id passava logo a null e o conteúdo desaparecia no mesmo instante: a folha
+  // vazia saía de um fotograma para o outro.
+  const ultimoRef = useRef<string | null>(null);
+  if (aberto) ultimoRef.current = aberto;
+  const amigoId = aberto ?? ultimoRef.current;
   const amigo = useSocial((s) => (amigoId ? s.friends.find((f) => f.friendId === amigoId) ?? null : null));
   const agora = useSocial((s) => s.now);
   const tema = useTheme((s) => s.theme);
@@ -74,14 +80,15 @@ export function FolhaDoAmigo() {
 
   // A presença crua (posição, velocidade, próximas), ao vivo.
   const [, setVersao] = useState(0);
-  useEffect(() => (amigoId ? ouvirPresencas(() => setVersao((v) => v + 1)) : undefined), [amigoId]);
+  // Só com a folha aberta: a fechar, o que se vê já não precisa de andar.
+  useEffect(() => (aberto ? ouvirPresencas(() => setVersao((v) => v + 1)) : undefined), [aberto]);
   // A barra anda sozinha enquanto a folha está aberta.
   const [relogio, setRelogio] = useState(0);
   useEffect(() => {
-    if (!amigoId) return;
+    if (!aberto) return;
     const id = setInterval(() => setRelogio((r) => r + 1), 1000);
     return () => clearInterval(id);
-  }, [amigoId]);
+  }, [aberto]);
 
   const [jam, setJam] = useState<string | null>(null);
   useEffect(() => {
@@ -129,7 +136,7 @@ export function FolhaDoAmigo() {
     }
   };
 
-  const visivel = !!amigoId && !!amigo && !!faixa;
+  const visivel = !!aberto && !!amigo && !!faixa;
   const { height } = useWindowDimensions();
   const corDoBotao = textoSobre(tema.color);
 
