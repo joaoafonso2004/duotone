@@ -386,7 +386,8 @@ export function injectDesktopDocumentStyles() {
   document.title = 'Duotone';
 }
 
-export function TitleBar() {
+/** `comPainel`: a seta do painel da Queue e das Lyrics só existe com a app aberta (no login não há painel). */
+export function TitleBar({ comPainel = false }: { comPainel?: boolean }) {
   const [maximized, setMaximized] = useState(false);
   useEffect(() => {
     const bridge = window.duotoneDesktop;
@@ -396,7 +397,7 @@ export function TitleBar() {
   return <View style={styles.titleBar as any} onDoubleClick={() => window.duotoneDesktop?.toggleMaximize()}>
     <View style={styles.titleBrand}><Image source={require('../../assets/auth-logo.png')} style={{ width: 22, height: 22 }} resizeMode="contain" /><Text style={styles.titleText}>Duotone</Text></View>
     <View style={styles.dragRegion as any} />
-    <SetaDoPainel />
+    {comPainel ? <SetaDoPainel /> : null}
     <View style={styles.windowButtons as any}>
       <Pressable accessibilityLabel="Minimize" onPress={() => window.duotoneDesktop?.minimize()} style={({ hovered }) => [styles.windowButton, hovered && styles.windowButtonHover]}><Ionicons name="remove-outline" size={17} color={desktop.muted} /></Pressable>
       <Pressable accessibilityLabel={maximized ? 'Restore' : 'Maximize'} onPress={() => window.duotoneDesktop?.toggleMaximize()} style={({ hovered }) => [styles.windowButton, hovered && styles.windowButtonHover]}><Ionicons name={maximized ? 'copy-outline' : 'square-outline'} size={13} color={desktop.muted} /></Pressable>

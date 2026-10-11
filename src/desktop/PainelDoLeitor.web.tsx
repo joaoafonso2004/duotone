@@ -75,26 +75,56 @@ export function PainelDoLeitor({ children, more, notify }: Pick<CommonPageProps,
   const abasRef = useRef<Array<any>>([]);
   const fechar = useCallback(() => {
     usePainelDoLeitor.getState().fechar();
-    // Espera a seta voltar à barra de título antes de lhe devolver o foco.
-    requestAnimationFrame(() => (document.getElementById(ID_DA_SETA) as HTMLElement | null)?.focus());
+    // Espera a seta voltar à barra de título antes de lhe devolver o foco. Sem
+    // deslizar nada: ver `focarSemDeslizar`.
+    requestAnimationFrame(() => focarSemDeslizar(document.getElementById(ID_DA_SETA)));
   }, []);
-  // Só se anima o `transform` (11/10). Animava-se a LARGURA da calha (0 <-> 340):
-  // a cada fotograma a página toda (a grelha, a fila) voltava a ser arrumada, e
-  // via-se a abrir e a fechar aos solavancos. Agora a página muda de largura UMA
-  // vez (ao abrir, logo; ao fechar, no fim) e o painel desliza por cima disso.
+  // A página reserva os 340 px (encostado) ou o painel fica por cima dela.
+  const [encostado, setEncostado] = useState(estado.aberto && !porCima);
+  // A página acabou de mudar de largura: aparece de 0,7 a 1 num instante, e a
+  // grelha a arrumar-se de novo não se vê como um salto.
+  const [assentar, setAssentar] = useState(false);
+  const encostadoRef = useRef(encostado);
+  const mudarLargura = (v: boolean) => {
+    if (encostadoRef.current === v) return;
+    encostadoRef.current = v;
+    setEncostado(v);
+    if (menosMovimento) return;
+    setAssentar(true);
+    requestAnimationFrame(() => requestAnimationFrame(() => setAssentar(false)));
+  };
+  /*
+   * Abrir e fechar (11/10, depois da 4.9.3: "abre, empurra tudo e dá teleport
+   * num frame"). Só se anima o `transform`; a página nunca muda de largura
+   * enquanto o painel se mexe:
+   *   - abrir: o painel desliza POR CIMA da página; quando chega, a página
+   *     encolhe por baixo dele (com o `assentar`), e o foco vai para o fechar;
+   *   - fechar: a página alarga logo, por baixo do painel, e ele desliza para
+   *     fora a destapá-la.
+   * Animar a largura (a 4.9.2) arrumava a página toda a cada fotograma.
+   */
   useEffect(() => {
+    const quadros: number[] = [];
+    const tempos: ReturnType<typeof setTimeout>[] = [];
     if (estado.aberto) {
       setConteudoMontado(true);
-      if (menosMovimento) { setNoSitio(true); return; }
-      let r2 = 0;
-      const r1 = requestAnimationFrame(() => { r2 = requestAnimationFrame(() => setNoSitio(true)); });
-      return () => { cancelAnimationFrame(r1); cancelAnimationFrame(r2); };
+      if (menosMovimento) {
+        setNoSitio(true);
+        mudarLargura(!porCima);
+        quadros.push(requestAnimationFrame(() => focarSemDeslizar(fecharRef.current)));
+      } else {
+        quadros.push(requestAnimationFrame(() => { quadros.push(requestAnimationFrame(() => setNoSitio(true))); }));
+        tempos.push(setTimeout(() => { mudarLargura(!porCima); focarSemDeslizar(fecharRef.current); }, DURACAO_DA_RECOLHA));
+      }
+    } else {
+      mudarLargura(false);
+      setNoSitio(false);
+      // O conteúdo fica até o painel acabar de sair.
+      tempos.push(setTimeout(() => setConteudoMontado(false), menosMovimento ? 0 : DURACAO_DA_RECOLHA));
     }
-    setNoSitio(false);
-    // O conteúdo fica até o painel acabar de sair; só depois a página alarga.
-    const t = setTimeout(() => setConteudoMontado(false), menosMovimento ? 0 : DURACAO_DA_RECOLHA);
-    return () => clearTimeout(t);
-  }, [estado.aberto, menosMovimento]);
+    return () => { quadros.forEach(cancelAnimationFrame); tempos.forEach(clearTimeout); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estado.aberto, menosMovimento, porCima]);
   useEffect(() => {
     if (!estado.aberto) return;
     const aoEscape = (e: KeyboardEvent) => {
@@ -106,25 +136,25 @@ export function PainelDoLeitor({ children, more, notify }: Pick<CommonPageProps,
     window.addEventListener('keydown', aoEscape);
     return () => window.removeEventListener('keydown', aoEscape);
   }, [estado.aberto, fechar]);
-  // Ao abrir (pela seta da barra de título), o foco vai para o fechar do painel.
-  useEffect(() => {
-    if (!estado.aberto) return;
-    const r = requestAnimationFrame(() => fecharRef.current?.focus());
-    return () => cancelAnimationFrame(r);
-  }, [estado.aberto]);
-  return <View style={s.area}>
-    <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>{children}</View>
-    {/* A calha anima a largura; lá dentro, as linhas mantêm os 340 px e não
-        voltam a quebrar a cada fotograma. Na janela estreita só desliza. */}
+  const porCimaAgora = !encostado;
+  // `overflow: clip`, e não `hidden`: um `hidden` ainda se deixa deslizar por
+  // código, e foi isso que empurrou a janela toda para a esquerda.
+  return <div style={{ display: 'flex', flexDirection: 'row', flex: '1 1 0%', minWidth: 0, minHeight: 0, position: 'relative', overflow: 'clip' }}>
+    <div style={{
+      display: 'flex', flexDirection: 'column', flex: '1 1 0%', minWidth: 0, minHeight: 0,
+      opacity: assentar ? 0.7 : 1, transition: assentar ? 'none' : 'opacity 220ms ease-out',
+    }}>{children}</div>
+    {/* Encostado (a página reserva o lugar) ou por cima dela. Na janela
+        estreita fica sempre por cima. */}
     <div id="painel-do-leitor" role="complementary" aria-label="Queue and lyrics" data-dt="painel-do-leitor"
       inert={!estado.aberto} aria-hidden={!estado.aberto} style={{
       display: 'flex', flexDirection: 'column', flexShrink: 0, minHeight: 0, overflow: 'hidden', zIndex: 30,
-      position: porCima ? 'absolute' : 'relative', right: porCima ? 0 : undefined,
-      top: porCima ? 0 : undefined, bottom: porCima ? 0 : undefined,
-      width: porCima || estado.aberto || conteudoMontado ? 340 : 0, maxWidth: '100%',
+      position: porCimaAgora ? 'absolute' : 'relative', right: porCimaAgora ? 0 : undefined,
+      top: porCimaAgora ? 0 : undefined, bottom: porCimaAgora ? 0 : undefined,
+      width: 340, maxWidth: '100%',
       transform: `translateX(${noSitio ? 0 : 100}%)`,
       pointerEvents: estado.aberto ? 'auto' : 'none',
-      boxShadow: porCima && estado.aberto ? '-16px 0 44px rgba(0,0,0,0.3)' : undefined,
+      boxShadow: porCimaAgora && noSitio ? '-16px 0 44px rgba(0,0,0,0.3)' : undefined,
     }}>
     {(estado.aberto || conteudoMontado) && <View style={[s.painel, porCima && { maxWidth: '100%' }]}>
       <View style={s.cabeca}>
@@ -158,11 +188,19 @@ export function PainelDoLeitor({ children, more, notify }: Pick<CommonPageProps,
       </View>
     </View>}
     </div>
-  </View>;
+  </div>;
+}
+
+/**
+ * Focar sem fazer deslizar nada. O `focus()` normal desliza os contentores
+ * para mostrar o elemento, e com o painel ainda fora do ecrã empurrava a
+ * janela inteira para a esquerda (a lateral desaparecia).
+ */
+function focarSemDeslizar(el: any) {
+  try { el?.focus?.({ preventScroll: true }); } catch { /* sem foco, continua */ }
 }
 
 const s = StyleSheet.create({
-  area: { flex: 1, minWidth: 0, minHeight: 0, flexDirection: 'row', position: 'relative' },
   painel: { flex: 1, width: 340, flexShrink: 0, minHeight: 0, borderLeftWidth: 1, borderLeftColor: COR.linhaSuave,
     backgroundColor: 'rgba(12,12,16,0.96)' },
   cabeca: { height: 58, paddingHorizontal: ESP.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
