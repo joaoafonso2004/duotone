@@ -70,7 +70,7 @@ h1{font-family:"Archivo",system-ui;font-size:28px;margin:0 0 8px;letter-spacing:
 <body>
 <div class="pagina">
   <h1>O topo do perfil, de novo</h1>
-  <p class="intro">Três direções para tudo o que está <b>acima do "Song of the moment"</b>. Em todas: <b>alinhado à esquerda</b>, e a página por baixo da capa <b>leva a cor da fotografia</b> (um degradê dela até ao fundo da app), em vez da zona preta. A cor sai da própria capa, como o destaque "Cover" sai da música. Rola dentro de cada telemóvel para ver a transição.</p>
+  <p class="intro"><b>v2:</b> sem aresta nenhuma entre a capa, a cor dela e o fundo (a foto desvanece por máscara sobre a cor, e a cor desce devagar), e a cara maior. Três direções para tudo o que está <b>acima do "Song of the moment"</b>. Em todas: <b>alinhado à esquerda</b>, e a página por baixo da capa <b>leva a cor da fotografia</b> (um degradê dela até ao fundo da app), em vez da zona preta. A cor sai da própria capa, como o destaque "Cover" sai da música. Rola dentro de cada telemóvel para ver a transição.</p>
 
   <div class="controlos">
     <div class="grupo" id="gCor"><span>Capa</span></div>
@@ -100,31 +100,38 @@ function resto() {
 const bio = () => (S.bio ? '<div class="bio">Sempre com o Duotone aberto. Rap tuga e Carti.</div>' : '');
 const botoesCima = '<div class="cimaBotoes"><i>💬</i><i>⚙︎</i><i>▮▮</i></div>';
 
+// A capa: a fotografia (com o filtro SÓ nela) e um escurecer em baixo para o
+// texto, as duas dentro de uma caixa que DESVANECE por máscara. Por trás, a cor
+// da capa (a .tinta) desce até ao fundo da app: não há aresta em lado nenhum.
+const capa = (c, altura, mascaraDesde, extra = '') => `
+  <div style="position:relative;height:${altura}px;-webkit-mask-image:linear-gradient(180deg,#000 0%,#000 ${mascaraDesde}%,transparent 100%);mask-image:linear-gradient(180deg,#000 0%,#000 ${mascaraDesde}%,transparent 100%);${extra}">
+    <div class="foto" style="position:absolute;inset:0;${c.foto}"></div>
+    <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.3) 0%,transparent 22%,transparent 50%,rgba(0,0,0,.28) 100%)"></div>
+  </div>`;
+const cara = (c, lado, anel = 'rgba(255,255,255,.9)') => `<div class="av" style="width:${lado}px;height:${lado}px;box-shadow:0 0 0 3px ${anel},0 8px 24px rgba(0,0,0,.35)"></div>`;
+
 const VARIANTES = [
   {
-    id: 'a', etq: 'A · A capa é o cabeçalho', tinta: [430, 520],
-    nota: '<b>A</b>: a fotografia ocupa o topo inteiro e o nome assenta <b>em cima dela</b>, em baixo à esquerda, grande, como numa página de artista. A cara pequena ao lado do nome. Não há "capa e depois o perfil": é uma peça só, e a cor dela continua pela página.',
+    id: 'a', etq: 'A · A capa é o cabeçalho', tinta: [0, 1150],
+    nota: '<b>A</b>: a fotografia ocupa o topo e <b>desvanece</b> na cor dela, que desce devagar até ao fundo da app. A cara (76 pt) e o nome grande ficam em cima da parte que já está a desvanecer, à esquerda. Uma peça só, sem arestas.',
     html: (c) => `
-      <div class="foto" style="height:430px;position:relative;${c.foto}">
-        <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.28) 0%,transparent 22%,transparent 48%,${rgba(c.cor, .55)} 74%,${rgba(c.cor, 1)} 100%)"></div>
-        <div style="position:absolute;left:18px;right:18px;bottom:18px">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><div class="av" style="width:34px;height:34px;box-shadow:0 0 0 2px rgba(255,255,255,.85)"></div><span class="at" style="color:rgba(255,255,255,.85)">@joao</span></div>
-          <div class="nome" style="font-size:46px;line-height:1">Joao</div>
-        </div>
-      </div>
-      <div style="padding:4px 18px 6px">
-        ${bio()}
+      ${capa(c, 470, 46)}
+      <div style="margin-top:-212px;padding:0 18px 6px">
+        ${cara(c, 76)}
+        <div class="nome" style="font-size:44px;line-height:1;margin-top:12px">Joao</div>
+        <div class="at" style="margin-top:4px">@joao</div>
+        <div style="margin-top:10px">${bio()}</div>
         <div style="display:flex;gap:8px;margin-top:14px"><span class="pilula">Edit profile</span></div>
       </div>`,
   },
   {
-    id: 'b', etq: 'B · Cartão com a cara a sair', tinta: [0, 760],
-    nota: '<b>B</b>: a capa num <b>cartão</b> com margens e cantos, a cara grande a sair do canto de baixo à esquerda. O nome, o @ e a bio por baixo, à esquerda; "Edit profile" ao lado do nome. A página por trás leva a cor da capa, e o cartão parece pousado nela.',
+    id: 'b', etq: 'B · Cartão com a cara a sair', tinta: [0, 1050],
+    nota: '<b>B</b>: a capa num <b>cartão</b> com cantos, pousado na cor dela, que desce até ao fundo. A cara grande sai do canto de baixo à esquerda; o nome, o @ e a bio por baixo, e "Edit profile" ao lado do nome.',
     html: (c) => `
       <div style="padding:96px 14px 6px">
-        <div class="foto" style="height:200px;border-radius:22px;${c.foto};box-shadow:0 18px 40px rgba(0,0,0,.35)"></div>
+        <div style="position:relative;height:200px;border-radius:22px;overflow:hidden;box-shadow:0 18px 40px rgba(0,0,0,.35)"><div class="foto" style="position:absolute;inset:0;${c.foto}"></div></div>
         <div style="padding:0 6px">
-          <div class="av" style="width:92px;height:92px;margin-top:-48px;position:relative;box-shadow:0 0 0 4px ${rgba(c.cor, 1)}"></div>
+          <div style="margin-top:-46px;position:relative">${cara(c, 92, rgba(c.cor, 1))}</div>
           <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin-top:10px">
             <div><div class="nome" style="font-size:30px">Joao</div><div class="at">@joao</div></div>
             <span class="pilula">Edit profile</span>
@@ -134,16 +141,14 @@ const VARIANTES = [
       </div>`,
   },
   {
-    id: 'c', etq: 'C · Capa curta, perfil ao lado', tinta: [230, 520],
-    nota: '<b>C</b>: a capa mais <b>baixa</b> (faixa de cima), e por baixo a cara à esquerda com o nome e o @ ao lado, como uma linha de contacto. Ocupa menos ecrã, e o Song of the moment aparece logo sem rolar.',
+    id: 'c', etq: 'C · Capa curta, perfil ao lado', tinta: [0, 950],
+    nota: '<b>C</b>: a capa mais <b>baixa</b>, a desvanecer na cor dela; por baixo, a cara (84 pt) à esquerda com o nome e o @ ao lado. Ocupa menos ecrã, e o Song of the moment aparece logo sem rolar.',
     html: (c) => `
-      <div class="foto" style="height:230px;${c.foto};position:relative">
-        <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.25) 0%,transparent 30%,transparent 55%,${rgba(c.cor, 1)} 100%)"></div>
-      </div>
-      <div style="padding:0 18px 6px">
-        <div style="display:flex;align-items:center;gap:14px;margin-top:-34px;position:relative">
-          <div class="av" style="width:78px;height:78px;box-shadow:0 0 0 3px ${rgba(c.cor, 1)}"></div>
-          <div style="min-width:0;padding-top:30px"><div class="nome" style="font-size:26px;line-height:1.1">Joao</div><div class="at">@joao</div></div>
+      ${capa(c, 290, 40)}
+      <div style="margin-top:-96px;padding:0 18px 6px;position:relative">
+        <div style="display:flex;align-items:flex-end;gap:14px">
+          ${cara(c, 84)}
+          <div style="min-width:0;padding-bottom:6px"><div class="nome" style="font-size:28px;line-height:1.05">Joao</div><div class="at">@joao</div></div>
         </div>
         <div style="margin-top:12px">${bio()}</div>
         <div style="display:flex;gap:8px;margin-top:14px"><span class="pilula">Edit profile</span></div>
@@ -170,7 +175,7 @@ function desenhar() {
         <div class="estado"><span>21:38</span><div class="ilha"></div><span style="font-size:11px">●●● ▮</span></div>
         ${botoesCima}
         <div class="rolo"><div class="conteudo">
-          <div class="tinta" style="top:${v.tinta[0]}px;height:${v.tinta[1]}px;background:linear-gradient(180deg,${rgba(c.cor, 1)} 0%,${rgba(c.cor, .62)} 35%,${rgba(c.cor, .22)} 70%,rgba(10,10,15,0) 100%)"></div>
+          <div class="tinta" style="top:${v.tinta[0]}px;height:${v.tinta[1]}px;background:linear-gradient(180deg,${rgba(c.cor, 1)} 0%,${rgba(c.cor, .9)} 30%,${rgba(c.cor, .62)} 48%,${rgba(c.cor, .34)} 66%,${rgba(c.cor, .14)} 82%,${rgba(c.cor, 0)} 100%)"></div>
           ${v.html(c)}${resto()}
         </div></div>
       </div>
