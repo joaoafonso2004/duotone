@@ -81,6 +81,8 @@ const sheet = load('src/components/BottomSheet.tsx', {
   // Os 120 Hz (3/10): aqui não há relógio para pedir.
   '../state/fluidez': { pedirFluidez() {}, segurarFluidez: () => () => {} },
   '../theme': { colors: {}, spacing: {}, radii: {} },
+  // O fundo das folhas (11/10) tem o seu teste (test-aparencia.ts).
+  './FundoDaFolha': { FundoDaFolha: 'FundoDaFolha' },
 });
 const mount = runtime.instance();
 // O `Modal` de sempre (o que fica dentro de outro `Modal`, ou sem sessão).

@@ -290,3 +290,24 @@ export function destinoDaOrigem(alvo: { tipo: string; id?: string | null; nome: 
   if (alvo.tipo === 'guardadas') return { tipo: 'gostadas' };
   return null;
 }
+
+/** O grafite das folhas com o fundo Dark: neutro, sem o azul do `surfaceHigh` (11/10). */
+export const GRAFITE_DAS_FOLHAS = '#1C1C1F';
+
+/**
+ * O fundo das folhas do iPhone (EQ, Queue, Share, ...), 11/10, maquete
+ * `docs/cor-das-folhas.html`. Eram todas do mesmo cinzento-azulado fixo.
+ *
+ * - Com o destaque pela capa ("Cover"), a capa desfocada e escurecida (a 5):
+ *   quem quer a app com a cor da música tem-na também aqui.
+ * - Senão, seguem o fundo da app: Dark dá o grafite (a 2), OLED dá preto com
+ *   uma linha fina em cima, para a folha se separar do que está por trás (a 3).
+ *
+ * `cor` é também a base por baixo da capa (enquanto ela não chega, ou sem música).
+ */
+export function fundoDasFolhas(fundoApp: Aparencia['fundoApp'], destaque: string): {
+  cor: string; linhaEmCima: boolean; capa: boolean;
+} {
+  const capa = destaque === 'cover';
+  return { cor: fundoApp === 'oled' ? '#000' : GRAFITE_DAS_FOLHAS, linhaEmCima: fundoApp === 'oled' && !capa, capa };
+}

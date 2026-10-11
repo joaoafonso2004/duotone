@@ -4,7 +4,8 @@ import { StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { folhaAberta, folhaSaiu, ouvirFolha } from '../state/folhasNativas';
-import { colors, spacing } from '../theme';
+import { spacing } from '../theme';
+import { FundoDaFolha } from '../components/FundoDaFolha';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Folha'>;
 
@@ -31,6 +32,7 @@ export function FolhaScreen({ route }: Props) {
     // O `GestureHandlerRootView` põe `flex: 1` quando não recebe estilo, e com
     // `fitToContents` a folha mede o conteúdo: tem de levar um estilo sem flex.
     <GestureHandlerRootView style={inteira ? styles.inteira : styles.medida}>
+      <FundoDaFolha />
       <View style={[styles.corpo, inteira && styles.inteira]}>{conteudo}</View>
     </GestureHandlerRootView>
   );
@@ -43,7 +45,6 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xl,
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.md,
-    backgroundColor: colors.surfaceHigh,
   },
   inteira: { flex: 1 },
   medida: { alignSelf: 'stretch' },

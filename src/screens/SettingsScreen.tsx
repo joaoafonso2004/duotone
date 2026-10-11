@@ -502,7 +502,7 @@ export function SettingsScreen({ navigation }: Props) {
           <Linha icone="list" rotulo="Presets" valor={String(presetsNaFila.length)} chevron aoTocar={() => setPresetsOpen(true)} />
         </Grupo>
 
-        <Grupo titulo="Appearance" rodape="Cover follows the artwork of whatever is playing.">
+        <Grupo titulo="Appearance" rodape="Cover follows the artwork of whatever is playing, and the sheets show it blurred.">
           <Linha
             icone="color-palette"
             rotulo={ROTULOS.acento}

@@ -29,6 +29,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { colors, radii, spacing, type } from '../theme';
 import { pedirFluidez, segurarFluidez } from '../state/fluidez';
+import { FundoDaFolha } from './FundoDaFolha';
 
 interface Props {
   visible: boolean;
@@ -249,6 +250,9 @@ function FolhaDoModal({ visible, onClose, children, gestureBlocked = false, bloq
               },
             ]}
           >
+            {/* O fundo segue o tema (11/10): o grafite, o preto do OLED, ou a
+                capa desfocada com o destaque pela capa. */}
+            <FundoDaFolha raio={radii.xl} />
             {/* A zona de agarrar é maior do que o traço que se vê. */}
             <View {...(Platform.OS === 'ios' ? {} : puxar.panHandlers)} style={styles.zonaDaPega}>
               <View style={styles.handle} />
@@ -274,7 +278,6 @@ const styles = StyleSheet.create({
   },
   sheet: {
     width: '100%',
-    backgroundColor: colors.surfaceHigh,
     borderTopLeftRadius: radii.xl,
     borderTopRightRadius: radii.xl,
     paddingTop: spacing.sm,

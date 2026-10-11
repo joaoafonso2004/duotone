@@ -4,7 +4,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { QueueSheet } from '../components/QueueSheet';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { accoesDaFila } from '../state/filaNativa';
-import { colors } from '../theme';
+import { FundoDaFolha } from '../components/FundoDaFolha';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Fila'>;
 
@@ -20,7 +20,9 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Fila'>;
 export function FilaScreen({ navigation }: Props) {
   const fechar = () => { if (navigation.canGoBack()) navigation.goBack(); };
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.surfaceHigh }}>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      {/* O fundo das folhas (11/10): segue o tema, como as outras. */}
+      <FundoDaFolha />
       <QueueSheet
         nativa
         visible

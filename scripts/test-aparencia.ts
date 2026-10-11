@@ -6,6 +6,7 @@ import {
   abrirJaNasLetras, alternarBotao, alternarSecao, alturaDaLinha, aplicarTema, BOTOES_DO_LEITOR, capaDoTema, destinoDaOrigem,
   ESTILOS_DA_CAPA, fonteDosTitulos, lerAparencia, MAXIMO_DE_BOTOES, moverSecao, NOMES_DAS_SECOES, olhoDaOrigem, ordemDasSecoes,
   PADRAO, SECOES_DA_HOME, secoesVisiveis, tamanhoDasLetras, TEMAS, temaDe, veuDoLeitor,
+  fundoDasFolhas, GRAFITE_DAS_FOLHAS,
 } from '../src/lib/aparencia.ts';
 import { coresDoGradiente, contraste, deHex } from '../src/lib/corDaCapa.ts';
 
@@ -133,6 +134,13 @@ assert.ok(cinza.every((c) => { const x = deHex(c); return Math.abs(x.r - x.g) <=
 assert.equal(coresDoGradiente(null), null);
 assert.equal(coresDoGradiente([]), null);
 
+// O fundo das folhas (11/10): com o destaque pela capa, a capa desfocada; senão segue o fundo da app.
+assert.deepEqual(fundoDasFolhas('dark', 'steel'), { cor: GRAFITE_DAS_FOLHAS, linhaEmCima: false, capa: false }, 'Dark: o grafite');
+assert.deepEqual(fundoDasFolhas('oled', 'steel'), { cor: '#000', linhaEmCima: true, capa: false }, 'OLED: preto com a linha');
+assert.deepEqual(fundoDasFolhas('dark', 'cover'), { cor: GRAFITE_DAS_FOLHAS, linhaEmCima: false, capa: true }, 'Cover: a capa desfocada');
+assert.deepEqual(fundoDasFolhas('oled', 'cover'), { cor: '#000', linhaEmCima: false, capa: true }, 'no OLED a base é preta');
+assert.notEqual(GRAFITE_DAS_FOLHAS.toLowerCase(), '#1d1d28', 'sem o azul de antes');
+
 // As linhas das listas e o fundo do leitor.
 assert.equal(alturaDaLinha('comfortable'), 68, 'a de sempre (TRACK_ROW_HEIGHT)');
 assert.equal(alturaDaLinha('compact'), 56);
@@ -196,6 +204,13 @@ assert.match(gradiente, /if \(!animar \|\| !aFrente \|\| reduzido\) return;/, 'o
 assert.match(gradiente, /pedirFluidez\(PASSAGEM_MS \+ 100\)/, 'os 120 Hz só na passagem das cores');
 assert.doesNotMatch(gradiente, /segurarFluidez/, 'e não durante a volta lenta (aquecia)');
 assert.match(ler('src/lib/capaFlutuante3D.ts'), /atual === 'full'\) return atual/, 'o Full guardado lê-se');
+const fundoDaFolha = ler('src/components/FundoDaFolha.tsx');
+assert.match(fundoDaFolha, /fundoDasFolhas\(fundoApp, destaque\)/, 'as folhas leem o fundo da app e o destaque');
+assert.doesNotMatch(fundoDaFolha, /from 'expo-blur'|positionMs/, 'o desfoque vem na imagem, e não lê a posição');
+assert.match(ler('src/components/BottomSheet.tsx'), /<FundoDaFolha raio=\{radii\.xl\} \/>/, 'o EQ, o Share e as outras');
+assert.doesNotMatch(ler('src/components/BottomSheet.tsx'), /backgroundColor: colors\.surfaceHigh/, 'sem o cinzento fixo');
+assert.match(ler('src/screens/FilaScreen.tsx'), /<FundoDaFolha \/>/, 'a fila');
+assert.match(ler('src/screens/FolhaScreen.tsx'), /<FundoDaFolha \/>/, 'as folhas nativas');
 assert.match(ler('src/state/aparencia.ts'), /useCapaIOS\.getState\(\)\.setStyle\(capaDoTema\(id\)\)/, 'o tema muda a capa');
 assert.doesNotMatch(ler('src/state/aparencia.ts'), /supabase|prefsSync/, 'fica no aparelho');
 console.log('Aparência: temas (com a capa), Custom, botões, Home, letras, títulos, gradiente e cada opção com quem a lê.');

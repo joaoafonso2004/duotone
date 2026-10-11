@@ -429,7 +429,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   nowPlayingCard: {
-    backgroundColor: colors.surfaceHigh,
+    // Translúcido (11/10): a folha pode ser grafite, preta ou a capa desfocada.
+    backgroundColor: 'rgba(255,255,255,0.06)',
     borderRadius: radii.md,
     borderCurve: 'continuous',
     overflow: 'hidden',

@@ -1,5 +1,6 @@
 import { useAtalhosDoIcone } from '../hooks/useAtalhosDoIcone';
 import { useAparencia } from '../state/aparencia';
+import { GRAFITE_DAS_FOLHAS } from '../lib/aparencia';
 import type { NavigatorScreenParams } from '@react-navigation/native';
 import { CommonActions } from '@react-navigation/native';
 import { rotaNoIphone, type Destino } from '../lib/destinos';
@@ -383,6 +384,8 @@ export function RootNavigator() {
   const session = useAuth((s) => s.session);
   const offlineUserId=useAuth(s=>s.offlineUserId);
   const fundoApp = useAparencia((s) => s.fundoApp);
+  // A base das folhas nativas, por baixo do FundoDaFolha (11/10): o grafite ou o preto do OLED.
+  const baseDasFolhas = fundoApp === 'oled' ? '#000' : GRAFITE_DAS_FOLHAS;
   const offline=useConnectivity(s=>s.offline);
   const initialized = useAuth((s) => s.initialized);
   const theme = useTheme((s) => s.destino);
@@ -473,7 +476,7 @@ export function RootNavigator() {
                   sheetAllowedDetents: [0.5, 1],
                   sheetGrabberVisible: true,
                   sheetExpandsWhenScrolledToEdge: true,
-                  contentStyle: { backgroundColor: colors.surfaceHigh },
+                  contentStyle: { backgroundColor: baseDasFolhas },
                 }}
               />
               {/* As outras folhas (4/10): o `BottomSheet` empurra esta rota no
@@ -486,7 +489,7 @@ export function RootNavigator() {
                   sheetAllowedDetents: route.params.detentes ?? 'fitToContents',
                   sheetGrabberVisible: true,
                   sheetExpandsWhenScrolledToEdge: route.params.detentes !== undefined && route.params.detentes !== 'fitToContents',
-                  contentStyle: { backgroundColor: colors.surfaceHigh },
+                  contentStyle: { backgroundColor: baseDasFolhas },
                 })}
               />
             </Stack.Navigator>
