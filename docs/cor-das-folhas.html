@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cor das folhas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono&display=swap" rel="stylesheet">
+<style>
+:root{--text:#F5F5F7;--t2:rgba(245,245,247,.62);--t3:rgba(245,245,247,.45);--sys:-apple-system,"SF Pro Text","Inter",system-ui,sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;background:#101014;color:var(--text);font-family:"Inter",system-ui,sans-serif}
+.pagina{max-width:1500px;margin:0 auto;padding:32px 16px 80px}
+h1{font-family:"Archivo",system-ui;font-size:28px;margin:0 0 8px;letter-spacing:-.4px}
+.intro{color:var(--t2);font-size:15px;line-height:1.6;max-width:940px;margin:0 0 18px}
+.controlos{display:flex;gap:18px;flex-wrap:wrap;margin:0 0 26px;align-items:center}
+.grupo{display:flex;gap:6px;align-items:center}
+.grupo span{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:1.4px;color:var(--t3);text-transform:uppercase;margin-right:4px}
+.grupo button{border:1px solid rgba(255,255,255,.14);background:transparent;color:var(--t2);border-radius:999px;padding:7px 13px;font:600 13px "Inter";cursor:pointer}
+.grupo button.on{background:#F5F5F7;color:#0A0A0F;border-color:#F5F5F7}
+.ecras{display:flex;gap:26px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+.coluna{display:flex;flex-direction:column;gap:10px;align-items:center;width:300px}
+.etq{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:1.5px;color:var(--t2);text-transform:uppercase}
+.nota{font-size:12.5px;line-height:1.5;color:var(--t2);text-align:center;min-height:56px}
+.nota b{color:var(--text)}
+
+.tel{width:300px;height:650px;border-radius:44px;position:relative;overflow:hidden;background:#0A0A0F;
+  box-shadow:0 0 0 8px #1b1b20,0 0 0 9px #2a2a31,0 24px 60px rgba(0,0,0,.6);font-family:var(--sys)}
+.estado{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 24px 0 30px;font-weight:600;font-size:13px;position:relative;z-index:3}
+.ilha{position:absolute;left:50%;top:9px;width:96px;height:28px;margin-left:-48px;border-radius:16px;background:#000}
+/* o leitor por trás */
+.fundo{position:absolute;inset:-30px;filter:blur(28px) saturate(1.1);opacity:.9}
+.veu{position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,10,15,.35),rgba(10,10,15,.8) 60%,#0A0A0F)}
+.cab{position:absolute;top:50px;left:0;right:0;display:flex;justify-content:space-between;padding:0 18px;color:var(--t2);font-size:16px;z-index:2}
+.marca{font-size:9px;letter-spacing:2.4px;color:var(--t2)}
+.capa{position:absolute;top:92px;left:22px;width:256px;height:256px;border-radius:12px;z-index:1}
+.escurecer{position:absolute;inset:0;background:rgba(0,0,0,.45);z-index:2}
+/* a folha */
+.folha{position:absolute;left:0;right:0;bottom:0;border-radius:22px 22px 0 0;z-index:4;padding:8px 16px 24px;transition:background .35s}
+.folha{overflow:hidden}
+.vidroFundo{position:absolute;inset:-50px;filter:blur(34px) saturate(1.15);z-index:-2}
+.vidroVeu{position:absolute;inset:0;background:linear-gradient(rgba(12,12,16,.55),rgba(12,12,16,.78));z-index:-1}
+.pega{width:36px;height:4px;border-radius:2px;background:rgba(255,255,255,.22);margin:0 auto 12px}
+.tit{font-size:19px;font-weight:700;letter-spacing:-.2px}
+.sub{font-size:11.5px;color:var(--t2);margin-top:2px}
+.rot{font-size:9.5px;font-weight:700;letter-spacing:1.2px;color:var(--t3)}
+.pilula{border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:4px 10px;font-size:11px;color:var(--t2);display:inline-block}
+.pilula.cheia{background:#F5F5F7;color:#0A0A0F;border-color:#F5F5F7;font-weight:600}
+.trilho{height:3px;border-radius:2px;background:rgba(255,255,255,.14);position:relative;margin:12px 0 6px}
+.trilho b{position:absolute;left:0;top:0;bottom:0;width:30%;background:#F5F5F7;border-radius:2px}
+.trilho i{position:absolute;left:30%;top:-6px;width:15px;height:15px;margin-left:-7px;border-radius:8px;background:#F5F5F7}
+.eq{border-radius:12px;height:120px;margin-top:10px;position:relative;overflow:hidden}
+.eq svg{position:absolute;inset:0}
+.cartao{display:flex;gap:10px;align-items:center;border-radius:12px;padding:8px;margin:10px 0}
+.cartao .mini{width:38px;height:38px;border-radius:5px}
+.pessoa{display:flex;gap:10px;align-items:center;padding:7px 2px}
+.pessoa .av{width:34px;height:34px;border-radius:17px;flex:none}
+.pessoa .n{font-size:13px;font-weight:600}
+.pessoa .u{font-size:11px;color:var(--t2)}
+.pessoa .m{margin-left:auto;width:19px;height:19px;border-radius:10px;border:1.5px solid rgba(245,245,247,.3)}
+.pessoa .m.on{background:#F5F5F7;border-color:#F5F5F7}
+.campo{border-radius:10px;height:34px;display:flex;align-items:center;padding:0 10px;font-size:12px;color:var(--t3);margin-top:8px}
+.baixo{display:flex;gap:8px;margin-top:10px}
+.baixo .campo{flex:1;margin:0}
+.botao{background:#F5F5F7;color:#0A0A0F;border-radius:10px;font-weight:700;font-size:12.5px;display:flex;align-items:center;padding:0 14px}
+.faixa{display:flex;gap:10px;align-items:center;padding:6px 0}
+.faixa .mini{width:36px;height:36px;border-radius:5px;flex:none}
+.faixa .n{font-size:13px;font-weight:600}
+.faixa .u{font-size:11px;color:var(--t2)}
+.faixa .pega2{margin-left:auto;color:var(--t3);font-size:14px}
+</style>
+</head>
+<body>
+<div class="pagina">
+  <h1>A cor das folhas (EQ, Queue, Share, …)</h1>
+  <p class="intro">Hoje todas as folhas do iPhone são do mesmo cinzento-azulado fixo (<code>#1D1D28</code>), com a personalização que for. Abaixo, a mesma folha em cinco versões, por cima do leitor. Escolhe a folha e a capa em cima: a capa escura é para ver o que acontece com uma capa sem cor, e a colorida para ver o tingido.</p>
+
+  <div class="controlos">
+    <div class="grupo" id="gFolha"><span>Folha</span></div>
+    <div class="grupo" id="gCapa"><span>Capa</span></div>
+  </div>
+
+  <div class="ecras" id="ecras"></div>
+</div>
+
+<script>
+const CAPAS = {
+  escura: { nome: 'Escura', arte: 'radial-gradient(60px 50px at 52% 46%,#c9c9c9 0 30%,transparent 70%),radial-gradient(40px 30px at 50% 42%,#a3262a,transparent 70%),linear-gradient(160deg,#4a4a4f,#2a2a2e 55%,#141416)', cor: [163, 38, 42] },
+  colorida: { nome: 'Colorida', arte: 'radial-gradient(110px 110px at 30% 35%,rgba(255,220,180,.55),transparent 70%),linear-gradient(135deg,#E07A3F 0%,#8a3b5e 45%,#1f4f7a 100%)', cor: [224, 122, 63] },
+};
+const FOLHAS = { eq: 'Equalizer', share: 'Share', fila: 'Queue' };
+const VARIANTES = [
+  { id: 'hoje', etq: 'Hoje', nota: 'O cinzento-azulado fixo. Não muda com nada.' },
+  { id: 'neutro', etq: 'Segue o fundo: Dark', nota: '<b>Dark</b>: um grafite neutro, sem o azul. Combina com o fundo da app de sempre.' },
+  { id: 'oled', etq: 'Segue o fundo: OLED', nota: '<b>OLED</b>: preto puro, com uma linha fina em cima para a folha se separar do leitor.' },
+  { id: 'tinto', etq: 'Tingida pela capa', nota: 'Um <b>toque</b> da cor da capa (15%) por cima do grafite. Numa capa sem cor fica como o Dark.' },
+  { id: 'vidro', etq: 'Capa desfocada', nota: 'A <b>capa desfocada</b> e escurecida, como o fundo do leitor. A folha "pertence" à música.' },
+];
+let S = { folha: 'eq', capa: 'colorida' };
+
+const hex = (r, g, b) => '#' + [r, g, b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
+const misturar = (a, b, t) => a.map((v, i) => v * (1 - t) + b[i] * t);
+const GRAFITE = [28, 28, 31];
+
+function fundoDaFolha(v) {
+  const c = CAPAS[S.capa];
+  if (v === 'hoje') return { bg: '#1D1D28', sup: 'rgba(255,255,255,.05)', borda: 'none' };
+  if (v === 'neutro') return { bg: '#1C1C1F', sup: 'rgba(255,255,255,.06)', borda: 'none' };
+  if (v === 'oled') return { bg: '#000', sup: 'rgba(255,255,255,.07)', borda: '1px solid rgba(255,255,255,.12)' };
+  if (v === 'tinto') {
+    const t = hex(...misturar(GRAFITE, c.cor, 0.15));
+    return { bg: t, sup: `rgba(${c.cor.join(',')},.12)`, borda: 'none' };
+  }
+  return { bg: 'transparent', sup: 'rgba(255,255,255,.08)', borda: 'none', vidro: true };
+}
+
+function conteudo(f, sup) {
+  const c = CAPAS[S.capa];
+  if (S.folha === 'eq') {
+    const pts = [44, 38, 30, 42, 47, 47, 47, 47, 30, 47];
+    const path = pts.map((y, i) => `${i ? 'L' : 'M'}${14 + i * 26} ${y + 30}`).join(' ');
+    return `<div class="tit">Equalizer</div><div class="sub">Saved for this song</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px"><span class="rot">SPEED</span><span style="font-size:12px;font-weight:600">0.95×</span></div>
+      <div class="trilho"><b></b><i></i></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px"><span class="rot">PRESETS</span><span class="pilula cheia">Save</span></div>
+      <div style="display:flex;gap:5px;margin-top:8px"><span class="pilula" style="color:#F5F5F7">Custom</span><span class="pilula">Flat</span><span class="pilula">Bass boost</span><span class="pilula">Top</span></div>
+      <div class="eq" style="background:${sup}"><svg viewBox="0 0 268 120" width="100%" height="100%">${pts.map((y, i) => `<line x1="${14 + i * 26}" y1="12" x2="${14 + i * 26}" y2="108" stroke="rgba(255,255,255,.08)" stroke-width="3" stroke-linecap="round"/>`).join('')}<path d="${path}" fill="none" stroke="#F5F5F7" stroke-width="1.5"/>${pts.map((y, i) => `<circle cx="${14 + i * 26}" cy="${y + 30}" r="5" fill="#F5F5F7"/>`).join('')}</svg></div>`;
+  }
+  if (S.folha === 'share') {
+    const pessoas = [['raton', '#5a6b7b', true], ['zyn', '#7b5a4a', true], ['ganzas', '#4a6b52', false], ['calito', '#6b5a7b', false]];
+    return `<div class="tit">Send to friends</div>
+      <div class="cartao" style="background:${sup}"><div class="mini" style="background:${c.arte}"></div><div><div class="rot">SONG</div><div style="font-size:13px;font-weight:700;margin-top:1px">wokeuplikethis*</div><div class="u" style="font-size:11px;color:var(--t2)">Playboi Carti</div></div></div>
+      <div class="campo" style="background:${sup}">⌕&nbsp; Search friends and groups</div>
+      <div class="rot" style="margin:10px 0 2px">RECENT</div>
+      ${pessoas.map(([n, cor, on]) => `<div class="pessoa"><div class="av" style="background:${cor}"></div><div><div class="n">${n}</div><div class="u">@${n}</div></div><div class="m ${on ? 'on' : ''}"></div></div>`).join('')}
+      <div class="baixo"><div class="campo" style="background:${sup}">Add a message (optional)</div><div class="botao">Send to 2</div></div>`;
+  }
+  const faixas = [['Punk Monk', 'Playboi Carti'], ['Sky', 'Playboi Carti'], ['Stop Breathing', 'Playboi Carti'], ['Lucid Dreams', 'Juice WRLD'], ['Mo Boy', 'Dillaz']];
+  return `<div class="tit">Queue</div>
+    <div class="rot" style="margin-top:12px">NOW PLAYING</div>
+    <div class="faixa"><div class="mini" style="background:${c.arte}"></div><div><div class="n">wokeuplikethis*</div><div class="u">Playboi Carti</div></div></div>
+    <div class="rot" style="margin-top:10px">UP NEXT</div>
+    ${faixas.map(([n, a], i) => `<div class="faixa"><div class="mini" style="background:hsl(${i * 70},35%,30%)"></div><div><div class="n">${n}</div><div class="u">${a}</div></div><div class="pega2">≡</div></div>`).join('')}`;
+}
+
+function desenhar() {
+  for (const [g, lista, chave] of [['gFolha', FOLHAS, 'folha'], ['gCapa', Object.fromEntries(Object.entries(CAPAS).map(([k, v]) => [k, v.nome])), 'capa']]) {
+    const el = document.getElementById(g);
+    el.querySelectorAll('button').forEach((b) => b.remove());
+    for (const [k, nome] of Object.entries(lista)) {
+      const b = document.createElement('button');
+      b.textContent = nome; b.className = S[chave] === k ? 'on' : '';
+      b.onclick = () => { S[chave] = k; desenhar(); };
+      el.appendChild(b);
+    }
+  }
+  const c = CAPAS[S.capa];
+  document.getElementById('ecras').innerHTML = VARIANTES.map((v) => {
+    const f = fundoDaFolha(v.id);
+    return `<div class="coluna"><div class="etq">${v.etq}</div>
+      <div class="tel">
+        <div class="fundo" style="background:${c.arte}"></div><div class="veu"></div>
+        <div class="estado"><span>01:27</span><div class="ilha"></div><span style="font-size:11px">●●● ▮</span></div>
+        <div class="cab"><span>⌄</span><span class="marca">DUOTONE</span><span>✕</span></div>
+        <div class="capa" style="background:${c.arte}"></div>
+        <div class="escurecer"></div>
+        <div class="folha" style="background:${f.bg};border-top:${f.borda}">
+          ${f.vidro ? `<div class="vidroFundo" style="background:${c.arte}"></div><div class="vidroVeu"></div>` : ''}
+          <div class="pega"></div>${conteudo(f, f.sup)}
+        </div>
+      </div>
+      <div class="nota">${v.nota}</div></div>`;
+  }).join('');
+}
+desenhar();
+</script>
+</body>
+</html>
