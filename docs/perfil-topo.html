@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>O topo do perfil</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono&display=swap" rel="stylesheet">
+<style>
+:root{--text:#F5F5F7;--t2:rgba(245,245,247,.62);--t3:rgba(245,245,247,.45);--sys:-apple-system,"SF Pro Text","Inter",system-ui,sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;background:#101014;color:var(--text);font-family:"Inter",system-ui,sans-serif}
+.pagina{max-width:1320px;margin:0 auto;padding:32px 16px 80px}
+h1{font-family:"Archivo",system-ui;font-size:28px;margin:0 0 8px;letter-spacing:-.4px}
+.intro{color:var(--t2);font-size:15px;line-height:1.6;max-width:920px;margin:0 0 18px}
+.intro b{color:var(--text)}
+.controlos{display:flex;gap:16px;flex-wrap:wrap;margin:0 0 24px;align-items:center}
+.grupo{display:flex;gap:6px;align-items:center}
+.grupo span{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:1.4px;color:var(--t3);text-transform:uppercase;margin-right:4px}
+.grupo button{border:1px solid rgba(255,255,255,.14);background:transparent;color:var(--t2);border-radius:999px;padding:7px 13px;font:600 13px "Inter";cursor:pointer}
+.grupo button.on{background:#F5F5F7;color:#0A0A0F;border-color:#F5F5F7}
+.ecras{display:flex;gap:28px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+.coluna{display:flex;flex-direction:column;gap:10px;align-items:center;width:340px}
+.etq{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:1.5px;color:var(--t2);text-transform:uppercase}
+.nota{font-size:13px;line-height:1.55;color:var(--t2);text-align:left;min-height:90px}
+.nota b{color:var(--text)}
+
+.tel{width:340px;height:736px;border-radius:46px;position:relative;overflow:hidden;background:#0A0A0F;
+  box-shadow:0 0 0 9px #1b1b20,0 0 0 10px #2a2a31,0 24px 60px rgba(0,0,0,.6);font-family:var(--sys)}
+.rolo{position:absolute;inset:0;overflow-y:auto;scrollbar-width:none}
+.rolo::-webkit-scrollbar{display:none}
+.conteudo{position:relative}
+.tinta{position:absolute;left:0;right:0;top:0;pointer-events:none}
+.conteudo > *:not(.tinta){position:relative}
+.estado{position:absolute;top:0;left:0;right:0;height:46px;display:flex;align-items:center;justify-content:space-between;padding:0 26px 0 32px;font-weight:600;font-size:14px;z-index:5;text-shadow:0 1px 6px rgba(0,0,0,.4)}
+.ilha{position:absolute;left:50%;top:10px;width:106px;height:30px;margin-left:-53px;border-radius:17px;background:#000}
+.cimaBotoes{position:absolute;top:52px;right:14px;display:flex;gap:8px;z-index:5}
+.cimaBotoes i{width:36px;height:36px;border-radius:18px;background:rgba(10,10,15,.42);display:grid;place-items:center;font-style:normal;font-size:15px;backdrop-filter:blur(8px)}
+
+/* a "fotografia" (o cão no sofá, em tons quentes) */
+.foto{background:
+  radial-gradient(70px 55px at 52% 58%,#2a1a10 0 40%,transparent 72%),
+  radial-gradient(130px 90px at 50% 55%,#8a5a35 0 45%,transparent 75%),
+  radial-gradient(160px 70px at 50% 92%,#d9d2c8 0 50%,transparent 80%),
+  radial-gradient(120px 120px at 20% 30%,#6b6660 0 30%,transparent 70%),
+  linear-gradient(160deg,#8d8780 0%,#5f5a55 45%,#3b3632 100%)}
+.av{border-radius:50%;background:radial-gradient(18px 22px at 50% 42%,#c79a7a 0 45%,transparent 70%),radial-gradient(28px 20px at 50% 85%,#2a2a30 0 55%,transparent 75%),linear-gradient(160deg,#5d6672,#2f3540);flex:none}
+.nome{font-family:"Archivo",var(--sys);font-weight:800;letter-spacing:-.6px}
+.at{color:var(--t2);font-size:14px}
+.bio{font-size:14.5px;line-height:1.45;color:var(--text)}
+.pilula{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 16px;border-radius:17px;font-size:13.5px;font-weight:600;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06)}
+.pilula.cheia{background:#F5F5F7;color:#0A0A0F;border-color:#F5F5F7}
+.momento{padding:18px 18px 8px}
+.momento .r{font-size:12.5px;color:var(--t2);margin-bottom:10px}
+.mlinha{display:flex;align-items:center;gap:12px}
+.mlinha i{width:56px;height:56px;border-radius:8px;flex:none;background:linear-gradient(135deg,#3a5a3a,#7a6a40 50%,#2a3a2a)}
+.mlinha .t{font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mlinha .a{font-size:13px;color:var(--t2);margin-top:2px}
+.mlinha .play{width:40px;height:40px;border-radius:20px;background:#F5F5F7;color:#0A0A0F;display:grid;place-items:center;font-size:13px;flex:none;margin-left:auto}
+.seccao{padding:22px 18px}
+.seccao h3{font-family:"Archivo",var(--sys);font-size:21px;margin:0 0 12px}
+.pl{display:flex;align-items:center;gap:12px;padding:6px 0}
+.pl i{width:48px;height:48px;border-radius:6px;flex:none}
+.pl b{font-size:15px;font-weight:600;display:block}
+.pl em{font-style:normal;font-size:12.5px;color:var(--t2)}
+.stats{display:flex;gap:18px;margin-top:12px;font-size:13px;color:var(--t2)}
+.stats b{color:var(--text);font-weight:700;margin-right:3px}
+</style>
+</head>
+<body>
+<div class="pagina">
+  <h1>O topo do perfil, de novo</h1>
+  <p class="intro">Três direções para tudo o que está <b>acima do "Song of the moment"</b>. Em todas: <b>alinhado à esquerda</b>, e a página por baixo da capa <b>leva a cor da fotografia</b> (um degradê dela até ao fundo da app), em vez da zona preta. A cor sai da própria capa, como o destaque "Cover" sai da música. Rola dentro de cada telemóvel para ver a transição.</p>
+
+  <div class="controlos">
+    <div class="grupo" id="gCor"><span>Capa</span></div>
+    <div class="grupo" id="gBio"><span>Bio</span></div>
+  </div>
+
+  <div class="ecras" id="ecras"></div>
+</div>
+
+<script>
+const CORES = {
+  quente: { nome: 'Cão (quente)', cor: [118, 96, 78], foto: '' },
+  fria: { nome: 'Fria (azul)', cor: [52, 84, 128], foto: 'filter:hue-rotate(185deg) saturate(1.3)' },
+  escura: { nome: 'Escura', cor: [46, 44, 52], foto: 'filter:brightness(.55) saturate(.6)' },
+};
+let S = { cor: 'quente', bio: true };
+const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+
+function resto() {
+  return `
+  <div class="momento"><div class="r">Song of the moment</div>
+    <div class="mlinha"><i></i><div style="min-width:0;flex:1"><div class="t">wokeuplikethis* (feat. Lil Uzi…</div><div class="a">Playboi Carti</div></div><span class="play">▶</span><span style="color:var(--t2);margin-left:4px">•••</span></div></div>
+  <div class="seccao"><h3>Your playlists</h3>
+    ${['bangers insanos · 21 tracks', 'Whole Lotta Red · 24 tracks', 'Rap tuga · 140 tracks', 'Juice WRLD · 30 tracks'].map((x, i) => `<div class="pl"><i style="background:linear-gradient(135deg,hsl(${i * 80 + 300},40%,40%),#151519)"></i><div><b>${x.split(' · ')[0]}</b><em>${x.split(' · ')[1]}</em></div></div>`).join('')}
+  </div>`;
+}
+const bio = () => (S.bio ? '<div class="bio">Sempre com o Duotone aberto. Rap tuga e Carti.</div>' : '');
+const botoesCima = '<div class="cimaBotoes"><i>💬</i><i>⚙︎</i><i>▮▮</i></div>';
+
+const VARIANTES = [
+  {
+    id: 'a', etq: 'A · A capa é o cabeçalho', tinta: [430, 520],
+    nota: '<b>A</b>: a fotografia ocupa o topo inteiro e o nome assenta <b>em cima dela</b>, em baixo à esquerda, grande, como numa página de artista. A cara pequena ao lado do nome. Não há "capa e depois o perfil": é uma peça só, e a cor dela continua pela página.',
+    html: (c) => `
+      <div class="foto" style="height:430px;position:relative;${c.foto}">
+        <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.28) 0%,transparent 22%,transparent 48%,${rgba(c.cor, .55)} 74%,${rgba(c.cor, 1)} 100%)"></div>
+        <div style="position:absolute;left:18px;right:18px;bottom:18px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><div class="av" style="width:34px;height:34px;box-shadow:0 0 0 2px rgba(255,255,255,.85)"></div><span class="at" style="color:rgba(255,255,255,.85)">@joao</span></div>
+          <div class="nome" style="font-size:46px;line-height:1">Joao</div>
+        </div>
+      </div>
+      <div style="padding:4px 18px 6px">
+        ${bio()}
+        <div style="display:flex;gap:8px;margin-top:14px"><span class="pilula">Edit profile</span></div>
+      </div>`,
+  },
+  {
+    id: 'b', etq: 'B · Cartão com a cara a sair', tinta: [0, 760],
+    nota: '<b>B</b>: a capa num <b>cartão</b> com margens e cantos, a cara grande a sair do canto de baixo à esquerda. O nome, o @ e a bio por baixo, à esquerda; "Edit profile" ao lado do nome. A página por trás leva a cor da capa, e o cartão parece pousado nela.',
+    html: (c) => `
+      <div style="padding:96px 14px 6px">
+        <div class="foto" style="height:200px;border-radius:22px;${c.foto};box-shadow:0 18px 40px rgba(0,0,0,.35)"></div>
+        <div style="padding:0 6px">
+          <div class="av" style="width:92px;height:92px;margin-top:-48px;position:relative;box-shadow:0 0 0 4px ${rgba(c.cor, 1)}"></div>
+          <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin-top:10px">
+            <div><div class="nome" style="font-size:30px">Joao</div><div class="at">@joao</div></div>
+            <span class="pilula">Edit profile</span>
+          </div>
+          <div style="margin-top:10px">${bio()}</div>
+        </div>
+      </div>`,
+  },
+  {
+    id: 'c', etq: 'C · Capa curta, perfil ao lado', tinta: [230, 520],
+    nota: '<b>C</b>: a capa mais <b>baixa</b> (faixa de cima), e por baixo a cara à esquerda com o nome e o @ ao lado, como uma linha de contacto. Ocupa menos ecrã, e o Song of the moment aparece logo sem rolar.',
+    html: (c) => `
+      <div class="foto" style="height:230px;${c.foto};position:relative">
+        <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.25) 0%,transparent 30%,transparent 55%,${rgba(c.cor, 1)} 100%)"></div>
+      </div>
+      <div style="padding:0 18px 6px">
+        <div style="display:flex;align-items:center;gap:14px;margin-top:-34px;position:relative">
+          <div class="av" style="width:78px;height:78px;box-shadow:0 0 0 3px ${rgba(c.cor, 1)}"></div>
+          <div style="min-width:0;padding-top:30px"><div class="nome" style="font-size:26px;line-height:1.1">Joao</div><div class="at">@joao</div></div>
+        </div>
+        <div style="margin-top:12px">${bio()}</div>
+        <div style="display:flex;gap:8px;margin-top:14px"><span class="pilula">Edit profile</span></div>
+      </div>`,
+  },
+];
+
+function desenhar() {
+  for (const [g, lista, chave] of [['gCor', Object.fromEntries(Object.entries(CORES).map(([k, v]) => [k, v.nome])), 'cor'], ['gBio', { true: 'Com bio', false: 'Sem bio' }, 'bio']]) {
+    const el = document.getElementById(g);
+    el.querySelectorAll('button').forEach((b) => b.remove());
+    for (const [k, nome] of Object.entries(lista)) {
+      const b = document.createElement('button');
+      const v = chave === 'bio' ? k === 'true' : k;
+      b.textContent = nome; b.className = S[chave] === v ? 'on' : '';
+      b.onclick = () => { S[chave] = v; desenhar(); };
+      el.appendChild(b);
+    }
+  }
+  const c = CORES[S.cor];
+  document.getElementById('ecras').innerHTML = VARIANTES.map((v) => `
+    <div class="coluna"><div class="etq">${v.etq}</div>
+      <div class="tel">
+        <div class="estado"><span>21:38</span><div class="ilha"></div><span style="font-size:11px">●●● ▮</span></div>
+        ${botoesCima}
+        <div class="rolo"><div class="conteudo">
+          <div class="tinta" style="top:${v.tinta[0]}px;height:${v.tinta[1]}px;background:linear-gradient(180deg,${rgba(c.cor, 1)} 0%,${rgba(c.cor, .62)} 35%,${rgba(c.cor, .22)} 70%,rgba(10,10,15,0) 100%)"></div>
+          ${v.html(c)}${resto()}
+        </div></div>
+      </div>
+      <div class="nota">${v.nota}</div></div>`).join('');
+}
+desenhar();
+</script>
+</body>
+</html>
