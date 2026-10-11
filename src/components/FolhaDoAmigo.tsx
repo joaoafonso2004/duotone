@@ -145,15 +145,23 @@ export function FolhaDoAmigo() {
       {amigo && faixa ? (
         <BottomSheetScrollView style={{ maxHeight: height * 0.82 }} contentContainerStyle={{ gap: spacing.md }}
           showsVerticalScrollIndicator={false}>
-          <Toque escala={ESCALA.cartao} onPress={() => fecharE(() => irPara({ tipo: 'perfil', userId: amigo.friendId }))}
-            accessibilityRole="button" accessibilityLabel={`View ${nome}`} style={styles.quem}>
-            <FriendAvatar avatarUrl={amigo.avatarUrl} name={nome} size={28} />
-            <Text numberOfLines={1} style={styles.quemTexto}>
-              <Text style={{ color: colors.text, fontWeight: '700' }}>{nome}</Text>
-              {aOuvir ? ' is listening' : ` · ${actividade ? musicActivityLabel(actividade, agora) : ''}`}
-            </Text>
-            {aOuvir ? <View style={styles.ponto} /> : null}
-          </Toque>
+          {/* A mensagem fica em cima, ao lado de quem (11/10: no fundo da folha ninguém a via). */}
+          <View style={styles.topo}>
+            <Toque escala={ESCALA.cartao} onPress={() => fecharE(() => irPara({ tipo: 'perfil', userId: amigo.friendId }))}
+              accessibilityRole="button" accessibilityLabel={`View ${nome}`} style={styles.quem}>
+              <FriendAvatar avatarUrl={amigo.avatarUrl} name={nome} size={28} />
+              <Text numberOfLines={1} style={styles.quemTexto}>
+                <Text style={{ color: colors.text, fontWeight: '700' }}>{nome}</Text>
+                {aOuvir ? ' is listening' : ` · ${actividade ? musicActivityLabel(actividade, agora) : ''}`}
+              </Text>
+              {aOuvir ? <View style={styles.ponto} /> : null}
+            </Toque>
+            <Toque escala={ESCALA.botao} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Message ${nome}`}
+              onPress={() => fecharE(() => irPara({ tipo: 'conversa', kind: 'friend', id: amigo.friendId }))} style={styles.mensagem}>
+              <Ionicons name="chatbubble-outline" size={14} color={colors.text} />
+              <Text style={styles.mensagemTexto}>Message</Text>
+            </Toque>
+          </View>
 
           {capa ? <Image source={{ uri: capa }} style={styles.capa} contentFit="cover" transition={200} cachePolicy="memory-disk" />
             : <View style={[styles.capa, styles.semCapa]}><Ionicons name="musical-notes" size={40} color={colors.textTertiary} /></View>}
@@ -231,12 +239,6 @@ export function FolhaDoAmigo() {
               })}
             </View>
           ) : null}
-
-          <Toque escala={ESCALA.botao} accessibilityRole="button"
-            onPress={() => fecharE(() => irPara({ tipo: 'conversa', kind: 'friend', id: amigo.friendId }))} style={styles.mensagem}>
-            <Ionicons name="chatbubble-outline" size={15} color={colors.textSecondary} />
-            <Text style={styles.mensagemTexto}>Message {nome}</Text>
-          </Toque>
         </BottomSheetScrollView>
       ) : null}
     </BottomSheet>
@@ -244,7 +246,8 @@ export function FolhaDoAmigo() {
 }
 
 const styles = StyleSheet.create({
-  quem: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, alignSelf: 'flex-start', maxWidth: '100%' },
+  topo: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  quem: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 1 },
   quemTexto: { ...type.caption, flexShrink: 1 },
   ponto: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.online },
   capa: { width: 220, height: 220, borderRadius: 16, borderCurve: 'continuous', alignSelf: 'center', backgroundColor: colors.surfaceHigh },
@@ -275,6 +278,9 @@ const styles = StyleSheet.create({
   seccao: { ...type.caption, color: colors.textTertiary, fontWeight: '600', marginBottom: 2 },
   proxima: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: 5 },
   miniCapa: { width: 36, height: 36, borderRadius: 6, backgroundColor: colors.surfaceHigh },
-  mensagem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: spacing.sm },
-  mensagemTexto: { ...type.caption },
+  mensagem: {
+    marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingHorizontal: 12,
+    borderRadius: 16, borderCurve: 'continuous', backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  mensagemTexto: { fontSize: 13, fontWeight: '600', color: colors.text },
 });

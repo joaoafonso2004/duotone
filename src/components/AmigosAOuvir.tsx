@@ -56,7 +56,10 @@ const LARGURA = 112;
  * "online" no resto da app -- nos chats, na folha da sessão -- para que a cor
  * queira dizer a mesma coisa em todo o lado.
  */
-export function AmigosAOuvir() {
+export function AmigosAOuvir({ margem = spacing.xl }: {
+  /** A margem da página onde vive: a Home usa a de sempre; o Social a dele (11/10). */
+  margem?: number;
+} = {}) {
   const { irPara } = useDestinos();
   // O selector devolve o que está na store, sem construir nada: um array novo
   // a cada leitura punha o `useSyncExternalStore` num ciclo -- já aconteceu
@@ -106,7 +109,7 @@ export function AmigosAOuvir() {
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.fila}
+      contentContainerStyle={[styles.fila, { paddingHorizontal: margem }]}
       style={styles.caixa}
     >
       {online.map((amigo) => {

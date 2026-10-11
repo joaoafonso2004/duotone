@@ -21,7 +21,7 @@ export function SocialScreen() {
   // e começar uma conversa nova -- é lá dentro que se adiciona um amigo.
   return <Screen title="Social" right={<View style={{flexDirection:'row',gap:4}}>
       <SocialIconButton label={procurar?'Close search':'Search friends and groups'} icon={procurar?'close':'search'} onPress={()=>setProcurar(p=>!p)}/>
-      <SocialIconButton label="New chat" icon="create-outline" onPress={()=>setNovaConversa(true)}/>
+      <SocialIconButton label="New chat" icon="add" onPress={()=>setNovaConversa(true)}/>
     </View>}
     onBack={()=>irPara({tipo:'perfil'})} encolhe={cab}>
     <SocialHub cabecalho={cab} novaConversa={{aberta:novaConversa,definir:setNovaConversa}} procurar={procurar} visible={focused}/>

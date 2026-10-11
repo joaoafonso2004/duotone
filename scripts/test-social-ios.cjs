@@ -86,8 +86,10 @@ assert.doesNotMatch(fonte, /PanGestureHandler|PanResponder|Swipeable/, 'sem gest
 assert.doesNotMatch(fonte, /previewText\(/, 'a pré-visualização é a previaDaConversa');
 assert.doesNotMatch(ler('src/components/SocialOverview.web.tsx'), /previewText\(/, 'também no PC');
 const fila = ler('src/components/OuvirAgora.tsx');
-assert.match(fila, /abrirFolhaDoAmigo\(a\.friendId\)/, 'tocar num amigo abre a folha dele');
-assert.match(fila, /useTheme/, 'o anel segue a cor do tema (que só segue a da capa com a opção ligada)');
+// 11/10: o "Listening now" do Social é a mesma fila da Home (era a das notas, com balões).
+assert.match(fila, /<AmigosAOuvir margem=\{gutter\} \/>/, 'a mesma fila da Home');
+assert.doesNotMatch(fila, /function Nota\(/, 'a fila das notas saiu');
+assert.match(fila, /<JamsDosAmigos amigos=\{comMusica\} \/>/, 'as Jams dos amigos continuam por baixo');
 assert.match(ler('src/components/AmigosAOuvir.tsx'), /amigo\.musicActivity\s*\?\s*abrirFolhaDoAmigo\(amigo\.friendId\)/,
   'na Home, um amigo a ouvir abre a mesma folha');
 assert.match(ler('src/navigation/RootNavigator.tsx'), /<FolhaDoAmigo \/>/, 'a folha está montada uma vez no iPhone');
@@ -95,6 +97,10 @@ assert.match(ler('src/navigation/RootNavigator.tsx'), /<FolhaDoAmigo \/>/, 'a fo
 const folhaDoAmigo = ler('src/components/FolhaDoAmigo.tsx');
 assert.match(folhaDoAmigo, /const amigoId = aberto \?\? ultimoRef\.current;/, 'o último amigo fica à vista enquanto a folha desce');
 assert.match(folhaDoAmigo, /const visivel = !!aberto && /, 'fechar é o id a null, não o conteúdo a desaparecer');
+// 11/10: o Message sobe para o topo, ao lado de quem; no fundo da folha ninguém o via.
+assert.ok(folhaDoAmigo.indexOf('accessibilityLabel={`Message ${nome}`}') > 0
+  && folhaDoAmigo.indexOf('accessibilityLabel={`Message ${nome}`}') < folhaDoAmigo.indexOf('<Image source={{ uri: capa }}'), 'o Message está por cima da capa');
+assert.match(ler('src/screens/SocialScreen.tsx'), /label="New chat" icon="add"/, 'conversa nova é um +, não a caneta');
 // A conversa (fase 2).
 const hub = ler('src/components/SocialHub.tsx');
 assert.doesNotMatch(hub, /aOuvir=\{friend\.currentlyPlaying\?\.title/, 'o cabeçalho já não recebe o título cru');
