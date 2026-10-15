@@ -144,7 +144,7 @@ assert.equal(acertoNoPrimeiroSom(3400, NaN, 600), null, 'sem leitura do motor nÃ
   assert.match(pc, /comecarAlinhamento\(p, track\.sourceId\);/, 'e calado');
   assert.match(pc, /acertoNoPrimeiroSom\(posicaoNaSala\(faixaRef\.current\), motorMs, TOLERANCIA_MS\)/, 'acerta no primeiro som');
   assert.match(pc, /PRAZO_DO_ALINHAMENTO_MS = 10_000/, 'nunca fica calado para sempre');
-  assert.match(pc, /soltarAlinhamento\(\);\n    try \{ p\.unMute/, 'outra faixa solta o alinhamento da anterior');
+  assert.match(pc, /soltarAlinhamento\(\);\r?\n    try \{ p\.unMute/, 'outra faixa solta o alinhamento da anterior');
 }
 let vigente = true;
 const porta = { player: usePlayer.getState, vigente: () => vigente,
