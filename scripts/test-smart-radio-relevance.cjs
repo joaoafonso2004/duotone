@@ -57,5 +57,22 @@ const {fetchRadioTracks}=load('src/api/radio.ts',{
   result=await fetchRadioTracks([current],[current],10,remembered);
   assert.deepEqual(result.map(t=>t.sourceId).sort(),['rel-1','rel-2'],'automatic: a short related batch, a remembered related one before any other genre');
   assert.equal(flowCalls,0);
+  // 15/10: what was heard in the last 24 h never comes back -- library songs included -- and
+  // when repeating is the only way out, the one heard longest ago goes first.
+  const now=Date.now(),hour=60*60*1000;
+  const heardMap=(pairs)=>{const m=new Map();for(const [tr,at] of pairs)for(const k of identity.chavesDaMusica(tr))m.set(k,at);return m;};
+  const fresh=t('fresh-2','Never heard','Other related'),justHeard=t('just-heard','Heard an hour ago','Other related'),
+    yesterday=t('yesterday','Heard two days ago','Third related'),oldest=t('oldest','Heard a week ago','Fourth related');
+  discovered=[justHeard,fresh,yesterday];
+  result=await fetchRadioTracks([current],[current],10,new Set(),'session',heardMap([[justHeard,now-hour],[yesterday,now-48*hour]]));
+  assert.deepEqual(result.map(t=>t.sourceId).sort(),['fresh-2','yesterday'],'heard an hour ago stays out; two days ago is fresh again');
+  discovered=[justHeard,oldest];
+  result=await fetchRadioTracks([current],[current],10,new Set(),'automatic',heardMap([[justHeard,now-hour],[oldest,now-20*hour]]));
+  assert.deepEqual(result.map(t=>t.sourceId),['oldest','just-heard'],'last resort: repeats, the one heard longest ago first');
+  // The song radio asks more than one seed when the first one runs dry.
+  discovered=[];page=[];songRadio=[];radioCalls.length=0;
+  const s1=t('aaaaaaaaaa1','One','Isak'),s2=t('aaaaaaaaaa2','Two','Isak'),s3=t('aaaaaaaaaa3','Three','Isak'),s4=t('aaaaaaaaaa4','Four','Isak');
+  await fetchRadioTracks([s1,s2,s3,s4],[s1,s2,s3,s4],10,new Set(),'session');
+  assert.deepEqual(radioCalls,['RDAMVMaaaaaaaaaa1','RDAMVMaaaaaaaaaa2','RDAMVMaaaaaaaaaa3'],'up to three seeds, one request each, only while short');
   console.log('Smart continuation: strict context, no repeated uploads, short batches and no global fallback passed.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

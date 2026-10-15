@@ -26,6 +26,8 @@ function reset(){
     autoplayRadio:true,shuffle:true,shuffleInteligente:false,shuffleOrder:queue.map(t=>`${t.source}:${t.sourceId}`),
     _yt:{pause:()=>{pauses++;},play:()=>{plays++;},seekTo:()=>{seeks++;}}} as any);
   controlo.radio=[track('radio1'),track('radio2')];
+  // O histórico do aparelho (15/10): uma ouvida há uma hora.
+  controlo.ouvidasNoAparelho=[{source:'youtube',sourceId:'ouvida-ha-pouco',title:'Telescópio',artist:'Isak',artworkUrl:null,durationSeconds:60,count:3,lastPlayed:Date.now()-60*60*1000}];
   pauses=plays=seeks=0;
 }
 const pending=()=>{let resolve!:(ts:Track[])=>void;const promise=new Promise<Track[]>(r=>{resolve=r;});controlo.radioPendentes.push(promise);return resolve;};
@@ -86,17 +88,38 @@ try{
   for(let position=1_000;position<=31_000;position+=1_000){time+=1_000;usePlayer.getState()._setProgress(position,60_000);}
   assert.deepEqual(usePlayer.getState().radioListeningSession?.tracks.map(t=>t.sourceId),['audible']);
 }finally{Date.now=now;}
-// O Radio não acaba (5/10): com as âncoras secas, tenta sem a memória de 30 dias.
+// O Radio não acaba (5/10): com as âncoras secas, tenta outras sementes.
+// 15/10: CAMINHA primeiro com a memória (era largá-la logo à segunda, e as
+// descobertas de há dias voltavam numa tarde de Radio), larga-a depois, e só
+// no fim aceita repetidas.
 reset();
 assert.equal(await usePlayer.getState().startRadio(),true);
+assert.ok((controlo.radioOuvidas?.size ?? 0)>0 && [...controlo.radioOuvidas!.values()].every(v=>v<Date.now()),
+  'o Radio recebe o que se ouviu (o histórico do aparelho), para não o repor');
 controlo.radioPendentes.push(Promise.resolve([]));
 controlo.radio=[track('more','Holly Hood')];
-const chamadasAntes=controlo.chamadas.radio;
+let chamadasAntes=controlo.chamadas.radio;
 assert.equal(await usePlayer.getState().extendQueueWithRadio(),true,'um lote vazio não acaba o Radio');
 assert.equal(controlo.chamadas.radio-chamadasAntes,2,'pediu outra vez');
-assert.equal(controlo.radioJaDescobertas?.size,0,'a segunda tentativa já não salta o que se descobriu há dias');
+assert.ok((controlo.radioJaDescobertas?.size ?? 0)>0,'a segunda tentativa ainda salta o que se descobriu há dias');
+assert.notDeepEqual(controlo.radioContextos.at(-1)!.map(t=>t.sourceId),controlo.radioContextos.at(-2)!.map(t=>t.sourceId),
+  'com outras sementes: as últimas que tocaram');
 assert.ok(usePlayer.getState().queue.some(t=>t.sourceId==='more'));
 assert.equal(usePlayer.getState().radioMode,'on');
+// Tudo seco: larga a memória, e a última tentativa aceita repetidas (pede como o autoplay).
+reset();
+assert.equal(await usePlayer.getState().startRadio(),true);
+usePlayer.setState({radioListeningSession:{owner:'utilizador-de-teste',tracks:[track('isak7'),track('hh7','Holly Hood')]}});
+for(let n=0;n<6;n++)controlo.radioPendentes.push(Promise.resolve([]));
+controlo.radio=[track('repetida','Holly Hood')];
+chamadasAntes=controlo.chamadas.radio;
+const modosAntes=controlo.radioModos.length;
+assert.equal(await usePlayer.getState().extendQueueWithRadio(),true);
+const modos=controlo.radioModos.slice(modosAntes);
+assert.equal(modos.at(-1),'automatic','a última aceita repetidas');
+assert.ok(modos.slice(0,-1).every(m=>m==='session'),'as outras não');
+assert.equal(controlo.radioJaDescobertas?.size,0,'e já sem a memória');
+assert.ok(controlo.chamadas.radio-chamadasAntes>=4,'antes disso, caminhou e largou a memória');
 
 // Aprende com um salto cedo de uma faixa do Radio, com som (5/10).
 reset();

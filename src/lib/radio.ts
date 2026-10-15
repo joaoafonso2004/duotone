@@ -159,14 +159,42 @@ export function limitarMesmoArtista<T>(
 export function loteSemRepetir<T>(
   conhecidas: readonly T[],
   novas: readonly T[],
-  jaDescoberta: (t: T) => boolean,
+  recente: (t: T) => boolean,
   limite: number,
   comRepetidas: boolean,
   misturar: (conhecidas: readonly T[], novas: readonly T[], limite: number) => T[],
+  /** Quando foi ouvida (ou sugerida) pela última vez: as repetidas mais antigas entram primeiro. */
+  quando: (t: T) => number = () => 0,
 ): T[] {
-  const lote = misturar(conhecidas, novas.filter((t) => !jaDescoberta(t)), limite);
+  // 15/10: as tuas também passam pela memória. Só as novas passavam, e as da
+  // biblioteca (e o que se ouviu) voltavam lote após lote, dia após dia.
+  const lote = misturar(conhecidas.filter((t) => !recente(t)), novas.filter((t) => !recente(t)), limite);
   if (!comRepetidas || lote.length >= limite) return lote;
-  return [...lote, ...novas.filter(jaDescoberta).slice(0, limite - lote.length)];
+  // Repetidas só no fim, e as que se ouviram há MAIS tempo primeiro: a de
+  // ontem antes da de há uma hora.
+  const repetidas = [...conhecidas, ...novas].filter(recente)
+    .map((t, i) => ({ t, i, q: quando(t) }))
+    .sort((a, b) => a.q - b.q || a.i - b.i)
+    .map((x) => x.t);
+  return [...lote, ...repetidas.slice(0, limite - lote.length)];
+}
+
+/**
+ * O que se ouviu nas últimas 24 h não volta pelo Radio nem pelo autoplay
+ * (15/10, "deixo a tocar sozinho muito tempo e começam a repetir-se as
+ * mesmas"). Uma descoberta continua a ter os 30 dias da memória do Smart
+ * Shuffle; isto apanha as tuas, que essa memória nunca guardou.
+ */
+export const JANELA_DAS_OUVIDAS_MS = 24 * 60 * 60 * 1000;
+
+/** A última vez que se ouviu alguma das identidades de uma música, ou 0. */
+export function ouvidaEm(chaves: readonly string[], ouvidas: ReadonlyMap<string, number>): number {
+  let em = 0;
+  for (const k of chaves) {
+    const q = ouvidas.get(k);
+    if (q != null && q > em) em = q;
+  }
+  return em;
 }
 
 /**
@@ -175,12 +203,19 @@ export function loteSemRepetir<T>(
  * memória de 30 dias já tinha descoberto: ao fim de umas horas (ou de uns dias
  * de Radio) o catálogo dessas âncoras secava e a fila acabava -- só desligar e
  * ligar, que recalculava as âncoras, o fazia voltar. As tentativas vão por
- * ordem e param na primeira que traz música: as âncoras de sempre; as mesmas
- * sem a memória (uma descoberta de há uns dias pode voltar, nunca uma que está
- * na fila); as do que se OUVIU nesta sessão; e as últimas que tocaram. Repetidas
- * saem (a mesma lista de sementes com a mesma memória não se pede duas vezes).
+ * ordem e param na primeira que traz música. 15/10: primeiro CAMINHA com a
+ * memória (as âncoras, o que se OUVIU nesta sessão, as últimas que tocaram) e
+ * só depois a larga -- largá-la logo à segunda era repor as descobertas de há
+ * uns dias em vez de ir a sementes novas, e era isso que se ouvia a repetir
+ * numa tarde de Radio. Repetidas saem (as mesmas sementes com a mesma memória
+ * não se pedem duas vezes).
  */
-export type TentativaDoRadio<T> = { sementes: readonly T[]; semMemoria: boolean };
+export type TentativaDoRadio<T> = {
+  sementes: readonly T[];
+  semMemoria: boolean;
+  /** A última: aceita repetidas, as ouvidas há mais tempo primeiro (15/10). */
+  comRepetidas?: boolean;
+};
 export function tentativasDoRadio<T>(
   tentativas: readonly TentativaDoRadio<T>[],
   chave: (t: T) => string,
@@ -188,7 +223,7 @@ export function tentativasDoRadio<T>(
   const vistas = new Set<string>();
   return tentativas.filter((t) => {
     if (t.sementes.length === 0) return false;
-    const k = `${t.semMemoria ? 1 : 0}|${t.sementes.map(chave).join(',')}`;
+    const k = `${t.semMemoria ? 1 : 0}${t.comRepetidas ? 1 : 0}|${t.sementes.map(chave).join(',')}`;
     if (vistas.has(k)) return false;
     vistas.add(k);
     return true;

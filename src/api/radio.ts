@@ -4,8 +4,10 @@ import { chaveDeArtista, displayArtist } from '../lib/artistName';
 import { pareceMusica } from '../lib/musica';
 import {
   filterRadioCandidates,
+  JANELA_DAS_OUVIDAS_MS,
   limitarMesmoArtista,
   loteSemRepetir,
+  ouvidaEm,
   onlyPlausibleMusic,
   RADIO_BATCH,
   seedArtists,
@@ -43,6 +45,11 @@ import { lerPerfilDeRecomendacoes } from './perfilDeRecomendacoes';
  * `jaDescobertas`: as identidades das músicas descobertas nos últimos 30 dias
  * (a memória do Smart Shuffle, que o rádio também passou a alimentar -- 28/9).
  * Sem elas o rádio repunha sempre as mesmas novas; ver `loteSemRepetir`.
+ *
+ * `ouvidas` (15/10): identidade -> quando se ouviu pela última vez (o
+ * histórico de escutas do aparelho, que viaja entre os dois). O que se ouviu
+ * nas últimas 24 h não volta, as tuas incluídas; e quando repetir é a única
+ * saída, vão as ouvidas há mais tempo.
  */
 export async function fetchRadioTracks(
   seeds: Track[],
@@ -50,6 +57,7 @@ export async function fetchRadioTracks(
   limit: number = RADIO_BATCH,
   jaDescobertas: ReadonlySet<string> = new Set(),
   context: 'automatic' | 'session' = 'automatic',
+  ouvidas: ReadonlyMap<string, number> = new Map(),
 ): Promise<Track[]> {
   if(useConnectivity.getState().offline)return [];
   await feedbackReady();
@@ -59,8 +67,17 @@ export async function fetchRadioTracks(
   // Da cache partilhada: cada lote do rádio relia a biblioteca inteira (30/9).
   try{library=await lerFaixas(getLibrary);}catch{/* O rádio ainda pode sair do histórico. */}
   const knownKeys=new Set(library.map(trackKey));
-  const excludedIdentities=new Set(exclude.flatMap(chavesDaMusica));
-  const jaDescoberta=(t:Track)=>foiSugeridaRecentemente(chavesDaMusica(t),jaDescobertas);
+  // As identidades de cada faixa, uma vez por pedido: o lote refaz-se várias
+  // vezes, e no iPhone isto corre no JavaScript da interface.
+  const chavesMemo=new Map<Track,string[]>();
+  const chavesDe=(t:Track)=>{let c=chavesMemo.get(t);if(!c){c=chavesDaMusica(t);chavesMemo.set(t,c);}return c;};
+  const excludedIdentities=new Set(exclude.flatMap(chavesDe));
+  const desdeQueSeOuviu=Date.now()-JANELA_DAS_OUVIDAS_MS;
+  const recente=(t:Track)=>{
+    const chaves=chavesDe(t);
+    return foiSugeridaRecentemente(chaves,jaDescobertas)||ouvidaEm(chaves,ouvidas)>desdeQueSeOuviu;
+  };
+  const quando=(t:Track)=>ouvidaEm(chavesDe(t),ouvidas);
   // `comRepetidas` só no fim: antes disso, faltarem novas é razão para ir à
   // fonte seguinte, e não para repetir.
   const harvest = (comRepetidas = false) => {
@@ -74,15 +91,15 @@ export async function fetchRadioTracks(
     const variadas=limitarMesmoArtista(musica,artists,displayArtist,chaveDeArtista,limit);
     const seen=new Set(excludedIdentities);
     const candidatas=filterRadioCandidates(variadas,exclude,trackKey,Math.max(limit*4,limit)).filter(t=>{
-      const keys=chavesDaMusica(t);
+      const keys=chavesDe(t);
       if(keys.some(k=>seen.has(k)))return false;
       keys.forEach(k=>seen.add(k));
       return true;
     });
     const conhecidas=candidatas.filter((t)=>knownKeys.has(trackKey(t)));
     const novas=candidatas.filter((t)=>!knownKeys.has(trackKey(t)));
-    return loteSemRepetir(conhecidas,novas,jaDescoberta,limit,comRepetidas,
-      (c,n,l)=>misturarPorFamiliaridade(c,n,l,'radio'));
+    return loteSemRepetir(conhecidas,novas,recente,limit,comRepetidas,
+      (c,n,l)=>misturarPorFamiliaridade(c,n,l,'radio'),quando);
   };
 
   // 1. A própria biblioteca, pelos artistas que se estava a ouvir. Custo zero
@@ -145,23 +162,27 @@ export async function fetchRadioTracks(
   //    canal de uploads) era aqui que o Radio acabava vazio: "No related music
   //    found". É música parecida com ESTA, por isso serve também à sessão.
   //    Um pedido ao YouTube Music, e só quando o resto não chegou.
-  const daMusica = seeds.find((t) => t.source === 'youtube' && /^[\w-]{11}$/.test(t.sourceId));
-  if (daMusica) {
+  //    15/10: até três sementes, e não só a primeira -- o rádio de uma música
+  //    só tem umas cinquenta, e numa tarde de Radio gastavam-se: era aí que
+  //    voltavam as mesmas. Um pedido por semente, só enquanto o lote não chega.
+  const comVideo = seeds.filter((t) => t.source === 'youtube' && /^[\w-]{11}$/.test(t.sourceId)).slice(0, 3);
+  for (const daMusica of comVideo) {
     try {
       pool.push(...await lerRadioPeloYtMusic({ playlistId: `RDAMVM${daMusica.sourceId}`, videoId: daMusica.sourceId, params: null }));
     } catch {
       // Sem rede ou o YouTube Music mudou a resposta: segue sem ele.
     }
+    if (harvest().length >= limit) return harvest();
   }
-  if (harvest().length >= limit) return harvest();
 
   // O modo escolhido na fila mantém as âncoras da sessão, e tem as suas
   // próprias tentativas (`tentativasDoRadio`): um lote curto é preferível a
   // voltar às mesmas sugestões. Inclui a continuação do Smart Shuffle.
   if (context === 'session') return harvest();
 
-  // O autoplay do fim da fila tenta uma vez só: o que faltar sai das
-  // parecidas que a memória de 30 dias guardava -- repetidas, mas do mesmo
-  // género. Nada parecido, a fila acaba (nunca o gosto geral, ver em cima).
+  // O autoplay do fim da fila tenta uma vez só (e o Radio na última
+  // tentativa): o que faltar sai das parecidas que a memória guardava --
+  // repetidas, as ouvidas há mais tempo primeiro, mas do mesmo género. Nada
+  // parecido, a fila acaba (nunca o gosto geral, ver em cima).
   return harvest(true);
 }

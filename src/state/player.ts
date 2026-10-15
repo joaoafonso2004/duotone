@@ -14,7 +14,7 @@ import { temAudioNativo } from '../../modules/duotone-audio';
 import {
   getProfileRecentlyPlayed, recordPlayInSupabase, registarInicioDaFaixa,
 } from '../api/plays';
-import { incrementPlayCount } from '../lib/playCounts';
+import { contagensNoAparelho, incrementPlayCount } from '../lib/playCounts';
 import { avancarEscuta, novaEscuta, type Escuta } from '../lib/contagemDeEscuta';
 import { reconcileOrder, shuffleKeys, stepIndex, trackKey, upcomingIndexes } from '../lib/shuffle';
 import {
@@ -23,7 +23,7 @@ import {
   lerHistoricoDoSmartShuffle, modoDeShuffle, posicaoDaSugestao, proximoModo,
   juntarHistoricos, registarNoHistoricoDoSmartShuffle, type SugestaoNoHistorico,
 } from '../lib/smartShuffle';
-import { espalharArtistas, radioSeeds, shouldExtendWithRadio, tentativasDoRadio } from '../lib/radio';
+import { espalharArtistas, radioSeeds, shouldExtendWithRadio, tentativasDoRadio, type TentativaDoRadio } from '../lib/radio';
 import { fetchRadioTracks } from '../api/radio';
 import { ancorasDoRadio, rememberRadioListen, rememberRadioSkip, radioSessionSeeds, type RadioListeningSession } from '../lib/radioSession';
 import { comecaListaNova, origemAoTocar, type OrigemDaFila } from '../lib/origemDaFila';
@@ -981,6 +981,35 @@ async function chavesDasEscutasRecentes(dono: string | null): Promise<Set<string
  * rádio (28/9) -- como identidades. Falhar dá o conjunto vazio: a memória
  * nunca pode impedir a música de continuar.
  */
+/**
+ * O que se ouviu, por identidade da música -> quando (15/10). Do histórico de
+ * escutas do aparelho (`playCounts`, que a sincronização junta com o do outro
+ * aparelho): zero pedidos. É o que impede o Radio e o autoplay de repor o que
+ * se ouviu nas últimas 24 h -- a fila que chega de um handoff vem cortada, e
+ * as tuas músicas nunca entravam na memória de 30 dias. Lido no máximo de 5
+ * em 5 min: o que se ouviu entretanto está na fila, e a fila já se exclui.
+ */
+let ouvidasEmCache: { ate: number; pedido: Promise<Map<string, number>> } | null = null;
+const OUVIDAS_DURANTE_MS = 30 * 24 * 60 * 60 * 1000;
+function identidadesOuvidas(): Promise<Map<string, number>> {
+  const agora = Date.now();
+  if (ouvidasEmCache && ouvidasEmCache.ate > agora) return ouvidasEmCache.pedido;
+  const pedido = contagensNoAparelho().then((contagens) => {
+    const mapa = new Map<string, number>();
+    for (const c of contagens) {
+      if (!c?.sourceId || !Number.isFinite(c.lastPlayed) || c.lastPlayed < agora - OUVIDAS_DURANTE_MS) continue;
+      const faixa: Track = {
+        source: c.source, sourceId: c.sourceId, title: c.title, artist: c.artist,
+        album: null, artworkUrl: c.artworkUrl, durationSeconds: c.durationSeconds,
+      };
+      for (const k of chavesDaMusica(faixa)) if ((mapa.get(k) ?? 0) < c.lastPlayed) mapa.set(k, c.lastPlayed);
+    }
+    return mapa;
+  }).catch(() => new Map<string, number>());
+  ouvidasEmCache = { ate: agora + 5 * 60 * 1000, pedido };
+  return pedido;
+}
+
 async function chavesDasDescobertasRecentes(dono: string | null): Promise<Set<string>> {
   try {
     await trazerHistoricoDaConta(dono);
@@ -1707,10 +1736,10 @@ export const usePlayer = create<PlayerState>()(
     const valid = () => request === radioRequest && playbackRequest === playRequestId && get().current === current && get().queue === before.queue
       && get().radioMode === 'preparing' && donoDoSmartShuffle() === owner && !ouvirJuntos() && !seguindoAmigo() && !useConnectivity.getState().offline;
     try {
-      const discovered = await chavesDasDescobertasRecentes(owner);
+      const [discovered, ouvidas] = await Promise.all([chavesDasDescobertasRecentes(owner), identidadesOuvidas()]);
       if (!valid()) return false;
       const heard = before.radioListeningSession?.owner === owner ? before.radioListeningSession.tracks : [];
-      const tracks = espalharArtistas(filterSuggestions(await fetchRadioTracks(context, [...before.queue, ...heard], 12, discovered, 'session')),
+      const tracks = espalharArtistas(filterSuggestions(await fetchRadioTracks(context, [...before.queue, ...heard], 12, discovered, 'session', ouvidas)),
         (t) => chaveDeArtista(displayArtist(t)), [chaveDeArtista(displayArtist(current))]);
       if (!valid()) return false;
       if (!tracks.length) { set({ radioMode: 'off', radioError: 'No related music found for this session. Your queue is unchanged.' }); return false; }
@@ -1784,7 +1813,7 @@ export const usePlayer = create<PlayerState>()(
       if (radioMode === 'on' && !dono) return false;
       if (radioMode === 'on' && dono !== radioOwner) { get().stopRadio(); return false; }
       const request = radioRequest;
-      const jaDescobertas = await chavesDasDescobertasRecentes(dono);
+      const [jaDescobertas, ouvidas] = await Promise.all([chavesDasDescobertasRecentes(dono), identidadesOuvidas()]);
       // O Radio aprende com a sessão (5/10, `ancorasDoRadio`): as âncoras de
       // quando se ligou são o núcleo, o que se ouve até ao fim pesa a favor e o
       // que se salta cedo pesa contra. O autoplay do fim da fila é o de sempre
@@ -1795,20 +1824,30 @@ export const usePlayer = create<PlayerState>()(
       const seeds = ancoras.sementes;
       if (!seeds.length) return false;
       // O Radio não acaba (5/10): com o lote vazio, tenta outras sementes em
-      // vez de deixar a fila parar (ver `tentativasDoRadio`). O autoplay do fim
-      // da fila fica com uma tentativa (sem o Flow geral desde 15/10: ver api/radio.ts).
-      const tentativas = radioMode !== 'on' ? [{ sementes: seeds, semMemoria: false }] : tentativasDoRadio([
+      // vez de deixar a fila parar (ver `tentativasDoRadio`). 15/10: primeiro
+      // caminha COM a memória (o que se ouviu, as últimas que tocaram), depois
+      // larga-a, e só no fim aceita repetidas -- as ouvidas há mais tempo. O
+      // autoplay do fim da fila fica com uma tentativa, que já acaba assim (sem
+      // o Flow geral desde 15/10: ver api/radio.ts).
+      const daSessao = radioMode === 'on'
+        ? radioSessionSeeds(get().radioListeningSession, dono, current!, displayArtist, chaveDeArtista) : [];
+      const daFila = radioSeeds(queue, queueIndex);
+      const tentativas: TentativaDoRadio<Track>[] = radioMode !== 'on' ? [{ sementes: seeds, semMemoria: false }] : tentativasDoRadio([
         { sementes: seeds, semMemoria: false },
+        { sementes: daSessao, semMemoria: false },
+        { sementes: daFila, semMemoria: false },
         { sementes: seeds, semMemoria: true },
-        { sementes: radioSessionSeeds(get().radioListeningSession, dono, current!, displayArtist, chaveDeArtista), semMemoria: true },
-        { sementes: radioSeeds(queue, queueIndex), semMemoria: true },
+        { sementes: daSessao, semMemoria: true },
+        { sementes: daFila, semMemoria: true },
+        { sementes: seeds, semMemoria: true, comRepetidas: true },
       ], trackKey);
       const doArtistaEvitado = (t: Track) => ancoras.evitar.has(chaveDeArtista(displayArtist(t)));
       let tracks: Track[] = [];
       for (let i = 0; i < tentativas.length; i++) {
         const t = tentativas[i];
+        // A última do Radio pede como o autoplay: no fim aceita repetidas.
         tracks = filterSuggestions(await fetchRadioTracks([...t.sementes], queue, radioMode === 'on' ? 12 : undefined,
-          t.semMemoria ? new Set<string>() : jaDescobertas, radioMode === 'on' ? 'session' : 'automatic'))
+          t.semMemoria ? new Set<string>() : jaDescobertas, radioMode === 'on' && !t.comRepetidas ? 'session' : 'automatic', ouvidas))
           .filter((x) => !doArtistaEvitado(x));
         if (tracks.length && i > 0) registarNaFila(`radio: the usual seeds ran dry, kept going (try ${i + 1})`);
         if (tracks.length || get().queue !== queue || request !== radioRequest) break;

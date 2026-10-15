@@ -163,6 +163,16 @@ for (const [ficheiro, proibido] of Object.entries(ecrasDePesquisa)) {
   check('antes do fim, faltar novas é ir à fonte seguinte, não repetir', antesDoFim.join() === 'tua1', antesDoFim.join());
   const cheio = loteSemRepetir(tuas, ['nova1', 'deaf note'], jaDescoberta, 4, true, alternar);
   check('com o lote cheio não entra repetida nenhuma', !cheio.some(jaDescoberta), cheio.join());
+
+  // 15/10: as TUAS também passam pela memória (o que se ouviu há pouco), e as
+  // repetidas, quando são a única saída, vão das ouvidas há mais tempo.
+  const ouvidaHa: Record<string, number> = { tua2: 5, 'deaf note': 1, 'drunk and nasty': 3 };
+  const recente = (x: string) => x in ouvidaHa;
+  const quando = (x: string) => ouvidaHa[x] ?? 0;
+  const semAsOuvidas = loteSemRepetir(tuas, ['nova1'], recente, 3, false, alternar, quando);
+  check('uma tua ouvida há pouco não volta', !semAsOuvidas.includes('tua2'), semAsOuvidas.join());
+  const repetidas = loteSemRepetir(['tua2'], ['drunk and nasty', 'deaf note'], recente, 3, true, alternar, quando);
+  check('as repetidas: a ouvida há mais tempo primeiro', repetidas.join() === 'deaf note,drunk and nasty,tua2', repetidas.join());
 }
 
 console.log(bad ? `\n  ${bad} falha(s)` : `\n  Todos os casos passaram.`);

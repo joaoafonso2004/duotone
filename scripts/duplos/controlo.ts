@@ -39,6 +39,10 @@ export interface Controlo {
   radioPendentes: Promise<Track[]>[];
   /** A memória das descobertas que o rádio recebeu na última chamada (28/9). */
   radioJaDescobertas: ReadonlySet<string> | null;
+  /** O que o Radio recebeu como já ouvido (identidade -> quando). */
+  radioOuvidas: ReadonlyMap<string, number> | null;
+  /** O histórico de escutas do aparelho que o duplo do playCounts devolve. */
+  ouvidasNoAparelho: unknown[];
   /** O histórico remoto que existia antes desta versão. */
   recentes: (Track & { lastPlayed?: number })[];
   /** A biblioteca (guardadas e playlists) que o `getLibrary` devolve. */
@@ -74,6 +78,8 @@ export const controlo: Controlo = {
   radio: [],
   radioContextos: [], radioModos: [], radioPendentes: [],
   radioJaDescobertas: null,
+  radioOuvidas: null,
+  ouvidasNoAparelho: [],
   recentes: [],
   biblioteca: [],
   sessao: null,
@@ -97,6 +103,8 @@ export function reporControlo(): void {
   controlo.radio = [];
   controlo.radioContextos = []; controlo.radioModos = []; controlo.radioPendentes = [];
   controlo.radioJaDescobertas = null;
+  controlo.radioOuvidas = null;
+  controlo.ouvidasNoAparelho = [];
   controlo.recentes = [];
   controlo.biblioteca = [];
   controlo.sessao = null;
