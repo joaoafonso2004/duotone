@@ -8,9 +8,17 @@
  * IFrame do YouTube não muda de janela sem recarregar (e cortar o som).
  */
 
+/**
+ * A lista das próximas (12/10, João: escolher uma música sem dar Alt+Tab):
+ * abre por baixo do cartão (ou por cima, encostado em baixo), com 6 px entre os
+ * dois. A página usa os mesmos números.
+ */
+const ALTURA_DA_LISTA = 280;
+const ESPACO_DA_LISTA = 6;
 const TAMANHOS = Object.freeze({
   compacto: { width: 360, height: 88 },
   expandido: { width: 320, height: 400 },
+  comLista: { width: 360, height: 88 + ESPACO_DA_LISTA + ALTURA_DA_LISTA },
 });
 const MARGEM = 16;
 const ENCOSTAR = 12;
@@ -105,6 +113,23 @@ function ancoraDoMini(pos, tamanho, area) {
 }
 
 /**
+ * Abrir a lista: a janela cresce para longe da borda do ecrã e o CARTÃO NÃO SE
+ * MEXE -- encostado em baixo, a lista abre por cima dele. O lado sai da mesma
+ * conta da `ancoraDoMini`, e é guardado: com a janela grande o centro dela já
+ * é outro, e recalculá-lo virava o cartão para o lado errado.
+ */
+function comALista(pos, compacto, grande, area) {
+  const ancora = ancoraDoMini(pos, compacto, area);
+  const y = ancora === 'baixo' ? pos.y + compacto.height - grande.height : pos.y;
+  return { ancora, pos: area ? prender({ x: pos.x, y }, grande, area) : { x: pos.x, y } };
+}
+
+/** Fechar a lista: a janela volta ao tamanho do cartão, que fica onde está. */
+function semALista(pos, compacto, grande, ancora) {
+  return { x: pos.x, y: ancora === 'baixo' ? pos.y + grande.height - compacto.height : pos.y };
+}
+
+/**
  * O TAMANHO do mini é uma escala sobre o desenho de base (25/9: "ajustado em
  * tamanho sem ficar tudo desformatado"). Tudo cresce na mesma proporção -- a
  * página desenha-se sempre a 360x88 (ou 320x400) e é ampliada --, por isso a
@@ -164,13 +189,22 @@ function lembrar(guardado, pos, area) {
 }
 
 /** Os comandos que a janela do mini pode mandar: uma lista fechada. */
-const COMANDOS = Object.freeze(['tocar-pausa', 'seguinte', 'anterior', 'guardar', 'procurar', 'expandir', 'encolher', 'fechar', 'abrir-duotone', 'alternar-duotone']);
+const COMANDOS = Object.freeze(['tocar-pausa', 'seguinte', 'anterior', 'guardar', 'procurar', 'expandir', 'encolher', 'fechar', 'abrir-duotone', 'alternar-duotone', 'tocar-da-fila']);
+/** Quantas das próximas vão para a lista do mini. */
+const NA_LISTA = 50;
 
 function comandoValido(c) {
   if (!c || typeof c !== 'object' || !COMANDOS.includes(c.tipo)) return null;
   if (c.tipo === 'procurar') {
     const ms = Number(c.ms);
     return Number.isFinite(ms) && ms >= 0 && ms < 24 * 3600_000 ? { tipo: 'procurar', ms: Math.round(ms) } : null;
+  }
+  // Uma das próximas: a chave da faixa e o lugar dela na lista que o mini viu
+  // (a janela principal confirma que ainda é a mesma antes de a tocar).
+  if (c.tipo === 'tocar-da-fila') {
+    const chave = typeof c.chave === 'string' && c.chave.length > 0 && c.chave.length <= 300 ? c.chave : null;
+    const posicao = Number(c.posicao);
+    return chave && Number.isInteger(posicao) && posicao >= 0 && posicao < NA_LISTA ? { tipo: c.tipo, chave, posicao } : null;
   }
   return { tipo: c.tipo };
 }
@@ -180,20 +214,27 @@ function resumoValido(r) {
   if (!r || typeof r !== 'object') return null;
   const texto = (v, max) => (typeof v === 'string' ? v.slice(0, max) : null);
   const numero = (v) => (Number.isFinite(v) && v >= 0 ? Math.round(v) : 0);
-  const capa = texto(r.capa, 500);
+  const soHttps = (v) => { const c = texto(v, 500); return c && /^https:\/\//.test(c) ? c : null; };
+  const fila = Array.isArray(r.fila) ? r.fila.slice(0, NA_LISTA)
+    .filter((f) => f && typeof f === 'object' && typeof f.chave === 'string' && f.chave.length > 0 && f.chave.length <= 300)
+    .map((f) => ({ titulo: texto(f.titulo, 200), artista: texto(f.artista, 200), capa: soHttps(f.capa), chave: f.chave })) : [];
   return {
     titulo: texto(r.titulo, 200),
     artista: texto(r.artista, 200),
-    capa: capa && /^https:\/\//.test(capa) ? capa : null,
+    capa: soHttps(r.capa),
     aTocar: r.aTocar === true,
     guardada: r.guardada === true,
     posicaoMs: numero(r.posicaoMs),
     duracaoMs: numero(r.duracaoMs),
+    fila,
+    /** A seguir um amigo, a lista é a dele: vê-se, não se toca. */
+    filaSoDeVer: r.filaSoDeVer === true,
   };
 }
 
 module.exports = {
   TAMANHOS, MARGEM, chaveDoMonitor, posicaoInicial, areaDe, prender, encostar, ondeAbrir, mudarDeTamanho,
-  ancoraDoMini, lembrar, COMANDOS, comandoValido, resumoValido,
+  ancoraDoMini, lembrar, COMANDOS, comandoValido, resumoValido, comALista, semALista, NA_LISTA,
+  ALTURA_DA_LISTA, ESPACO_DA_LISTA,
   ESCALA_MINIMA, ESCALA_MAXIMA, escalaValida, comEscala, ladosFixos, arrastarPega,
 };

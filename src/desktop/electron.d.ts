@@ -34,7 +34,13 @@ declare global {
     guardada: boolean;
     posicaoMs: number;
     duracaoMs: number;
+    /** As próximas (até 50), para a lista do mini (12/10). */
+    fila: { titulo: string | null; artista: string | null; capa: string | null; chave: string }[];
+    /** A seguir um amigo: a lista vê-se mas não se toca. */
+    filaSoDeVer: boolean;
   }
+  /** Um comando do mini (validado no electron/miniLeitor.cjs). */
+  interface ComandoDoMiniLeitor { tipo: string; ms?: number; chave?: string; posicao?: number }
   interface Window {
     /** Só na janela do mini leitor (electron/preloadMini.cjs). */
     duotoneMini?: {
@@ -46,7 +52,9 @@ declare global {
       pega?: (fase: 'inicio' | 'mover' | 'fim') => void;
       ignorarRato?: (sim: boolean) => void;
       onRato?: (listener: (dentro: boolean) => void) => () => void;
-      comando: (comando: { tipo: string; ms?: number }) => void;
+      lista?: (abrir: boolean) => void;
+      onListaFechada?: (listener: () => void) => () => void;
+      comando: (comando: ComandoDoMiniLeitor) => void;
     };
     duotoneDesktop?: {
       platform: string;
@@ -140,7 +148,7 @@ declare global {
       miniLeitorAberto?: () => Promise<boolean>;
       onMiniLeitorAberto?: (listener: (aberto: boolean) => void) => () => void;
       publicarNoMiniLeitor?: (resumo: ResumoDoMiniLeitor) => void;
-      onComandoDoMiniLeitor?: (listener: (comando: { tipo: string; ms?: number }) => void) => () => void;
+      onComandoDoMiniLeitor?: (listener: (comando: ComandoDoMiniLeitor) => void) => () => void;
       miniLeitorNoModoLimpo?: (ligado: boolean) => void;
       showContextMenu(items: { id: string; label: string; enabled?: boolean }[]): void;
       onContextMenuSelection(listener: (id: string) => void): () => void;

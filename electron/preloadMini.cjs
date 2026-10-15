@@ -49,6 +49,14 @@ contextBridge.exposeInMainWorld('duotoneMini', Object.freeze({
   },
   /** A pega do tamanho: 'inicio', 'mover', 'fim'. O rato lê-o o processo principal. */
   pega: (fase) => ipcRenderer.send('mini:pega', fase),
+  /** A lista das próximas (12/10): a janela cresce para ela, ou volta ao cartão. */
+  lista: (abrir) => ipcRenderer.send('mini:lista', abrir === true),
+  /** O processo principal fechou a lista (o mini foi arrastado com ela aberta). */
+  onListaFechada: (listener) => {
+    const handler = () => listener();
+    ipcRenderer.on('mini:lista-fechada', handler);
+    return () => ipcRenderer.removeListener('mini:lista-fechada', handler);
+  },
   /** Deixar o rato passar pela parte transparente (a barra recolhida). */
   ignorarRato: (sim) => ipcRenderer.send('mini:ignorar-rato', sim === true),
   comando: (comando) => ipcRenderer.send('mini:comando', comando),

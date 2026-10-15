@@ -113,11 +113,55 @@ caso('só passam comandos da lista, e o seek é um número com juízo', () => {
 caso('o resumo só leva os campos do mini, e a capa só em https', () => {
   const r = m.resumoValido({ titulo: 'Boondocks', artista: 'Juice WRLD', capa: 'https://i.ytimg.com/vi/x/mqdefault.jpg',
     aTocar: true, guardada: false, posicaoMs: 1000.4, duracaoMs: 182000, sessao: 'segredo' });
-  assert.deepEqual(Object.keys(r).sort(), ['aTocar', 'artista', 'capa', 'duracaoMs', 'guardada', 'posicaoMs', 'titulo']);
+  assert.deepEqual(Object.keys(r).sort(), ['aTocar', 'artista', 'capa', 'duracaoMs', 'fila', 'filaSoDeVer', 'guardada', 'posicaoMs', 'titulo']);
+  assert.deepEqual(r.fila, [], 'sem lista, uma lista vazia');
   assert.equal(r.posicaoMs, 1000);
   assert.equal(m.resumoValido({ capa: 'file:///C:/x.png' }).capa, null);
   assert.equal(m.resumoValido({ capa: 'javascript:alert(1)' }).capa, null);
   assert.equal(m.resumoValido(null), null);
+});
+
+console.log('\na lista das próximas (12/10)');
+const { comLista } = m.TAMANHOS;
+caso('encostado em baixo, a lista abre por cima e o cartão não se mexe', () => {
+  const pos = m.posicaoInicial(principal, compacto);
+  const r = m.comALista(pos, compacto, comLista, principal);
+  assert.equal(r.ancora, 'baixo');
+  assert.deepEqual(r.pos, { x: pos.x, y: pos.y + compacto.height - comLista.height }, 'o fundo da janela fica onde estava');
+  assert.deepEqual(m.semALista(r.pos, compacto, comLista, r.ancora), pos, 'fechar devolve o cartão ao mesmo sítio');
+});
+caso('encostado em cima, abre por baixo', () => {
+  const r = m.comALista({ x: 100, y: 16 }, compacto, comLista, principal);
+  assert.equal(r.ancora, 'cima');
+  assert.deepEqual(r.pos, { x: 100, y: 16 });
+  assert.deepEqual(m.semALista(r.pos, compacto, comLista, 'cima'), { x: 100, y: 16 });
+});
+caso('com a escala, as contas são as mesmas', () => {
+  const c = m.comEscala(compacto, 1.5);
+  const g = m.comEscala(comLista, 1.5);
+  const pos = { x: 500, y: 1032 - c.height - 16 };
+  const r = m.comALista(pos, c, g, principal);
+  assert.equal(r.pos.y + g.height, pos.y + c.height);
+});
+caso('a lista cabe: o cartão mais a lista e o espaço entre os dois', () => {
+  assert.equal(comLista.height, compacto.height + m.ESPACO_DA_LISTA + m.ALTURA_DA_LISTA);
+  assert.equal(comLista.width, compacto.width, 'a mesma largura: a lista não empurra para o lado');
+});
+caso('tocar uma da lista leva a chave e o lugar, com juízo', () => {
+  assert.deepEqual(m.comandoValido({ tipo: 'tocar-da-fila', chave: 'youtube:abc', posicao: 3, x: 1 }), { tipo: 'tocar-da-fila', chave: 'youtube:abc', posicao: 3 });
+  assert.equal(m.comandoValido({ tipo: 'tocar-da-fila', chave: '', posicao: 0 }), null);
+  assert.equal(m.comandoValido({ tipo: 'tocar-da-fila', chave: 'youtube:abc', posicao: m.NA_LISTA }), null);
+  assert.equal(m.comandoValido({ tipo: 'tocar-da-fila', chave: 'youtube:abc', posicao: 1.5 }), null);
+  assert.equal(m.comandoValido({ tipo: 'tocar-da-fila', chave: 'x'.repeat(301), posicao: 0 }), null);
+});
+caso('a lista do resumo: no máximo 50, só os campos dela, capas só em https', () => {
+  const fila = Array.from({ length: 70 }, (_, i) => ({ titulo: `T${i}`, artista: 'A', capa: i ? 'https://x/y.jpg' : 'file:///c.jpg', chave: `youtube:${i}`, sessao: 's' }));
+  const r = m.resumoValido({ fila: [null, { titulo: 'sem chave' }, ...fila], filaSoDeVer: true });
+  assert.equal(r.fila.length, m.NA_LISTA - 2, 'corta antes de filtrar: nunca passa das 50 que chegaram');
+  assert.deepEqual(Object.keys(r.fila[0]).sort(), ['artista', 'capa', 'chave', 'titulo']);
+  assert.equal(r.fila[0].capa, null);
+  assert.equal(r.filaSoDeVer, true);
+  assert.deepEqual(m.resumoValido({ fila: 'x' }).fila, []);
 });
 
 if (falhas) { console.error(`\n  ${falhas} caso(s) a falhar.\n`); process.exit(1); }

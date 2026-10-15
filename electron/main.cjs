@@ -679,6 +679,9 @@ ipcMain.handle('atalhos:a-gravar', (event, sim) => {
 // ---------------------------------------------------------------------------
 let miniJanela = null;
 let miniExpandido = false;
+/** A lista das próximas aberta (12/10), e para que lado do cartão ela abriu. */
+let miniComLista = false;
+let ancoraDaLista = 'baixo';
 let ultimoResumo = null;
 let miniEscondidoPeloModoLimpo = false;
 const ficheiroDoMini = () => path.join(app.getPath('userData'), 'mini-leitor.json');
@@ -710,6 +713,7 @@ function alternarMiniLeitor() {
 function abrirMiniLeitor() {
   if (miniAberto()) { miniJanela.showInactive(); return; }
   miniExpandido = false;
+  miniComLista = false;
   miniEscala = mini.escalaValida(lerMini().escala ?? 1);
   const tamanho = tamanhoDoMini(false);
   const pos = mini.ondeAbrir(lerMini(), tamanho, areasDosMonitores(), screen.getPrimaryDisplay().workArea);
@@ -771,6 +775,9 @@ function abrirMiniLeitor() {
   // Largado perto de uma borda, encosta; e fica lembrado neste monitor.
   win.on('moved', () => {
     if (win.isDestroyed()) return;
+    // Arrastado com a lista aberta: ela fecha, e o cartão fica onde foi largado
+    // (o que se grava e se encosta é o cartão, não a janela com a lista).
+    if (miniComLista) { mudarListaDoMini(false); win.webContents.send('mini:lista-fechada'); }
     const b = win.getBounds();
     const area = mini.areaDe(b, b, areasDosMonitores());
     if (!area) return;
@@ -792,7 +799,8 @@ function abrirMiniLeitor() {
 }
 /** Para que lado a barra recolhida se encosta (ver `ancoraDoMini`). */
 function avisarAncoraDoMini() {
-  if (!miniAberto()) return;
+  // Com a lista aberta o centro da janela é outro: recalcular virava o cartão.
+  if (!miniAberto() || miniComLista) return;
   const b = miniJanela.getBounds();
   const area = mini.areaDe(b, b, areasDosMonitores());
   const lados = mini.ladosFixos(b, b, area);
@@ -801,8 +809,31 @@ function avisarAncoraDoMini() {
     horizontal: lados.direita ? 'direita' : 'esquerda',
   });
 }
+/**
+ * A lista das próximas (12/10): a janela cresce de uma vez para o cartão mais a
+ * lista, para longe da borda do ecrã, e o cartão fica parado (a página ancora o
+ * desenho ao mesmo lado). A lista anima lá dentro; mudar o tamanho aos poucos no
+ * Windows é aos solavancos. Fecha ao contrário: a página anima e só depois pede.
+ */
+function mudarListaDoMini(abrir) {
+  if (!miniAberto() || miniExpandido || miniComLista === abrir) return;
+  const b = miniJanela.getBounds();
+  const compacto = tamanhoDoMini(false);
+  const comLista = mini.comEscala(mini.TAMANHOS.comLista, miniEscala);
+  if (abrir) {
+    const area = mini.areaDe(b, compacto, areasDosMonitores());
+    if (!area) return;
+    const r = mini.comALista(b, compacto, comLista, area);
+    ancoraDaLista = r.ancora;
+    miniJanela.setBounds({ ...r.pos, ...comLista });
+  } else {
+    miniJanela.setBounds({ ...mini.semALista(b, compacto, comLista, ancoraDaLista), ...compacto });
+  }
+  miniComLista = abrir;
+}
 function redimensionarMini(expandir) {
   if (!miniAberto() || miniExpandido === expandir) return;
+  if (miniComLista) mudarListaDoMini(false);
   const de = tamanhoDoMini(miniExpandido);
   const para = tamanhoDoMini(expandir);
   const b = miniJanela.getBounds();
@@ -833,6 +864,8 @@ function avisarMiniDaJanela() {
 
 ipcMain.on('mini:pronto', (event) => {
   if (!daJanelaMini(event)) return;
+  // A página voltou a carregar e começa com a lista fechada.
+  if (miniComLista) mudarListaDoMini(false);
   avisarMiniDaJanela();
   if (ultimoResumo) miniJanela.webContents.send('mini:estado', ultimoResumo);
   miniJanela.webContents.send('mini:tamanho', miniExpandido);
@@ -845,7 +878,8 @@ ipcMain.on('mini:pronto', (event) => {
 // coordenadas da página deixavam de querer dizer alguma coisa).
 let pegaDoMini = null;
 ipcMain.on('mini:pega', (event, fase) => {
-  if (!daJanelaMini(event) || !['inicio', 'mover', 'fim'].includes(fase)) return;
+  // Com a lista aberta a pega não aparece (a escala conta-se no cartão).
+  if (!daJanelaMini(event) || miniComLista || !['inicio', 'mover', 'fim'].includes(fase)) return;
   const base = miniExpandido ? mini.TAMANHOS.expandido : mini.TAMANHOS.compacto;
   if (fase === 'inicio') {
     const b = miniJanela.getBounds();
@@ -875,6 +909,10 @@ ipcMain.on('mini:pega', (event, fase) => {
 ipcMain.on('mini:ignorar-rato', (event, sim) => {
   if (!daJanelaMini(event) || typeof sim !== 'boolean') return;
   miniJanela.setIgnoreMouseEvents(sim && !miniExpandido, { forward: true });
+});
+ipcMain.on('mini:lista', (event, abrir) => {
+  if (!daJanelaMini(event) || typeof abrir !== 'boolean') return;
+  mudarListaDoMini(abrir);
 });
 ipcMain.on('mini:comando', (event, comando) => {
   if (!daJanelaMini(event)) return;

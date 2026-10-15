@@ -48,7 +48,33 @@ const CSS = `
 .cartao .so-fechado { transition: opacity 160ms; }
 .cartao.aberto .so-fechado { opacity: 0; }
 .cartao .sobre-a-capa { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
-@media (prefers-reduced-motion: reduce) { .cartao, .cartao * { transition: none !important; } }
+/* A lista das próximas (12/10): abre a partir do cartão (por baixo dele, ou
+   por cima quando está encostado em baixo). A janela já cresceu de uma vez; o
+   que anima é o recorte, como se a lista se desenrolasse do cartão. */
+.lista { position: absolute; left: 0; right: 0; height: 280px; border-radius: 14px; background: #1b1b25;
+  border: 1px solid rgba(255,255,255,0.14); color: #F5F5F7; overflow: hidden; display: flex; flex-direction: column;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif; user-select: none;
+  opacity: 0; pointer-events: none;
+  transition: clip-path 260ms cubic-bezier(.22,1,.36,1), opacity 160ms; }
+.lista.cima { clip-path: inset(0 0 100% 0 round 14px); }
+.lista.baixo { clip-path: inset(100% 0 0 0 round 14px); }
+.lista.aberta { clip-path: inset(0 0 0 0 round 14px); opacity: 1; pointer-events: auto; }
+.lista-titulo { font-size: 11.5px; font-weight: 600; letter-spacing: .04em; color: rgba(245,245,247,0.55); padding: 10px 12px 6px; }
+.lista-linhas { flex: 1; overflow-y: auto; padding: 0 6px 6px; }
+.lista-linhas::-webkit-scrollbar { width: 8px; }
+.lista-linhas::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.16); border-radius: 4px; border: 2px solid #1b1b25; }
+.lista-linhas::-webkit-scrollbar-track { background: transparent; }
+button.da-fila { width: 100%; justify-content: flex-start; gap: 10px; padding: 6px; border-radius: 8px; text-align: left; }
+button.da-fila:disabled { cursor: default; }
+button.da-fila:disabled:hover { background: none; }
+.da-fila .capa { width: 32px; height: 32px; border-radius: 5px; object-fit: cover; }
+.da-fila .textos { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.da-fila .titulo { font-size: 13px; font-weight: 500; }
+.da-fila .artista { font-size: 11.5px; }
+.lista-vazia { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 12.5px; color: rgba(245,245,247,0.55); }
+.canto button.ligado { color: #F5F5F7; background: rgba(255,255,255,0.12); }
+.com-lista .pega { display: none; }
+@media (prefers-reduced-motion: reduce) { .cartao, .cartao *, .lista { transition: none !important; } }
 /* A pega do tamanho: no canto que MEXE (o oposto ao que está encostado ao
    ecrã). Arrastá-la amplia o mini todo na mesma proporção. */
 .pega { position: absolute; width: 16px; height: 16px; z-index: 3; -webkit-app-region: no-drag;
@@ -110,8 +136,16 @@ const icone = {
   encolher: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" /></svg>,
   esconder: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M8 14h8" /></svg>,
   abrir: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18" /></svg>,
+  fila: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 6h12M4 12h12M4 18h7" /><path d="M16 15v6l5-3z" fill="currentColor" stroke="none" /></svg>,
   fechar: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>,
 };
+
+/** O cartão mais a lista (os números do electron/miniLeitor.cjs, `TAMANHOS.comLista`). */
+const ALTURA_DO_CARTAO = 88;
+const ESPACO_DA_LISTA = 6;
+const ALTURA_DA_LISTA = 280;
+/** A lista fecha a animar, e só depois a janela volta ao tamanho do cartão. */
+const DURACAO_DA_LISTA = 280;
 
 function tempo(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -139,6 +173,27 @@ function MiniLeitor() {
   const cartaoRef = useRef<HTMLDivElement>(null);
   const ignorando = useRef<boolean | null>(null);
   const fecho = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // A lista das próximas (12/10, João: escolher uma música sem dar Alt+Tab).
+  // Abre no botão do canto e fecha quando o rato sai do mini, como o cartão.
+  const [lista, setLista] = useState(false);
+  const listaAberta = useRef(false);
+  const listaRef = useRef<HTMLDivElement>(null);
+  const fechoDaLista = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abrirLista = () => {
+    if (fechoDaLista.current) { clearTimeout(fechoDaLista.current); fechoDaLista.current = null; }
+    listaAberta.current = true;
+    setLista(true);
+    ponte?.lista?.(true);
+  };
+  const fecharLista = () => {
+    if (!listaAberta.current) return;
+    listaAberta.current = false;
+    setLista(false);
+    if (fechoDaLista.current) clearTimeout(fechoDaLista.current);
+    fechoDaLista.current = setTimeout(() => { fechoDaLista.current = null; ponte?.lista?.(false); }, DURACAO_DA_LISTA);
+  };
+  const fecharListaRef = useRef(fecharLista);
+  fecharListaRef.current = fecharLista;
 
   useEffect(() => {
     if (!ponte) return;
@@ -147,8 +202,17 @@ function MiniLeitor() {
     const sairJanela = ponte.onJanela?.(setJanelaVisivel);
     const sairAncora = ponte.onAncora?.((v, h) => { setAncora(v); setLado(h); });
     const sairEscala = ponte.onEscala?.(setEscala);
-    return () => { sair(); sairTamanho(); sairJanela?.(); sairAncora?.(); sairEscala?.(); };
+    // Fechada pelo processo principal (o mini foi arrastado com ela aberta).
+    const sairDaLista = ponte.onListaFechada?.(() => { listaAberta.current = false; setLista(false); });
+    return () => { sair(); sairTamanho(); sairJanela?.(); sairAncora?.(); sairEscala?.(); sairDaLista?.(); };
   }, [ponte]);
+  // O grande não tem lista (o processo principal fecha-a ao expandir).
+  useEffect(() => {
+    if (!expandido) return;
+    if (fechoDaLista.current) { clearTimeout(fechoDaLista.current); fechoDaLista.current = null; }
+    listaAberta.current = false;
+    setLista(false);
+  }, [expandido]);
 
   // O rato. Com a barra recolhida, a parte transparente da janela deixa passar
   // os cliques para o que está por baixo (`ignorarRato`), mas os MOVIMENTOS
@@ -163,13 +227,19 @@ function MiniLeitor() {
     const recolher = (depois: number) => {
       if (aPegar.current) return;
       if (fecho.current) clearTimeout(fecho.current);
-      fecho.current = setTimeout(() => { setAberto(false); ignorar(true); }, depois);
+      fecho.current = setTimeout(() => { setAberto(false); fecharListaRef.current(); ignorar(true); }, depois);
     };
     let ultimoY = -1;
     const mover = (e: MouseEvent) => {
       ultimoY = e.clientY;
       const c = cartaoRef.current?.getBoundingClientRect();
-      const dentro = !!c && e.clientX >= c.left && e.clientX <= c.right && e.clientY >= c.top && e.clientY <= c.bottom;
+      // Com a lista aberta, o cartão, a lista e o espaço entre os dois.
+      const l = listaAberta.current ? listaRef.current?.getBoundingClientRect() : undefined;
+      const caixa = c && l ? {
+        left: Math.min(c.left, l.left), right: Math.max(c.right, l.right),
+        top: Math.min(c.top, l.top), bottom: Math.max(c.bottom, l.bottom),
+      } : c;
+      const dentro = !!caixa && e.clientX >= caixa.left && e.clientX <= caixa.right && e.clientY >= caixa.top && e.clientY <= caixa.bottom;
       if (dentro) {
         if (fecho.current) { clearTimeout(fecho.current); fecho.current = null; }
         ignorar(false);
@@ -305,12 +375,44 @@ function MiniLeitor() {
   // e o tocar/pausa; com o rato por cima abre para o cartão de sempre (a mesma
   // disposição, que NÃO muda com o rato -- decidido a 24/9 --, só aparecem o
   // coração, o anterior, o seguinte, o tempo e o canto).
-  return escalado({ w: 360, h: 88 }, (
-    <div className="palco">
+  // O desenho fica preso ao lado da janela que NÃO se mexe quando a lista abre
+  // (o de baixo, encostado em baixo): a janela cresce de uma vez para o outro
+  // lado e o cartão fica onde estava, sem esperar que a página se redesenhe.
+  // Sem a lista, o que sobra do desenho fica fora da janela.
+  const fila = r?.fila ?? [];
+  return (
+    <div style={{
+      position: 'fixed', left: 0, [ancora === 'baixo' ? 'bottom' : 'top']: 0,
+      width: 360, height: ALTURA_DO_CARTAO + ESPACO_DA_LISTA + ALTURA_DA_LISTA,
+      transform: `scale(${escala})`, transformOrigin: ancora === 'baixo' ? '0 100%' : '0 0',
+    }}>
+    <div className={`palco ${lista ? 'com-lista' : ''}`}>
+      <div ref={listaRef} className={`lista ${ancora} ${lista ? 'aberta' : ''}`} aria-hidden={!lista}
+        style={{ [ancora === 'baixo' ? 'bottom' : 'top']: ALTURA_DO_CARTAO + ESPACO_DA_LISTA }}>
+        <div className="lista-titulo">UP NEXT</div>
+        {fila.length ? (
+          <div className="lista-linhas">
+            {fila.map((f, i) => (
+              <button key={`${f.chave}:${i}`} className="da-fila" tabIndex={lista ? 0 : -1} disabled={r?.filaSoDeVer}
+                aria-label={`Play ${f.titulo ?? 'song'}`} onClick={() => ponte?.comando({ tipo: 'tocar-da-fila', chave: f.chave, posicao: i })}>
+                {f.capa ? <img className="capa" src={f.capa} alt="" loading="lazy" decoding="async" draggable={false} /> : <div className="capa" />}
+                <div className="textos">
+                  <div className="titulo">{f.titulo ?? ''}</div>
+                  <div className="artista">{f.artista ?? ''}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        ) : <div className="lista-vazia">Nothing up next</div>}
+      </div>
       <div ref={cartaoRef} className={`mini cartao ${ancora} ${aberto ? 'aberto' : ''}`}>
         {aberto ? <div className="arrasto" /> : null}
         {pega}
         <div className="canto so-aberto" style={{ display: 'flex', ...(cantoAfastado ? { right: 24 } : null) }}>
+          {ponte?.lista ? (
+            <button className={lista ? 'ligado' : undefined} aria-label={lista ? 'Hide queue' : 'Show queue'} title="Queue"
+              aria-pressed={lista} onClick={() => (lista ? fecharLista() : abrirLista())}>{icone.fila}</button>
+          ) : null}
           <button aria-label={janelaVisivel ? 'Hide Duotone' : 'Open Duotone'} title={janelaVisivel ? 'Hide Duotone' : 'Open Duotone'}
             onClick={() => mandar('alternar-duotone')}>{janelaVisivel ? icone.esconder : icone.abrir}</button>
           <button aria-label="Close mini player" onClick={() => mandar('fechar')}>{icone.fechar}</button>
@@ -342,7 +444,8 @@ function MiniLeitor() {
         <div className="linha so-fechado"><div style={{ width: `${fracao * 100}%` }} /></div>
       </div>
     </div>
-  ));
+    </div>
+  );
 }
 
 function RaizDoMini() {
