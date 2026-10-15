@@ -2,7 +2,7 @@
   "expo": {
     "name": "Duotone",
     "slug": "duotone",
-    "version": "5.0.1",
+    "version": "5.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "scheme": "duotone",
