@@ -38,6 +38,16 @@ export interface FreeSearchResult {
   track: Track;
   /** Nome do canal — o sinal mais forte para distinguir o upload oficial. */
   channel: string;
+  /** "7,915 views", como o YouTube o escreve (15/10: a ordem de um artista sem página musical). */
+  visualizacoes?: string | null;
+  /** "12 years ago": há quanto tempo o vídeo saiu, relativo, como o YouTube o escreve. */
+  publicado?: string | null;
+}
+
+/** O texto de um campo do InnerTube, venha em `simpleText` ou em `runs`. */
+function textoDe(campo: any): string | null {
+  const t = campo?.simpleText ?? (Array.isArray(campo?.runs) ? campo.runs.map((r: any) => r?.text ?? '').join('') : null);
+  return typeof t === 'string' && t.trim() ? t.trim() : null;
 }
 
 /** "3:45" ou "1:02:03" para segundos. */
@@ -177,6 +187,8 @@ async function pedirPagina(
 
     out.push({
       channel,
+      visualizacoes: textoDe(v?.viewCountText),
+      publicado: textoDe(v?.publishedTimeText),
       track: {
         source: 'youtube',
         sourceId,

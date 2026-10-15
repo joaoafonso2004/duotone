@@ -35,6 +35,8 @@ export type MemoriaDoArtista = {
   /** Os ids que já se viram no canal (os mais novos primeiro). */
   vistos: string[];
   recente: Lancamento | null;
+  /** Quando se leu o canal pela última vez (0: nunca, ou antes de 15/10). Os lugares que rodam vão para os mais esquecidos. */
+  lidoEm: number;
 };
 
 export type NovoLancamento = { lancamento: Lancamento; desde: number };
@@ -85,6 +87,7 @@ export function lerMemoria(guardado: unknown): MemoriaDosLancamentos {
       canal: eTexto(a.canal) ? a.canal : null,
       vistos: a.vistos.filter(eTexto).slice(0, MAX_VISTOS),
       recente: lancamentoValido(a.recente),
+      lidoEm: Number.isFinite(a.lidoEm) ? a.lidoEm : 0,
     };
   }
   const novos: NovoLancamento[] = [];
@@ -102,26 +105,60 @@ export function precisaDeVerificar(m: MemoriaDosLancamentos, agora: number): boo
 }
 
 /**
- * Os artistas a ver hoje: os favoritos primeiro, depois os mais ouvidos, só os
- * que estão na biblioteca (é pelas músicas dele que se escolhe o canal certo:
- * o Isak e não o Isak Danielson).
+ * Daqui a quanto tempo se olha outra vez (15/10). Antes só se olhava ao abrir
+ * a conta: com o PC aberto dias seguidos no tabuleiro a prateleira nunca mais
+ * mudava.
+ */
+export function esperaAteVerificar(m: MemoriaDosLancamentos, agora: number): number {
+  return precisaDeVerificar(m, agora) ? 0 : Math.min(VERIFICAR_DE_MS, m.verificadoEm + VERIFICAR_DE_MS - agora);
+}
+
+/** Uma verificação que não leu nenhum artista (sem rede, o YouTube Music em baixo) volta mais tarde, cada vez mais. */
+const ESPERAS_DEPOIS_DE_FALHAR_MS = [5, 15, 60, 180].map((min) => min * 60 * 1000);
+export function esperaDepoisDeFalhar(falhasSeguidas: number): number {
+  return ESPERAS_DEPOIS_DE_FALHAR_MS[Math.min(ESPERAS_DEPOIS_DE_FALHAR_MS.length, Math.max(1, falhasSeguidas)) - 1];
+}
+
+/** Quantos dos primeiros se veem TODOS os dias; os outros lugares rodam. */
+export const FIXOS_POR_DIA = 8;
+
+/**
+ * Os artistas a ver hoje, só os que têm músicas que provem o canal (é por elas
+ * que se escolhe o certo: o Isak e não o Isak Danielson). `grupos` traz as da
+ * biblioteca e, para quem não tem nenhuma guardada, as do histórico de escutas.
+ *
+ * 15/10: eram os favoritos todos primeiro e depois os mais ouvidos, até 15, e
+ * sem rodar -- quinze favoritos tapavam para sempre os artistas que se ouvem.
+ * Agora alternam (um favorito, um dos mais ouvidos...), os primeiros
+ * `FIXOS_POR_DIA` veem-se todos os dias, e os outros lugares vão para os que
+ * há mais tempo não se leem (`lidoEm`): todos acabam por ser vistos.
  */
 export function escolherArtistas<T>(
   favoritos: readonly string[],
   maisOuvidos: readonly string[],
   grupos: ReadonlyMap<string, { nome: string; faixas: readonly T[] }>,
   max = MAX_ARTISTAS,
+  lidoEm: (chave: string) => number = () => 0,
 ): { chave: string; nome: string; faixas: readonly T[] }[] {
-  const fora: { chave: string; nome: string; faixas: readonly T[] }[] = [];
+  const ordem: string[] = [];
   const vistos = new Set<string>();
-  for (const chave of [...favoritos, ...maisOuvidos]) {
-    if (fora.length >= max) break;
-    const g = grupos.get(chave);
-    if (!chave || vistos.has(chave) || !g || !g.faixas.length) continue;
-    vistos.add(chave);
-    fora.push({ chave, nome: g.nome, faixas: g.faixas });
+  for (let i = 0; i < Math.max(favoritos.length, maisOuvidos.length); i++) {
+    for (const chave of [favoritos[i], maisOuvidos[i]]) {
+      if (!chave || vistos.has(chave) || !grupos.get(chave)?.faixas.length) continue;
+      vistos.add(chave);
+      ordem.push(chave);
+    }
   }
-  return fora;
+  const fixos = ordem.slice(0, Math.min(FIXOS_POR_DIA, max));
+  const aRodar = ordem.slice(fixos.length)
+    .map((chave, i) => ({ chave, i, quando: lidoEm(chave) }))
+    .sort((a, b) => a.quando - b.quando || a.i - b.i)
+    .slice(0, Math.max(0, max - fixos.length))
+    .map((x) => x.chave);
+  return [...fixos, ...aRodar].map((chave) => {
+    const g = grupos.get(chave)!;
+    return { chave, nome: g.nome, faixas: g.faixas };
+  });
 }
 
 /** Deste ano, ou do anterior em janeiro (um single de 28/12 continua novo). */
@@ -162,7 +199,9 @@ export function registarArtista(
   const vistos = [...ids, ...(primeiraVez ? [] : antes.vistos.filter((id) => !ids.includes(id)))].slice(0, MAX_VISTOS);
   return {
     ...m,
-    artistas: { ...m.artistas, [chave]: { canal: canal ?? antes?.canal ?? null, vistos, recente: maisRecente(lidos) ?? antes?.recente ?? null } },
+    artistas: { ...m.artistas, [chave]: {
+      canal: canal ?? antes?.canal ?? null, vistos, recente: maisRecente(lidos) ?? antes?.recente ?? null, lidoEm: agora,
+    } },
     novos: [...novos.map((lancamento) => ({ lancamento, desde: agora })), ...m.novos],
   };
 }

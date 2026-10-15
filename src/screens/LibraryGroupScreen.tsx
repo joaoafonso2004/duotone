@@ -14,7 +14,7 @@ import { lerFaixas } from '../lib/cacheDaBiblioteca';
 import { fotoDoArtista } from '../api/catalogo';
 import { paginaDoArtista, type AlbumDaPagina, type PaginaDoArtista } from '../api/albunsDoArtista';
 import { useArtistasFavoritos } from '../state/artistasFavoritos';
-import { pesquisarFaixas } from '../api/search';
+import { pesquisarMusica, type DetalheDaPesquisa } from '../api/search';
 import { BrilhoDoEcra } from '../components/BrilhoDoEcra';
 import { EmptyState } from '../components/EmptyState';
 import { SkeletonDeFaixas } from '../components/Skeleton';
@@ -31,7 +31,7 @@ import { useTheme } from '../state/theme';
 import { marcarArtistaAberto } from '../state/novosLancamentos';
 import { hapticSelection } from '../lib/haptics';
 import { chaveDeArtista, displayArtist, tituloDaFaixa } from '../lib/artistName';
-import { detalheDaLinha, infoDe, ordenarMusicasDoArtista } from '../lib/ordemDoArtista';
+import { detalheDaLinha, infoDaPesquisa, infoDe, modosComDados, ordenarMusicasDoArtista } from '../lib/ordemDoArtista';
 import { chaveDoTitulo } from '../lib/albunsDoArtista';
 import { getOrdemDoArtista, setOrdemDoArtista, type OrdemDoArtista } from '../lib/prefs';
 import { useAuth } from '../state/auth';
@@ -77,6 +77,9 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   const [activeTab, setActiveTab] = useState<'library' | 'youtube_tracks' | 'youtube_albums'>('library');
   useEffect(() => { setActiveTab('library'); }, [type, name]);
   const [ytTracks, setYtTracks] = useState<Track[]>([]);
+  // As visualizações e a idade de cada vídeo da pesquisa (15/10): a ordem de
+  // um artista sem página musical.
+  const [detalhesDaPesquisa, setDetalhesDaPesquisa] = useState<Record<string, DetalheDaPesquisa>>({});
   const [ytAlbums, setYtAlbums] = useState<any[]>([]);
   const [loadingYtTracks, setLoadingYtTracks] = useState(false);
   const [loadingYtAlbums, setLoadingYtAlbums] = useState(false);
@@ -127,11 +130,16 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
     let alive = true;
     setLoadingYtTracks(true);
     setYtTracks([]);
+    setDetalhesDaPesquisa({});
     // Como no PC: só entra o que é deste artista, e pela pesquisa sem quota.
     // Era a `searchYouTube` crua, que trazia os homónimos (28/9).
     const alvo = chaveDeArtista(name);
-    void pesquisarFaixas(`${name} music`)
-      .then(res => { if (alive) setYtTracks(res.filter((t) => chaveDeArtista(displayArtist(t)) === alvo)); })
+    void pesquisarMusica(`${name} music`)
+      .then(({ faixas, detalhes }) => {
+        if (!alive) return;
+        setYtTracks(faixas.filter((t) => chaveDeArtista(displayArtist(t)) === alvo));
+        setDetalhesDaPesquisa(detalhes ?? {});
+      })
       .catch(() => {})
       .finally(() => { if (alive) setLoadingYtTracks(false); });
     return () => { alive = false; };
@@ -169,7 +177,13 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   const [ordem, setOrdem] = useState<OrdemDoArtista>('ouvidas');
   useEffect(() => { void getOrdemDoArtista().then(setOrdem).catch(() => {}); }, []);
   const escolherOrdem = (o: OrdemDoArtista) => { hapticSelection(); setOrdem(o); void setOrdemDoArtista(o).catch(() => {}); };
-  const infoDaFaixa = useCallback((t: Track) => (pagina ? infoDe(pagina.info, t.sourceId, tituloDaFaixa(t), chaveDoTitulo) : null), [pagina]);
+  // Sem lista no canal, as visualizações e a idade dos vídeos da pesquisa
+  // (15/10): sem elas os dois botões davam a mesma lista.
+  const infoDaBusca = useMemo(() => (doCanal ? null : infoDaPesquisa(ytTracks.map((t) => ({
+    videoId: t.sourceId, titulo: tituloDaFaixa(t), ...detalhesDaPesquisa[t.sourceId],
+  })), chaveDoTitulo)), [doCanal, ytTracks, detalhesDaPesquisa]);
+  const infoDaFaixa = useCallback((t: Track) => (pagina ? infoDe(pagina.info, t.sourceId, tituloDaFaixa(t), chaveDoTitulo) : null)
+    ?? (infoDaBusca ? infoDe(infoDaBusca, t.sourceId, tituloDaFaixa(t), chaveDoTitulo) : null), [pagina, infoDaBusca]);
   const ordenar = useCallback((lista: Track[]) => (type === 'artist' ? ordenarMusicasDoArtista(lista, ordem, infoDaFaixa) : lista),
     [type, ordem, infoDaFaixa]);
   const otherTracks = useMemo(() => {
@@ -177,6 +191,9 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
     return ordenar((doCanal ?? ytTracks).filter(t => !ids.has(`${t.source}:${t.sourceId}`)));
   }, [doCanal, ytTracks, tracks, ordenar]);
   const tracksDaAba = useMemo(() => ordenar(tracks), [tracks, ordenar]);
+  // O botão só aparece quando muda alguma coisa nesta aba (ou ainda a chegar).
+  const mostrarOrdem = type === 'artist' && activeTab !== 'youtube_albums' && (loadingYtAlbums || (!doCanal && loadingYtTracks)
+    || modosComDados(activeTab === 'library' ? tracks : otherTracks, infoDaFaixa).length > 0);
   const favoritos = useArtistasFavoritos((s) => s.chaves);
   const alternarFavorito = useArtistasFavoritos((s) => s.alternar);
   useEffect(() => { void useArtistasFavoritos.getState().carregar(); }, []);
@@ -311,7 +328,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
         <Text style={[styles.tabLabel, activeTab === tab && { color: colors.text }]}>{label}</Text>
       </Pressable>)}
     </View>}
-    {type === 'artist' && activeTab !== 'youtube_albums' && <View style={styles.ordem} accessibilityRole="radiogroup">
+    {mostrarOrdem && <View style={styles.ordem} accessibilityRole="radiogroup">
       {([['ouvidas', 'Most played'], ['recentes', 'Newest']] as const).map(([o, rotulo]) => <Pressable key={o}
         accessibilityRole="radio" accessibilityState={{ selected: ordem === o }} hitSlop={6}
         style={[styles.ordemOpcao, ordem === o && styles.ordemOpcaoAtiva]} onPress={() => escolherOrdem(o)}>

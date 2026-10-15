@@ -1,4 +1,4 @@
-import { continuarPesquisaFree, pesquisarPaginaFree } from './ytSearchFree';
+import { continuarPesquisaFree, pesquisarPaginaFree, type FreeSearchResult } from './ytSearchFree';
 import { searchYouTube } from './youtube';
 import type { Track } from '../types';
 
@@ -6,6 +6,21 @@ export interface ResultadoDePesquisa {
   faixas: Track[];
   /** Token da página seguinte, ou `null` quando não há mais nada. */
   continuacao: string | null;
+  /**
+   * De cada vídeo, pelo id: as visualizações e há quanto tempo saiu (15/10).
+   * Só a pesquisa livre os traz; a da Data API vem sem eles.
+   */
+  detalhes?: Record<string, DetalheDaPesquisa>;
+}
+
+export interface DetalheDaPesquisa { visualizacoes: string | null; publicado: string | null }
+
+function detalhesDe(resultados: FreeSearchResult[]): Record<string, DetalheDaPesquisa> {
+  const detalhes: Record<string, DetalheDaPesquisa> = {};
+  for (const r of resultados) {
+    detalhes[r.track.sourceId] = { visualizacoes: r.visualizacoes ?? null, publicado: r.publicado ?? null };
+  }
+  return detalhes;
 }
 
 const VAZIO: ResultadoDePesquisa = { faixas: [], continuacao: null };
@@ -23,7 +38,7 @@ export async function pesquisarMusica(query: string, signal?: AbortSignal): Prom
     // unidades por chamada de um tecto diário de 10.000, e uma pesquisa sem
     // resultados costuma ser mesmo uma pesquisa sem resultados. A alternativa
     // paga é para quando a livre FALHA.
-    return { faixas: pagina.resultados.map((r) => r.track), continuacao: pagina.continuacao };
+    return { faixas: pagina.resultados.map((r) => r.track), continuacao: pagina.continuacao, detalhes: detalhesDe(pagina.resultados) };
   } catch {
     // Apagar o campo não deve lançar uma pesquisa paga para o texto antigo.
     if (signal?.aborted) return VAZIO;
@@ -54,5 +69,5 @@ export async function pesquisarMaisMusica(
 ): Promise<ResultadoDePesquisa> {
   if (signal?.aborted) return VAZIO;
   const pagina = await continuarPesquisaFree(continuacao, signal);
-  return { faixas: pagina.resultados.map((r) => r.track), continuacao: pagina.continuacao };
+  return { faixas: pagina.resultados.map((r) => r.track), continuacao: pagina.continuacao, detalhes: detalhesDe(pagina.resultados) };
 }

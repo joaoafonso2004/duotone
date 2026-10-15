@@ -3,7 +3,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  detalheDaLinha, infoDasMusicas, infoDe, lerReproducoes, ordenarMusicasDoArtista, textoDasReproducoes,
+  detalheDaLinha, infoDaPesquisa, infoDasMusicas, infoDe, lerIdade, lerReproducoes, modosComDados, ordenarMusicasDoArtista,
+  textoDasReproducoes,
 } from '../src/lib/ordemDoArtista.ts';
 import { chaveDoTitulo, lerAlbunsDoCanal, lerMusicasDoCanal } from '../src/lib/albunsDoArtista.ts';
 
@@ -77,6 +78,49 @@ assert.equal(detalheDaLinha('recentes', de(lista[2])), '2014');
 assert.equal(detalheDaLinha('recentes', de(lista[0])), null);
 // Sem informação nenhuma (a página ainda a chegar): a ordem fica.
 assert.deepEqual(ordenarMusicasDoArtista(lista, 'ouvidas', () => null), lista);
+
+// Um artista sem página musical (15/10): as músicas vêm da pesquisa pelo nome, e
+// era aí que "Most played" e "Newest" davam a mesma lista. Uma resposta real do
+// InnerTube para "Santuarius Records Rap music" (o caso do João).
+assert.equal(lerIdade('12 years ago'), 12 * 31_557_600);
+assert.equal(lerIdade('Streamed 3 weeks ago'), 3 * 604_800);
+assert.equal(lerIdade('1 day ago'), 86_400);
+assert.equal(lerIdade('Premiered Oct 3, 2020'), null, 'uma data que não é relativa não se adivinha');
+assert.equal(lerIdade(null), null);
+assert.equal(textoDasReproducoes(7915, 'views'), '7.9K views');
+assert.equal(textoDasReproducoes(1, 'views'), '1 view');
+const resposta = JSON.parse(readFileSync(new URL('./fixtures/pesquisa-santuarius-records-rap.json', import.meta.url), 'utf8'));
+const renderers: any[] = resposta.contents.twoColumnSearchResultsRenderer.primaryContents.sectionListRenderer.contents[0].itemSectionRenderer.contents
+  .map((c: any) => c.videoRenderer);
+const doCanal = renderers.map((v) => ({
+  videoId: v.videoId as string,
+  titulo: v.title.runs[0].text as string,
+  visualizacoes: v.viewCountText?.simpleText ?? null,
+  publicado: v.publishedTimeText?.simpleText ?? null,
+}));
+assert.ok(doCanal.length >= 10 && doCanal.every((c) => lerReproducoes(c.visualizacoes) != null && lerIdade(c.publicado) != null),
+  'cada vídeo da pesquisa traz as visualizações e há quanto tempo saiu');
+const AGORA = Date.UTC(2026, 9, 15);
+const infoDaBusca = infoDaPesquisa(doCanal, chaveDoTitulo, AGORA);
+const deBusca = (c: { videoId: string; titulo: string }) => infoDe(infoDaBusca, c.videoId, c.titulo, chaveDoTitulo);
+const maisVistas = ordenarMusicasDoArtista(doCanal, 'ouvidas', deBusca);
+const maisNovas = ordenarMusicasDoArtista(doCanal, 'recentes', deBusca);
+assert.notDeepEqual(maisVistas.map((c) => c.videoId), maisNovas.map((c) => c.videoId), 'os dois botões já não dão a mesma lista');
+const vistas = maisVistas.map((c) => lerReproducoes(c.visualizacoes)!);
+assert.deepEqual(vistas, [...vistas].sort((a, b) => b - a), 'Most played: das mais vistas para as menos');
+const idades = maisNovas.map((c) => lerIdade(c.publicado)!);
+assert.deepEqual(idades, [...idades].sort((a, b) => a - b), 'Newest: das mais novas para as mais antigas');
+assert.equal(detalheDaLinha('ouvidas', deBusca(maisVistas[0])), textoDasReproducoes(lerReproducoes(maisVistas[0].visualizacoes), 'views'),
+  'diz "views", que é o que são');
+assert.equal(detalheDaLinha('recentes', deBusca(maisNovas[0])), maisNovas[0].publicado, 'diz "11 years ago" e não inventa um ano');
+// As que empatam na idade ("12 years ago") ficam pela ordem da pesquisa.
+const dozeAnos = doCanal.filter((c) => c.publicado === '12 years ago').map((c) => c.videoId);
+assert.deepEqual(maisNovas.filter((c) => c.publicado === '12 years ago').map((c) => c.videoId), dozeAnos);
+// Os botões só aparecem quando mudam alguma coisa.
+assert.deepEqual(modosComDados(doCanal, deBusca), ['ouvidas', 'recentes']);
+assert.deepEqual(modosComDados(lista, () => null), [], 'sem nada que ordenar, nenhum');
+assert.deepEqual(modosComDados(lista, de), ['ouvidas', 'recentes']);
+assert.deepEqual(modosComDados([lista[3]], (t) => ({ reproducoes: 5, ano: null })), ['ouvidas']);
 
 // Ligado nas duas páginas de artista, com o botão das duas ordens.
 for (const ficheiro of ['../src/screens/LibraryGroupScreen.tsx', '../src/desktop/paginas/BibliotecaPages.web.tsx']) {

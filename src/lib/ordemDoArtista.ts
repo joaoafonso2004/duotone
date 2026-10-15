@@ -12,12 +12,28 @@
  * encontram pelo vídeo ou, noutro upload, pelo título. O que não se sabe vai
  * para o fim, pela ordem em que estava.
  *
+ * **Um artista sem página musical** (15/10: "Santuarius Records Rap", um canal
+ * de uploads) tem as músicas pela pesquisa do nome, e aí não havia nada: os
+ * dois botões davam a mesma lista. A pesquisa traz, de cada vídeo, as
+ * visualizações ("7,915 views") e há quanto tempo saiu ("12 years ago",
+ * relativo). São essas (`infoDaPesquisa`): "Most played" pelas visualizações,
+ * "Newest" pela data do vídeo -- e a linha diz "views" e "12 years ago", sem
+ * fingir um ano de lançamento que não se sabe.
+ *
  * Puro, sem imports: `scripts/test-ordem-do-artista.ts`.
  */
 
 export type ModoDoArtista = 'ouvidas' | 'recentes';
 export const MODOS_DO_ARTISTA: readonly ModoDoArtista[] = ['ouvidas', 'recentes'];
-export type InfoDaMusica = { reproducoes: number | null; ano: number | null };
+export type InfoDaMusica = {
+  reproducoes: number | null;
+  ano: number | null;
+  /** As reproduções são visualizações de um vídeo (da pesquisa), e não "plays" do YouTube Music. */
+  vistas?: boolean;
+  /** Da pesquisa: há quanto tempo o vídeo saiu, como o YouTube o diz, e o ano aproximado (só para ordenar). */
+  publicado?: string | null;
+  anoAproximado?: number | null;
+};
 export type InfoDasMusicas = { porVideo: Record<string, InfoDaMusica>; porTitulo: Record<string, InfoDaMusica> };
 export const INFO_VAZIA: InfoDasMusicas = { porVideo: {}, porTitulo: {} };
 
@@ -31,12 +47,49 @@ export function lerReproducoes(texto: string | null | undefined): number | null 
   return Math.round(base * vezes);
 }
 
-/** O número curto, como o YouTube Music o escreve: "2.4B plays". */
-export function textoDasReproducoes(n: number | null | undefined): string | null {
+/** O número curto, como o YouTube Music o escreve: "2.4B plays" (ou "7.9K views", os de um vídeo). */
+export function textoDasReproducoes(n: number | null | undefined, unidade: 'plays' | 'views' = 'plays'): string | null {
   if (n == null || !Number.isFinite(n) || n < 0) return null;
   const curto = (v: number, s: string) => `${v >= 100 ? Math.round(v) : Number(v.toFixed(1))}${s}`;
   const t = n >= 1e9 ? curto(n / 1e9, 'B') : n >= 1e6 ? curto(n / 1e6, 'M') : n >= 1e3 ? curto(n / 1e3, 'K') : String(n);
-  return `${t} ${n === 1 ? 'play' : 'plays'}`;
+  return `${t} ${n === 1 ? unidade.slice(0, -1) : unidade}`;
+}
+
+const SEGUNDOS = { second: 1, minute: 60, hour: 3600, day: 86_400, week: 604_800, month: 2_629_800, year: 31_557_600 } as const;
+
+/** "12 years ago", "Streamed 3 weeks ago" -> há quantos segundos; senão `null`. */
+export function lerIdade(texto: string | null | undefined): number | null {
+  const m = /(\d+)\s+(second|minute|hour|day|week|month|year)s?\s+ago\b/i.exec(String(texto ?? ''));
+  if (!m) return null;
+  return Number(m[1]) * SEGUNDOS[m[2].toLowerCase() as keyof typeof SEGUNDOS];
+}
+
+/**
+ * As músicas de uma pesquisa pelo nome (o artista sem página musical): as
+ * visualizações e quando saiu o vídeo. `agora` só serve para pôr as idades na
+ * mesma escala dos anos.
+ */
+export function infoDaPesquisa(
+  resultados: readonly { videoId: string; titulo: string; visualizacoes?: string | null; publicado?: string | null }[],
+  chaveDoTitulo: (t: string) => string,
+  agora: number = Date.now(),
+): InfoDasMusicas {
+  const porVideo: Record<string, InfoDaMusica> = {};
+  const porTitulo: Record<string, InfoDaMusica> = {};
+  for (const r of resultados) {
+    const idade = lerIdade(r.publicado);
+    const info: InfoDaMusica = {
+      reproducoes: lerReproducoes(r.visualizacoes),
+      ano: null,
+      vistas: true,
+      publicado: idade != null ? String(r.publicado).trim() : null,
+      anoAproximado: idade != null ? 1970 + (agora / 1000 - idade) / SEGUNDOS.year : null,
+    };
+    porVideo[r.videoId] = info;
+    const k = chaveDoTitulo(r.titulo);
+    if (k && (!porTitulo[k] || (info.reproducoes ?? -1) > (porTitulo[k].reproducoes ?? -1))) porTitulo[k] = info;
+  }
+  return { porVideo, porTitulo };
 }
 
 /**
@@ -88,12 +141,22 @@ export function infoDe(info: InfoDasMusicas, videoId: string, titulo: string, ch
   return info.porVideo[videoId] ?? info.porTitulo[chaveDoTitulo(titulo)] ?? null;
 }
 
+function valorDaOrdem(modo: ModoDoArtista, i: InfoDaMusica | null): number | null {
+  return modo === 'ouvidas' ? i?.reproducoes ?? null : i?.ano ?? i?.anoAproximado ?? null;
+}
+
+/**
+ * As ordens que mudam alguma coisa nesta lista: as que têm o valor de pelo
+ * menos uma música. Sem nenhuma, o botão não aparece -- dois botões que dão a
+ * mesma lista parecem estragados.
+ */
+export function modosComDados<T>(faixas: readonly T[], info: (t: T) => InfoDaMusica | null): ModoDoArtista[] {
+  return MODOS_DO_ARTISTA.filter((modo) => faixas.some((t) => valorDaOrdem(modo, info(t)) != null));
+}
+
 /** Ordena sem perder a ordem de quem empata ou de quem não se sabe (que vai para o fim). */
 export function ordenarMusicasDoArtista<T>(faixas: readonly T[], modo: ModoDoArtista, info: (t: T) => InfoDaMusica | null): T[] {
-  const valor = (t: T) => {
-    const i = info(t);
-    return modo === 'ouvidas' ? i?.reproducoes ?? null : i?.ano ?? null;
-  };
+  const valor = (t: T) => valorDaOrdem(modo, info(t));
   return faixas
     .map((t, i) => ({ t, i, v: valor(t) }))
     .sort((a, b) => (a.v == null) !== (b.v == null) ? (a.v == null ? 1 : -1) : (b.v ?? 0) - (a.v ?? 0) || a.i - b.i)
@@ -103,5 +166,6 @@ export function ordenarMusicasDoArtista<T>(faixas: readonly T[], modo: ModoDoArt
 /** O que a linha diz ao lado do artista: as reproduções, ou o ano. */
 export function detalheDaLinha(modo: ModoDoArtista, i: InfoDaMusica | null): string | null {
   if (!i) return null;
-  return modo === 'ouvidas' ? textoDasReproducoes(i.reproducoes) : i.ano ? String(i.ano) : null;
+  return modo === 'ouvidas' ? textoDasReproducoes(i.reproducoes, i.vistas ? 'views' : 'plays')
+    : i.ano ? String(i.ano) : i.publicado ?? null;
 }

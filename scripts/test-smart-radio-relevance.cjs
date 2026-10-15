@@ -47,5 +47,15 @@ const {fetchRadioTracks}=load('src/api/radio.ts',{
   assert.equal(radioCalls.at(-1),'RDAMVMsOevdW_9DHk','asks for the radio of that exact song');
   assert.deepEqual(result.map(t=>t.sourceId).sort(),['jowell-shor','zion-fantas'],'related songs, never the one playing');
   assert.equal(flowCalls,0,'still no global taste fallback');
+  // The end-of-queue autoplay (15/10): the Flow filled whatever the related batch lacked,
+  // and that is how Isak turned into Katy Perry. Related only, repeats as the last resort.
+  songRadio=[];discovered=[];page=[];
+  assert.deepEqual(await fetchRadioTracks([current],[current],10,new Set()),[],'automatic: nothing related, nothing at all');
+  assert.equal(flowCalls,0,'automatic never asks the Flow either');
+  discovered=[t('rel-1','Related one','Related artist'),t('rel-2','Related two','Other related')];
+  const remembered=new Set(identity.chavesDaMusica(discovered[1]));
+  result=await fetchRadioTracks([current],[current],10,remembered);
+  assert.deepEqual(result.map(t=>t.sourceId).sort(),['rel-1','rel-2'],'automatic: a short related batch, a remembered related one before any other genre');
+  assert.equal(flowCalls,0);
   console.log('Smart continuation: strict context, no repeated uploads, short batches and no global fallback passed.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

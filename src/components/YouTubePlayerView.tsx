@@ -1189,8 +1189,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         try {
           motorActivo().currentTime = resumeMs / 1000;
           if (mesmaNaSala) registarNaFila(`${track.sourceId}: Jam aligned before sound at ${(resumeMs / 1000).toFixed(2)}s`);
-        } catch {
-          // seek falhou — recomeça do início
+        } catch (e: any) {
+          // seek falhou — recomeça do início. Num Jam fica no relatório (15/10):
+          // era um dos caminhos possíveis do corte no início, e não deixava rasto.
+          if (mesmaNaSala) registarNaFila(`${track.sourceId}: Jam align before sound FAILED at ${(resumeMs / 1000).toFixed(2)}s (${e?.message ?? 'no engine'})`);
         }
       }
       const autoplay = st.autoplayOnLoad;

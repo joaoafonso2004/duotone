@@ -1796,7 +1796,7 @@ export const usePlayer = create<PlayerState>()(
       if (!seeds.length) return false;
       // O Radio não acaba (5/10): com o lote vazio, tenta outras sementes em
       // vez de deixar a fila parar (ver `tentativasDoRadio`). O autoplay do fim
-      // da fila tem o Flow como último recurso e fica com uma tentativa.
+      // da fila fica com uma tentativa (sem o Flow geral desde 15/10: ver api/radio.ts).
       const tentativas = radioMode !== 'on' ? [{ sementes: seeds, semMemoria: false }] : tentativasDoRadio([
         { sementes: seeds, semMemoria: false },
         { sementes: seeds, semMemoria: true },

@@ -16,11 +16,11 @@ import { getLikedSongs } from '../../api/library';
 import { fetchYouTubePlaylistById, type YtRecommendedPlaylist } from '../../api/youtube';
 import { lembrarCanalDoArtista, paginaDoArtista, type AlbumDaPagina, type PaginaDoArtista } from '../../api/albunsDoArtista';
 import { tocarMixDoArtista } from '../../state/mixDoArtista';
-import { pesquisarFaixas } from '../../api/search';
+import { pesquisarMusica, type DetalheDaPesquisa } from '../../api/search';
 import { addTracksToPlaylist, createPlaylist } from '../../api/playlists';
 import { getTopArtists } from '../../api/plays';
 import { addSearchHistoryEntry, clearSearchHistory, getOrdemDasGostadas, getOrdemDoArtista, getSearchHistory, setOrdemDasGostadas, setOrdemDoArtista, type OrdemDoArtista } from '../../lib/prefs';
-import { detalheDaLinha, infoDe, ordenarMusicasDoArtista } from '../../lib/ordemDoArtista';
+import { detalheDaLinha, infoDaPesquisa, infoDe, modosComDados, ordenarMusicasDoArtista } from '../../lib/ordemDoArtista';
 import { chaveDoTitulo } from '../../lib/albunsDoArtista';
 import { agruparPorArtista, chaveDeArtista, displayArtist, extractArtist, tituloDaFaixa } from '../../lib/artistName';
 import { useArtistasFavoritos } from '../../state/artistasFavoritos';
@@ -552,6 +552,9 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
   const data = useLibraryData();
   const [separador, setSeparador] = useState<'library' | 'tracks' | 'albums'>('library');
   const [outras, setOutras] = useState<Track[]>([]);
+  // As visualizações e a idade de cada vídeo da pesquisa (15/10): a ordem de
+  // um artista sem página musical.
+  const [detalhesDaPesquisa, setDetalhesDaPesquisa] = useState<Record<string, DetalheDaPesquisa>>({});
   const [pagina, setPagina] = useState<PaginaDoArtista | null>(null);
   const albuns = pagina?.albuns ?? [];
   const favoritos = useArtistasFavoritos((s) => s.chaves);
@@ -581,17 +584,19 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
     let cancelado = false;
     setADescobrir(true);
     setOutras([]);
+    setDetalhesDaPesquisa({});
     setPagina(null);
     setSeparador('library');
     fecharAlbum();
     useSaved.getState().refresh();
 
     const alvo = chaveDeArtista(name);
-    pesquisarFaixas(`${name} music`).then((resultados) => {
+    pesquisarMusica(`${name} music`).then(({ faixas: resultados, detalhes }) => {
       if (cancelado) return;
       // Uma pesquisa por nome também devolve reações, covers e entrevistas.
       // Só entram resultados cujo artista extraído é realmente este artista.
       setOutras(resultados.filter((t) => chaveDeArtista(displayArtist(t)) === alvo));
+      setDetalhesDaPesquisa(detalhes ?? {});
     }).catch((e: any) => {
       if (!cancelado) props.notify(e?.message || 'Could not discover more from this artist.');
     }).finally(() => {
@@ -637,9 +642,18 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
   const [ordem, setOrdem] = useState<OrdemDoArtista>('ouvidas');
   useEffect(() => { void getOrdemDoArtista().then(setOrdem).catch(() => {}); }, []);
   const escolherOrdem = (o: OrdemDoArtista) => { setOrdem(o); void setOrdemDoArtista(o).catch(() => {}); };
-  const infoDaFaixa = useCallback((t: Track) => (pagina ? infoDe(pagina.info, t.sourceId, tituloDaFaixa(t), chaveDoTitulo) : null), [pagina]);
+  // Sem lista no canal, as visualizações e a idade dos vídeos da pesquisa
+  // (15/10): sem elas os dois botões davam a mesma lista.
+  const infoDaBusca = useMemo(() => (doCanal ? null : infoDaPesquisa(outras.map((t) => ({
+    videoId: t.sourceId, titulo: tituloDaFaixa(t), ...detalhesDaPesquisa[t.sourceId],
+  })), chaveDoTitulo)), [doCanal, outras, detalhesDaPesquisa]);
+  const infoDaFaixa = useCallback((t: Track) => (pagina ? infoDe(pagina.info, t.sourceId, tituloDaFaixa(t), chaveDoTitulo) : null)
+    ?? (infoDaBusca ? infoDe(infoDaBusca, t.sourceId, tituloDaFaixa(t), chaveDoTitulo) : null), [pagina, infoDaBusca]);
   const guardadasPorOrdem = useMemo(() => ordenarMusicasDoArtista(tracks, ordem, infoDaFaixa), [tracks, ordem, infoDaFaixa]);
   const outrasPorOrdem = useMemo(() => ordenarMusicasDoArtista(outrasSemRepetir, ordem, infoDaFaixa), [outrasSemRepetir, ordem, infoDaFaixa]);
+  // O botão só aparece quando muda alguma coisa nesta aba (ou ainda a chegar).
+  const mostrarOrdem = separador !== 'albums' && (aProcurarMusicas
+    || modosComDados(separador === 'library' ? tracks : outrasSemRepetir, infoDaFaixa).length > 0);
   const detalheDaFaixa = useCallback((t: Track) => {
     const d = detalheDaLinha(ordem, infoDaFaixa(t));
     return d ? <Text numberOfLines={1} style={artistStyles.detalhe}>{d}</Text> : null;
@@ -712,7 +726,7 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
             <Ionicons name={icon} size={15} color={separador === id ? desktop.text : desktop.dim} />
             <Text style={[artistStyles.tabText, separador === id && artistStyles.tabTextActive]}>{label}</Text>
           </Pressable>)}
-          {separador !== 'albums' && <View style={artistStyles.ordem} accessibilityRole={'radiogroup' as any}>
+          {mostrarOrdem && <View style={artistStyles.ordem} accessibilityRole={'radiogroup' as any}>
             {([['ouvidas', 'Most played'], ['recentes', 'Newest']] as const).map(([o, rotulo]) => <Pressable key={o}
               accessibilityRole={'radio' as any} accessibilityState={{ checked: ordem === o }} onPress={() => escolherOrdem(o)}
               style={({ hovered }: any) => [artistStyles.ordemOpcao, ordem === o && artistStyles.ordemOpcaoAtiva, hovered && ordem !== o && artistStyles.tabHover]}>

@@ -61,11 +61,14 @@ const mocks = {
   '../components/YtPlaylistRecommendationSheet': { YtPlaylistRecommendationSheet: 'AlbumSheet' },
   '../state/catalogoDeFaixas': { comCatalogo: x => x }, '../api/library': { getLibrary: async () => library },
   '../lib/cacheDaBiblioteca': { lerFaixas: async read => read() }, '../api/catalogo': { fotoDoArtista: async () => null },
-  '../api/albunsDoArtista': { paginaDoArtista: () => paginaPromise }, '../api/search': { pesquisarFaixas: async () => more },
+  '../api/albunsDoArtista': { paginaDoArtista: () => paginaPromise }, '../api/search': { pesquisarMusica: async () => ({ faixas: more, continuacao: null, detalhes: {} }) },
   '../state/artistasFavoritos': { useArtistasFavoritos: Object.assign(selector => selector({ chaves: new Set(), alternar() {} }), { getState: () => ({ carregar: async () => {} }) }) },
   '../state/novosLancamentos': { marcarArtistaAberto() {} },
   // A ordem tem o seu teste (test-ordem-do-artista.ts): aqui fica a da lista.
-  '../lib/ordemDoArtista': { detalheDaLinha: () => null, infoDe: () => null, ordenarMusicasDoArtista: lista => lista },
+  '../lib/ordemDoArtista': {
+    detalheDaLinha: () => null, infoDe: () => null, ordenarMusicasDoArtista: lista => lista,
+    infoDaPesquisa: () => ({ porVideo: {}, porTitulo: {} }), modosComDados: () => [],
+  },
   '../lib/albunsDoArtista': { chaveDoTitulo: x => x },
   '../lib/prefs': { getOrdemDoArtista: async () => 'ouvidas', setOrdemDoArtista: async () => {} },
   '../state/saved': { useSaved: { getState: () => ({ refresh() {} }) } }, '../state/player': { usePlayer },

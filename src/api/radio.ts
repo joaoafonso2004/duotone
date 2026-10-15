@@ -16,7 +16,6 @@ import { foiSugeridaRecentemente } from '../lib/smartShuffle';
 import { trackKey } from '../lib/shuffle';
 import { getLibrary } from './library';
 import { lerFaixas } from '../lib/cacheDaBiblioteca';
-import { getFlowMix } from './plays';
 import { paginaDoArtista } from './albunsDoArtista';
 import { lerRadioPeloYtMusic } from './ytMusic';
 import type { Track } from '../types';
@@ -30,13 +29,16 @@ import { lerPerfilDeRecomendacoes } from './perfilDeRecomendacoes';
  * 1. A biblioteca, pelos mesmos artistas. 2. Os SEMELHANTES do catálogo (a
  * descoberta do Smart Shuffle, estrita: parte só do que está a tocar). 3. Uma
  * página musical do artista, confirmado pelas músicas dele. 4. O rádio da
- * própria música no YouTube Music. 5. Só no fim, o Flow geral do perfil.
+ * própria música no YouTube Music.
  *
- * **O Flow era a segunda fonte, e era ele que fazia a fila "nunca ser
- * parecida"** (João, 25/9: "se clico em Morad deve ser desse género"). O Flow
- * são as favoritas de sempre mais 30% ao acaso do catálogo -- o gosto geral, e
- * não o da música em que se clicou. Quem tinha poucas do Morad recebia isso
- * logo a seguir à primeira.
+ * **Nunca o Flow geral do perfil** (15/10). Era a segunda fonte até 25/9, e era
+ * ele que fazia a fila "nunca ser parecida" (João: "se clico em Morad deve ser
+ * desse género"): são as favoritas de sempre mais 30% ao acaso -- o gosto
+ * geral, e não o da música que se ouvia. Depois ficou como último recurso do
+ * autoplay do fim da fila, e era por aí que a fila saltava do Isak para a Katy
+ * Perry: bastava o lote parecido não chegar às dez (a memória de 30 dias vai
+ * gastando as parecidas de um artista) para o resto vir do gosto geral. Um
+ * lote curto e parecido é melhor; o autoplay volta a encher na faixa seguinte.
  *
  * `jaDescobertas`: as identidades das músicas descobertas nos últimos 30 dias
  * (a memória do Smart Shuffle, que o rádio também passou a alimentar -- 28/9).
@@ -153,19 +155,13 @@ export async function fetchRadioTracks(
   }
   if (harvest().length >= limit) return harvest();
 
-  // O modo escolhido na fila mantém as âncoras da sessão. Não preencher
-  // com o perfil geral quando o catálogo não confirma música relacionada.
-  // Um lote curto é preferível a voltar às mesmas sugestões. Inclui a
-  // continuação do Smart Shuffle: mantém o contexto e a memória de 30 dias.
+  // O modo escolhido na fila mantém as âncoras da sessão, e tem as suas
+  // próprias tentativas (`tentativasDoRadio`): um lote curto é preferível a
+  // voltar às mesmas sugestões. Inclui a continuação do Smart Shuffle.
   if (context === 'session') return harvest();
 
-  // 5. Último recurso: o Flow do perfil. É o gosto GERAL, e não o desta
-  //    música -- mas uma fila que continua é melhor do que o silêncio.
-  try {
-    pool.push(...shuffleCandidates(await getFlowMix(limit * 3)));
-  } catch {
-    // a RPC pode não existir na base de dados — degradar em silêncio
-  }
-
+  // O autoplay do fim da fila tenta uma vez só: o que faltar sai das
+  // parecidas que a memória de 30 dias guardava -- repetidas, mas do mesmo
+  // género. Nada parecido, a fila acaba (nunca o gosto geral, ver em cima).
   return harvest(true);
 }

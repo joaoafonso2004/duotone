@@ -75,5 +75,20 @@ await verificar('uma resposta irreconhecível continua a dar erro', async () => 
   await assert.rejects(() => pesquisarPaginaFree('teste'));
 });
 
+// 15/10: a página de um artista sem lista no YouTube Music ordena pelas
+// visualizações e pela idade de cada vídeo. Uma resposta real do InnerTube.
+await verificar('cada resultado traz as visualizações e há quanto tempo saiu', async () => {
+  const { readFileSync } = await import('node:fs');
+  responder(JSON.parse(readFileSync(new URL('./fixtures/pesquisa-santuarius-records-rap.json', import.meta.url), 'utf8')));
+  const pagina = await pesquisarPaginaFree('Santuarius Records Rap music');
+  assert.ok(pagina.resultados.length >= 10);
+  assert.ok(pagina.resultados.every((r) => /views?$/.test(r.visualizacoes ?? '') && /ago$/.test(r.publicado ?? '')));
+  assert.equal(pagina.resultados[0].channel, 'Santuarius Records Rap');
+  responder({ contents: { a: [video('aaaaaaaaaaa', 'Sem detalhes')] } });
+  const sem = await pesquisarPaginaFree('teste');
+  assert.equal(sem.resultados[0].visualizacoes, null, 'sem o campo, null e não um texto vazio');
+  assert.equal(sem.resultados[0].publicado, null);
+});
+
 if (falhas > 0) { console.error(`\n${falhas} teste(s) falharam`); process.exit(1); }
 console.log('\nPesquisa paginada: todos os casos passaram.');

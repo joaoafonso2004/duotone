@@ -3,8 +3,9 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  anoRecente, artistasComNovidade, escolherArtistas, lerMemoria, limparNovos, marcarAberto, memoriaVazia,
-  NOVO_DURANTE_MS, prateleira, precisaDeVerificar, registarArtista, VERIFICAR_DE_MS,
+  anoRecente, artistasComNovidade, escolherArtistas, esperaAteVerificar, esperaDepoisDeFalhar, FIXOS_POR_DIA, lerMemoria,
+  limparNovos, marcarAberto, MAX_ARTISTAS, memoriaVazia, NOVO_DURANTE_MS, prateleira, precisaDeVerificar, registarArtista,
+  VERIFICAR_DE_MS,
 } from '../src/lib/novosLancamentos.ts';
 
 const DIA = 24 * 60 * 60 * 1000;
@@ -21,6 +22,35 @@ const grupos = new Map([
 assert.deepEqual(escolherArtistas(['dillaz', 'fora'], ['isak', 'dillaz', 'vazio', 'plutonio'], grupos).map((a) => a.chave),
   ['dillaz', 'isak', 'plutonio'], 'favoritos à frente, sem repetidos, sem quem não está na biblioteca');
 assert.equal(escolherArtistas([], ['isak', 'plutonio', 'dillaz'], grupos, 2).length, 2, 'um teto por dia');
+
+// 15/10: quinze favoritos tapavam para sempre os artistas que se ouvem. Agora
+// alternam, os primeiros veem-se todos os dias e o resto roda.
+{
+  const muitos = new Map(Array.from({ length: 60 }, (_, i) => [`a${i}`, { nome: `A${i}`, faixas: ['x'] }]));
+  const favs = Array.from({ length: 20 }, (_, i) => `a${i}`);
+  const ouvidos = Array.from({ length: 40 }, (_, i) => `a${20 + i}`);
+  const hoje = escolherArtistas(favs, ouvidos, muitos).map((a) => a.chave);
+  assert.equal(hoje.length, MAX_ARTISTAS);
+  assert.deepEqual(hoje.slice(0, 4), ['a0', 'a20', 'a1', 'a21'], 'um favorito, um dos mais ouvidos, outro favorito...');
+  assert.ok(hoje.some((c) => Number(c.slice(1)) >= 20), 'os mais ouvidos entram mesmo com vinte favoritos');
+  // Os primeiros todos os dias; os outros lugares para os que há mais tempo não se leem.
+  const lidoHoje = new Set(hoje);
+  const amanha = escolherArtistas(favs, ouvidos, muitos, MAX_ARTISTAS, (c) => (lidoHoje.has(c) ? agora : 0)).map((a) => a.chave);
+  assert.deepEqual(amanha.slice(0, FIXOS_POR_DIA), hoje.slice(0, FIXOS_POR_DIA), 'os primeiros veem-se todos os dias');
+  assert.ok(amanha.slice(FIXOS_POR_DIA).every((c) => !lidoHoje.has(c)), 'os outros lugares rodam para quem ficou de fora');
+  // Ao fim de uns dias, todos foram vistos.
+  const lidoEm = new Map<string, number>();
+  for (let dia = 0; dia < 10; dia++) {
+    for (const a of escolherArtistas(favs, ouvidos, muitos, MAX_ARTISTAS, (c) => lidoEm.get(c) ?? 0)) lidoEm.set(a.chave, agora + dia * DIA);
+  }
+  assert.equal(lidoEm.size, 60, 'nenhum fica para sempre por ver');
+}
+
+// Volta a olhar com a app aberta (15/10): às 20 h, e depois de uma falha cada vez mais tarde.
+assert.equal(esperaAteVerificar(memoriaVazia(), agora), 0, 'nunca verificado: já');
+assert.equal(esperaAteVerificar({ ...memoriaVazia(), verificadoEm: agora - 2 * 60 * 60 * 1000 }, agora), VERIFICAR_DE_MS - 2 * 60 * 60 * 1000);
+assert.equal(esperaAteVerificar({ ...memoriaVazia(), verificadoEm: agora + DIA }, agora), 0, 'o relógio andou para trás: já');
+assert.deepEqual([1, 2, 3, 4, 9].map(esperaDepoisDeFalhar), [5, 15, 60, 180, 180].map((m) => m * 60 * 1000));
 
 // Uma vez por dia (20 h), e um relógio que andou para trás volta a verificar.
 assert.ok(precisaDeVerificar(memoriaVazia(), agora));
@@ -84,4 +114,13 @@ assert.equal(lerMemoria({ ...m, novos: [{ lancamento: { id: 1 }, desde: 'x' }] }
 const estado = readFileSync(new URL('../src/state/novosLancamentos.ts', import.meta.url), 'utf8');
 assert.match(estado, /AsyncStorage/);
 assert.doesNotMatch(estado, /supabase|yt_cache|guardarNaCache/, 'nada de Supabase');
+// O histórico de escutas lê-se do aparelho, sem sincronizar (zero pedidos).
+assert.match(estado, /contagensNoAparelho\(\)/);
+assert.doesNotMatch(estado, /getMostPlayed|getRecentlyPlayed|synchronizePlayCounts/, 'nada que sincronize as contagens');
+// Volta a olhar com a app aberta, e quando a rede volta.
+assert.match(estado, /agendar\(daConta, minha, esperaAteVerificar\(memoria, Date\.now\(\)\)\)/);
+assert.match(estado, /useConnectivity\.subscribe\(/);
+// No iPhone, com a app escondida, não vai à rede por isto (a regra da energia).
+assert.match(estado, /if \(!viva\(\) \|\| escondidaNoIPhone\(\)\) return;/);
+assert.match(estado, /AppState\.addEventListener\('change'/);
 console.log('Novos lançamentos: escolha dos artistas, primeira vez, novos, 14 dias, ponto e memória passaram.');

@@ -304,6 +304,15 @@ async function syncedEntries(): Promise<PlayCountEntry[]> {
   return Object.values(await serialized(syncUnsafe));
 }
 
+/**
+ * As contagens que já estão no aparelho, SEM sincronizar: zero pedidos. Os
+ * novos lançamentos (15/10) só precisam de saber que músicas de um artista se
+ * ouviram, para lhe provar o canal; a sincronização é dos outros caminhos.
+ */
+export async function contagensNoAparelho(): Promise<PlayCountEntry[]> {
+  return Object.values(await serialized(() => readMap()));
+}
+
 export async function getMostPlayed(limit = 50): Promise<PlayCountEntry[]> {
   return (await syncedEntries())
     .sort((a, b) => b.count - a.count || b.lastPlayed - a.lastPlayed)

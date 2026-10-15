@@ -5,7 +5,7 @@ import { anteriorDaSessao, efeitoDaAutoFila, percursoDaSessao, proximaFaixa, dec
 import { readFileSync } from 'node:fs';
 import { closePlayerSmoothly, confirmaSwipe } from '../src/lib/closePlayer.ts';
 import { seguirSessao } from '../src/lib/seguirSessao.ts';
-import { posicaoDaSalaParaFaixa } from '../src/lib/arranqueDaSala.ts';
+import { acertoNoPrimeiroSom, posicaoDaSalaParaFaixa } from '../src/lib/arranqueDaSala.ts';
 import type { SessaoDeEscuta } from '../src/api/ouvirJuntos.ts';
 
 const faixa = (sourceId: string): Track => ({ source: 'youtube', sourceId,
@@ -131,6 +131,21 @@ assert.equal(posicaoDaSalaParaFaixa(escolhida, confirmada, () => null), null, 's
 assert.equal(posicaoDaSalaParaFaixa(escolhida, confirmada, () => NaN), null);
 assert.equal(posicaoDaSalaParaFaixa(actual, confirmada, () => { throw Error('não consultar outra faixa'); }), null);
 assert.equal(posicaoDaSalaParaFaixa(escolhida, confirmada, () => 900000), 180000, 'respeita a duração');
+// O PC (15/10): carrega calado na posição da sala e acerta ao primeiro som o
+// que a sala andou enquanto o IFrame arrancava. Era o corte aos 7-9 s.
+assert.equal(acertoNoPrimeiroSom(3400, 2100, 600), 3400, 'atrasado 1,3 s: salta, ainda calado');
+assert.equal(acertoNoPrimeiroSom(2500, 2100, 600), null, 'dentro da tolerância: o som sai já');
+assert.equal(acertoNoPrimeiroSom(1000, 2100, 600), 1000, 'adiantado também se acerta');
+assert.equal(acertoNoPrimeiroSom(null, 2100, 600), null, 'sem relógio da sala não se salta');
+assert.equal(acertoNoPrimeiroSom(3400, NaN, 600), null, 'sem leitura do motor não se salta');
+{
+  const pc = readFileSync(new URL('../src/components/YouTubePlayerView.web.tsx', import.meta.url), 'utf8');
+  assert.match(pc, /p\.loadVideoById\(\{ videoId: track\.sourceId, startSeconds: naSala \/ 1000 \}\)/, 'carrega já na posição da sala');
+  assert.match(pc, /comecarAlinhamento\(p, track\.sourceId\);/, 'e calado');
+  assert.match(pc, /acertoNoPrimeiroSom\(posicaoNaSala\(faixaRef\.current\), motorMs, TOLERANCIA_MS\)/, 'acerta no primeiro som');
+  assert.match(pc, /PRAZO_DO_ALINHAMENTO_MS = 10_000/, 'nunca fica calado para sempre');
+  assert.match(pc, /soltarAlinhamento\(\);\n    try \{ p\.unMute/, 'outra faixa solta o alinhamento da anterior');
+}
 let vigente = true;
 const porta = { player: usePlayer.getState, vigente: () => vigente,
   posicaoAgora: () => 42000, guardarRetoma: (ms: number) => usePlayer.setState({ resumePositionMs: ms }) };

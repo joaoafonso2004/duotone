@@ -94,16 +94,19 @@ const resposta = (corpo) => ({ ok: true, json: async () => corpo });
     assert.equal(fluxos, 0, 'o modo de sessão nunca consulta o Flow global para completar a fila');
     assert.ok(!estrito.some(t => t.sourceId === vizinha.sourceId || t.sourceId === longaGuardada.sourceId), 'não inclui as alternativas fora do contexto trazidas só pelo Flow');
     if (semCanal) assert.equal(estrito.length, 0, 'sem provas de parentesco devolve vazio em vez de inventar um género');
+    // O autoplay do fim da fila (15/10): também sem o Flow geral. Era por ele
+    // que a fila passava do Isak para a Katy Perry.
     const lote = await radio.fetchRadioTracks([semente], [semente]);
-    assert.ok(!lote.some(t => t.sourceId === futebol.sourceId), 'o vídeo de futebol não entra, mesmo vindo do Flow');
+    assert.equal(fluxos, 0, 'o autoplay nunca consulta o Flow global para completar a fila');
+    assert.ok(!lote.some(t => t.sourceId === futebol.sourceId), 'o vídeo de futebol não entra');
     assert.ok(!lote.some(t => t.sourceId === semente.sourceId), 'não repete a faixa atual');
-    assert.ok(lote.some(t => t.sourceId === vizinha.sourceId), 'mantém as músicas de artistas semelhantes');
-    assert.ok(lote.some(t => t.sourceId === longaGuardada.sourceId), 'mantém a música longa que foi guardada');
+    assert.ok(!lote.some(t => t.sourceId === vizinha.sourceId || t.sourceId === longaGuardada.sourceId),
+      'nada do gosto geral entra só para encher o lote');
     assert.equal(pesquisasGerais, 0, 'a rádio não pesquisa vídeos pelo nome de um artista');
     assert.ok(procuradas.includes('Isak Telescópio'), 'a música da biblioteca é a prova para escolher o canal');
     if (semCanal) {
       assert.equal(canais.length, 0, 'sem provas não se abre um canal por palpite');
-      assert.equal(lote.length, 2, 'sem canal continua com as músicas válidas, sem recorrer a vídeos genéricos');
+      assert.equal(lote.length, 0, 'sem nada parecido a fila acaba, em vez de mudar de género');
     } else {
       assert.ok(canais.includes('UCX24KmsuxFB4jacvMSd3G2Q'), 'consulta o canal do rapper confirmado pela música');
       // Com TODOS os artistas, o principal primeiro (11/10): "Isak & Zigarro & Armando Teles".
