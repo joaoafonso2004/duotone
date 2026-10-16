@@ -401,5 +401,27 @@ console.log('\no artista e o título no sítio certo');
   eq('a guardada com o convidado, já aprendida', displayArtist({ ...comFeat, sourceId: 'w3', artist: 'Lil Uzi Vert' }, vocDosDois), 'Playboi Carti');
 }
 
+// 16/10 (auditoria 20): "Timeless" aparecia como artista de uma linha cujo
+// título era "The Weeknd, Playboi Carti". O catálogo conhece um grupo alemão
+// chamado Timeless (fica fiável), e o lado esquerdo, com a vírgula, não era
+// conhecido como um todo: a regra do título ao contrário trocava os lados.
+{
+  console.log('\na lista de artistas com vírgula (o "Timeless", 16/10)');
+  const voc0 = aprenderVocabulario([]);
+  const faixa = { source: 'youtube', title: 'The Weeknd, Playboi Carti - Timeless (Official Audio)', artist: 'Uploads da Malta' };
+  eq('o primeiro conhecido da lista basta: não se pergunta ao catálogo', ladosPorConfirmar(faixa, voc0).length, 0);
+  registarNomeDoCatalogo('Timeless', 'Timeless');
+  const voc = aprenderVocabulario([]);
+  eq('o artista é o primeiro da lista', displayArtist(faixa, voc), 'The Weeknd');
+  eq('e o título é a música', tituloDaFaixa(faixa, voc), 'Timeless');
+  const doCanal = { source: 'youtube', title: 'The Weeknd, Playboi Carti - Timeless', artist: 'The Weeknd' };
+  eq('no canal dele também', displayArtist(doCanal, voc), 'The Weeknd');
+  eq('o título também', tituloDaFaixa(doCanal, voc), 'Timeless');
+  // Um nome com vírgula continua inteiro quando a primeira parte não é um
+  // artista conhecido.
+  eq('"Tyler, The Creator" fica inteiro', displayArtist({ source: 'youtube', title: 'Tyler, The Creator - EARFQUAKE', artist: 'Uploads' }, voc), 'Tyler, The Creator');
+  eq('ao contrário, de verdade, continua a trocar', displayArtist({ source: 'youtube', title: 'Uma Musica Qualquer - Timeless', artist: 'Uploads' }, voc), 'Timeless');
+}
+
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);

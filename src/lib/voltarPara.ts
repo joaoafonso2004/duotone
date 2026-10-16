@@ -20,7 +20,7 @@ export type RotaComNome =
 
 /** Os nomes das secções são os da barra lateral. */
 const NOMES: Record<string, string> = {
-  search: 'Search', songs: 'Liked Songs', artists: 'Artists', playlists: 'Playlists',
+  search: 'Home', songs: 'Liked Songs', artists: 'Artists', playlists: 'Playlists',
   social: 'Social', profile: 'Profile', settings: 'Settings', 'now-playing': 'Now Playing',
   import: 'Import', 'spotify-import': 'Spotify import', 'library-check': 'Library check',
   'friend-profile': 'Profile', stats: 'Listening stats',

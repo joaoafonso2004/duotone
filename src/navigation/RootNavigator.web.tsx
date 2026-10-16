@@ -13,7 +13,8 @@ import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { addTracksToPlaylist, removeTrackFromPlaylist } from '../api/playlists';
 import { removeFromLibrary, saveToLibrary, checkIsSaved } from '../api/library';
 import type { OrigemDaFila } from '../lib/origemDaFila';
-import { useSaved } from '../state/saved';
+import { savedKey, useSaved } from '../state/saved';
+import { garantirGuardadas } from '../lib/guardarFaixa';
 import { useRecomendacoes } from '../state/recomendacoes';
 import { useDesktopNotifications } from '../hooks/useDesktopNotifications';
 import { useSocial } from '../state/social';
@@ -67,7 +68,7 @@ import { useAtalhosDaJanela } from '../desktop/useAtalhosDaJanela.web';
 import { useBarraDeTarefas } from '../desktop/useBarraDeTarefas.web';
 import { ModoLimpo } from '../desktop/ModoLimpo.web';
 import { BoasVindasPc } from '../desktop/BoasVindasPc.web';
-import { type Route, type ShareTarget } from '../desktop/rotas';
+import { type OrigemDoMenu, type Route, type ShareTarget } from '../desktop/rotas';
 import { rotaNoPc, type Destino } from '../lib/destinos';
 import { DestinosProvider } from './destinos';
 import { AVISO_DO_NAO_INTERESSA, eSugestao, naoInteressa } from '../state/naoInteressa';
@@ -204,17 +205,23 @@ function DesktopShell() {
   // `ShareFriendSheet`, que no PC é um diálogo. Havia uma segunda aqui, com
   // outro título e sem o "Listen together".
   const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
-  // `null` enquanto o servidor não responde: o menu diz "Checking your
-  // library…" em vez de mostrar o estado da faixa aberta antes desta.
-  const [isSaved, setIsSaved] = useState<boolean | null>(null);
+  // O estado "guardada" do menu vem do conjunto em memória (16/10, auditoria
+  // 9), como no iPhone: perguntava ao servidor a cada menu (dois pedidos), e o
+  // menu abria com "Checking your library…" numa música que já se tinha -- e
+  // uma falha dava-a como por guardar. `null` só antes da primeira leitura.
+  const guardadasLidas = useSaved((s) => s.loaded);
+  const isSaved = useSaved((s) => (trackMenu ? s.keys.has(savedKey(trackMenu)) : false));
   /** O índice real na fila, quando o menu abriu numa linha da fila. */
   const [trackMenuFila, setTrackMenuFila] = useState<number | null>(null);
+  /** A playlist, quando o menu abriu numa linha dela, e o papel real da pessoa
+   *  (16/10, auditoria 6): era a rota de fundo a decidir, com `podeEditar:
+   *  true` sempre -- um leitor via "Remove from this playlist", que a RLS
+   *  recusava, e o menu do leitor ou do painel herdava-o da página de baixo. */
+  const [trackMenuPlaylist, setTrackMenuPlaylist] = useState<OrigemDoMenu['playlist'] | null>(null);
   const semRede = useConnectivity((s) => s.offline);
   const emJam = useOuvirJuntos((s) => !!s.sessao);
   const filaDoLeitor = usePlayer((s) => s.queue);
   const indiceDoLeitor = usePlayer((s) => s.queueIndex);
-  const [savedTrackId, setSavedTrackId] = useState<string | null>(null);
-  const [currentIsSaved, setCurrentIsSaved] = useState(false);
 
   // Não subscrever a casca inteira ao store: `positionMs` muda durante toda
   // a reprodução e fazia voltar a renderizar navegação, página, diálogos e
@@ -224,21 +231,22 @@ function DesktopShell() {
   const isPlayingState = usePlayer((s) => s.isPlaying);
   const queueIndex = usePlayer((s) => s.queueIndex);
 
-  const checkCurrentSaved = useCallback(() => {
-    if (!currentTrack) {
-      setCurrentIsSaved(false);
-      return;
-    }
-    checkIsSaved(currentTrack.source, currentTrack.sourceId)
-      .then(({ saved }) => setCurrentIsSaved(saved))
-      .catch(() => setCurrentIsSaved(false));
-  }, [currentTrack]);
-
+  // O coração da música que toca também (16/10): eram dois pedidos por
+  // música, e um "não" a cada falha de rede. As mudanças deste aparelho chegam
+  // pelo `markSaved`; as do outro, relendo o conjunto (um pedido) quando a
+  // janela volta à frente, no máximo de 10 em 10 min.
+  const currentIsSaved = useSaved((s) => (currentTrack ? s.keys.has(savedKey(currentTrack)) : false));
   useEffect(() => {
-    checkCurrentSaved();
-    window.addEventListener('duotone:refresh-library', checkCurrentSaved);
-    return () => window.removeEventListener('duotone:refresh-library', checkCurrentSaved);
-  }, [checkCurrentSaved]);
+    garantirGuardadas();
+    let lidaEm = Date.now();
+    const aFrente = () => {
+      if (Date.now() - lidaEm < 10 * 60_000) return;
+      lidaEm = Date.now();
+      void useSaved.getState().refresh();
+    };
+    window.addEventListener('focus', aFrente);
+    return () => window.removeEventListener('focus', aFrente);
+  }, []);
 
   // Otimista (24/9): o coração muda no clique, e só volta atrás se o servidor
   // recusar. Esperava por três idas à rede -- perguntar, gravar e reler --
@@ -249,7 +257,6 @@ function DesktopShell() {
     aGuardarAtual.current = true;
     const faixa = currentTrack;
     const tirar = currentIsSaved;
-    setCurrentIsSaved(!tirar);
     useSaved.getState().markSaved(faixa, !tirar);
     try {
       if (tirar) {
@@ -265,7 +272,6 @@ function DesktopShell() {
       }
       window.dispatchEvent(new Event('duotone:refresh-library'));
     } catch (e: any) {
-      setCurrentIsSaved(tirar);
       useSaved.getState().markSaved(faixa, tirar);
       notify(e?.message || 'Could not update library.');
     } finally {
@@ -518,34 +524,29 @@ function DesktopShell() {
   // olhar. Aqui ja ha sessao (esta casca so existe com ela).
   useEffect(() => { void useRecomendacoes.getState().carregar(); }, []);
 
-  const more = useCallback(async (track: Track, discoveryContext?:DiscoveryContext, origem?: { fila?: number }) => {
+  const more = useCallback(async (track: Track, discoveryContext?:DiscoveryContext, origem?: OrigemDoMenu) => {
     setTrackMenu(track);
     setTrackMenuContext(discoveryContext??null);
     setTrackMenuFila(typeof origem?.fila === 'number' ? origem.fila : null);
-    setIsSaved(null);
+    setTrackMenuPlaylist(origem?.playlist ?? null);
     // Abre onde se clicou (5/10, MenuDeContexto.web.tsx): clique direito ou "…".
     setPontoDoMenu(ultimoClique());
     setTrackMenuOpen(true);
-    try {
-      const { saved, trackId } = await checkIsSaved(track.source, track.sourceId);
-      setIsSaved(saved);
-      setSavedTrackId(trackId);
-    } catch {
-      setIsSaved(false);
-      setSavedTrackId(null);
-    }
+    garantirGuardadas();
   }, []);
 
   const toggleSave = async () => {
     if (!trackMenu) return;
     setTrackMenuOpen(false);
-    const idToRemove = savedTrackId || trackMenu.id;
-    const tirar = !!(isSaved && idToRemove);
+    const tirar = isSaved;
     // Otimista: os corações das listas mudam já; voltam atrás se falhar.
     useSaved.getState().markSaved(trackMenu, !tirar);
     try {
       if (tirar) {
-        await removeFromLibrary(idToRemove!);
+        // O id da BD só se pergunta aqui, ao tirar (era a cada menu aberto).
+        const { trackId } = await checkIsSaved(trackMenu.source, trackMenu.sourceId);
+        const idToRemove = trackId || trackMenu.id;
+        if (idToRemove) await removeFromLibrary(idToRemove);
         notify('Removed from Liked Songs.');
       } else {
         await saveToLibrary(trackMenu);
@@ -560,10 +561,10 @@ function DesktopShell() {
   };
 
   const removeFromCurrentPlaylist = async () => {
-    if (!trackMenu || route.name !== 'playlist' || !trackMenu.id) return;
+    if (!trackMenu || !trackMenuPlaylist?.podeEditar || !trackMenu.id) return;
     setTrackMenuOpen(false);
     try {
-      await removeTrackFromPlaylist(route.id, trackMenu.id);
+      await removeTrackFromPlaylist(trackMenuPlaylist.id, trackMenu.id);
       notify('Removed from playlist.');
       window.dispatchEvent(new CustomEvent('duotone:refresh-playlist'));
     } catch (e: any) {
@@ -586,11 +587,11 @@ function DesktopShell() {
     onde: trackMenuFila !== null ? 'fila' : 'lista',
     semRede,
     tocaSemRede: false,
-    guardada: isSaved,
+    guardada: guardadasLidas ? isSaved : null,
     podeDescarregar: false,
     download: 'nenhum',
     temArtista: !!nomeDoArtistaDoMenu && nomeDoArtistaDoMenu !== 'Unknown artist',
-    playlist: route.name === 'playlist' && !nowPlayingOpen && trackMenuFila === null ? { podeEditar: true } : null,
+    playlist: trackMenuPlaylist && trackMenuFila === null ? { podeEditar: trackMenuPlaylist.podeEditar } : null,
     fila: trackMenuFila !== null ? { emJam, mudou: filaMudou } : null,
     sugestao: !!trackMenuContext || eSugestao(trackMenu),
   }) : [];

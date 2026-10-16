@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { menuDaPlaylist, type IdDaAcaoDaPlaylist } from '../lib/menuDaPlaylist';
 import { useFocusEffect, useNavigation, useScrollToTop } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -46,6 +46,12 @@ import type { Playlist } from '../types';
 import { useAlturaDosSeparadores } from '../state/doca';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
 import { useDownloadsFixados } from '../lib/downloadsFixados';
+import { useOfflineMode } from '../hooks/useOfflineMode';
+import { useAuth } from '../state/auth';
+import { playlistsDaCopiaSemRede, faixasDaPlaylistSemRede } from '../api/playlistSnapshot';
+import { tocaSemRede, useRevisaoDosDownloads } from '../lib/descarregarFaixa';
+import { useAudioCache } from '../lib/youtubeCache';
+import { legendaSemRede, naCopiaSemRede, type NaCopia } from '../lib/playlistsSemRede';
 
 export function PlaylistsScreen() {
   // Tocar no separador onde ja se esta volta ao topo (3/10, como no iOS).
@@ -72,6 +78,29 @@ export function PlaylistsScreen() {
   const [busy, setBusy] = useState(false);
   const theme = useTheme((s) => s.theme);
   const quantosDescarregados = useDownloadsFixados((s) => Object.keys(s.registo.pedidos).length);
+
+  // Sem rede (16/10, auditoria 29): a lista é a última que se viu (o disco da
+  // store) e cada cartão diz quantas músicas estão no iPhone. Abrir, tocar e
+  // pôr na fila funcionam; criar, partilhar e mudar esperam pela rede.
+  const offline = useOfflineMode();
+  const conta = useAuth((s) => s.session?.user.id ?? s.offlineUserId ?? null);
+  const revisaoDoAudio = useAudioCache((s) => s.revision);
+  useRevisaoDosDownloads();
+  const [copia, setCopia] = useState<Map<string, NaCopia> | null>(null);
+  useEffect(() => {
+    if (!offline || !conta) { setCopia(null); return; }
+    let vivo = true;
+    void playlistsDaCopiaSemRede(conta).then((porPlaylist) => {
+      if (vivo) setCopia(naCopiaSemRede(porPlaylist, tocaSemRede));
+    });
+    return () => { vivo = false; };
+  }, [offline, conta, revisaoDoAudio]);
+  // A rede voltou: a lista do servidor, já.
+  const estavaSemRede = useRef(offline);
+  useEffect(() => {
+    if (estavaSemRede.current && !offline) void usePlaylists.getState().carregar(true);
+    estavaSemRede.current = offline;
+  }, [offline]);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [optionsFor, setOptionsFor] = useState<Playlist | null>(null);
@@ -138,7 +167,10 @@ export function PlaylistsScreen() {
    */
   const usarPlaylist = async (p: Playlist, modo: 'tocar' | 'baralhar' | 'fila') => {
     try {
-      const faixas = await getPlaylistTracks(p.id);
+      // Sem rede, as da cópia que estão no iPhone (16/10).
+      const faixas = offline
+        ? ((conta ? await faixasDaPlaylistSemRede(conta, p.id) : null) ?? []).filter(tocaSemRede)
+        : await getPlaylistTracks(p.id);
       if (faixas.length === 0) return;
       const leitor = usePlayer.getState();
       if (modo === 'fila') { leitor.addManyToQueue(faixas); hapticNotification(); return; }
@@ -202,6 +234,12 @@ export function PlaylistsScreen() {
   // A Daily mix abre no ecrã das prateleiras, que é uma vista sobre a store --
   // ver `state/misturaDoDia.ts`.
 
+  const avisoSemRede = (
+    <View style={styles.semRede}>
+      <Ionicons name="cloud-offline-outline" size={16} color={colors.textSecondary} />
+      <Text style={type.caption}>Offline · the playlists from your last visit</Text>
+    </View>
+  );
   const avisoDeErro = loadError
     ? <View style={{paddingHorizontal:spacing.xl,paddingVertical:spacing.lg,gap:12}}><Text accessibilityRole="alert" style={type.caption}>{loadError}</Text><SocialButton onPress={()=>void load()}>Try again</SocialButton></View>
     : null;
@@ -233,7 +271,7 @@ export function PlaylistsScreen() {
       encolhe={cab}
       title="Playlists"
       subtitle={loading?'Loading…':loadError?undefined:`${playlists.length} ${playlists.length === 1 ? 'playlist' : 'playlists'}`}
-      right={
+      right={offline ? undefined :
         <Pressable
           hitSlop={10}
           onPress={() => setAddMenuOpen(true)}
@@ -278,7 +316,7 @@ export function PlaylistsScreen() {
         <Animated.FlatList
           ref={topo}
           data={playlists}
-          ListHeaderComponent={<>{avisoDeErro}{linhaDosDownloads}</>}
+          ListHeaderComponent={<>{avisoDeErro}{offline ? avisoSemRede : null}{linhaDosDownloads}</>}
           refreshControl={puxar}
           onScroll={cab.onScroll}
           scrollEventThrottle={cab.scrollEventThrottle}
@@ -291,7 +329,9 @@ export function PlaylistsScreen() {
             paddingBottom: bottomPad,
             paddingTop: cab.espaco + spacing.sm,
           }}
-          renderItem={({ item }) => (
+          renderItem={({ item }) => {
+            const naCopia = copia?.get(item.id);
+            return (
             <Pressable
               onPress={() =>
                 navigation.navigate('PlaylistDetail', {
@@ -305,6 +345,9 @@ export function PlaylistsScreen() {
               }}
               style={({ pressed }) => [
                 { width: cardSize },
+                // Sem rede, a que não tem nada no iPhone fica apagada, como as
+                // linhas do Up next.
+                copia && !naCopia?.aqui && { opacity: 0.4 },
                 pressed && { opacity: 0.8 },
               ]}
             >
@@ -326,10 +369,11 @@ export function PlaylistsScreen() {
                 </Pressable>
               </View>
               <Text numberOfLines={1} style={type.caption}>
-                {metaDaPlaylist(item)}
+                {copia ? legendaSemRede(naCopia) : metaDaPlaylist(item)}
               </Text>
             </Pressable>
-          )}
+            );
+          }}
         />
       )}
 
@@ -347,6 +391,8 @@ export function PlaylistsScreen() {
         } : null}
         // As ações vêm do menu partilhado com o PC (5/10, lib/menuDaPlaylist.ts).
         actions={optionsFor ? menuDaPlaylist({ plataforma: 'ios', onde: 'cartao', temFaixas: optionsFor.trackCount > 0, minha: !optionsFor.souColaborador, colaboro: !!optionsFor.souColaborador })
+          // Sem rede, só o que toca do iPhone.
+          .filter((a) => !offline || ((a.id === 'tocar' || a.id === 'baralhar' || a.id === 'fila') && !!copia?.get(optionsFor.id)?.aqui))
           .map((a) => ({ icon: a.icone as any, label: a.rotulo, destructive: a.destrutiva, onPress: () => fazerNaPlaylist(a.id) })) : []}
       />
 
@@ -465,6 +511,7 @@ function descricaoDosDownloads(n: number): string {
 }
 
 const styles = StyleSheet.create({
+  semRede: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginHorizontal: spacing.xl, paddingBottom: spacing.md },
   downloads: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     marginHorizontal: spacing.xl, paddingVertical: spacing.sm, minHeight: 56,

@@ -1,7 +1,12 @@
 import { useNotificationOverlay } from '../hooks/useNotificationOverlay';
 import { menuDaPlaylist } from '../lib/menuDaPlaylist';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
-import { avisarRemocao, avisarErro, avisarFeito } from '../lib/avisoDeRemocao';
+import { avisarRemocao, avisarErro, avisarFeito, avisarInfo } from '../lib/avisoDeRemocao';
+import { useOfflineMode } from '../hooks/useOfflineMode';
+import { faixasDaPlaylistSemRede } from '../api/playlistSnapshot';
+import { tocaSemRede, useRevisaoDosDownloads } from '../lib/descarregarFaixa';
+import { useAudioCache } from '../lib/youtubeCache';
+import { tocaveisSemRede } from '../lib/playlistsSemRede';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -92,7 +97,13 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   const cab = useCabecalhoQueEncolhe();
   const [fimDoNome, setFimDoNome] = useState(260);
   const { id } = route.params;
-  const userId=useAuth(s=>s.session?.user.id);
+  // A conta do aparelho: sem rede a sessão pode não se renovar (16/10).
+  const userId=useAuth(s=>s.session?.user.id??s.offlineUserId??undefined);
+  // Sem rede (16/10, auditoria 29): abre com a última cópia, toca o que está
+  // no iPhone, e o que muda a playlist ou precisa do servidor espera.
+  const offline=useOfflineMode();
+  const revisaoDoAudio=useAudioCache(s=>s.revision);
+  useRevisaoDosDownloads();
   const [details,setDetails]=useState<{id:string;name:string;ownerId:string}|null>(null);
   // Playlists colaborativas (7/10): quem lá está, e quem pôs cada música.
   const [pessoas,setPessoas]=useState<PessoaDaPlaylist[]>([]);
@@ -101,7 +112,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   const [sairAberto,setSairAberto]=useState(false);
   const papel=details?.id===id?papelNaPlaylist({donoId:details.ownerId,eu:userId,pessoas}):'leitor';
   // Pôr, tirar e reordenar: o dono e quem colabora. O nome e apagar só o dono.
-  const canEdit=podeMexerNasFaixas(papel);
+  const canEdit=podeMexerNasFaixas(papel)&&!offline;
   const souDono=papel==='dono';
   // O que se MOSTRA: as fotografias atuais (o servidor dá a coluna antiga).
   const pessoasVistas=usePessoasComCaras(pessoas);
@@ -275,9 +286,21 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   // de se desfazer a cada render. Quem acende a que toca é a própria linha.
   // De onde vem a lista: o "Jump back in" da Home volta aqui (lib/recentes.ts).
   const origem = useMemo(() => ({ tipo: 'playlist' as const, nome: name, id }), [name, id]);
+  // Sem rede, a fila é só o que está no iPhone, pela ordem (16/10).
+  const filaTocavel = useMemo(
+    () => tocaveisSemRede(visibleTracks, offline, tocaSemRede),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a revisão diz que o disco mudou
+    [visibleTracks, offline, revisaoDoAudio],
+  );
   const aoTocarNaLinha = useCallback((item: Track) => {
-    tocarMusica(item, visibleTracks, true, undefined, origem);
-  }, [tocarMusica, visibleTracks, origem]);
+    // A que não está no iPhone não toca: diz porquê.
+    if (offline && !tocaSemRede(item)) {
+      hapticSelection();
+      avisarInfo('Not on this iPhone', 'This song needs an internet connection.');
+      return;
+    }
+    tocarMusica(item, filaTocavel, true, undefined, origem);
+  }, [tocarMusica, filaTocavel, origem, offline]);
 
   /**
    * O "Remove from this playlist" do menu: tira logo, sem pergunta, e o aviso
@@ -313,6 +336,19 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
     const silencioso=!!opcoes?.silencioso;
     const token=++detailRequest.current;
     if(!silencioso){setLoading(true);setLoadError('');}
+    if(offline){
+      // A cópia das playlists próprias (api/playlistSnapshot.ts), com a idade
+      // que tiver. A de um amigo não está lá: essa precisa da rede.
+      const faixas=userId?await faixasDaPlaylistSemRede(userId,id):null;
+      if(token!==detailRequest.current)return;
+      if(faixas){
+        const daLista=usePlaylists.getState().items.find(p=>p.id===id);
+        setDetails({id,name:daLista?.name??route.params.name,ownerId:userId!});
+        setName(daLista?.name??route.params.name);setTracks(faixas);setPessoas([]);setQuemPosMapa(new Map());setLoadError('');
+      }else if(!silencioso){setDetails(null);setTracks([]);setLoadError('This playlist needs an internet connection.');}
+      if(!silencioso)setLoading(false);
+      return;
+    }
     try {
       const [info,rows,quem]=await Promise.all([getPlaylistDetails(id),silencioso?relerPlaylist(id):getPlaylistTracks(id),lerPessoasDaPlaylist(id).catch(()=>[] as PessoaDaPlaylist[])]);
       if(token!==detailRequest.current)return;
@@ -326,7 +362,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
     } finally {
       if(token===detailRequest.current&&!silencioso)setLoading(false);
     }
-  }, [id]);
+  }, [id, offline, userId]);
 
   // Alguém mexeu (7/10): relê-se por baixo. A editar não -- o rascunho é teu, e
   // o Save ou o Cancel releem a seguir.
@@ -368,9 +404,13 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
     finally{setAGuardar(false);}
   };
 
+  // Também quando a rede vai ou volta (o `load` muda com ela): com a lista à
+  // vista, relê-se por baixo dela, sem a trocar pelo "a carregar".
+  const temFaixas=useRef(false);
+  temFaixas.current=tracks.length>0;
   useFocusEffect(
     useCallback(() => {
-      if (!editMode) load();
+      if (!editMode) load(temFaixas.current ? { silencioso: true } : undefined);
       return()=>{detailRequest.current++;};
     }, [load, editMode])
   );
@@ -549,6 +589,12 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             faixas={tracks.length}
             duracaoSegundos={duracaoTotal}
           />
+          {offline ? (
+            <View style={styles.semRede}>
+              <Ionicons name="cloud-offline-outline" size={15} color={colors.textSecondary} />
+              <Text style={type.caption}>{`Offline · ${filaTocavel.length} of ${visibleTracks.length} on this iPhone`}</Text>
+            </View>
+          ) : null}
           {eColaborativa(pessoas) ? (
             <View style={{ alignItems: 'center', paddingHorizontal: spacing.lg, marginTop: -spacing.sm, marginBottom: spacing.sm }}>
               <CarasDaPlaylist pessoas={pessoasVistas} onPress={() => setPessoasAbertas(true)} />
@@ -556,8 +602,9 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
           ) : null}
           <View style={styles.actionRow}>
             <Pressable
-              style={styles.playButton}
-              onPress={() => void tocarLista(visibleTracks, ligado, inteligente, origem)}
+              style={[styles.playButton, filaTocavel.length === 0 && { opacity: 0.4 }]}
+              disabled={filaTocavel.length === 0}
+              onPress={() => void tocarLista(filaTocavel, ligado, inteligente, origem)}
             >
               <LinearGradient
                 colors={theme.gradient}
@@ -611,7 +658,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
               <Text style={[styles.toolbarLabel, { color: theme.color }]}>Add tracks</Text>
             </Pressable>}
 
-            {estadoGuardar!=='escondido'&&<Pressable
+            {estadoGuardar!=='escondido'&&!offline&&<Pressable
               style={styles.toolbarItem}
               disabled={aGuardar}
               accessibilityRole="button"
@@ -629,7 +676,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
 
             {/* Partilhar é o que mais se faz a uma playlist, e estava escondido no
                 More (28/9). O More passou para o ••• da barra de cima. */}
-            <Pressable
+            {!offline&&<Pressable
               style={styles.toolbarItem}
               accessibilityRole="button"
               onPress={() => {
@@ -639,7 +686,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             >
               <Ionicons name="share-social-outline" size={19} color={colors.text} />
               <Text style={styles.toolbarLabel}>Share</Text>
-            </Pressable>
+            </Pressable>}
 
             <Pressable
               style={styles.toolbarItem}
@@ -757,7 +804,8 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
                   <Ionicons name={procurarAberto ? 'close' : 'search'} size={21} color={colors.text} />
                 </Pressable>
               ) : null}
-              <Pressable
+              {/* Sem rede, tudo o que está no ••• precisa do servidor. */}
+              {!offline&&<Pressable
                 hitSlop={8}
                 onPress={() => { hapticSelection(); setOptionsOpen(true); }}
                 accessibilityRole="button"
@@ -765,7 +813,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
                 style={styles.botaoDeCima}
               >
                 <Ionicons name="ellipsis-horizontal" size={22} color={colors.text} />
-              </Pressable>
+              </Pressable>}
             </View>
           </View>
         )
@@ -849,6 +897,8 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
           scrollEventThrottle={cab.scrollEventThrottle}
           scrollIndicatorInsets={{ top: cab.espaco }}
           data={visibleTracks}
+          // As linhas apagadas dependem da rede e do que está no disco.
+          extraData={offline ? revisaoDoAudio : -1}
           keyExtractor={(t) => t.id}
           initialNumToRender={12}
           maxToRenderPerBatch={10}
@@ -868,15 +918,22 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
           ListHeaderComponent={cabecalhoDaLista}
           refreshControl={puxar}
           contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: bottomPad }}
-          renderItem={({ item }) => (
-            <TrackRow
-              track={item}
-              acompanharATocar
-              onPress={aoTocarNaLinha}
-              onAction={setActionTrack}
-              quemPos={quemPos(quemPosMapa.get(item.id), pessoasVistas)}
-            />
-          )}
+          renderItem={({ item }) => {
+            // Sem rede, a que não está no iPhone fica no lugar dela, apagada
+            // como no Up next, e tocar-lhe diz porquê (16/10, variante A de
+            // docs/playlists-sem-rede.html).
+            const fora = offline && !tocaSemRede(item);
+            const linha = (
+              <TrackRow
+                track={item}
+                acompanharATocar
+                onPress={aoTocarNaLinha}
+                onAction={setActionTrack}
+                quemPos={quemPos(quemPosMapa.get(item.id), pessoasVistas)}
+              />
+            );
+            return fora ? <View style={{ opacity: 0.4 }}>{linha}</View> : linha;
+          }}
         />
       )}
 
@@ -1148,6 +1205,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
+  semRede: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: -spacing.sm, marginBottom: spacing.md },
   /** Voltar (e o Done, a editar) por cima do cabecalho da playlist. */
   molduraDeCima: {
     flexDirection: 'row',

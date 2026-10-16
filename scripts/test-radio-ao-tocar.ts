@@ -120,7 +120,8 @@ await repor(false);
   const ler = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
   const usam: [string, RegExp][] = [
     ['src/screens/SongsScreen.tsx', /tocarMusica\(item, sortedTracks/],
-    ['src/screens/PlaylistDetailScreen.tsx', /tocarMusica\(item, visibleTracks/],
+    // `filaTocavel`: as visíveis, e sem rede só as que estão no iPhone (16/10).
+    ['src/screens/PlaylistDetailScreen.tsx', /tocarMusica\(item, filaTocavel/],
     ['src/screens/SearchScreen.tsx', /tocarMusica\(track, data, true, contextoDe\(track\)\)/],
     ['src/screens/LibraryGroupScreen.tsx', /tocarMusica\(item, activeTab/],
     ['src/screens/PrateleiraScreen.tsx', /tocarMusica\(item, faixas/],

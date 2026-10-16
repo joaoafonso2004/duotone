@@ -56,20 +56,33 @@ export interface CommonPageProps {
   notify: (message: string) => void;
   /**
    * O menu da faixa (lib/menuDaFaixa.ts). Com `origem.fila`, abriu numa linha
-   * da fila -- o índice real -- e ganha o "Remove from queue".
+   * da fila -- o índice real -- e ganha o "Remove from queue". Com
+   * `origem.playlist`, abriu numa linha da playlist, e diz se a pessoa a pode
+   * mudar (o papel real: dono, colaborador ou leitor).
    */
-  more: (track: Track, discoveryContext?: DiscoveryContext, origem?: { fila?: number }) => void;
+  more: (track: Track, discoveryContext?: DiscoveryContext, origem?: OrigemDoMenu) => void;
 }
+
+/** De onde abriu o menu de uma faixa (o `more`). */
+export type OrigemDoMenu = { fila?: number; playlist?: { id: string; podeEditar: boolean } };
 
 export type NavegarFn = (route: Route) => void;
 
-/** Os separadores da barra lateral, por ordem. */
+/**
+ * Os separadores da barra lateral, por ordem.
+ *
+ * A página inicial chama-se Home (16/10, auditoria 7), como no iPhone desde a
+ * barra nova (`docs/barra-home-folhas.html`): tem a retoma, a descoberta e as
+ * misturas, com a pesquisa no topo. A rota continua `search` -- é por esse
+ * nome que a app navega até lá --, e o atalho de teclado continua "Search",
+ * porque é isso que ele faz (põe o cursor na caixa).
+ */
 export const PRIMARY: {
   id: PrimaryRoute;
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
 }[] = [
-  { id: 'search', label: 'Search', icon: 'search-outline' },
+  { id: 'search', label: 'Home', icon: 'home-outline' },
   { id: 'songs', label: 'Liked Songs', icon: 'heart-outline' },
   { id: 'artists', label: 'Artists', icon: `${ICONES.artistas}-outline` },
   { id: 'playlists', label: 'Playlists', icon: `${ICONES.playlists}-outline` },

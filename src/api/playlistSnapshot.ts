@@ -113,6 +113,58 @@ export async function lerFaixasDasPlaylists(forcar = false): Promise<LinhaDePlay
   finally { if (emCurso?.promessa === promessa) emCurso = null; }
 }
 
+/**
+ * A cópia em disco, com a idade que tiver (16/10, auditoria 29): sem rede, a
+ * de há três dias vale mais do que "You're offline". Só para MOSTRAR e tocar o
+ * que está no aparelho -- com rede, quem manda é o `lerFaixasDasPlaylists`.
+ * A conta vem de quem chama (a do aparelho): sem rede, a sessão pode não se
+ * conseguir renovar.
+ */
+async function copiaSemRede(conta: string): Promise<LinhaDePlaylist[] | null> {
+  if (guardado?.conta === conta) return guardado.linhas;
+  try {
+    const raw = await AsyncStorage.getItem(PREFIX + conta);
+    if (!raw || raw.length > MAX_DISCO) return null;
+    const value = medirTrabalho('playlists.parse', () => JSON.parse(raw));
+    return value?.conta === conta && Array.isArray(value.linhas) ? value.linhas : null;
+  } catch { return null; }
+}
+
+export type FaixaDaCopia = {
+  id: string; source: 'youtube' | 'spotify'; sourceId: string; title: string; artist: string | null;
+  album: string | null; artworkUrl: string | null; durationSeconds: number | null; position: number;
+};
+
+const daLinha = (l: LinhaDePlaylist): FaixaDaCopia | null => l.tracks ? {
+  id: l.tracks.id, source: l.tracks.source, sourceId: l.tracks.source_id, title: l.tracks.title,
+  artist: l.tracks.artist, album: l.tracks.album, artworkUrl: l.tracks.artwork_url,
+  durationSeconds: l.tracks.duration_seconds, position: l.position,
+} : null;
+
+/** As faixas de uma playlist PRÓPRIA na cópia, pela ordem. `null` se não estiver lá. */
+export async function faixasDaPlaylistSemRede(conta: string, id: string): Promise<FaixaDaCopia[] | null> {
+  const linhas = await copiaSemRede(conta);
+  if (!linhas) return null;
+  const dela = linhas.filter((l) => l.playlist_id === id);
+  if (!dela.length) return null;
+  return dela
+    .sort((a, b) => a.position - b.position || (a.tracks?.id ?? '').localeCompare(b.tracks?.id ?? ''))
+    .map(daLinha).filter((f): f is FaixaDaCopia => !!f);
+}
+
+/** Todas as playlists próprias da cópia, cada uma com as suas faixas. */
+export async function playlistsDaCopiaSemRede(conta: string): Promise<Map<string, FaixaDaCopia[]>> {
+  const porPlaylist = new Map<string, FaixaDaCopia[]>();
+  for (const l of (await copiaSemRede(conta)) ?? []) {
+    const f = daLinha(l);
+    if (!f) continue;
+    const lista = porPlaylist.get(l.playlist_id) ?? [];
+    lista.push(f);
+    porPlaylist.set(l.playlist_id, lista);
+  }
+  return porPlaylist;
+}
+
 /** Só reutiliza uma playlist própria já conhecida; as dos amigos passam pela RLS. */
 export async function playlistPropriaEmCache(id: string): Promise<LinhaDePlaylist[] | null> {
   const conta = await idDaConta();

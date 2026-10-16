@@ -1,5 +1,8 @@
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { listPlaylists } from '../api/playlists';
+import { useAuth } from './auth';
+import { useConnectivity } from './connectivity';
 import type { Playlist } from '../types';
 
 /**
@@ -60,6 +63,24 @@ type Playlists = {
 let emCurso: Promise<void> | null = null;
 let geracao = 0;
 
+/**
+ * A última lista boa, em disco, por conta (16/10, auditoria 29): sem rede as
+ * Playlists abrem com ela, e com rede ela pinta o ecrã antes da resposta. A
+ * conta é a do aparelho (`offlineUserId`), que não precisa da rede.
+ */
+const CHAVE_DO_DISCO = 'duotone:playlists:v1:';
+const contaDoAparelho = (): string | null => {
+  const a = useAuth.getState();
+  return a.session?.user.id ?? a.offlineUserId ?? null;
+};
+async function lerDoDisco(conta: string): Promise<Playlist[] | null> {
+  try {
+    const raw = await AsyncStorage.getItem(CHAVE_DO_DISCO + conta);
+    const lista = raw ? JSON.parse(raw) : null;
+    return Array.isArray(lista) ? lista : null;
+  } catch { return null; }
+}
+
 export const usePlaylists = create<Playlists>((set, get) => ({
   items: [],
   estado: 'vazio',
@@ -78,15 +99,28 @@ export const usePlaylists = create<Playlists>((set, get) => ({
     if (emCurso) return emCurso;
     if (!forcar && get().estado === 'pronto' && Date.now() - get().carregadoEm < FRESCO_MS) return;
     const atual = geracao;
+    const conta = contaDoAparelho();
 
     // O esqueleto é SÓ para quem não tem nada. Com lista no ecrã, a
     // revalidação não se anuncia — era esse anúncio o pisca.
     if (get().items.length === 0) set({ estado: 'a-carregar', erro: '' });
 
-    const trabalho = listPlaylists()
+    const trabalho = (async () => {
+      // Sem nada no ecrã, o disco primeiro: é instantâneo, e sem rede é tudo.
+      if (get().items.length === 0 && conta) {
+        const doDisco = await lerDoDisco(conta);
+        if (doDisco && atual === geracao && get().items.length === 0) set({ items: doDisco, estado: 'pronto', erro: '' });
+      }
+      if (useConnectivity.getState().offline) {
+        if (atual === geracao && get().items.length === 0) set({ estado: 'pronto', erro: 'Your playlists need an internet connection the first time.' });
+        return;
+      }
+      return listPlaylists();
+    })()
       .then((rows) => {
-        if (atual !== geracao) return;
+        if (!rows || atual !== geracao) return;
         set({ items: rows, estado: 'pronto', erro: '', carregadoEm: Date.now() });
+        if (conta) void AsyncStorage.setItem(CHAVE_DO_DISCO + conta, JSON.stringify(rows)).catch(() => {});
       })
       .catch(() => {
         if (atual !== geracao) return;

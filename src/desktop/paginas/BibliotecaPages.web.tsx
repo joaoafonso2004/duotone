@@ -138,7 +138,7 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
     setAAbrirMix(false);
     if (!ok) notify('Could not load the mix.');
   };
-  return <><Page title="Search"
+  return <><Page title="Home"
     action={<IconButton name="refresh" label="Refresh recommendations"
       onPress={() => { void recs.carregar(true); }} active={recs.estado === 'a-carregar'} />}>
     <View style={styles.searchBar}><Field ref={input} icon="search" placeholder="Search songs, artists, playlists" value={query} onChangeText={setQuery} onSubmitEditing={() => run()} /><Button onPress={() => run()}>Search</Button></View>
@@ -367,10 +367,15 @@ export function SongsPage(props: CommonPageProps) {
   return <><Page title="Liked Songs" action={<View style={{ flexDirection: 'row', gap: 8 }}><Button icon="play" onPress={playAll}>Play all</Button><Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button></View>}>
     <View style={styles.songsToolbar}>
       <View style={styles.songsSearch}><Field icon="search" placeholder="Search your library" value={query} onChangeText={setQuery} /></View>
-      <Text style={styles.songsResultCount}>{query ? `${filteredTracks.length} of ` : ''}{data.tracks.length} {data.tracks.length === 1 ? 'song' : 'songs'}</Text>
-      <IconButton name="refresh" label="Refresh library" onPress={data.refresh} />
+      {/* "0 songs" só para uma lista que se leu (16/10, auditoria 5). */}
+      {data.semLista ? null : <Text style={styles.songsResultCount}>{query ? `${filteredTracks.length} of ` : ''}{data.tracks.length} {data.tracks.length === 1 ? 'song' : 'songs'}</Text>}
+      <IconButton name="refresh" label="Refresh library" active={data.aReler} onPress={() => {
+        // Com a lista no ecrã, uma falha não a tira: só se avisa.
+        const comLista = data.tracks.length > 0;
+        void data.refresh().then((ok) => { if (!ok && comLista) props.notify('Could not refresh your liked songs.'); });
+      }} />
     </View>
-    <ContentScroll scrollKey="songs">{data.loading ? <View style={{ height: 350 }}><Loading /></View> : <TrackTable plain listKey={`songs:${ordem ?? 'recent'}`} ordenacao={{ modo: ordem, aoMudar: setOrdem }} tracks={filteredTracks} onPlay={(t) => props.tocarMusica(t, filteredTracks, undefined, { tipo: 'guardadas', nome: 'Liked Songs' })} onMore={props.more} empty={query ? <Empty icon="search-outline" title="No results found" body={`No liked songs match "${query}"`} /> : <Empty icon="heart-outline" title="No liked songs yet" body="Tap the heart on a track and it will appear here." />} />}</ContentScroll>
+    <ContentScroll scrollKey="songs">{data.loading ? <View style={{ height: 350 }}><Loading /></View> : data.semLista ? <Empty icon="alert-circle-outline" title="Couldn't load your library" body="Check your connection. Nothing was removed: your songs are still saved." action={<Button onPress={() => void data.refresh()}>Try again</Button>} /> : <TrackTable plain listKey={`songs:${ordem ?? 'recent'}`} ordenacao={{ modo: ordem, aoMudar: setOrdem }} tracks={filteredTracks} onPlay={(t) => props.tocarMusica(t, filteredTracks, undefined, { tipo: 'guardadas', nome: 'Liked Songs' })} onMore={props.more} empty={query ? <Empty icon="search-outline" title="No results found" body={`No liked songs match "${query}"`} /> : <Empty icon="heart-outline" title="No liked songs yet" body="Tap the heart on a track and it will appear here." />} />}</ContentScroll>
   </Page></>;
 }
 
@@ -447,13 +452,13 @@ export function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) 
     return crescer(quantosMostrar(n, filteredArtists.length), filteredArtists.length);
   }), [filteredArtists.length]);
 
-  return <Page title="Artists" subtitle={`${artists.length} ${artists.length === 1 ? 'artist' : 'artists'}`}>
+  return <Page title="Artists" subtitle={data.semLista ? undefined : `${artists.length} ${artists.length === 1 ? 'artist' : 'artists'}`}>
     <ArtistFavoritesSyncStatus />
     <View style={styles.songsToolbar}>
       <View style={styles.songsSearch}><Field icon="search" placeholder="Search artists" value={query} onChangeText={setQuery} /></View>
-      <Text style={styles.songsResultCount}>{query ? `${filteredArtists.length} of ` : ''}{artists.length} {artists.length === 1 ? 'artist' : 'artists'}</Text>
+      {data.semLista ? null : <Text style={styles.songsResultCount}>{query ? `${filteredArtists.length} of ` : ''}{artists.length} {artists.length === 1 ? 'artist' : 'artists'}</Text>}
     </View>
-    <ContentScroll scrollKey="artists" aoChegarAoFim={mostrarMais}>{data.loading ? <View style={{ height: 350 }}><Loading /></View> : filteredArtists.length ? <View style={styles.playlistGrid}>{visiveis.map(({ nome, chave, faixas }) => { const favorito = favoritos.has(chave); return (
+    <ContentScroll scrollKey="artists" aoChegarAoFim={mostrarMais}>{data.loading ? <View style={{ height: 350 }}><Loading /></View> : data.semLista ? <Empty icon="alert-circle-outline" title="Couldn't load your library" body="Check your connection. Nothing was removed: your songs are still saved." action={<Button onPress={() => void data.refresh()}>Try again</Button>} /> : filteredArtists.length ? <View style={styles.playlistGrid}>{visiveis.map(({ nome, chave, faixas }) => { const favorito = favoritos.has(chave); return (
       <Pressable key={chave} onPress={() => navigate({ name: 'artist', value: nome })}
         {...marcar('cartao')} style={styles.playlistCard}>
         <View style={styles.playlistArt}>

@@ -7,7 +7,7 @@
  * atrás. O que só uma página usa fica junto dessa página.
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import { garantirCatalogo } from '../../state/catalogoDeFaixas';
 import { getLibrary } from '../../api/library';
@@ -27,41 +27,61 @@ import { faixasEmCache, lerFaixas, ouvirFaixas } from '../../lib/cacheDaBibliote
  */
 export { esquecerBiblioteca } from '../../lib/cacheDaBiblioteca';
 
+/**
+ * A biblioteca de uma página do PC.
+ *
+ * `loading` é só para quem ainda não tem lista nenhuma (16/10, auditoria 5):
+ * o refresh trocava a lista pelo "a carregar", e uma primeira leitura falhada
+ * acabava no estado vazio ("No liked songs yet", "0 songs") -- uma falha de
+ * rede a parecer uma coleção perdida. Agora a última lista boa fica no ecrã
+ * (`aReler` diz que se está a ler por baixo) e o `error` com `semLista` é o
+ * "não consegui carregar", que as páginas mostram com "Try again".
+ */
 export function useLibraryData(loader: () => Promise<Track[]> = getLibrary) {
   // O que o arranque já aqueceu (ver `hooks/useAquecerSeccoes.ts`): com isto na
   // mão a página abre desenhada, sem passar pelo estado de espera.
   const guardadas = faixasEmCache(loader);
   const [tracks, setTracks] = useState<Track[]>(guardadas ?? []);
   const [loading, setLoading] = useState(!guardadas);
+  const [aReler, setAReler] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Há uma lista que se leu bem (mesmo vazia): é ela que fica no ecrã.
+  const [lida, setLida] = useState(!!guardadas);
+
+  const lidaRef = useRef(lida);
+  lidaRef.current = lida;
 
   const ler = useCallback(async (forcar: boolean) => {
     if (!forcar) {
       const actual = faixasEmCache(loader);
       if (actual) {
         // Já se sabe a resposta: mostra-se sem passar pelo estado de espera.
-        setTracks(actual); setLoading(false); setError(null);
+        setTracks(actual); setLoading(false); setError(null); setLida(true);
         return;
       }
     }
-    setLoading(true);
+    // Com uma lista boa no ecrã, relê-se por baixo dela.
+    if (lidaRef.current) setAReler(true);
+    else setLoading(true);
     try {
       const faixas = await lerFaixas(loader, { forcar });
-      setTracks(faixas); setError(null);
+      setTracks(faixas); setError(null); setLida(true);
       // Os metadados que faltarem vêm aos poucos, e o que já estiver resolvido
       // na tabela partilhada chega de graça.
       void garantirCatalogo(faixas);
+      return true;
     } catch (e: any) {
       setError(e?.message || 'Could not load your library.');
+      return false;
     } finally {
-      setLoading(false);
+      setLoading(false); setAReler(false);
     }
   }, [loader]);
 
   // O que o arranque aquece depois de a página montar: pinta-se logo.
   useEffect(() => ouvirFaixas((leitor, faixas) => {
     if (leitor !== loader) return;
-    setTracks(faixas); setLoading(false); setError(null);
+    setTracks(faixas); setLoading(false); setError(null); setLida(true);
   }), [loader]);
 
   const refresh = useCallback(() => ler(true), [ler]);
@@ -85,7 +105,7 @@ export function useLibraryData(loader: () => Promise<Track[]> = getLibrary) {
     };
   }, [ler]);
 
-  return { tracks, loading, error, refresh };
+  return { tracks, loading, aReler, error, semLista: !!error && !lida, refresh };
 }
 
 export function PlaylistArtwork({ artworks, lado = 200 }: { artworks: string[]; lado?: number }) {

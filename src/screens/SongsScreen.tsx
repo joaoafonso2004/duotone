@@ -25,6 +25,7 @@ import { avisarRemocao, contarMusicas, avisarErro } from '../lib/avisoDeRemocao'
 import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
 import { EmptyState } from '../components/EmptyState';
 import { PrimeiroPasso } from '../components/PrimeiroPasso';
+import { PillButton } from '../components/PillButton';
 import { ordenarFaixas } from '../lib/ordenacao';
 import { getOrdemDasGostadas, setOrdemDasGostadas } from '../lib/prefs';
 import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
@@ -236,10 +237,13 @@ export function SongsScreen() {
   // O título encolhe ao rolar (3/10, variante B): o cabeçalho flutua por cima
   // da lista. A pesquisa fica presa por baixo da barra compacta; o Play/Shuffle
   // e os filtros rolam com as músicas, como no resto do iOS.
+  // Falhou e não há lista nenhuma (nem a do disco): é "não consegui carregar",
+  // e não "Nothing here yet" (16/10, auditoria 5). Com lista, fica ela e o aviso.
+  const semLista = !!loadError && tracks.length === 0;
   const avisosDoTopo = (
     <>
       {offline&&<OfflineNotice compact/>}
-      {!!loadError&&<Text accessibilityRole="alert" style={{color:colors.textSecondary,paddingHorizontal:spacing.xl,paddingBottom:12}}>{loadError}</Text>}
+      {!!loadError&&!semLista&&<Text accessibilityRole="alert" style={{color:colors.textSecondary,paddingHorizontal:spacing.xl,paddingBottom:12}}>{loadError}</Text>}
     </>
   );
   const cabecalhoDaLista = (
@@ -353,7 +357,7 @@ export function SongsScreen() {
             </View>
       ) : undefined}
       title="Liked Songs"
-      subtitle={`${tracks.length} ${offline?'downloaded':'saved'} ${tracks.length === 1 ? 'song' : 'songs'}`}
+      subtitle={semLista ? undefined : `${tracks.length} ${offline?'downloaded':'saved'} ${tracks.length === 1 ? 'song' : 'songs'}`}
       right={
         tracks.length > 0 ? (
           <Pressable
@@ -373,6 +377,19 @@ export function SongsScreen() {
         <View style={{ paddingTop: cab.espaco }}>
           {avisosDoTopo}
           <SkeletonDeFaixas />
+        </View>
+      ) : semLista ? (
+        <View style={{ flex: 1, paddingTop: cab.espaco }}>
+        {avisosDoTopo}
+        <EmptyState
+          icon="alert-circle-outline"
+          title="Couldn't load your liked songs"
+          subtitle="Check your connection. Nothing was removed: your songs are still saved."
+        >
+          <View style={{ marginTop: spacing.lg }}>
+            <PillButton label="Try again" onPress={() => void load()} />
+          </View>
+        </EmptyState>
         </View>
       ) : tracks.length === 0 ? (
         <View style={{ flex: 1, paddingTop: cab.espaco }}>

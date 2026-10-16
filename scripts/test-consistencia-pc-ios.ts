@@ -23,7 +23,8 @@ const todos = (pasta: string): string[] => readdirSync(pasta, { withFileTypes: t
 
 console.log('\no "voltar" do PC diz para onde vai (N7)');
 caso('uma secção leva o nome da lateral', () => {
-  assert.equal(nomeDaRota({ name: 'search' }), 'Search');
+  // A página inicial é a Home nos dois (16/10, auditoria 7).
+  assert.equal(nomeDaRota({ name: 'search' }), 'Home');
   assert.equal(nomeDaRota({ name: 'songs' }), 'Liked Songs');
   assert.equal(nomeDaRota({ name: 'library-check' }), 'Library check');
 });

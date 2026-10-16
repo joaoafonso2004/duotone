@@ -298,7 +298,7 @@ export function ladosPorConfirmar(faixa: FaixaParaAprender, vocabulario: Vocabul
   if ((faixa.source && faixa.source !== 'youtube') || nomeDeFonteFiavel(faixa.artist)) return [];
   const m = separarNoTraco(limparPrefixoDeUpload(faixa.title));
   if (!m) return [];
-  const lados = [m[0], m[1]].map((s) => artistaPrincipal(clean(semSufixoDeVersao(s))));
+  const lados = [m[0], m[1]].map((s) => primeiroDaLista(artistaPrincipal(clean(semSufixoDeVersao(s))), vocabulario));
   if (lados.some((s) => conhecidoComSeguranca(s, vocabulario))) return [];
   return lados.filter((s) => s.length >= 2 && s.length <= 60);
 }
@@ -435,6 +435,23 @@ function conhecidoComSeguranca(nome: string | null, vocabulario: Vocabulario): b
 }
 
 /**
+ * O primeiro de uma lista com vírgulas (`The Weeknd, Playboi Carti`), quando
+ * ESSE é um artista conhecido com segurança e a lista inteira não é.
+ *
+ * A vírgula não corta no `artistaPrincipal` -- `Tyler, The Creator` é um nome
+ * só --, e por isso uma lista nunca era conhecida: em `The Weeknd, Playboi
+ * Carti - Timeless` o lado direito (um grupo alemão que o catálogo confirma)
+ * ganhava, e a música aparecia com o artista "Timeless" e o título "The
+ * Weeknd, Playboi Carti" (16/10, auditoria 20). Só corta com o primeiro
+ * conhecido: um palpite aqui era o mesmo erro ao contrário.
+ */
+function primeiroDaLista(nome: string, vocabulario: Vocabulario): string {
+  if (!nome.includes(',') || conhecidoComSeguranca(nome, vocabulario)) return nome;
+  const primeiro = nome.slice(0, nome.indexOf(',')).trim();
+  return primeiro.length >= 2 && conhecidoComSeguranca(primeiro, vocabulario) ? primeiro : nome;
+}
+
+/**
  * Alguns uploads omitem os espaços do separador: `Artista-Música`.
  *
  * Não se pode cortar cegamente no primeiro hífen, porque `Song-Remix` e
@@ -506,7 +523,7 @@ function extrairBruto(
     const lados = separarNoTraco(limpo);
     const m = lados ? [limpo, lados[0], lados[1]] as const : null;
     if (m) {
-      const esquerda = artistaPrincipal(clean(m[1]));
+      const esquerda = primeiroDaLista(artistaPrincipal(clean(m[1])), vocabulario);
       const direita = artistaPrincipal(clean(m[2]));
       const esquerdaServe = esquerda.length >= 2 && !/^\d+$/.test(esquerda);
 
@@ -518,8 +535,8 @@ function extrairBruto(
       // que faltava num caso real: em `poster boy - Zhollis (Perfectly
       // Slowed)` o lado direito ficava `Zhollis (Perfectly Slowed)`, não
       // casava com `Zhollis`, e a app ficava com a MÚSICA no lugar do artista.
-      const direitaNua = artistaPrincipal(clean(semSufixoDeVersao(m[2])));
-      const esquerdaNua = artistaPrincipal(clean(semSufixoDeVersao(m[1])));
+      const direitaNua = primeiroDaLista(artistaPrincipal(clean(semSufixoDeVersao(m[2]))), vocabulario);
+      const esquerdaNua = primeiroDaLista(artistaPrincipal(clean(semSufixoDeVersao(m[1]))), vocabulario);
       if (conhecidoComSeguranca(direitaNua, vocabulario)
         && !conhecidoComSeguranca(esquerdaNua, vocabulario)) {
         return direitaNua;
@@ -831,8 +848,8 @@ function calcularTitulo(
   const chaveDoArtista = artista && artista !== 'Unknown artist' ? chaveDeArtista(artista) : '';
   const m = separarNoTraco(texto);
   if (m && chaveDoArtista) {
-    const esquerda = chaveDeArtista(artistaPrincipal(clean(m[0])));
-    const direita = chaveDeArtista(artistaPrincipal(clean(semSufixoDeVersao(m[1]))));
+    const esquerda = chaveDeArtista(primeiroDaLista(artistaPrincipal(clean(m[0])), vocabulario));
+    const direita = chaveDeArtista(primeiroDaLista(artistaPrincipal(clean(semSufixoDeVersao(m[1]))), vocabulario));
     if (esquerda === chaveDoArtista) texto = m[1].trim();
     else if (direita === chaveDoArtista) texto = m[0].trim();
   } else if (!m && chaveDoArtista) {

@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Playlists sem rede</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=JetBrains+Mono&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --fundo:#060608;--hover:rgba(233,234,238,.07);
+  --linha:rgba(233,234,238,.10);--linhaSuave:rgba(233,234,238,.055);
+  --texto:#E9EAEE;--medio:#9DA0AA;--fraco:#84868F;
+  --display:"Archivo",system-ui,sans-serif;--body:"Public Sans",system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:#101014;color:var(--texto);font-family:var(--body)}
+.pagina{max-width:1180px;margin:0 auto;padding:40px 16px 80px}
+h1{font-family:var(--display);font-size:30px;letter-spacing:-.5px;margin:0 0 8px}
+.intro{color:var(--medio);font-size:15px;line-height:1.6;max-width:780px;margin:0 0 22px}
+.intro b{color:var(--texto);font-weight:600}
+.opcoes{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px}
+.op{height:36px;padding:0 14px;border-radius:999px;border:1px solid rgba(233,234,238,.16);background:transparent;color:var(--medio);font:600 13.5px var(--body);cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+.op:hover{background:var(--hover);color:var(--texto)}
+.op.on{background:var(--texto);color:#0b0b0d;border-color:var(--texto)}
+.op .rec{font:10px var(--mono);letter-spacing:1px;opacity:.7}
+.descricao{color:var(--medio);font-size:14px;line-height:1.6;max-width:780px;min-height:70px;margin:6px 0 22px}
+.descricao b{color:var(--texto);font-weight:600}
+.palco{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start}
+.legenda{font:11px var(--mono);color:var(--fraco);letter-spacing:1px;margin:0 0 10px;text-transform:uppercase}
+
+/* o iPhone */
+.iphone{width:330px;height:690px;border-radius:46px;background:var(--fundo);border:1px solid rgba(255,255,255,.1);
+  box-shadow:0 30px 80px rgba(0,0,0,.55);position:relative;overflow:hidden;flex:none}
+.estado{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;font:600 14px var(--body)}
+.estado .avi{font-size:13px;display:flex;gap:6px;align-items:center;color:var(--texto)}
+.ecra{position:absolute;top:44px;left:0;right:0;bottom:0;overflow-y:auto;scrollbar-width:none}
+.ecra::-webkit-scrollbar{display:none}
+.topo{display:flex;align-items:center;gap:8px;padding:6px 18px 0}
+.voltar{color:var(--texto);display:flex;align-items:center;gap:2px;font-size:15px}
+.voltar svg{width:20px;height:20px}
+.titulo{font-family:var(--display);font-size:28px;font-weight:700;letter-spacing:-.4px;padding:6px 18px 2px}
+.sub{font-size:13px;color:var(--medio);padding:0 18px 12px}
+.semrede{display:flex;align-items:center;gap:8px;margin:0 18px 12px;font-size:12.5px;color:var(--medio)}
+.semrede svg{width:16px;height:16px;flex:none}
+
+/* grelha de playlists */
+.grelha{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:4px 18px 120px}
+.cartao{cursor:default}
+.cartao .capa{aspect-ratio:1;border-radius:10px;position:relative;overflow:hidden}
+.cartao .nome{font-size:13.5px;font-weight:600;margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cartao .meta{font-size:11.5px;color:var(--medio);margin-top:2px}
+.cartao.fora{opacity:.4}
+
+/* a playlist */
+.cabeca{display:flex;flex-direction:column;align-items:center;padding:8px 18px 4px}
+.capaG{width:170px;height:170px;border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.5)}
+.nomeG{font-family:var(--display);font-size:22px;font-weight:700;margin-top:14px}
+.metaG{font-size:12.5px;color:var(--medio);margin-top:3px;text-align:center}
+.botoes{display:flex;gap:10px;margin:14px 0 6px}
+.pilula{height:38px;padding:0 18px;border-radius:999px;display:inline-flex;align-items:center;gap:7px;font:600 14px var(--body);border:0}
+.pilula svg{width:16px;height:16px}
+.pilula.p{background:var(--texto);color:#0b0b0d}
+.pilula.s{background:rgba(233,234,238,.1);color:var(--texto)}
+.chips{display:flex;gap:8px;padding:6px 18px 4px}
+.chip{height:30px;padding:0 12px;border-radius:999px;border:1px solid rgba(233,234,238,.16);background:transparent;color:var(--medio);font:600 12.5px var(--body);cursor:pointer}
+.chip.on{background:rgba(233,234,238,.14);color:var(--texto);border-color:rgba(233,234,238,.24)}
+.lista{padding:6px 10px 130px}
+.faixa{display:flex;align-items:center;gap:11px;height:56px;padding:0 8px;border-radius:8px;cursor:pointer;transition:opacity .2s}
+.faixa:active{background:var(--hover)}
+.faixa .c{width:42px;height:42px;border-radius:5px;flex:none}
+.faixa .tt{font-size:14.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.faixa .aa{font-size:12.5px;color:var(--medio);margin-top:2px;display:flex;align-items:center;gap:5px}
+.faixa .aa svg{width:12px;height:12px;color:var(--medio);flex:none}
+.faixa .info{min-width:0;flex:1}
+.faixa .mais{color:var(--fraco);font-size:18px;padding:0 4px}
+.faixa.fora{opacity:.4}
+.faixa.toca .tt{color:#B9A6FF}
+.separador{font:600 12px var(--body);color:var(--fraco);padding:14px 8px 6px;letter-spacing:.2px}
+.resto{display:flex;align-items:center;gap:10px;margin:8px 8px 0;padding:12px 12px;border-radius:10px;background:rgba(233,234,238,.05);font-size:13px;color:var(--medio)}
+.resto svg{width:18px;height:18px;flex:none}
+
+/* mini leitor e barra */
+.base{position:absolute;left:0;right:0;bottom:0;padding:0 10px 22px;background:linear-gradient(transparent,var(--fundo) 30%)}
+.mini{height:54px;border-radius:12px;background:#1a1a20;display:flex;align-items:center;gap:10px;padding:0 10px;margin-bottom:8px}
+.mini .c{width:36px;height:36px;border-radius:5px}
+.mini .t{font-size:13px;font-weight:600}
+.mini .a{font-size:11.5px;color:var(--medio)}
+.tabs{display:flex;justify-content:space-around;font-size:10px;color:var(--fraco)}
+.tabs div{display:flex;flex-direction:column;align-items:center;gap:3px}
+.tabs svg{width:22px;height:22px}
+.tabs .on{color:var(--texto)}
+
+.aviso{position:absolute;left:50%;bottom:150px;transform:translate(-50%,10px);opacity:0;transition:.25s;background:#24242b;color:var(--texto);
+  font-size:13px;padding:10px 14px;border-radius:12px;white-space:nowrap;pointer-events:none;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+.aviso.ver{opacity:1;transform:translate(-50%,0)}
+.rodape{color:var(--fraco);font-size:13px;line-height:1.6;max-width:780px;margin-top:30px}
+</style>
+</head>
+<body>
+<div class="pagina">
+  <h1>Playlists sem rede (iPhone)</h1>
+  <p class="intro">Hoje, sem rede, as Playlists e cada playlist mostram só "You're offline". Passam a abrir com a <b>última cópia guardada</b>: a ordem, as capas e os artistas. Toca o que está no iPhone. A escolha é <b>como aparecem as músicas que não estão no iPhone</b>. Toca numa linha para ver o que acontece.</p>
+  <div class="opcoes" id="opcoes">
+    <button class="op on" data-o="a">A · Apagadas <span class="rec">RECOMENDO</span></button>
+    <button class="op" data-o="b">B · Só as que tocam</button>
+    <button class="op" data-o="c">C · Com filtro</button>
+  </div>
+  <p class="descricao" id="descricao"></p>
+  <div class="palco">
+    <div>
+      <p class="legenda">Playlists</p>
+      <div class="iphone">
+        <div class="estado"><span>9:41</span><span class="avi"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg></span></div>
+        <div class="ecra">
+          <div class="titulo">Playlists</div>
+          <div class="semrede"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3l18 18M8.5 8.6A5 5 0 0 0 7 17h10.5M12.5 6.1A6 6 0 0 1 18 12a4 4 0 0 1 2.4 3.6"/></svg>Offline · the copy from your last visit</div>
+          <div class="grelha" id="grelha"></div>
+        </div>
+        <div class="base"><div class="tabs">
+          <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Home</div>
+          <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>Liked</div>
+          <div class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6h16M4 12h10M4 18h7M17 14v6l4-3z"/></svg>Playlists</div>
+          <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="9" r="3.5"/><circle cx="17" cy="10" r="2.5"/><path d="M3 20c.5-3.5 3-5.5 6-5.5s5.5 2 6 5.5M15 15.5c2.6 0 4.5 1.5 5 4.5"/></svg>Social</div>
+        </div></div>
+      </div>
+    </div>
+    <div>
+      <p class="legenda">Uma playlist</p>
+      <div class="iphone">
+        <div class="estado"><span>9:41</span><span class="avi"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg></span></div>
+        <div class="ecra" id="ecraLista">
+          <div class="topo"><span class="voltar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 5l-7 7 7 7"/></svg>Playlists</span></div>
+          <div class="cabeca">
+            <div class="capaG" style="background:linear-gradient(135deg,#6b3fd1,#1c1030 70%)"></div>
+            <div class="nomeG">late night</div>
+            <div class="metaG" id="metaG"></div>
+            <div class="botoes">
+              <button class="pilula p"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>Play</button>
+              <button class="pilula s"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>Shuffle</button>
+            </div>
+          </div>
+          <div class="chips" id="chips"></div>
+          <div class="lista" id="lista"></div>
+        </div>
+        <div class="base">
+          <div class="mini"><div class="c" style="background:linear-gradient(135deg,#d4a15a,#3b2611)"></div><div><div class="t">Timeless</div><div class="a">The Weeknd</div></div></div>
+          <div class="tabs">
+            <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Home</div>
+            <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>Liked</div>
+            <div class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6h16M4 12h10M4 18h7M17 14v6l4-3z"/></svg>Playlists</div>
+            <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="9" r="3.5"/><circle cx="17" cy="10" r="2.5"/><path d="M3 20c.5-3.5 3-5.5 6-5.5s5.5 2 6 5.5M15 15.5c2.6 0 4.5 1.5 5 4.5"/></svg>Social</div>
+          </div>
+        </div>
+        <div class="aviso" id="aviso">Not on this iPhone · needs internet</div>
+      </div>
+    </div>
+  </div>
+  <p class="rodape">Nas três: o Play e o Shuffle tocam só as que estão no iPhone, pela ordem da playlist. Uma playlist colaborativa de um amigo continua a precisar de rede: a cópia em disco é a das tuas playlists. Quando a rede volta, a playlist atualiza-se sozinha.</p>
+</div>
+<script>
+const CORES=[['#d4a15a','#3b2611'],['#5aa2d4','#11263b'],['#d45a7a','#3b1120'],['#7ad45a','#1b3b11'],['#a35ad4','#28113b'],['#d4c35a','#3b3411'],['#5ad4c3','#113b34'],['#d47a5a','#3b1d11']];
+const capa=i=>`linear-gradient(135deg,${CORES[i%8][0]},${CORES[i%8][1]} 75%)`;
+const FAIXAS=[
+ ['Timeless','The Weeknd',1],['Sky','Playboi Carti',0],['@ MEH','Playboi Carti',1],['Too Many Nights','Metro Boomin',0],
+ ['Lean wit Me','Juice WRLD',1],['Die Hard','Kendrick Lamar',0],['Kerosene','Crystal Castles',0],['poster boy','2hollis',1],
+ ['Pikete Italiano 2','Isak',1],['Rich Flex','Drake',0],['Evil Jordan','Playboi Carti',0],['Flex Up','Lil Yachty',1],
+ ['XO Tour Llif3','Lil Uzi Vert',0],['All Girls Are The Same','Juice WRLD',0]];
+const PLAYLISTS=[['late night',14,6],['gym',42,30],['road trip',27,0],['chill',58,12],['carti',33,33],['old school',19,0]];
+const TEXTOS={
+ a:'<b>A · Apagadas.</b> A playlist inteira, pela ordem dela. As que não estão no iPhone ficam a 40%, como já fica o Up next sem rede, e tocar numa delas diz porquê. Vês sempre o que lá está e onde, e é o mesmo que a app já faz na fila.',
+ b:'<b>B · Só as que tocam.</b> Só aparecem as que estão no iPhone, pela ordem da playlist, e no fim uma linha diz quantas ficaram de fora. É o que as Liked Songs já fazem sem rede. Lista limpa, mas perdes a ordem completa e o "onde é que estava aquela".',
+ c:'<b>C · Com filtro.</b> Abre como a A (todas, apagadas), com um filtro em cima para ver só as do iPhone. Serve as duas coisas, à custa de um controlo a mais.'};
+let opcao='a',filtro='todas';
+function grelha(){
+  document.getElementById('grelha').innerHTML=PLAYLISTS.map(([n,t,d],i)=>{
+    const nada=d===0;
+    const meta=d===t?`${t} songs · all on this iPhone`:d?`${d} of ${t} on this iPhone`:`${t} songs · none on this iPhone`;
+    return `<div class="cartao${nada&&opcao!=='b'?' fora':nada?' fora':''}"><div class="capa" style="background:${capa(i+3)}"></div><div class="nome">${n}</div><div class="meta">${meta}</div></div>`;
+  }).join('');
+}
+const SETA='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M11 4h2v10l3.5-3.5 1.4 1.4L12 17.8l-5.9-5.9 1.4-1.4L11 14z"/><path d="M5 19h14v2H5z"/></svg>';
+function linha(f,i){
+  const [t,a,d]=f;
+  return `<div class="faixa${d?'':' fora'}${i===0?' toca':''}" data-d="${d}"><div class="c" style="background:${capa(i)}"></div><div class="info"><div class="tt">${t}</div><div class="aa">${d?SETA:''}${a}</div></div><span class="mais">⋯</span></div>`;
+}
+function lista(){
+  const no=FAIXAS.filter(f=>f[2]).length,fora=FAIXAS.length-no;
+  document.getElementById('metaG').textContent=`${FAIXAS.length} songs · ${no} on this iPhone`;
+  const chips=document.getElementById('chips');
+  chips.innerHTML=opcao==='c'?`<button class="chip${filtro==='todas'?' on':''}" data-f="todas">All ${FAIXAS.length}</button><button class="chip${filtro==='aqui'?' on':''}" data-f="aqui">On this iPhone ${no}</button>`:'';
+  chips.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{filtro=b.dataset.f;lista();});
+  let html='';
+  if(opcao==='b'||(opcao==='c'&&filtro==='aqui')){
+    html=FAIXAS.map((f,i)=>f[2]?linha(f,i):'').join('');
+    html+=`<div class="resto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3l18 18M8.5 8.6A5 5 0 0 0 7 17h10.5M12.5 6.1A6 6 0 0 1 18 12a4 4 0 0 1 2.4 3.6"/></svg>${fora} more need internet</div>`;
+  }else html=FAIXAS.map(linha).join('');
+  const el=document.getElementById('lista');el.innerHTML=html;
+  el.querySelectorAll('.faixa').forEach(r=>r.onclick=()=>{
+    if(r.dataset.d==='1'){el.querySelectorAll('.faixa').forEach(x=>x.classList.remove('toca'));r.classList.add('toca');return;}
+    const av=document.getElementById('aviso');av.classList.add('ver');clearTimeout(av._t);av._t=setTimeout(()=>av.classList.remove('ver'),1600);
+  });
+}
+function mostrar(){
+  document.querySelectorAll('.op').forEach(b=>b.classList.toggle('on',b.dataset.o===opcao));
+  document.getElementById('descricao').innerHTML=TEXTOS[opcao];
+  grelha();lista();
+}
+document.querySelectorAll('.op').forEach(b=>b.onclick=()=>{opcao=b.dataset.o;filtro='todas';mostrar();});
+mostrar();
+</script>
+</body>
+</html>

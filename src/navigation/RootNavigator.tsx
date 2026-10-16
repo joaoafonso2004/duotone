@@ -78,8 +78,6 @@ const OnlineListeningStats=withInternet(ListeningStatsScreen,'ListeningStats');
 const OnlineRetrospetiva=withInternet(RetrospetivaScreen,'Retrospetiva');
 const OnlineLibraryGroup=withInternet(LibraryGroupScreen,'LibraryGroup');
 const OnlinePrateleira=withInternet(PrateleiraScreen,'Prateleira');
-const OnlinePlaylistDetail=withInternet(PlaylistDetailScreen,'PlaylistDetail');
-const OnlinePlaylists=withInternet(PlaylistsScreen,'Playlists');
 const OnlineProfile=withInternet(ProfileScreen,'Profile');
 const OnlineSearch=withInternet(SearchScreen,'Search');
 const OnlineSocial=withInternet(SocialScreen,'Social');
@@ -199,7 +197,9 @@ function envolverEcra({ route, children }: { route: { name: string }; children: 
 function ecrasDaPilha() {
   return (
     <>
-      <Stack.Screen name="PlaylistDetail" component={OnlinePlaylistDetail} />
+      {/* Sem withInternet desde 16/10 (auditoria 29): sem rede abre com a
+          última cópia e toca o que está no iPhone. */}
+      <Stack.Screen name="PlaylistDetail" component={PlaylistDetailScreen} />
       <Stack.Screen name="LibraryGroup" component={OnlineLibraryGroup} />
       <Stack.Screen name="Prateleira" component={OnlinePrateleira} />
       <Stack.Screen name="FriendProfile" component={OnlineFriendProfile} />
@@ -237,7 +237,7 @@ function pilhaDoSeparador(raiz: RaizDaPilha, componente: React.ComponentType<any
 const PilhaDaHome = pilhaDoSeparador('Search', OnlineSearch);
 const PilhaDasSongs = pilhaDoSeparador('Songs', SongsScreen);
 const PilhaDosArtists = pilhaDoSeparador('Artists', OnlineArtists);
-const PilhaDasPlaylists = pilhaDoSeparador('Playlists', OnlinePlaylists);
+const PilhaDasPlaylists = pilhaDoSeparador('Playlists', PlaylistsScreen);
 const PilhaDoPerfil = pilhaDoSeparador('Profile', OnlineProfile);
 const PilhaDoSocial = pilhaDoSeparador('Social', OnlineSocial);
 

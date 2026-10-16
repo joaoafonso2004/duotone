@@ -4,8 +4,8 @@ import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { Track } from '../types';
 import { usePlayer } from '../state/player';
-import { checkIsSaved } from '../api/library';
-import { alternarGuardada } from '../lib/guardarFaixa';
+import { savedKey, useSaved } from '../state/saved';
+import { alternarGuardada, garantirGuardadas } from '../lib/guardarFaixa';
 import { menuDaFaixa, type IdDaAcao } from '../lib/menuDaFaixa';
 import { alternarDownload, downloadNoMenuDe, podeDescarregar, tocaSemRede, useRevisaoDosDownloads } from '../lib/descarregarFaixa';
 import { useOfflineMode } from '../hooks/useOfflineMode';
@@ -87,18 +87,14 @@ export function SocialTrackActions({ track, onClose, onArtist, extra }: {
   const [recomendacoes, setRecomendacoes] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [guardada, setGuardada] = useState<boolean | null>(null);
-
   // Saber se já está guardada é o que permite o botão dizer uma coisa só.
-  // Enquanto não se sabe, mostra-se o texto neutro em vez de adivinhar.
-  useEffect(() => {
-    if (!track) { setGuardada(null); return; }
-    let vivo = true;
-    checkIsSaved(track.source, track.sourceId)
-      .then((r) => { if (vivo) setGuardada(r.saved); })
-      .catch(() => { if (vivo) setGuardada(null); });
-    return () => { vivo = false; };
-  }, [track?.source, track?.sourceId]);
+  // Vem do conjunto em memória (16/10, auditoria 9), como nos outros menus:
+  // perguntava ao servidor a cada abertura. O texto neutro fica para antes da
+  // primeira leitura. Guardar ou tirar pergunta ao servidor (`alternarGuardada`).
+  const lidas = useSaved((st) => st.loaded);
+  const naLoja = useSaved((st) => (track ? st.keys.has(savedKey(track)) : false));
+  const guardada = track && lidas ? naLoja : null;
+  useEffect(() => { if (track) garantirGuardadas(); }, [track?.source, track?.sourceId]);
 
   const guardar = async () => {
     if (!track || busy) return;
