@@ -142,12 +142,19 @@ export async function lerPlaylistPeloYtMusic(id: string): Promise<{
  * (`ytmusic:radio`). Lista vazia se falhou.
  */
 /**
- * O mesmo rádio pedido outra vez na meia hora seguinte vem daqui (16/10): as
- * tentativas do Radio e os lotes seguidos repetiam as mesmas sementes, e
- * cada uma era um pedido ao YouTube Music (lib/pedidosAoYouTube.ts).
+ * Um rádio lido fica 2 h (16/10): traz ~50 músicas e um lote do Radio usa ~12,
+ * por isso serve os lotes seguintes sem outro pedido ao YouTube Music
+ * (lib/pedidosAoYouTube.ts). O `api/radio.ts` usa-o para ler no máximo um
+ * rádio NOVO por lote.
  */
-const RADIO_VALE_MS = 30 * 60_000;
+const RADIO_VALE_MS = 2 * 60 * 60_000;
 const radiosLidos = new Map<string, { em: number; faixas: Track[] }>();
+
+/** O rádio desta mistura, se já foi lido e ainda vale; `null` se não (sem pedir nada). */
+export function radioJaLido(mix: MixDoArtista): Track[] | null {
+  const lido = radiosLidos.get(`${mix.playlistId}|${mix.videoId ?? ''}|${mix.params ?? ''}`);
+  return lido && Date.now() - lido.em < RADIO_VALE_MS ? lido.faixas : null;
+}
 
 export async function lerRadioPeloYtMusic(mix: MixDoArtista): Promise<Track[]> {
   const chave = `${mix.playlistId}|${mix.videoId ?? ''}|${mix.params ?? ''}`;

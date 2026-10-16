@@ -87,6 +87,7 @@ const resposta = (corpo) => ({ ok: true, json: async () => corpo });
         reproducoesConhecidas: () => null,
         pesquisarCancoesCru: async (query) => { procuradas.push(query); return semCanal ? null : fixture('ytmusic-isak-telescopio.json'); },
         lerNoYtMusic: async (id) => { canais.push(id); return id.startsWith('UC') ? fixture('ytmusic-artista-isak.json') : null; },
+        radioJaLido: () => null,
       },
     });
     const nomes = mundo.carregar('src/lib/artistName.ts');
@@ -154,6 +155,7 @@ const resposta = (corpo) => ({ ok: true, json: async () => corpo });
       pesquisarCancoesCru: async () => null,
       lerNoYtMusic: async () => null,
       lerRadioPeloYtMusic: async (mix) => { radios.push(mix); return [semente, futebol, ...parecidas]; },
+      radioJaLido: () => null,
     },
   });
   const nomes = mundo.carregar('src/lib/artistName.ts');

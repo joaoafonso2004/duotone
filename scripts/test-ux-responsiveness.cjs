@@ -91,7 +91,7 @@ async function main(){
   const {tocarMixDoArtista}=load('src/state/mixDoArtista.ts',{
     '../api/albunsDoArtista':{mixDoArtista:async()=>page.mix,paginaDoArtista:async()=>pending??page,lembrarCanalDoArtista(){}},
     '../lib/identidadeDaMusica':{chavesDaMusica:t=>[t.sourceId]},'../lib/montarMixDoArtista':load('src/lib/montarMixDoArtista.ts',{}),
-    '../api/ytMusic':{lerRadioPeloYtMusic:async()=>generated},
+    '../api/ytMusic':{lerRadioPeloYtMusic:async()=>generated,radioJaLido:()=>null},
     '../api/radio':{fetchRadioTracks:async(...args)=>{calls.push(['radio',...args]);return generated;}},
     '../api/library':{getLibrary:async()=>seeds},'../lib/cacheDaBiblioteca':{lerFaixas:fn=>fn()},
     '../lib/artistName':{chaveDeArtista:x=>x.toLowerCase(),displayArtist:t=>t.artist},

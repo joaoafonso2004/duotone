@@ -20,7 +20,7 @@ import { trackKey } from '../lib/shuffle';
 import { getLibrary } from './library';
 import { lerFaixas } from '../lib/cacheDaBiblioteca';
 import { paginaDoArtista } from './albunsDoArtista';
-import { lerRadioPeloYtMusic, reproducoesConhecidas } from './ytMusic';
+import { lerRadioPeloYtMusic, radioJaLido, reproducoesConhecidas } from './ytMusic';
 import { emRecuo } from '../lib/pedidosAoYouTube';
 import type { Track } from '../types';
 import { misturarPorFamiliaridade } from '../lib/contextoDaDescoberta';
@@ -198,17 +198,25 @@ export async function fetchRadioTracks(
   //    Um pedido ao YouTube Music, e só quando o resto não chegou.
   //    15/10: até três sementes, e não só a primeira -- o rádio de uma música
   //    só tem umas cinquenta, e numa tarde de Radio gastavam-se: era aí que
-  //    voltavam as mesmas. Um pedido por semente, só enquanto o lote não chega.
+  //    voltavam as mesmas.
+  //    16/10: o mesmo resultado com muito menos pedidos. Cada lote voltava a
+  //    pedir os mesmos rádios (até três), e um lote usa ~12 das ~50 de cada um.
+  //    Agora os rádios já lidos (2 h, `radioJaLido`) entram de graça, e só se
+  //    lê um NOVO -- no máximo um por lote, o da primeira semente ainda por ler
+  //    -- quando os já lidos não chegam. Como antes, a semente seguinte só
+  //    entra quando a anterior se esgota.
+  const mistura = (t: Track) => ({ playlistId: `RDAMVM${t.sourceId}`, videoId: t.sourceId, params: null });
   const comVideo = seeds.filter((t) => t.source === 'youtube' && /^[\w-]{11}$/.test(t.sourceId)).slice(0, 3);
-  for (const daMusica of comVideo) {
-    if (emRecuo()) break;
+  for (const daMusica of comVideo) pool.push(...(radioJaLido(mistura(daMusica)) ?? []));
+  const porLer = comVideo.find((t) => !radioJaLido(mistura(t)));
+  if (porLer && !emRecuo() && harvest().length < limit) {
     try {
-      pool.push(...await lerRadioPeloYtMusic({ playlistId: `RDAMVM${daMusica.sourceId}`, videoId: daMusica.sourceId, params: null }));
+      pool.push(...await lerRadioPeloYtMusic(mistura(porLer)));
     } catch {
       // Sem rede ou o YouTube Music mudou a resposta: segue sem ele.
     }
-    if (harvest().length >= limit) return harvest();
   }
+  if (harvest().length >= limit) return harvest();
 
   // O modo escolhido na fila mantém as âncoras da sessão, e tem as suas
   // próprias tentativas (`tentativasDoRadio`): um lote curto é preferível a

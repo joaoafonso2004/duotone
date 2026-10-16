@@ -12,7 +12,7 @@ function load(file,mocks={}){
 }
 const t=(id,title,artist='Isak Zigarro')=>({source:'youtube',sourceId:id,title,artist,durationSeconds:180,artworkUrl:null,album:null});
 const identity=load('src/lib/identidadeDaMusica.ts');
-let library=[],discovered=[],page=[],songRadio=[],flowCalls=0;const radioCalls=[];
+let library=[],discovered=[],page=[],songRadio=[],flowCalls=0,radioMemo=null;const radioCalls=[];
 const {fetchRadioTracks}=load('src/api/radio.ts',{
   '../state/connectivity':{useConnectivity:{getState:()=>({offline:false})}},
   '../state/recommendationFeedback':{feedbackReady:async()=>{},filterSuggestions:ts=>ts},
@@ -22,7 +22,8 @@ const {fetchRadioTracks}=load('src/api/radio.ts',{
   './perfilDeRecomendacoes':{lerPerfilDeRecomendacoes:async()=>({escutas:new Map(),externos:new Map()})},
   '../lib/idDaConta':{idDaConta:async()=>'conta-de-teste'},
   './descoberta':{candidatasParaDescoberta:async()=>discovered},
-  './ytMusic':{lerRadioPeloYtMusic:async(mix)=>{radioCalls.push(mix.playlistId);return songRadio;},reproducoesConhecidas:()=>null},
+  './ytMusic':{lerRadioPeloYtMusic:async(mix)=>{radioCalls.push(mix.playlistId);if(radioMemo&&songRadio.length)radioMemo.set(mix.playlistId,songRadio);return songRadio;},
+    radioJaLido:(mix)=>radioMemo?.get(mix.playlistId)??null,reproducoesConhecidas:()=>null},
 });
 (async()=>{
   const current=t('current','Anchor'),heard=t('old-upload','Repeated song','Related artist');
@@ -70,11 +71,15 @@ const {fetchRadioTracks}=load('src/api/radio.ts',{
   discovered=[justHeard,oldest];
   result=await fetchRadioTracks([current],[current],10,new Set(),'automatic',heardMap([[justHeard,now-hour],[oldest,now-20*hour]]));
   assert.deepEqual(result.map(t=>t.sourceId),['oldest','just-heard'],'last resort: repeats, the one heard longest ago first');
-  // The song radio asks more than one seed when the first one runs dry.
-  discovered=[];page=[];songRadio=[];radioCalls.length=0;
+  // 16/10: at most ONE new song radio per batch; the ones already read (kept 2 h)
+  // come for free, and the next seed is read only when they run short.
+  discovered=[];page=[];songRadio=[t('rrrrrrrrrr1','Radio one','Other related')];radioCalls.length=0;radioMemo=new Map();
   const s1=t('aaaaaaaaaa1','One','Isak'),s2=t('aaaaaaaaaa2','Two','Isak'),s3=t('aaaaaaaaaa3','Three','Isak'),s4=t('aaaaaaaaaa4','Four','Isak');
   await fetchRadioTracks([s1,s2,s3,s4],[s1,s2,s3,s4],10,new Set(),'session');
-  assert.deepEqual(radioCalls,['RDAMVMaaaaaaaaaa1','RDAMVMaaaaaaaaaa2','RDAMVMaaaaaaaaaa3'],'up to three seeds, one request each, only while short');
+  assert.deepEqual(radioCalls,['RDAMVMaaaaaaaaaa1'],'one request per batch, for the first seed');
+  await fetchRadioTracks([s1,s2,s3,s4],[s1,s2,s3,s4],10,new Set(),'session');
+  assert.deepEqual(radioCalls,['RDAMVMaaaaaaaaaa1','RDAMVMaaaaaaaaaa2'],'the first radio comes from memory; still short, so the next seed');
+  radioMemo=null;
   // The song radio (16/10): a video carries its views in the byline, an audio track does not.
   const {lerRadioDoYtMusic}=load('src/lib/albunsDoArtista.ts',{});
   const item=(id,linha)=>({playlistPanelVideoRenderer:{videoId:id,title:{runs:[{text:id}]},longBylineText:{runs:[{text:linha}]},lengthText:{runs:[{text:'3:00'}]}}});

@@ -114,7 +114,10 @@ await caso('a descoberta usa a guardada, e em recuo não pede', () => {
 await caso('o Radio e os lançamentos não pedem durante o recuo', () => {
   const r = ler('src/api/radio.ts');
   assert.match(r, /if \(artists\[0\] && !emRecuo\(\)\) \{/);
-  assert.match(r, /for \(const daMusica of comVideo\) \{\s*if \(emRecuo\(\)\) break;/);
+  // e lê no máximo um rádio NOVO por lote; os já lidos (2 h) entram de graça
+  assert.match(r, /for \(const daMusica of comVideo\) pool\.push\(\.\.\.\(radioJaLido\(mistura\(daMusica\)\) \?\? \[\]\)\);/);
+  assert.match(r, /if \(porLer && !emRecuo\(\) && harvest\(\)\.length < limit\) \{/);
+  assert.match(ler('src/api/ytMusic.ts'), /const RADIO_VALE_MS = 2 \* 60 \* 60_000;/);
   const n = ler('src/state/novosLancamentos.ts');
   assert.match(n, /if \(emRecuo\(\)\) \{ agendar\(daConta, minha, faltaDoRecuo\(\) \+ 60_000\); return; \}/);
 });
