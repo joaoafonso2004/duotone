@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Favorito · animações</title>
+<style>
+  :root {
+    --fundo: #0A0A0F; --cartao: #14141C; --linha: rgba(255,255,255,.08); --texto: #F5F5F7;
+    --fraco: rgba(245,245,247,.55); --cor: #F5F5F7; --vel: 1;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fundo); color: var(--texto);
+    font-family: "Segoe UI Variable", "Segoe UI", -apple-system, system-ui, sans-serif; }
+  main { max-width: 1060px; margin: 0 auto; padding: 36px 20px 60px; }
+  h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -.3px; }
+  .sub { color: var(--fraco); margin: 0 0 22px; font-size: 14px; line-height: 1.5; max-width: 760px; }
+  .barra { display: flex; gap: 10px; align-items: center; margin-bottom: 22px; flex-wrap: wrap; }
+  .barra button, .barra label { background: var(--cartao); color: var(--texto); border: 1px solid var(--linha);
+    border-radius: 999px; padding: 7px 14px; font: inherit; font-size: 13px; cursor: pointer; display: flex; gap: 8px; align-items: center; }
+  .barra button[aria-pressed="true"] { background: #F5F5F7; color: #0A0A0F; }
+  .grelha { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .opcao { background: var(--cartao); border: 1px solid var(--linha); border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+  .opcao h2 { margin: 0; font-size: 16px; }
+  .opcao p { margin: 0; color: var(--fraco); font-size: 13px; line-height: 1.45; min-height: 56px; }
+  .palco { height: 132px; display: grid; place-items: center; border-radius: 12px; background: radial-gradient(circle at 50% 45%, rgba(255,255,255,.05), transparent 65%); }
+  .linha { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 10px; background: rgba(255,255,255,.03); }
+  .linha .capa { width: 38px; height: 38px; border-radius: 6px; background: linear-gradient(135deg, #5a3a2a, #c27a4a); flex-shrink: 0; }
+  .linha .txt { flex: 1; min-width: 0; }
+  .linha .t { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .linha .a { font-size: 12px; color: var(--fraco); }
+  .nota { margin-top: 26px; color: var(--fraco); font-size: 13px; line-height: 1.6; }
+
+  /* O coração: um botão que reage ao CARREGAR (pointerdown), não ao largar. */
+  .coracao { position: relative; border: 0; background: none; padding: 0; cursor: pointer; color: var(--cor);
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation; display: grid; place-items: center; }
+  .coracao svg { display: block; overflow: visible; }
+  .coracao .contorno { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linejoin: round; }
+  .coracao .cheio { fill: currentColor; }
+  .coracao:focus-visible { outline: 2px solid #8B5CF6; outline-offset: 4px; border-radius: 50%; }
+  .grande svg { width: 56px; height: 56px; }
+  .pequeno svg { width: 20px; height: 20px; }
+  .pequeno { width: 36px; height: 36px; border-radius: 18px; }
+
+  /* Comum: ao carregar, encolhe logo (o dedo sente que pegou). */
+  .coracao.prime svg { transform: scale(.86); transition: transform calc(80ms * var(--vel)) ease-out; }
+
+  /* 1. Encher: o coração enche de baixo para cima e assenta com uma mola. */
+  .encher .cheio { clip-path: inset(100% 0 0 0); }
+  .encher.on .cheio { clip-path: inset(0 0 0 0); transition: clip-path calc(220ms * var(--vel)) cubic-bezier(.3,.7,.3,1); }
+  .encher.on svg { animation: mola calc(420ms * var(--vel)) cubic-bezier(.3,1.6,.5,1) both; }
+  .encher.off .cheio { clip-path: inset(100% 0 0 0); transition: clip-path calc(200ms * var(--vel)) ease-in; }
+  .encher.off svg { animation: recua calc(260ms * var(--vel)) ease-out both; }
+
+  /* 2. Pop com anel: enche de uma vez, salta, e um anel fino abre-se e some. */
+  .pop .cheio { opacity: 0; transform: scale(.6); transform-origin: 50% 55%; }
+  .pop.on .cheio { opacity: 1; transform: scale(1); transition: opacity calc(90ms * var(--vel)), transform calc(240ms * var(--vel)) cubic-bezier(.3,1.7,.5,1); }
+  .pop.on svg { animation: mola calc(380ms * var(--vel)) cubic-bezier(.3,1.6,.5,1) both; }
+  .pop .anel { position: absolute; inset: 50% auto auto 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%;
+    border: 1.5px solid currentColor; opacity: 0; pointer-events: none; }
+  .pop.on .anel { animation: anel calc(420ms * var(--vel)) ease-out both; }
+  .pop.off .cheio { opacity: 0; transform: scale(.7); transition: opacity calc(160ms * var(--vel)), transform calc(160ms * var(--vel)) ease-in; }
+  .pop.off svg { animation: recua calc(240ms * var(--vel)) ease-out both; }
+
+  /* 3. Faíscas: enche e seis pontos pequenos saem e somem. Discreto. */
+  .faiscas .cheio { opacity: 0; }
+  .faiscas.on .cheio { opacity: 1; transition: opacity calc(120ms * var(--vel)); }
+  .faiscas.on svg { animation: mola calc(380ms * var(--vel)) cubic-bezier(.3,1.5,.5,1) both; }
+  .faiscas .ponto { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; border-radius: 50%; background: currentColor; opacity: 0; pointer-events: none; }
+  .faiscas.on .ponto { animation: faisca calc(460ms * var(--vel)) cubic-bezier(.2,.8,.3,1) both; }
+  .faiscas.off .cheio { opacity: 0; transition: opacity calc(160ms * var(--vel)); }
+  .faiscas.off svg { animation: recua calc(240ms * var(--vel)) ease-out both; }
+
+  /* 4. Batida: enche e bate duas vezes, como um coração. Tirar é uma batida para dentro. */
+  .batida .cheio { opacity: 0; }
+  .batida.on .cheio { opacity: 1; transition: opacity calc(100ms * var(--vel)); }
+  .batida.on svg { animation: batida calc(560ms * var(--vel)) ease-in-out both; }
+  .batida.off .cheio { opacity: 0; transition: opacity calc(180ms * var(--vel)); }
+  .batida.off svg { animation: recua calc(300ms * var(--vel)) ease-out both; }
+
+  @keyframes mola { 0% { transform: scale(.86); } 55% { transform: scale(1.14); } 100% { transform: scale(1); } }
+  @keyframes recua { 0% { transform: scale(.86); } 60% { transform: scale(.94); } 100% { transform: scale(1); } }
+  @keyframes anel { 0% { opacity: .55; transform: scale(1); } 100% { opacity: 0; transform: scale(var(--anel, 6.5)); } }
+  @keyframes faisca { 0% { opacity: 0; transform: translate(0,0) scale(.6); } 20% { opacity: 1; }
+    100% { opacity: 0; transform: translate(var(--x), var(--y)) scale(.4); } }
+  @keyframes batida { 0% { transform: scale(.86); } 25% { transform: scale(1.16); } 45% { transform: scale(.97); }
+    65% { transform: scale(1.08); } 100% { transform: scale(1); } }
+  .pequeno.pop { --anel: 3.2; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .coracao svg, .coracao .cheio, .coracao .anel, .coracao .ponto { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Favorito: escolhe a animação</h1>
+  <p class="sub">Toca no coração (grande ou na linha). Reage <strong>ao carregar</strong>, não ao largar: encolhe logo e o estado muda nesse instante. Tocar outra vez tira o favorito, também com animação. No iPhone vem com o toque de vibração leve; no PC, o mesmo desenho.</p>
+  <div class="barra">
+    <button id="lento" aria-pressed="false">Câmara lenta (4×)</button>
+    <button id="cor" aria-pressed="false">Cor da capa</button>
+    <button id="repor">Repor todos</button>
+  </div>
+  <div class="grelha" id="grelha"></div>
+  <p class="nota">Todas respeitam "reduzir movimento" do sistema (aí só muda o estado, sem movimento). Durações curtas de propósito: 0,2 a 0,5 s, para não atrasar um clique seguido de outro.</p>
+</main>
+<template id="t-coracao">
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path class="cheio" d="M12 20.3s-7.3-4.5-7.3-10.2A4.2 4.2 0 0 1 12 7.4a4.2 4.2 0 0 1 7.3 2.7c0 5.7-7.3 10.2-7.3 10.2z"/>
+    <path class="contorno" d="M12 20.3s-7.3-4.5-7.3-10.2A4.2 4.2 0 0 1 12 7.4a4.2 4.2 0 0 1 7.3 2.7c0 5.7-7.3 10.2-7.3 10.2z"/>
+  </svg>
+</template>
+<script>
+  const opcoes = [
+    { id: 'encher', nome: '1 · Encher', texto: 'Enche de baixo para cima e assenta com uma mola pequena. Tirar: esvazia para baixo.' },
+    { id: 'pop', nome: '2 · Pop com anel', texto: 'Enche de uma vez, dá um salto e abre-se um anel fino que some. Tirar: o cheio encolhe e desaparece.' },
+    { id: 'faiscas', nome: '3 · Faíscas', texto: 'Enche e saem seis pontos pequenos à volta, que somem logo. Tirar: apaga-se e recua.' },
+    { id: 'batida', nome: '4 · Batida', texto: 'Enche e bate duas vezes, como um coração. Tirar: uma batida para dentro e apaga-se.' },
+  ];
+  const tpl = document.getElementById('t-coracao');
+  const grelha = document.getElementById('grelha');
+
+  function criarCoracao(tipo, tamanho) {
+    const b = document.createElement('button');
+    b.className = `coracao ${tipo} ${tamanho}`;
+    b.setAttribute('aria-label', 'Add to Liked Songs');
+    b.setAttribute('aria-pressed', 'false');
+    b.appendChild(tpl.content.cloneNode(true));
+    if (tipo === 'pop') { const a = document.createElement('span'); a.className = 'anel'; b.appendChild(a); }
+    if (tipo === 'faiscas') {
+      const dist = tamanho === 'grande' ? 38 : 16;
+      for (let i = 0; i < 6; i++) {
+        const p = document.createElement('span'); p.className = 'ponto';
+        const ang = (i / 6) * Math.PI * 2 - Math.PI / 2;
+        p.style.setProperty('--x', `${Math.cos(ang) * dist}px`); p.style.setProperty('--y', `${Math.sin(ang) * dist}px`);
+        b.appendChild(p);
+      }
+    }
+    let ligado = false;
+    // Ao CARREGAR: encolhe logo e muda o estado já. Largar não faz nada.
+    b.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      ligado = !ligado;
+      b.classList.remove('on', 'off', 'prime');
+      void b.offsetWidth; // recomeça a animação mesmo com cliques seguidos
+      b.classList.add(ligado ? 'on' : 'off');
+      b.setAttribute('aria-pressed', String(ligado));
+      b.setAttribute('aria-label', ligado ? 'Remove from Liked Songs' : 'Add to Liked Songs');
+    });
+    b.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); b.dispatchEvent(new PointerEvent('pointerdown', { button: 0 })); } });
+    b.repor = () => { ligado = false; b.classList.remove('on', 'off'); b.setAttribute('aria-pressed', 'false'); };
+    return b;
+  }
+
+  for (const o of opcoes) {
+    const c = document.createElement('section'); c.className = 'opcao';
+    c.innerHTML = `<h2>${o.nome}</h2><p>${o.texto}</p><div class="palco"></div>
+      <div class="linha"><div class="capa"></div><div class="txt"><div class="t">Sanguine Paradise</div><div class="a">Lil Uzi Vert</div></div></div>`;
+    c.querySelector('.palco').appendChild(criarCoracao(o.id, 'grande'));
+    c.querySelector('.linha').appendChild(criarCoracao(o.id, 'pequeno'));
+    grelha.appendChild(c);
+  }
+  document.getElementById('lento').addEventListener('click', (e) => {
+    const on = e.currentTarget.getAttribute('aria-pressed') !== 'true';
+    e.currentTarget.setAttribute('aria-pressed', String(on));
+    document.documentElement.style.setProperty('--vel', on ? '4' : '1');
+  });
+  document.getElementById('cor').addEventListener('click', (e) => {
+    const on = e.currentTarget.getAttribute('aria-pressed') !== 'true';
+    e.currentTarget.setAttribute('aria-pressed', String(on));
+    document.documentElement.style.setProperty('--cor', on ? '#E8A06A' : '#F5F5F7');
+  });
+  document.getElementById('repor').addEventListener('click', () => document.querySelectorAll('.coracao').forEach((b) => b.repor()));
+</script>
+</body>
+</html>

@@ -238,9 +238,12 @@ preparar({
   shuffleOrder: fila('a', 'b', 'c', 'd').map(trackKey),
 });
 // Esta reprodução já existia antes da versão com memória própria. A primeira
-// consulta ao Smart Shuffle tem de a trazer do histórico da conta.
-controlo.recentes = [{
-  ...faixa('march-antiga'), title: 'Future - March Madness (Official Audio)', artist: 'Future', lastPlayed: Date.now(),
+// consulta ao Smart Shuffle tem de a trazer do histórico de escutas -- desde
+// 16/10 o do aparelho (`contagensNoAparelho`, sincronizado com a conta), e não
+// as últimas 300 pedidas ao Supabase.
+controlo.ouvidasNoAparelho = [{
+  source: 'youtube', sourceId: 'march-antiga', title: 'Future - March Madness (Official Audio)', artist: 'Future',
+  artworkUrl: null, durationSeconds: 180, count: 1, lastPlayed: Date.now(),
 }];
 controlo.candidatas = [faixa('nova')];
 await usePlayer.getState().next();

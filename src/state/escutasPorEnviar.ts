@@ -37,11 +37,27 @@ async function gravar(uid: string, lista: EscutaPendente[]): Promise<void> {
 
 const contaAtual = () => useAuth.getState().session?.user.id ?? useAuth.getState().offlineUserId ?? null;
 
+/**
+ * 16/10 (logs): TODAS as escutas passam por aqui, e não só as que falharam --
+ * eram dois pedidos por música ouvida (o catálogo e a escuta). Saem juntas ao
+ * fim de 10 min, com 8 à espera, ou quando a app vai para trás (o iPhone pode
+ * suspendê-la a seguir). No disco não se perdem.
+ */
+export const ESCUTAS_ESPERAM_MS = 10 * 60_000;
+export const ESCUTAS_POR_LOTE = 8;
+let relogioDoEnvio: ReturnType<typeof setTimeout> | null = null;
+
 export function guardarEscutaPorEnviar(faixa: Track, em: Date, comecouEm: Date): void {
   const uid = contaAtual();
   if (!uid) return;
-  void emFila(async () => gravar(uid, acrescentarPendente(await ler(uid), novaEscutaPendente(faixa, em, comecouEm))))
-    .catch(() => {});
+  void emFila(async () => {
+    const lista = acrescentarPendente(await ler(uid), novaEscutaPendente(faixa, em, comecouEm));
+    await gravar(uid, lista);
+    return lista.length;
+  }).then((quantas) => {
+    if (quantas >= ESCUTAS_POR_LOTE) { void enviarEscutasPorEnviar(); return; }
+    relogioDoEnvio ??= setTimeout(() => { relogioDoEnvio = null; void enviarEscutasPorEnviar(); }, ESCUTAS_ESPERAM_MS);
+  }).catch(() => {});
 }
 
 let aEnviar = false;
@@ -50,6 +66,7 @@ let aEnviar = false;
 export async function enviarEscutasPorEnviar(): Promise<void> {
   const uid = useAuth.getState().session?.user.id;
   if (!uid || aEnviar || useConnectivity.getState().offline) return;
+  if (relogioDoEnvio) { clearTimeout(relogioDoEnvio); relogioDoEnvio = null; }
   aEnviar = true;
   try {
     for (;;) {
@@ -70,7 +87,8 @@ export function instalarEnvioDeEscutas(): () => void {
   const enviar = () => { void enviarEscutasPorEnviar(); };
   const rede = useConnectivity.subscribe((s, antes) => { if (antes.offline && !s.offline) enviar(); });
   const sessao = useAuth.subscribe((s, antes) => { if (s.session && s.session !== antes.session) enviar(); });
-  const frente = AppState.addEventListener('change', (estado) => { if (estado === 'active') enviar(); });
+  // A ir para trás também: o iPhone pode suspender a app logo a seguir.
+  const frente = AppState.addEventListener('change', (estado) => { if (estado === 'active' || estado === 'background') enviar(); });
   enviar();
   return () => { rede(); sessao(); frente.remove(); };
 }

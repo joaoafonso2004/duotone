@@ -6,6 +6,17 @@ import type { Track, YtPlaylistItem } from '../types';
 import { lerLetra, separadorDaLetra, VERSAO_DO_ANDROID_MUSIC, type LetraDoYtMusic } from '../lib/letrasDoYtMusic';
 import { FILTROS_DA_PESQUISA, type TipoDePesquisa } from '../lib/pesquisaPorTipo';
 import { registarArtistasDoVideo } from '../lib/artistName';
+import { lerReproducoes } from '../lib/ordemDoArtista';
+
+/**
+ * As visualizações que o rádio do YouTube Music trouxe, por vídeo (16/10): o
+ * Radio usa-as para pôr os êxitos do género à frente (`porPopularidade`). Só
+ * em memória, e com teto.
+ */
+const reproducoesDoRadio = new Map<string, number>();
+export function reproducoesConhecidas(videoId: string): number | null {
+  return reproducoesDoRadio.get(videoId) ?? null;
+}
 
 /**
  * Uma pesquisa de CANÇÕES no YouTube Music, com a marca de explícita (27/9).
@@ -146,6 +157,11 @@ export async function lerRadioPeloYtMusic(mix: MixDoArtista): Promise<Track[]> {
     const nomes = c.artistas.map((a) => a.nome);
     // De graça: ensina os artistas de cada vídeo ao `displayArtist` (11/10).
     registarArtistasDoVideo(c.videoId, nomes);
+    const n = lerReproducoes(c.reproducoes);
+    if (n != null) {
+      reproducoesDoRadio.set(c.videoId, n);
+      if (reproducoesDoRadio.size > 3000) reproducoesDoRadio.delete(reproducoesDoRadio.keys().next().value!);
+    }
     return {
       source: 'youtube' as const,
       sourceId: c.videoId,

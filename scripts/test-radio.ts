@@ -4,6 +4,7 @@ import {
   filterRadioCandidates,
   limitarMesmoArtista,
   loteSemRepetir,
+  porPopularidade,
   onlyPlausibleMusic,
   radioSeeds,
   seedArtists,
@@ -173,6 +174,18 @@ for (const [ficheiro, proibido] of Object.entries(ecrasDePesquisa)) {
   check('uma tua ouvida há pouco não volta', !semAsOuvidas.includes('tua2'), semAsOuvidas.join());
   const repetidas = loteSemRepetir(['tua2'], ['drunk and nasty', 'deaf note'], recente, 3, true, alternar, quando);
   check('as repetidas: a ouvida há mais tempo primeiro', repetidas.join() === 'deaf note,drunk and nasty,tua2', repetidas.join());
+}
+
+// Os êxitos do género primeiro (16/10): as mais ouvidas à frente, as obscuras no
+// fim, as do catálogo (tops) como êxitos, e as sem número a meio pela ordem de antes.
+{
+  const vistas: Record<string, number> = { hit: 120_000_000, medio: 2_000_000, obscura: 300, outro: 40_000_000 };
+  const r = porPopularidade(['obscura', 'semNumero1', 'medio', 'top', 'hit', 'semNumero2', 'outro'],
+    (x) => vistas[x] ?? null, (x) => x === 'top');
+  check('os êxitos primeiro, as sem número a meio e a obscura no fim',
+    r.join() === 'hit,top,outro,semNumero1,semNumero2,medio,obscura', r.join());
+  const sem = porPopularidade(['a', 'b', 'c'], () => null, () => false);
+  check('sem números nenhuns, a ordem fica', sem.join() === 'a,b,c', sem.join());
 }
 
 console.log(bad ? `\n  ${bad} falha(s)` : `\n  Todos os casos passaram.`);

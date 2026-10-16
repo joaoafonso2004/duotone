@@ -76,10 +76,14 @@ export async function enviarEscutasAtrasadas(
   if (!escutas.length) return true;
   try {
     const userId = await currentUserId();
-    const ids = await Promise.all(escutas.map((e) => idNoCatalogo(e.faixa)));
-    const { error } = await supabase.from('plays').insert(
-      escutas.map((e, i) => ({ user_id: userId, track_id: ids[i], played_at: e.em })),
-    );
+    // Um pedido ao catálogo para o lote inteiro (16/10): eram um por escuta.
+    const ids = await idsNoCatalogoEmLote(escutas.map((e) => e.faixa));
+    const linhas = escutas.flatMap((e) => {
+      const id = ids.get(`${e.faixa.source}:${e.faixa.sourceId}`);
+      return id ? [{ user_id: userId, track_id: id, played_at: e.em }] : [];
+    });
+    if (!linhas.length) return false;
+    const { error } = await supabase.from('plays').insert(linhas);
     if (error) console.error('Error sending delayed plays:', error);
     return !error;
   } catch {

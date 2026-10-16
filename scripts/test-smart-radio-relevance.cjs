@@ -20,8 +20,9 @@ const {fetchRadioTracks}=load('src/api/radio.ts',{
   './plays':{getFlowMix:async()=>{flowCalls++;return [t('bruno','Unrelated','Bruno Mars')];}},
   './albunsDoArtista':{paginaDoArtista:async()=>({musicas:page})},
   './perfilDeRecomendacoes':{lerPerfilDeRecomendacoes:async()=>({escutas:new Map(),externos:new Map()})},
+  '../lib/idDaConta':{idDaConta:async()=>'conta-de-teste'},
   './descoberta':{candidatasParaDescoberta:async()=>discovered},
-  './ytMusic':{lerRadioPeloYtMusic:async(mix)=>{radioCalls.push(mix.playlistId);return songRadio;}},
+  './ytMusic':{lerRadioPeloYtMusic:async(mix)=>{radioCalls.push(mix.playlistId);return songRadio;},reproducoesConhecidas:()=>null},
 });
 (async()=>{
   const current=t('current','Anchor'),heard=t('old-upload','Repeated song','Related artist');
@@ -74,5 +75,10 @@ const {fetchRadioTracks}=load('src/api/radio.ts',{
   const s1=t('aaaaaaaaaa1','One','Isak'),s2=t('aaaaaaaaaa2','Two','Isak'),s3=t('aaaaaaaaaa3','Three','Isak'),s4=t('aaaaaaaaaa4','Four','Isak');
   await fetchRadioTracks([s1,s2,s3,s4],[s1,s2,s3,s4],10,new Set(),'session');
   assert.deepEqual(radioCalls,['RDAMVMaaaaaaaaaa1','RDAMVMaaaaaaaaaa2','RDAMVMaaaaaaaaaa3'],'up to three seeds, one request each, only while short');
+  // The song radio (16/10): a video carries its views in the byline, an audio track does not.
+  const {lerRadioDoYtMusic}=load('src/lib/albunsDoArtista.ts',{});
+  const item=(id,linha)=>({playlistPanelVideoRenderer:{videoId:id,title:{runs:[{text:id}]},longBylineText:{runs:[{text:linha}]},lengthText:{runs:[{text:'3:00'}]}}});
+  const lidos=lerRadioDoYtMusic({a:[item('vvvvvvvvvv1','Bad Bunny • 1.2B views • 2022'),item('aaaaaaaaaa1','Bad Bunny • Un Verano Sin Ti • 2022')]});
+  assert.deepEqual(lidos.map(c=>c.reproducoes??null),['1.2B views',null],'views from a video; nothing invented for an audio track');
   console.log('Smart continuation: strict context, no repeated uploads, short batches and no global fallback passed.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

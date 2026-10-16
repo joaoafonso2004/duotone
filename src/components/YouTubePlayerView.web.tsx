@@ -19,6 +19,7 @@ import { miniLeitorEstaAberto } from '../desktop/usePonteDoLeitor.web';
 import type { Track } from '../types';
 import { acertoNoPrimeiroSom, posicaoDaSalaParaFaixa } from '../lib/arranqueDaSala';
 import { deveMostrarVideo, ESPERA_NO_ARRANQUE_MS, ESTILO_NO_PALCO } from '../lib/videoNoLeitor';
+import { volumeParaOMotor } from '../lib/curvaDoVolume';
 import { useVideoNoLeitor } from '../desktop/estadoDoVideo.web';
 import { TOLERANCIA_MS } from '../lib/sincronizacao';
 import { registarNaFila } from '../lib/playbackDiagnostics';
@@ -377,7 +378,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     passagemRef.current = null;
     try { espera?.pauseVideo?.(); espera?.mute?.(); espera?.setVolume?.(0); } catch {}
     if (rebobinar) { try { espera?.seekTo?.(0, true); } catch {} }
-    try { ativoRef.current?.setVolume?.(usePlayer.getState().volume); } catch {}
+    try { ativoRef.current?.setVolume?.(volumeParaOMotor(usePlayer.getState().volume)); } catch {}
   }, []);
 
   /** A preparada deixou de servir (outra faixa, fila mexida): fica calada e esquecida. */
@@ -447,7 +448,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const terminarPassagem = useCallback(() => {
     if (!passagemRef.current) return;
     passagemRef.current = null;
-    try { esperaRef.current?.setVolume?.(usePlayer.getState().volume); } catch {}
+    try { esperaRef.current?.setVolume?.(volumeParaOMotor(usePlayer.getState().volume)); } catch {}
     try { ativoRef.current?.pauseVideo?.(); } catch {}
     const deQual = faixaRef.current.sourceId;
     entregaRef.current = { deQual, quando: Date.now() };
@@ -487,7 +488,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (passagem) {
       const decorrido = decorridoDaPassagem({ ...c, duracaoDoFade: passagem.fade });
       if (decorrido < -0.5 || c.repeatUma) { abortarPassagem(true); return null; }
-      const volume = st.volume;
+      const volume = volumeParaOMotor(st.volume);
       const v = volumesDoCrossfade(decorrido, passagem.fade, volume, volume);
       try { ativoRef.current?.setVolume?.(Math.round(v.sai)); } catch {}
       try { esperaRef.current?.setVolume?.(Math.round(v.entra)); } catch {}
@@ -684,7 +685,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
             ativoRef.current = event.target;
             try { casaDosIframesRef.current = event.target.getIframe?.()?.parentElement ?? null; } catch { /* sem vídeo */ }
             try {
-              event.target.setVolume(state.volume);
+              event.target.setVolume(volumeParaOMotor(state.volume));
             } catch (err) {
               console.warn('Failed to set initial volume on YT player', err);
             }
@@ -722,7 +723,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
               seek: (ms) => ativoRef.current?.seekTo(ms / 1000, true),
               setVolume: (vol) => {
                 try {
-                  ativoRef.current?.setVolume(vol);
+                  // A barra numa curva de ouvido (16/10, lib/curvaDoVolume.ts).
+                  ativoRef.current?.setVolume(volumeParaOMotor(vol));
                 } catch (err) {
                   console.warn('Failed to set volume on YT player', err);
                 }
@@ -841,7 +843,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       try { sai?.mute?.(); sai?.setVolume?.(0); sai?.stopVideo?.(); } catch {}
       try {
         espera.unMute();
-        espera.setVolume(state.volume);
+        espera.setVolume(volumeParaOMotor(state.volume));
         espera.setPlaybackRate?.(velocidadeDoMotor());
         if (state.isPlaying || state.autoplayOnLoad) espera.playVideo();
       } catch {}
@@ -865,7 +867,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (!p?.loadVideoById) return;
     state._setBuffering(true);
     soltarAlinhamento();
-    try { p.unMute?.(); p.setVolume?.(state.volume); } catch {}
+    try { p.unMute?.(); p.setVolume?.(volumeParaOMotor(state.volume)); } catch {}
     // Num Jam a tocar: já na posição da sala, e calada até ao primeiro som.
     const naSala = posicaoNaSala(track);
     if (naSala != null) {

@@ -138,7 +138,11 @@ export function lerRadioDoYtMusic(resposta: unknown): CancaoComArtistas[] {
       if (primeiro) artistas.push({ nome: primeiro, id: '' });
     }
     vistos.add(videoId);
-    fora.push({ videoId, titulo, artistas, duracaoSec: segundos(texto(v.lengthText).trim()) });
+    // Um VÍDEO traz as visualizações na linha ("Artista • 1.2M views"); uma
+    // faixa de áudio traz o álbum e o ano, e fica sem número (16/10).
+    const reproducoes = texto(v.longBylineText).split('•').map((p) => p.trim())
+      .find((p) => /^[\d.,]+\s*[KMB]?\s+(?:views|plays)$/i.test(p)) ?? null;
+    fora.push({ videoId, titulo, artistas, duracaoSec: segundos(texto(v.lengthText).trim()), ...(reproducoes ? { reproducoes } : {}) });
   }
   return fora;
 }

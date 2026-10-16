@@ -180,6 +180,45 @@ export function loteSemRepetir<T>(
 }
 
 /**
+ * Os êxitos do género primeiro (16/10, João: "deve tocar músicas com bastantes
+ * visualizações do mesmo género"). Entre as candidatas -- que já são todas
+ * parecidas com o que se ouve --, as mais ouvidas vêm à frente e as obscuras
+ * (um upload com 300 visualizações) vão para o fim, onde o lote já não chega.
+ *
+ * Só há números para parte delas: as visualizações dos vídeos do rádio do
+ * YouTube Music e os "plays" da página do artista. As do catálogo são os tops
+ * dos artistas parecidos (`destaque`): contam como êxitos. As sem número ficam
+ * a meio, pela ordem em que vinham -- não se inventa popularidade.
+ */
+export function porPopularidade<T>(
+  faixas: readonly T[],
+  reproducoes: (t: T) => number | null,
+  destaque: (t: T) => boolean,
+): T[] {
+  const logs = faixas.map((t) => reproducoes(t)).filter((n): n is number => n != null && n > 0)
+    .map((n) => Math.log10(n)).sort((a, b) => a - b);
+  if (!logs.length) return [...faixas];
+  // Interpolado: com poucos números, apanhar o de cima punha as sem número
+  // acima de músicas conhecidas e medianas.
+  const quantil = (q: number) => {
+    const pos = q * (logs.length - 1);
+    const baixo = Math.floor(pos);
+    return logs[baixo] + (logs[Math.min(logs.length - 1, baixo + 1)] - logs[baixo]) * (pos - baixo);
+  };
+  const meio = quantil(0.5);
+  const alto = quantil(0.75);
+  const nota = (t: T) => {
+    const n = reproducoes(t);
+    if (n != null && n > 0) return Math.log10(n);
+    return destaque(t) ? Math.max(meio, alto) : meio;
+  };
+  return faixas
+    .map((t, i) => ({ t, i, v: nota(t) }))
+    .sort((a, b) => b.v - a.v || a.i - b.i)
+    .map((x) => x.t);
+}
+
+/**
  * O que se ouviu nas últimas 24 h não volta pelo Radio nem pelo autoplay
  * (15/10, "deixo a tocar sozinho muito tempo e começam a repetir-se as
  * mesmas"). Uma descoberta continua a ter os 30 dias da memória do Smart

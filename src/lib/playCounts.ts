@@ -221,7 +221,7 @@ const INTERVALO_DE_LEITURA_MS = 60_000;
 const INTERVALO_LEGACY_MS = 30 * 60_000;
 let ultimaLeitura: { uid: string; em: number } | null = null;
 
-async function syncUnsafe(forcarLeitura = false): Promise<PlayCounts> {
+async function syncUnsafe(forcarLeitura = false, semLeitura = false): Promise<PlayCounts> {
   let local = await readMap();
   const uid = await userId();
   if (!uid) return local;
@@ -255,6 +255,10 @@ async function syncUnsafe(forcarLeitura = false): Promise<PlayCounts> {
   // O incremento é enviado imediatamente; não precisa de descarregar as
   // centenas/milhares de contagens antigas a cada música. A cache local já
   // inclui o delta. Uma sincronização explícita continua a ler o servidor.
+  // O incremento de uma escuta envia e não relê (16/10, logs): relia o
+  // histórico a cada música, porque elas distam mais do que o intervalo. Quem
+  // mostra as contagens (os ecrãs, `syncedEntries`) é que relê.
+  if (semLeitura) return local;
   if (!forcarLeitura && ultimaLeitura?.uid === uid && Date.now() - ultimaLeitura.em < (changesAvailable ? INTERVALO_DE_LEITURA_MS : INTERVALO_LEGACY_MS)) return local;
   const remote = await pullRemote(uid);
   if (!remote) return local;
@@ -296,7 +300,7 @@ export async function incrementPlayCount(track: Track): Promise<void> {
       await AsyncStorage.setItem(pendingKey,JSON.stringify(pending));
     }
 
-    await syncUnsafe();
+    await syncUnsafe(false, true);
   });
 }
 

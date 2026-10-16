@@ -9,6 +9,7 @@ import {
   loteSemRepetir,
   ouvidaEm,
   onlyPlausibleMusic,
+  porPopularidade,
   RADIO_BATCH,
   seedArtists,
   shuffleCandidates,
@@ -19,11 +20,30 @@ import { trackKey } from '../lib/shuffle';
 import { getLibrary } from './library';
 import { lerFaixas } from '../lib/cacheDaBiblioteca';
 import { paginaDoArtista } from './albunsDoArtista';
-import { lerRadioPeloYtMusic } from './ytMusic';
+import { lerRadioPeloYtMusic, reproducoesConhecidas } from './ytMusic';
 import type { Track } from '../types';
 import { misturarPorFamiliaridade } from '../lib/contextoDaDescoberta';
 import { candidatasParaDescoberta } from './descoberta';
-import { lerPerfilDeRecomendacoes } from './perfilDeRecomendacoes';
+import { lerPerfilDeRecomendacoes, type PerfilDeRecomendacoes } from './perfilDeRecomendacoes';
+import { idDaConta } from '../lib/idDaConta';
+
+/**
+ * O perfil de escuta (uma RPC ao Supabase) guardado 10 min, por conta (16/10,
+ * logs): era pedido em CADA tentativa de cada lote -- até sete quando as
+ * parecidas secam. Uma falha não fica guardada.
+ */
+const PERFIL_VALE_MS = 10 * 60 * 1000;
+let perfilGuardado: { conta: string | null; ate: number; pedido: Promise<PerfilDeRecomendacoes | null> } | null = null;
+async function perfilDoRadio(): Promise<PerfilDeRecomendacoes | null> {
+  const conta = await idDaConta().catch(() => null);
+  const agora = Date.now();
+  if (perfilGuardado && perfilGuardado.conta === conta && perfilGuardado.ate > agora) return perfilGuardado.pedido;
+  const pedido = lerPerfilDeRecomendacoes().catch(() => null);
+  const este = { conta, ate: agora + PERFIL_VALE_MS, pedido };
+  perfilGuardado = este;
+  void pedido.then((p) => { if (!p && perfilGuardado === este) perfilGuardado = null; });
+  return pedido;
+}
 
 /**
  * De onde sai a música do rádio, por ordem de preferência.
@@ -78,6 +98,11 @@ export async function fetchRadioTracks(
     return foiSugeridaRecentemente(chaves,jaDescobertas)||ouvidaEm(chaves,ouvidas)>desdeQueSeOuviu;
   };
   const quando=(t:Track)=>ouvidaEm(chavesDe(t),ouvidas);
+  // Os êxitos do género primeiro (16/10, `porPopularidade`): os números que se
+  // sabem (a página do artista, os vídeos do rádio) e os tops do catálogo.
+  const reproducoesDaPagina=new Map<string,number>();
+  const doCatalogo=new Set<string>();
+  const reproducoes=(t:Track)=>reproducoesDaPagina.get(t.sourceId)??reproducoesConhecidas(t.sourceId);
   // `comRepetidas` só no fim: antes disso, faltarem novas é razão para ir à
   // fonte seguinte, e não para repetir.
   const harvest = (comRepetidas = false) => {
@@ -97,7 +122,7 @@ export async function fetchRadioTracks(
       return true;
     });
     const conhecidas=candidatas.filter((t)=>knownKeys.has(trackKey(t)));
-    const novas=candidatas.filter((t)=>!knownKeys.has(trackKey(t)));
+    const novas=porPopularidade(candidatas.filter((t)=>!knownKeys.has(trackKey(t))),reproducoes,(t)=>doCatalogo.has(trackKey(t)));
     return loteSemRepetir(conhecidas,novas,recente,limit,comRepetidas,
       (c,n,l)=>misturarPorFamiliaridade(c,n,l,'radio'),quando);
   };
@@ -127,14 +152,16 @@ export async function fetchRadioTracks(
   //    sementes (o perfil ordena, não escolhe), e cada artista é confirmado
   //    pelas músicas dele (ver `vizinhancaConfirmada`).
   try {
-    const perfil = await lerPerfilDeRecomendacoes().catch(() => null);
+    const perfil = await perfilDoRadio();
     const jaLa = new Set([...exclude, ...pool].map(trackKey));
     // Com a memória, como no Smart Shuffle: a descoberta salta-as ANTES de
     // pesquisar e vai mais fundo no catálogo em vez de devolver as de sempre.
-    pool.push(...await candidatasParaDescoberta(
+    const doCatalogoAgora = await candidatasParaDescoberta(
       seeds.slice(0, 3), jaLa, jaDescobertas, limit * 2, 3,
       perfil?.escutas, undefined, perfil?.externos, 'estrito',
-    ));
+    );
+    for (const t of doCatalogoAgora) doCatalogo.add(trackKey(t));
+    pool.push(...doCatalogoAgora);
   } catch {
     // sem catálogo: segue para a pesquisa
   }
@@ -149,6 +176,9 @@ export async function fetchRadioTracks(
       const dele = (t: Track) => chaveDeArtista(displayArtist(t)) === alvo;
       const guardadas = library.filter(dele);
       const pagina = await paginaDoArtista(artists[0], guardadas.length ? guardadas : seeds.filter(dele));
+      for (const [id, info] of Object.entries(pagina.info?.porVideo ?? {})) {
+        if (info?.reproducoes != null) reproducoesDaPagina.set(id, info.reproducoes);
+      }
       pool.push(...pagina.musicas);
     } catch {
       // Sem canal confirmado ou sem rede: segue para o Flow, sem adivinhar.

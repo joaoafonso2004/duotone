@@ -12,9 +12,10 @@ import { create } from 'zustand';
 import { persist, type PersistStorage, type StorageValue } from 'zustand/middleware';
 import { temAudioNativo } from '../../modules/duotone-audio';
 import {
-  getProfileRecentlyPlayed, recordPlayInSupabase, registarInicioDaFaixa,
+  recordPlayInSupabase, registarInicioDaFaixa,
 } from '../api/plays';
 import { contagensNoAparelho, incrementPlayCount } from '../lib/playCounts';
+import { barraParaACurva } from '../lib/curvaDoVolume';
 import { avancarEscuta, novaEscuta, type Escuta } from '../lib/contagemDeEscuta';
 import { reconcileOrder, shuffleKeys, stepIndex, trackKey, upcomingIndexes } from '../lib/shuffle';
 import {
@@ -229,14 +230,15 @@ function medirEscuta(
     usePlayer.setState({ radioListeningSession: rememberRadioListen(usePlayer.getState().radioListeningSession, donoDoSmartShuffle(), faixaDaEscuta) });
     // Local; alimenta o "Most played" e o perfil.
     incrementPlayCount(faixaDaEscuta).catch(() => {});
-    // No Supabase, para as recomendações e para "A tua escuta". Sem rede,
-    // fica guardada com a hora de agora e segue quando a rede voltar.
+    // No Supabase, para as recomendações e para "A tua escuta". 16/10 (logs):
+    // vai SEMPRE pela fila do disco, que sai em lote (state/escutasPorEnviar.ts)
+    // -- eram dois pedidos por música (o catálogo e a escuta), um lote por
+    // dez minutos chega. Com a hora a que se ouviu, e sem rede espera.
     const faixa = faixaDaEscuta;
     const em = new Date();
     const comecouEm = new Date(em.getTime() - posicaoMs / Math.max(0.25, s.playbackRate || 1));
-    recordPlayInSupabase(faixa)
-      .then((correu) => { if (correu === false) guardarEscutaPorEnviar?.(faixa, em, comecouEm); })
-      .catch(() => {});
+    if (guardarEscutaPorEnviar) guardarEscutaPorEnviar(faixa, em, comecouEm);
+    else recordPlayInSupabase(faixa).catch(() => {});
     if(contextoAtual)aprenderComEscutaDeRecomendacao(faixaDaEscuta);
   }
 }
@@ -255,9 +257,19 @@ const getInitialVolume = () => {
       if (stored !== null) {
         const parsed = Number(stored);
         if (Number.isFinite(parsed) && parsed >= 0 && parsed <= 100) {
+          // A barra passou a uma curva de ouvido (16/10, lib/curvaDoVolume.ts):
+          // na primeira vez, o volume guardado muda de sítio na barra para soar
+          // igual ao de antes.
+          if (window.localStorage.getItem('duotone-volume-curva') !== '1') {
+            const naCurva = barraParaACurva(parsed);
+            window.localStorage.setItem('duotone-volume', String(naCurva));
+            window.localStorage.setItem('duotone-volume-curva', '1');
+            return naCurva;
+          }
           return parsed;
         }
       }
+      window.localStorage.setItem('duotone-volume-curva', '1');
     } catch (e) {
       console.warn('Failed to read volume from localStorage', e);
     }
@@ -976,19 +988,27 @@ async function chavesDaBiblioteca(): Promise<Set<string>> {
  */
 const escutasRecentesPorConta = new Map<string, { ate: number; pedido: Promise<Set<string>> }>();
 async function chavesDasEscutasRecentes(dono: string | null): Promise<Set<string>> {
-  if (!dono || useConnectivity.getState().offline) return new Set();
+  // 16/10 (logs): do histórico de escutas do APARELHO (`contagensNoAparelho`,
+  // que a sincronização das contagens junta com o do outro aparelho), e não
+  // das últimas 300 pedidas ao Supabase de 30 em 30 min. Zero pedidos, e sem
+  // o teto das 300. Sem conta não há Smart Shuffle a bloquear por escutas.
+  if (!dono) return new Set();
   const agora = Date.now();
   const guardada = escutasRecentesPorConta.get(dono);
   if (guardada && guardada.ate > agora) return guardada.pedido;
-  const pedido = getProfileRecentlyPlayed(300).then((faixas) => {
+  const pedido = contagensNoAparelho().then((contagens) => {
     const chaves = new Set<string>();
-    for (const faixa of faixas) {
-      if (!faixa.lastPlayed || faixa.lastPlayed < agora - JANELA_SEM_REPETIR_MS) continue;
+    for (const c of contagens) {
+      if (!c?.sourceId || !c.lastPlayed || c.lastPlayed < agora - JANELA_SEM_REPETIR_MS) continue;
+      const faixa: Track = {
+        source: c.source, sourceId: c.sourceId, title: c.title, artist: c.artist,
+        album: null, artworkUrl: c.artworkUrl, durationSeconds: c.durationSeconds,
+      };
       for (const chave of chavesDaFaixaSugerida(faixa)) chaves.add(chave);
     }
     return chaves;
   }).catch(() => new Set<string>());
-  escutasRecentesPorConta.set(dono, { ate: agora + 30 * 60 * 1000, pedido });
+  escutasRecentesPorConta.set(dono, { ate: agora + 5 * 60 * 1000, pedido });
   return pedido;
 }
 
