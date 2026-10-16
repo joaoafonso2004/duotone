@@ -2,7 +2,7 @@ import { CabecaDaFila, LinhasDaFila } from '../FilaDoLeitor.web';
 import { useFilaDoLeitor } from '../useFilaDoLeitor.web';
 import {ArtworkLyricsCube} from '../../components/ArtworkLyricsCube';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import {
   getGlitchMode, type GlitchMode,
@@ -14,7 +14,6 @@ import { trackKey } from '../../lib/shuffle';
 import { chaveDaFaixa } from '../../lib/equalizer';
 import { PainelEqualizador } from '../PainelEqualizador.web';
 import { GlitchArtwork } from '../glitch/GlitchArtwork.web';
-import { podeMostrarVideo, useVideoNoLeitor } from '../estadoDoVideo.web';
 import { mandarComando, useAparelhos } from '../../lib/connectSync';
 import { avisoDoPedido, type TipoDePedido } from '../../lib/duotoneConnect';
 import { extrapolatedPositionMs } from '../../lib/handoff';
@@ -147,28 +146,6 @@ function AcaoDoLeitor({ rotulo, onPress, onPressIn, onPressOut, ativo = false, p
 }
 
 /**
- * O palco do vídeo (16/10, `lib/videoNoLeitor.ts`): um quadrado por cima da
- * capa, fora do cubo (que remonta a cada música e roda para a letra). O motor
- * muda o iframe para aqui quando o vídeo se mostra. Desmontar devolve-o a casa
- * ANTES de o quadrado sair do DOM -- a limpeza de um efeito de layout corre
- * antes da remoção --, senão o iframe ia com ele e a música parava.
- */
-function PalcoDoVideo({ lado }: { lado: number }) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const aMostrar = useVideoNoLeitor((s) => s.aMostrar);
-  useLayoutEffect(() => {
-    useVideoNoLeitor.getState().definirPalco(ref.current);
-    return () => useVideoNoLeitor.getState().definirPalco(null);
-  }, []);
-  return (
-    <div ref={ref} aria-hidden="true" style={{
-      position: 'absolute', top: 0, left: 0, width: lado, height: lado, borderRadius: 14, overflow: 'hidden',
-      pointerEvents: 'none', zIndex: 2, backgroundColor: aMostrar ? '#000' : 'transparent', transition: 'background-color 350ms ease',
-    }} />
-  );
-}
-
-/**
  * Os dois pontos por baixo da capa: o primeiro é a capa, o segundo as letras.
  * Carregar num leva a essa face; o arrasto continua a funcionar.
  */
@@ -274,10 +251,6 @@ export function NowPlayingPage({
   // A capa grande (maxres) e não a miniatura das listas: esticada a 500 px via-se
   // desfocada. A seguinte é pedida já, para o skip não esperar por ela.
   const capaGrande = useCapaGrande(track ?? { source: '', sourceId: '', artworkUrl: null });
-  const videoLigado = useVideoNoLeitor((s) => s.ligado);
-  const videoAVista = useVideoNoLeitor((s) => s.aMostrar);
-  const alternarVideo = useVideoNoLeitor((s) => s.alternar);
-  const podeVideo = podeMostrarVideo();
   // A capa da música que acabou de sair, para desaparecer por baixo da nova.
   const faixaAtual = track ? `${track.source}:${track.sourceId}` : '';
   const ultimaCapa = useRef<{ chave: string; uri: string } | null>(null);
@@ -334,9 +307,8 @@ export function NowPlayingPage({
         ) : null}
         <View key={`entra:${faixaAtual}`} {...marcar('np-capa-entra')}>
           <ArtworkLyricsCube track={track} size={ladoCapa} artwork={track.artworkUrl} showLyrics={showLyrics} onChange={setShowLyrics}
-            front={<GlitchArtwork uri={capaGrande} lado={ladoCapa} modo={videoAVista ? 'off' : glitch} intensidade={effectIntensity} />} />
+            front={<GlitchArtwork uri={capaGrande} lado={ladoCapa} modo={glitch} intensidade={effectIntensity} />} />
         </View>
-        {videoLigado && !showLyrics ? <PalcoDoVideo lado={ladoCapa} /> : null}
       </View>
       {/* As letras: dois pontos por baixo da capa, como no iPhone (decidido
           com o João a 25/9). Arrastar a capa continua a funcionar; os pontos
@@ -387,13 +359,6 @@ export function NowPlayingPage({
           {(cor) => <Ionicons name="share-social-outline" size={19} color={cor} />}
         </AcaoDoLeitor>
         <View style={styles.npIconesFio} />
-        {/* O vídeo da música por cima da capa (16/10): o leitor do PC já o
-            toca, escondido; isto só o põe à vista. */}
-        {podeVideo ? (
-          <AcaoDoLeitor rotulo={videoLigado ? 'Show artwork' : 'Show video'} ativo={videoLigado} onPress={alternarVideo}>
-            {(cor) => <Ionicons name={videoLigado ? 'videocam' : 'videocam-outline'} size={20} color={cor} />}
-          </AcaoDoLeitor>
-        ) : null}
         <AcaoDoLeitor rotulo="Play on another device" onPress={() => setAparelhosAberto(true)}>
           {(cor) => <Ionicons name="desktop-outline" size={19} color={cor} />}
         </AcaoDoLeitor>

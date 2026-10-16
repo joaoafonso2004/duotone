@@ -18,9 +18,7 @@ import { primeiraNota } from '../lib/tocarEnquantoDescarrega';
 import { miniLeitorEstaAberto } from '../desktop/usePonteDoLeitor.web';
 import type { Track } from '../types';
 import { acertoNoPrimeiroSom, posicaoDaSalaParaFaixa } from '../lib/arranqueDaSala';
-import { deveMostrarVideo, ESPERA_NO_ARRANQUE_MS, ESTILO_NO_PALCO } from '../lib/videoNoLeitor';
 import { volumeParaOMotor } from '../lib/curvaDoVolume';
-import { useVideoNoLeitor } from '../desktop/estadoDoVideo.web';
 import { TOLERANCIA_MS } from '../lib/sincronizacao';
 import { registarNaFila } from '../lib/playbackDiagnostics';
 import {
@@ -272,64 +270,6 @@ export function YouTubePlayerView({ track }: { track: Track }) {
    * ouve. O iPhone já alinhava antes do som (`posicaoDaSalaParaFaixa`).
    */
   const alinharRef = useRef<{ sourceId: string; prazo: ReturnType<typeof setTimeout> | undefined; saltou: boolean } | null>(null);
-  /**
-   * O vídeo no Now Playing (16/10, `lib/videoNoLeitor.ts`). O iframe do ATIVO
-   * muda-se para o palco (o quadrado da capa) com `moveBefore`, que não o
-   * recarrega, e volta para casa -- o sítio onde nasceu, aqui na barra -- quando
-   * não se mostra. O outro player (o do crossfade) fica sempre em casa.
-   */
-  const aTocarDesdeRef = useRef<number | null>(null);
-  const casaDosIframesRef = useRef<HTMLElement | null>(null);
-  const estiloDeCasaRef = useRef(new WeakMap<HTMLElement, { estilo: string; irmao: Node | null }>());
-  const aplicarVideo = useCallback(() => {
-    const casa = casaDosIframesRef.current;
-    if (!casa) return;
-    // Volta para o mesmo lugar entre os irmãos (a barra é uma fila flex).
-    const paraCasa = (iframe: HTMLElement | null | undefined) => {
-      if (!iframe || iframe.parentElement === casa) return;
-      const antes = estiloDeCasaRef.current.get(iframe);
-      const irmao = antes?.irmao && antes.irmao.parentNode === casa ? antes.irmao : casa.firstChild;
-      try { (casa as any).moveBefore(iframe, irmao); } catch { return; }
-      iframe.style.cssText = antes?.estilo ?? '';
-    };
-    let ativo: HTMLElement | null = null;
-    try { ativo = ativoRef.current?.getIframe?.() ?? null; } catch { ativo = null; }
-    let outro: HTMLElement | null = null;
-    try { outro = esperaRef.current?.getIframe?.() ?? null; } catch { outro = null; }
-    paraCasa(outro);
-    const { ligado, palco, aMostrar } = useVideoNoLeitor.getState();
-    const st = usePlayer.getState();
-    const mostrar = !!ativo && deveMostrarVideo({
-      ligado, temPalco: !!palco, aTocar: st.isPlaying, aTocarDesde: aTocarDesdeRef.current,
-      posicaoMs: st.positionMs, duracaoMs: st.durationMs, agora: Date.now(),
-    });
-    if (mostrar && palco && ativo) {
-      if (ativo.parentElement !== palco) {
-        estiloDeCasaRef.current.set(ativo, { estilo: ativo.style.cssText, irmao: ativo.nextSibling });
-        try { (palco as any).moveBefore(ativo, null); } catch { return; }
-        ativo.style.cssText = ESTILO_NO_PALCO;
-        const iframe = ativo;
-        requestAnimationFrame(() => { if (iframe.parentElement === palco) iframe.style.opacity = '1'; });
-      }
-    } else {
-      paraCasa(ativo);
-    }
-    const agora = mostrar && !!palco;
-    if (agora !== aMostrar) useVideoNoLeitor.setState({ aMostrar: agora });
-  }, []);
-  // A escolha e o palco mudam por fora; a posição, o "a tocar" e a faixa pela
-  // loja (a posição de segundo a segundo, para apanhar a margem do fim).
-  useEffect(() => {
-    const sairDoVideo = useVideoNoLeitor.subscribe((s, antes) => {
-      if (s.ligado !== antes.ligado || s.palco !== antes.palco) aplicarVideo();
-    });
-    const sairDaLoja = usePlayer.subscribe((s, antes) => {
-      if (s.current !== antes.current) aTocarDesdeRef.current = null;
-      if (s.isPlaying !== antes.isPlaying || s.current !== antes.current
-        || (useVideoNoLeitor.getState().ligado && s.positionMs !== antes.positionMs)) aplicarVideo();
-    });
-    return () => { sairDoVideo(); sairDaLoja(); };
-  }, [aplicarVideo]);
   const soltarAlinhamento = useCallback(() => {
     const a = alinharRef.current;
     if (!a) return;
@@ -469,12 +409,6 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         autoplay: 0,
         controls: 0,
         playsinline: 1,
-        // O vídeo pode ficar à vista no Now Playing (16/10): sem anotações,
-        // sem ecrã inteiro e sem teclado dentro do iframe.
-        iv_load_policy: 3,
-        fs: 0,
-        disablekb: 1,
-        rel: 0,
         ...(window.location.protocol.startsWith('http') ? { origin: window.location.origin } : {}),
       },
       events: {
@@ -642,18 +576,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       clearTimeout(vigiaRef.current);
       state.setError(null);
       state._onYtStateChange('playing');
-      if (aTocarDesdeRef.current == null) {
-        aTocarDesdeRef.current = Date.now();
-        // Passada a espera do arranque, o vídeo pode aparecer (se ligado).
-        setTimeout(() => aplicarVideo(), ESPERA_NO_ARRANQUE_MS + 100);
-      }
     }
-    else if (s === 2) { aTocarDesdeRef.current = null; state._onYtStateChange('paused'); aplicarVideo(); }
+    else if (s === 2) state._onYtStateChange('paused');
     else if (s === 0) state._onYtStateChange('ended');
-    if (s === 3) {
-      state._setBuffering(true);
-      if (aTocarDesdeRef.current != null) { aTocarDesdeRef.current = null; aplicarVideo(); }
-    }
+    if (s === 3) state._setBuffering(true);
     if (s === 1 || s === 2) state._setBuffering(false);
   };
 
@@ -718,17 +644,12 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           autoplay: 1,
           controls: 0,
           playsinline: 1,
-          iv_load_policy: 3,
-          fs: 0,
-          disablekb: 1,
-          rel: 0,
           ...(window.location.protocol.startsWith('http') ? { origin: window.location.origin } : {}),
         },
         events: {
           onReady: (event: any) => {
             prontoRef.current = true;
             ativoRef.current = event.target;
-            try { casaDosIframesRef.current = event.target.getIframe?.()?.parentElement ?? null; } catch { /* sem vídeo */ }
             try {
               event.target.setVolume(volumeParaOMotor(state.volume));
             } catch (err) {
@@ -899,8 +820,6 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       state._setActiveBackend('webview');
       // O player que entrou já estava a tocar: não vai mandar outro "playing".
       if (state.isPlaying || state.autoplayOnLoad) state._onYtStateChange('playing');
-      aTocarDesdeRef.current = Date.now();
-      aplicarVideo();
       estrangular(true);
       atualizarProgressoRef.current?.();
       return;
