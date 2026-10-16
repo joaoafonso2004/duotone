@@ -138,14 +138,8 @@ assert.equal(acertoNoPrimeiroSom(2500, 2100, 600), null, 'dentro da tolerância:
 assert.equal(acertoNoPrimeiroSom(1000, 2100, 600), 1000, 'adiantado também se acerta');
 assert.equal(acertoNoPrimeiroSom(null, 2100, 600), null, 'sem relógio da sala não se salta');
 assert.equal(acertoNoPrimeiroSom(3400, NaN, 600), null, 'sem leitura do motor não se salta');
-{
-  const pc = readFileSync(new URL('../src/components/YouTubePlayerView.web.tsx', import.meta.url), 'utf8');
-  assert.match(pc, /p\.loadVideoById\(\{ videoId: track\.sourceId, startSeconds: naSala \/ 1000 \}\)/, 'carrega já na posição da sala');
-  assert.match(pc, /comecarAlinhamento\(p, track\.sourceId\);/, 'e calado');
-  assert.match(pc, /acertoNoPrimeiroSom\(posicaoNaSala\(faixaRef\.current\), motorMs, TOLERANCIA_MS\)/, 'acerta no primeiro som');
-  assert.match(pc, /PRAZO_DO_ALINHAMENTO_MS = 10_000/, 'nunca fica calado para sempre');
-  assert.match(pc, /soltarAlinhamento\(\);\r?\n    try \{ p\.unMute/, 'outra faixa solta o alinhamento da anterior');
-}
+// O motor do PC voltou ao da 5.0.1 a 16/10 (pedido do João): o alinhamento
+// calado ao primeiro som saiu com ele. A conta continua testada acima.
 let vigente = true;
 const porta = { player: usePlayer.getState, vigente: () => vigente,
   posicaoAgora: () => 42000, guardarRetoma: (ms: number) => usePlayer.setState({ resumePositionMs: ms }) };

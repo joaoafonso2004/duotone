@@ -52,7 +52,6 @@ caso('os corações de guardar uma música usam-no, nas duas plataformas', () =>
     'src/desktop/casca.web.tsx',
     'src/desktop/paginas/NowPlayingPage.web.tsx',
     'src/janelaMini.web.tsx',
-    'src/components/PlayerRoot.tsx',
     'src/components/BotaoGuardar.tsx',
     'src/components/FolhaDoAmigo.tsx',
     'src/components/MenuFlutuante.tsx',
@@ -148,34 +147,14 @@ caso('as listas do iPhone abrem o compacto, com a capa e o coração em cima', (
   assert.match(m, /<ScrollView scrollEnabled=\{rola\}/);
 });
 
-console.log('\no PC não fica parado numa música que não arranca (16/10)');
-caso('o erro sem cópia e a vigia dos 15 s tentam uma vez e depois saltam', () => {
+// O motor do PC e o leitor do iPhone voltaram aos da 5.0.1 a 16/10 (pedido do
+// João): saíram o "tentar com um player novo" e o coração animado no leitor
+// do iPhone. Os outros corações (PC, conversas, folha do amigo, menu) ficam.
+caso('o motor do PC e o leitor do iPhone são os da 5.0.1', () => {
   const motor = ler('src/components/YouTubePlayerView.web.tsx');
-  const corpoDaFalha = motor.slice(motor.indexOf('async function falhaSemCopia('), motor.indexOf('const ESPERA_PELA_ENTREGA_MS'));
-  // sem rede fica (não percorre a fila toda), o resto salta
-  assert.match(corpoDaFalha, /if \(tipo === 'sem-rede'\) \{[\s\S]*?return;\s*\}/);
-  assert.match(corpoDaFalha, /tentadasOutraVez\.set\(track\.sourceId, Date\.now\(\)\);[\s\S]*?recarregar\(\);\s*return;/);
-  assert.match(corpoDaFalha, /await state\.skipUnavailableTrack\(track\.sourceId\);/);
-  // à segunda falha, outra cópia da mesma música antes de saltar
-  assert.match(corpoDaFalha, /await recoverUnavailableVideo\(track, tipo\);/);
-  // num Jam nunca salta nem troca a música da sala: tenta outra vez
-  const noJam = corpoDaFalha.slice(corpoDaFalha.indexOf('if (useOuvirJuntos.getState().sessao) {'));
-  assert.match(noJam, /^if \(useOuvirJuntos\.getState\(\)\.sessao\) \{\s*state\.setError\(null\);\s*playbackNotice\(MENSAGEM_NO_JAM\);\s*recarregar\?\.\(\);\s*return;\s*\}/);
-});
-caso('um player encravado não se reaproveita: tentar outra vez é um player novo', () => {
-  const motor = ler('src/components/YouTubePlayerView.web.tsx');
-  const recarregar = motor.slice(motor.indexOf('function recarregarAtual() {'), motor.indexOf('const armarVigiaRef'));
-  assert.match(recarregar, /setGeracaoDoMotor\(\(n\) => n \+ 1\)/);
-  assert.doesNotMatch(recarregar, /loadVideoById/);
-  // o motor monta outra vez quando a geração muda
-  assert.match(motor, /\}, \[geracaoDoMotor\]\);/);
-  // a seguinte a um encravanço (ou a um salto de uma presa há mais de 4 s) começa num player novo
-  assert.match(motor, /if \(encravadoRef\.current \|\| preso\) \{\s*encravadoRef\.current = false;\s*state\._setBuffering\(true\);\s*setGeracaoDoMotor/);
-  // um vídeo que chega a tocar dá o player por são
-  assert.match(motor, /clearTimeout\(vigiaRef\.current\);\s*encravadoRef\.current = false;\s*state\.setError\(null\);\s*state\._onYtStateChange\('playing'\);/);
-  // os dois sítios que ficavam parados passam por ela
-  assert.equal((motor.match(/void falhaSemCopia\(faixaRef\.current, tipo, recarregarAtual\)/g) ?? []).length, 2);
-  assert.doesNotMatch(motor, /state\.setError\(mensagemDaFalha\(tipo\)\);\s*playbackNotice\(mensagemDaFalha\(tipo\)\);\s*\}, 15000\)/);
+  assert.doesNotMatch(motor, /falhaSemCopia|geracaoDoMotor|comecarAlinhamento/);
+  assert.doesNotMatch(ler('src/components/PlayerRoot.tsx'), /CoracaoAnimado|useCoracaoAoCarregar/);
+  assert.doesNotMatch(ler('src/components/YouTubePlayerView.tsx'), /proximaFaixaParaOMotor/);
 });
 
 console.log('\nW3, W5, I5 e o EQ (16/10, docs/ui-seguinte.html)');

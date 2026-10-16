@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { pesquisarFaixas } from '../api/search';
 import { pickBest } from '../lib/trackMatch';
 import { rememberPlaybackAlternative } from '../lib/playbackAlternatives';
@@ -17,10 +17,7 @@ import { registar as registarEvento } from '../lib/eventos';
 import { primeiraNota } from '../lib/tocarEnquantoDescarrega';
 import { miniLeitorEstaAberto } from '../desktop/usePonteDoLeitor.web';
 import type { Track } from '../types';
-import { acertoNoPrimeiroSom, posicaoDaSalaParaFaixa } from '../lib/arranqueDaSala';
 import { volumeParaOMotor } from '../lib/curvaDoVolume';
-import { TOLERANCIA_MS } from '../lib/sincronizacao';
-import { registarNaFila } from '../lib/playbackDiagnostics';
 import {
   ANTECEDENCIA_DO_PC_S, decorridoDaPassagem, deveComecarCrossfade, devePrepararSeguinte, podeCrossfade,
   volumesDoCrossfade, type ContextoDoCrossfade,
@@ -155,77 +152,12 @@ async function recoverUnavailableVideo(track: Track, tipo: TipoFalha) {
 }
 
 /**
- * Uma falha sem outra cópia a tentar: o erro 5 do player (e um código que a
- * app não conhece), ou a vigia dos 15 s. Ficava parada a dizer "Could not play
- * this track." -- ou "Retrying another way…", que no PC não existia (16/10).
- *
- * Medido a 16/10: há vídeos que o IFrame deixa em "a carregar" com 0% durante
- * 9 a 30 s e mais, sem erro nenhum (o mesmo vídeo, fora da app; outro arranca
- * em menos de 1 s). É do lado do YouTube e muda de vídeo para vídeo. Por isso:
- *   - tenta a MESMA outra vez (às vezes arranca à segunda);
- *   - se voltar a falhar, outra cópia da mesma música (`recoverUnavailableVideo`,
- *     a busca dos vídeos removidos), e só sem cópia é que salta;
- *   - num Jam nunca salta nem troca de cópia: a música é a da sala, e um
- *     problema deste PC não pode mudá-la para todos. Continua a tentar (a
- *     vigia volta a armar-se a cada tentativa). Era o "Loading · 0%" eterno.
- *   - sem rede não se salta nada: percorria a fila toda em segundos.
- */
-const TENTAR_OUTRA_VEZ_MS = 2 * 60_000;
-const tentadasOutraVez = new Map<string, number>();
-export const MENSAGEM_A_TENTAR = 'Could not play this track. Trying again…';
-export const MENSAGEM_A_SALTAR = 'Could not play this track. Skipping.';
-export const MENSAGEM_NO_JAM = "This song isn't loading here. Trying again…";
-async function falhaSemCopia(track: Track, tipo: TipoFalha, recarregar: (() => void) | null) {
-  const state = usePlayer.getState();
-  if (state.current?.sourceId !== track.sourceId) return;
-  if (tipo === 'sem-rede') {
-    state.setError(mensagemDaFalha(tipo));
-    playbackNotice(mensagemDaFalha(tipo));
-    return;
-  }
-  if (useOuvirJuntos.getState().sessao) {
-    state.setError(null);
-    playbackNotice(MENSAGEM_NO_JAM);
-    recarregar?.();
-    return;
-  }
-  const antes = tentadasOutraVez.get(track.sourceId);
-  if (recarregar && tipo !== 'restrito-idade' && (!antes || Date.now() - antes > TENTAR_OUTRA_VEZ_MS)) {
-    tentadasOutraVez.set(track.sourceId, Date.now());
-    state.setError(null);
-    playbackNotice(MENSAGEM_A_TENTAR);
-    recarregar();
-    return;
-  }
-  tentadasOutraVez.delete(track.sourceId);
-  if (tipo !== 'restrito-idade') {
-    // Outra cópia; sem uma segura, ela própria salta.
-    await recoverUnavailableVideo(track, tipo);
-    return;
-  }
-  playbackNotice(MENSAGEM_A_SALTAR);
-  await state.skipUnavailableTrack(track.sourceId);
-}
-
-/**
  * Quanto tempo a passagem espera que a fila avance depois de pedir o `ended`.
  * Se a loja não mudar para a faixa preparada (fim da fila sem rádio, repeat
  * ligado a meio), quem entrou é calado -- em vez de ficar a tocar sem ninguém
  * saber, com os controlos a mexer no player que já acabou.
  */
 const ESPERA_PELA_ENTREGA_MS = 3000;
-
-/** Uma faixa de um Jam fica calada no máximo isto à espera do primeiro som (rede lenta, erro). */
-const PRAZO_DO_ALINHAMENTO_MS = 10_000;
-/** Depois do salto do acerto, o som volta quando o vídeo já está no sítio novo. */
-const SOM_DEPOIS_DO_ACERTO_MS = 250;
-
-/** A posição da sala para esta faixa, só com a sala a tocar (fora de um Jam, `null`). */
-function posicaoNaSala(faixa: Pick<Track, 'source' | 'sourceId'>): number | null {
-  const j = useOuvirJuntos.getState();
-  if (!j.sessao?.aTocar) return null;
-  return posicaoDaSalaParaFaixa(faixa, j.sessao, j.posicaoAgora);
-}
 
 /**
  * O motor do PC: o IFrame oficial do YouTube -- DOIS, para o crossfade.
@@ -281,27 +213,6 @@ export function YouTubePlayerView({ track }: { track: Track }) {
    * restaurada em pausa não mede: o som vem quando alguém carregar em play.
    */
   const notaRef = useRef<{ id: string; em: number } | null>(null);
-  /**
-   * Uma faixa de um Jam a carregar CALADA (15/10). Começava sempre do 0:00
-   * enquanto o relógio da sala já andava, e o corretor do desvio acertava-a
-   * só aos 7-9 s, com um salto a meio do som: era esse o corte no início das
-   * músicas do Jam no PC. Agora carrega já na posição da sala, sem som, e ao
-   * primeiro "a tocar" acerta o que a sala andou entretanto -- e só então se
-   * ouve. O iPhone já alinhava antes do som (`posicaoDaSalaParaFaixa`).
-   */
-  const alinharRef = useRef<{ sourceId: string; prazo: ReturnType<typeof setTimeout> | undefined; saltou: boolean } | null>(null);
-  const soltarAlinhamento = useCallback(() => {
-    const a = alinharRef.current;
-    if (!a) return;
-    clearTimeout(a.prazo);
-    alinharRef.current = null;
-    try { ativoRef.current?.unMute?.(); } catch {}
-  }, []);
-  const comecarAlinhamento = useCallback((p: any, sourceId: string) => {
-    if (alinharRef.current) clearTimeout(alinharRef.current.prazo);
-    try { p?.mute?.(); } catch {}
-    alinharRef.current = { sourceId, saltou: false, prazo: setTimeout(() => soltarAlinhamento(), PRAZO_DO_ALINHAMENTO_MS) };
-  }, [soltarAlinhamento]);
   useEffect(() => {
     notaRef.current = usePlayer.getState().autoplayOnLoad ? { id: track.sourceId, em: Date.now() } : null;
   }, [track.sourceId]);
@@ -326,30 +237,6 @@ export function YouTubePlayerView({ track }: { track: Track }) {
    * ficava em ampulheta para sempre e sem erro nenhum. Com o player agora
    * reutilizado entre faixas, isto tem de ser re-armado a cada troca.
    */
-  /**
-   * Um player ENCRAVADO não se recupera com outro `loadVideoById` (16/10,
-   * medido fora da app): depois de um vídeo que fica em "a carregar" com 0%,
-   * nem o vídeo que tinha tocado bem volta a arrancar nesse player -- e num
-   * player novo arranca em 1 s. Por isso tentar outra vez é montar o motor de
-   * novo (`geracaoDoMotor`: a limpeza destrói os dois players e o `mount` cria
-   * outro com a faixa atual, no sítio onde estava), e a música seguinte a um
-   * encravanço também começa num player novo (`encravadoRef`). Um vídeo que
-   * chega a tocar dá o player por são.
-   */
-  const [geracaoDoMotor, setGeracaoDoMotor] = useState(0);
-  const encravadoRef = useRef(false);
-  /** Quando se pediu a faixa ao player (para saber se um salto deixa um player preso). */
-  const carregouEmRef = useRef(0);
-  /** Mais do que isto a carregar sem nunca tocar, e o salto já não confia no player. */
-  const PRESO_AO_SALTAR_MS = 4000;
-  function recarregarAtual() {
-    encravadoRef.current = false;
-    usePlayer.getState()._setBuffering(true);
-    setGeracaoDoMotor((n) => n + 1);
-    armarVigiaRef.current();
-  }
-  const armarVigiaRef = useRef<() => void>(() => {});
-
   const armarVigia = useCallback(() => {
     clearTimeout(vigiaRef.current);
     arrancouRef.current = false;
@@ -367,11 +254,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         tipo,
         detalhe: 'sem arranque em 15s (embed ' + (prontoRef.current ? 'pronto' : 'nunca ficou pronto') + ')',
       });
-      encravadoRef.current = true;
-      void falhaSemCopia(faixaRef.current, tipo, recarregarAtual);
+      state.setError(mensagemDaFalha(tipo));
+      playbackNotice(mensagemDaFalha(tipo));
     }, 15000);
   }, []);
-  armarVigiaRef.current = armarVigia;
 
   // Uma sessão restaurada em pausa não está a tentar arrancar. A vigia nasce
   // quando há intenção real de tocar (incluindo um Play posterior) e também é
@@ -561,29 +447,6 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       if (passagemRef.current) terminarPassagem();
       return;
     }
-    // O fim de OUTRO vídeo não é o fim desta (15/10): um `ended` repetido ou
-    // atrasado da faixa que acabou chegava depois de a loja já ter passado à
-    // seguinte, e avançava outra vez -- saltava uma música. Quando o player
-    // não sabe dizer o id, conta (como até aqui). A troca de fonte muda a
-    // faixa na loja antes de carregar a alternativa, por isso o id bate certo.
-    if (s === 0 && !estaNoVideo(event.target, faixaRef.current.sourceId)) return;
-    // O primeiro som de uma faixa de um Jam (ver `alinharRef`): acerta-se com a
-    // sala ainda calado, e o som volta logo a seguir.
-    const alinhar = alinharRef.current;
-    if (s === 1 && alinhar && alinhar.sourceId === faixaRef.current.sourceId && estaNoVideo(event.target, alinhar.sourceId)) {
-      let motorMs: number | null = null;
-      try { motorMs = Number(event.target.getCurrentTime?.()) * 1000; } catch { motorMs = null; }
-      const para = alinhar.saltou ? null : acertoNoPrimeiroSom(posicaoNaSala(faixaRef.current), motorMs, TOLERANCIA_MS);
-      if (para != null) {
-        alinhar.saltou = true;
-        try { event.target.seekTo(para / 1000, true); } catch {}
-        registarNaFila(`${alinhar.sourceId}: Jam aligned on first sound (PC, muted) ${((motorMs ?? 0) / 1000).toFixed(2)}s -> ${(para / 1000).toFixed(2)}s`);
-        clearTimeout(alinhar.prazo);
-        alinhar.prazo = setTimeout(() => soltarAlinhamento(), SOM_DEPOIS_DO_ACERTO_MS);
-      } else if (!alinhar.saltou) {
-        soltarAlinhamento();
-      }
-    }
     if (s === 1 || s === 2) arrancouRef.current = true;
     // A tocar, em pausa ou em espera (5): o vídeo desta faixa está
     // carregado. Sem isto o `activeBackend` ficava em 'resolving' para
@@ -606,7 +469,6 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         if (medida) registarEvento('primeira_nota', medida);
       }
       clearTimeout(vigiaRef.current);
-      encravadoRef.current = false;
       state.setError(null);
       state._onYtStateChange('playing');
     }
@@ -624,7 +486,6 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       largarSeguinte();
       return;
     }
-    soltarAlinhamento();
     // Códigos da IFrame API: 2 id inválido, 5 erro do player HTML5,
     // 100 vídeo removido/privado, 101/150 embed proibido pelo dono.
     // São números e não texto, por isso classificam-se sem adivinhar.
@@ -643,8 +504,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (recuperacao(tipo).alternativa) {
       void recoverUnavailableVideo(faixaRef.current, tipo);
     } else {
-      if (tipo !== 'sem-rede') encravadoRef.current = true;
-      void falhaSemCopia(faixaRef.current, tipo, recarregarAtual);
+      state.setError(mensagemDaFalha(tipo));
+      playbackNotice(mensagemDaFalha(tipo));
     }
   };
 
@@ -664,7 +525,6 @@ export function YouTubePlayerView({ track }: { track: Track }) {
 
     const mount = () => {
       if (disposed || !window.YT?.Player) return;
-      carregouEmRef.current = Date.now();
       player = new window.YT.Player(hostA.current, {
         // O mesmo player, servido do dominio sem cookies de publicidade. A app
         // do PC fica horas aberta, e o embed normal ia deixando esse rasto
@@ -697,11 +557,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
               event.target.setPlaybackRate?.(velocidadeDoMotor());
             } catch {}
             const initialPos = usePlayer.getState().positionMs;
-            const naSala = posicaoNaSala(faixaRef.current);
-            if (naSala != null) {
-              comecarAlinhamento(event.target, faixaRef.current.sourceId);
-              event.target.seekTo(naSala / 1000, true);
-            } else if (initialPos > 1500) {
+            if (initialPos > 1500) {
               event.target.seekTo(initialPos / 1000, true);
             }
             if (usePlayer.getState().isPlaying) {
@@ -809,10 +665,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       passagemRef.current = null;
       try { window.duotoneDesktop?.naoEstrangular?.(false); } catch {}
     };
-    // O motor monta uma vez -- e outra vez quando encrava (`geracaoDoMotor`); as
-    // funções da passagem são estáveis (useCallback sem estado).
+    // O motor monta uma vez; as funções da passagem são estáveis (useCallback sem estado).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [geracaoDoMotor]);
+  }, []);
 
   /**
    * Trocar de faixa.
@@ -863,33 +718,12 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     // Outra faixa qualquer: a preparada cala-se (`abortar`).
     largarSeguinte();
     estrangular(true);
-    // Depois de um encravanço, a seguinte começa num player novo: no que
-    // encravou ficava presa outra vez (o `mount` carrega a faixa atual). Também
-    // quando se salta uma que estava há mais de 4 s a carregar sem tocar --
-    // não se espera pela vigia dos 15 s para o saber.
-    const preso = !arrancouRef.current && carregouEmRef.current > 0
-      && Date.now() - carregouEmRef.current > PRESO_AO_SALTAR_MS;
-    carregouEmRef.current = Date.now();
-    if (encravadoRef.current || preso) {
-      encravadoRef.current = false;
-      state._setBuffering(true);
-      setGeracaoDoMotor((n) => n + 1);
-      return;
-    }
     const p = ativoRef.current;
     if (!p?.loadVideoById) return;
     state._setBuffering(true);
-    soltarAlinhamento();
     try { p.unMute?.(); p.setVolume?.(volumeParaOMotor(state.volume)); } catch {}
-    // Num Jam a tocar: já na posição da sala, e calada até ao primeiro som.
-    const naSala = posicaoNaSala(track);
-    if (naSala != null) {
-      comecarAlinhamento(p, track.sourceId);
-      try { p.loadVideoById({ videoId: track.sourceId, startSeconds: naSala / 1000 }); } catch {}
-      return;
-    }
     try { p.loadVideoById(track.sourceId); } catch {}
-  }, [track.sourceId, estrangular, largarSeguinte, soltarAlinhamento, comecarAlinhamento]);
+  }, [track.sourceId, estrangular, largarSeguinte]);
 
   const velocidadeEscolhida = usePlayer((s) => s.playbackRate);
   // Entrar e sair de um Jam também muda a velocidade do motor: a 1x lá dentro,
