@@ -1013,5 +1013,26 @@ console.log('\no último toque ganha (2/10, o Mix que chegava depois)');
   eq('uma troca interna (rádio, motor) não conta', interno(), true);
 }
 
+// "End of track" no temporizador (16/10): o fim natural para a música em vez
+// de avançar, e o motor não prepara a seguinte (sem crossfade por cima do fim).
+console.log('\nEnd of track');
+{
+  preparar({ isPlaying: true });
+  usePlayer.getState().setSleepTimerNoFimDaFaixa();
+  eq('ligado', usePlayer.getState().pararNoFimDaFaixa, true);
+  eq('o motor não prepara a seguinte', usePlayer.getState().proximaFaixaParaOMotor(), null);
+  check('a seta "seguinte" continua a ter para onde ir', !!usePlayer.getState().proximaFaixa());
+  usePlayer.setState({ repeatMode: 'one' });
+  usePlayer.getState()._onYtStateChange('ended');
+  await assentar();
+  eq('no fim, a mesma faixa (não avançou, nem com o repeat de uma)', atual(), 'a');
+  eq('e parou', usePlayer.getState().isPlaying, false);
+  eq('e desligou-se', usePlayer.getState().pararNoFimDaFaixa, false);
+  usePlayer.getState().setSleepTimerNoFimDaFaixa();
+  usePlayer.getState().setSleepTimer(15);
+  eq('escolher minutos desliga o fim da faixa', usePlayer.getState().pararNoFimDaFaixa, false);
+  usePlayer.getState().setSleepTimer(0);
+}
+
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);

@@ -153,6 +153,7 @@ const TESTES = [
   `${TS} scripts/test-destinos.ts`,
   `${TS} scripts/test-radio-inteligente.ts`,
   `${TS} scripts/test-lancamentos-no-radio.ts`,
+  `${TS} scripts/test-video-no-leitor.ts`,
   `${TS} scripts/test-ordem-das-conversas.ts`,
   `${TS} scripts/test-presenca-discord.ts`,
   `${TS} scripts/test-visibilidade.ts`,

@@ -96,7 +96,8 @@ export function efeitoDoPadrao(e: {
 }
 
 /** O temporizador diz a hora a que para, e não só quanto falta. */
-export function efeitoDoTemporizador(e: { restanteS: number; agora: Date }): string | null {
+export function efeitoDoTemporizador(e: { restanteS: number; agora: Date; noFimDaFaixa?: boolean }): string | null {
+  if (e.noFimDaFaixa) return 'Stops when this song ends';
   if (!(e.restanteS > 0)) return null;
   return `Stops at ${hora(new Date(e.agora.getTime() + e.restanteS * 1000))}`;
 }

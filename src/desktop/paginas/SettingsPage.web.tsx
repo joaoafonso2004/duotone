@@ -169,7 +169,8 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   const autoplayRadio = usePlayer((s) => s.autoplayRadio);
   // A store e o ticker de 1s do App.tsx ja corriam no desktop; faltava so a UI.
   const sleepLeft = usePlayer((s) => s.sleepTimerTimeLeft);
-  const sleepChoice = sleepLeft === 0 ? '0'
+  const pararNoFimDaFaixa = usePlayer((s) => s.pararNoFimDaFaixa);
+  const sleepChoice = pararNoFimDaFaixa ? 'fim' : sleepLeft === 0 ? '0'
     : sleepLeft <= 15 * 60 ? '15'
     : sleepLeft <= 30 * 60 ? '30'
     : sleepLeft <= 45 * 60 ? '45' : '60';
@@ -191,7 +192,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
     smart: efeitoDoSmartShuffle({ intensidade: intensidadeSmart, ligado: smartLigado }),
     discord: efeitoDoDiscord({ ligado: discordOn, privada, estado: estadoDoDiscord }),
     radio: efeitoDoRadio({ ligado: autoplayRadio, aTocarRadio: radioActivo }),
-    temporizador: efeitoDoTemporizador({ restanteS: sleepLeft, agora: new Date() }),
+    temporizador: efeitoDoTemporizador({ restanteS: sleepLeft, agora: new Date(), noFimDaFaixa: pararNoFimDaFaixa }),
     crossfade: efeitoDoCrossfade({ segundos: crossfade, repeatUma }),
     velocidade: efeitoDoPadrao({
       tipo: 'velocidade', temFaixa: !!atual,
@@ -380,7 +381,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                   onChange={(v) => { const d = Number(v) as DuracaoDoCrossfade; usePlayer.setState({ crossfadeSegundos: d }); void setCrossfadeSegundos(d); }}
                   efeito={efeitos.crossfade} />
                 <ToggleLine label={ROTULOS.autoplay} description="When the queue ends, keep playing music like it instead of stopping." value={autoplayRadio} onChange={(v) => { usePlayer.getState().setAutoplayRadio(v); persistAutoplayRadio(v); }} efeito={efeitos.radio} />
-                <ChoiceLine label={ROTULOS.temporizador} value={sleepChoice} choices={[['0', 'Off'], ['15', '15 min'], ['30', '30 min'], ['45', '45 min'], ['60', '60 min']]} onChange={(v) => usePlayer.getState().setSleepTimer(Number(v))} efeito={efeitos.temporizador} />
+                <ChoiceLine label={ROTULOS.temporizador} value={sleepChoice} choices={[['0', 'Off'], ['15', '15 min'], ['30', '30 min'], ['45', '45 min'], ['60', '60 min'], ['fim', 'End of track']]} onChange={(v) => (v === 'fim' ? usePlayer.getState().setSleepTimerNoFimDaFaixa() : usePlayer.getState().setSleepTimer(Number(v)))} efeito={efeitos.temporizador} />
                 <View style={[styles.settingLine, { flexDirection: 'column', alignItems: 'stretch', gap: ESP.md }]}>
                   <View>
                     <Text style={styles.settingLabel}>{ROTULOS.velocidade}</Text>

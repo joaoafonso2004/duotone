@@ -399,6 +399,11 @@ interface PlayerState {
    * no timeUpdate do player nativo (que continua a disparar em background)
    * pausa a música à hora certa mesmo com o ecrã bloqueado. */
   sleepTimerEndsAt: number | null;
+  /**
+   * "End of track" no temporizador (16/10): a música para no FIM natural de
+   * uma faixa -- a que estiver a tocar quando acabar --, em vez de avançar.
+   */
+  pararNoFimDaFaixa: boolean;
   /** Velocidade de reproducao, 0,25 a 2 em degraus de 0,1 (ver
    * `lib/playbackRate.ts`). Substituiu os tres presets. */
   playbackRate: number;
@@ -509,6 +514,7 @@ interface PlayerState {
   cycleRepeat: () => void;
   setShuffle: (v: boolean) => void;
   setSleepTimer: (minutes: number) => void;
+  setSleepTimerNoFimDaFaixa: () => void;
   tickSleepTimer: () => void;
   /** Verifica o deadline do sleep timer (chamado no tick de foreground E no
    * timeUpdate do player nativo, para funcionar em background). */
@@ -547,6 +553,12 @@ interface PlayerState {
 
   seekTo: (ms: number, interno?: boolean) => Promise<void>;
 
+  /**
+   * A seguinte para o MOTOR preparar (o crossfade e a passagem): nenhuma com o
+   * "End of track" ligado, para a música acabar a sério e parar. A seta
+   * "seguinte" e a Jam continuam a usar a `proximaFaixa`.
+   */
+  proximaFaixaParaOMotor: () => Track | null;
   /** Decisão da fila pessoal. Consumidores devem usar proximaFaixa. */
   peekNextTrack: () => Track | null;
   /** Única decisão pública: fila Jam durante a sessão, fila pessoal fora dela. */
@@ -1106,6 +1118,7 @@ export const usePlayer = create<PlayerState>()(
   error: null,
   sleepTimerTimeLeft: 0,
   sleepTimerEndsAt: null,
+  pararNoFimDaFaixa: false,
   playbackRate: RATE_NORMAL,
   eqGanhos: PLANO,
   carro: null,
@@ -1960,6 +1973,7 @@ export const usePlayer = create<PlayerState>()(
   },
 
   proximaFaixa: () => proximaFaixa(ouvirJuntos(), get().peekNextTrack),
+  proximaFaixaParaOMotor: () => (get().pararNoFimDaFaixa ? null : get().proximaFaixa()),
 
   proximasFaixas: (quantas) => {
     // Numa sessão manda a fila partilhada; fora dela, a pessoal com o shuffle.
@@ -2312,6 +2326,13 @@ export const usePlayer = create<PlayerState>()(
     // A seguir um amigo, o fim desta não avança a fila: a seguinte é a dele,
     // e chega pela presença (state/seguirAmigo.ts).
     if (s === 'ended' && seguindoAmigo()) return;
+    // "End of track" (16/10): o fim natural desta faixa para a música, em vez
+    // de avançar -- também com o repeat de uma. Desliga-se ao parar.
+    if (s === 'ended' && get().pararNoFimDaFaixa) {
+      set({ pararNoFimDaFaixa: false });
+      get().pausePlayback();
+      return;
+    }
     if (s === 'ended') {
       if (ouvirJuntos()) { void comandarJam(jam => jam.avancar(true)); return; }
       const { repeatMode, _yt } = get();
@@ -2342,8 +2363,10 @@ export const usePlayer = create<PlayerState>()(
 
   setSleepTimer: (minutes) => {
     const { fimEm, restanteS } = prazoDoTemporizador(minutes, Date.now());
-    set({ sleepTimerEndsAt: fimEm, sleepTimerTimeLeft: restanteS });
+    set({ sleepTimerEndsAt: fimEm, sleepTimerTimeLeft: restanteS, pararNoFimDaFaixa: false });
   },
+
+  setSleepTimerNoFimDaFaixa: () => set({ sleepTimerEndsAt: null, sleepTimerTimeLeft: 0, pararNoFimDaFaixa: true }),
 
   tickSleepTimer: () => get().checkSleepTimer(),
 

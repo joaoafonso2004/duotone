@@ -164,6 +164,7 @@ export function SettingsScreen({ navigation }: Props) {
   const setPlaybackRate = usePlayer((s) => s.setPlaybackRate);
   const sleepTimerTimeLeft = usePlayer((s) => s.sleepTimerTimeLeft);
   const setSleepTimer = usePlayer((s) => s.setSleepTimer);
+  const pararNoFimDaFaixa = usePlayer((s) => s.pararNoFimDaFaixa);
   // O que está a tocar AGORA, para cada opção dizer o efeito que tem nesta
   // música -- ver lib/efeitoDasDefinicoes.ts.
   const atual = usePlayer((s) => s.current);
@@ -376,7 +377,7 @@ export function SettingsScreen({ navigation }: Props) {
       igualAoPadrao: ganhosDaFaixa.length === padraoGanhos.length
         && ganhosDaFaixa.every((g, i) => Math.abs(g - padraoGanhos[i]) < 0.05),
     }),
-    temporizador: efeitoDoTemporizador({ restanteS: sleepTimerTimeLeft, agora: new Date() }),
+    temporizador: efeitoDoTemporizador({ restanteS: sleepTimerTimeLeft, agora: new Date(), noFimDaFaixa: pararNoFimDaFaixa }),
     normalizacao: efeitoDaNormalizacao({
       ligada: volumeNormalization, temFaixa: doYouTube,
       loudnessDb: doYouTube ? getLoudnessDb(atual!.sourceId) : null,
@@ -391,7 +392,7 @@ export function SettingsScreen({ navigation }: Props) {
 
   // As escolhas abrem um menu junto ao dedo (variante B, 4/10): a linha mostra
   // o valor, e o menu tem o ✓ na escolhida.
-  const indiceDoTemporizador = sleepTimerTimeLeft === 0 ? 0
+  const indiceDoTemporizador = pararNoFimDaFaixa ? 5 : sleepTimerTimeLeft === 0 ? 0
     : sleepTimerTimeLeft <= 15 * 60 ? 1
     : sleepTimerTimeLeft <= 30 * 60 ? 2
     : sleepTimerTimeLeft <= 45 * 60 ? 3 : 4;
@@ -411,9 +412,9 @@ export function SettingsScreen({ navigation }: Props) {
       escolher: changeCrossfade,
     },
     temporizador: {
-      opcoes: ['Off', '15 minutes', '30 minutes', '45 minutes', '1 hour'],
+      opcoes: ['Off', '15 minutes', '30 minutes', '45 minutes', '1 hour', 'End of track'],
       atual: indiceDoTemporizador,
-      escolher: (i) => setSleepTimer([0, 15, 30, 45, 60][i] ?? 0),
+      escolher: (i) => (i === 5 ? usePlayer.getState().setSleepTimerNoFimDaFaixa() : setSleepTimer([0, 15, 30, 45, 60][i] ?? 0)),
     },
     qualidade: { opcoes: ['High', 'Data saver'], atual: audioQuality === 'saver' ? 1 : 0, escolher: (i) => void changeAudioQuality(i) },
     destaque: { opcoes: ['Steel', 'Cover'], atual: modo === 'cover' ? 1 : 0, escolher: (i) => void setMode(i === 1 ? 'cover' : 'steel') },

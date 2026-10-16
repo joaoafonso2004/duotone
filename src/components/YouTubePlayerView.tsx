@@ -717,7 +717,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const prepararSeguinte = async () => {
     if (aPrepararRef.current || backend !== 'native') return;
     const st = usePlayer.getState();
-    const seguinte = st.proximaFaixa();
+    const seguinte = st.proximaFaixaParaOMotor();
     if (!seguinte || seguinte.source !== 'youtube') return;
     if (seguinte.sourceId === track.sourceId) return;
     if (seguinteRef.current?.sourceId === seguinte.sourceId) return;
@@ -1869,7 +1869,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         // buscar uma sugestão), a faixa que sai começava uma SEGUNDA
         // passagem por cima da que já estava a tocar em cheio.
         const st = usePlayer.getState();
-        const seguinte = st.proximaFaixa();
+        const seguinte = st.proximaFaixaParaOMotor();
         if (useOuvirJuntos.getState().sessao || !seguinte || seguinte.sourceId !== preparada.sourceId) {
           // A fila mudou por baixo: deixa preparar outra vez.
           seguinteRef.current = null;
