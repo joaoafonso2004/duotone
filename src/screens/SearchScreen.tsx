@@ -61,6 +61,7 @@ import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../
 import { hapticImpact, hapticNotification, hapticSelection } from '../lib/haptics';
 import { usePlayer } from '../state/player';
 import { colors, ESCALA_MAXIMA, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
+import { useTheme } from '../state/theme';
 import type { Track } from '../types';
 import {
   contextoDaPrateleira, contextoParaAnalytics, notaDaPrateleira, type DiscoveryContext,
@@ -92,6 +93,7 @@ function paginasDe<T>(lista: readonly T[], n: number): T[][] {
 }
 
 export function SearchScreen() {
+  const corDoTema = useTheme((s) => s.theme.color);
   // Tocar no separador onde ja se esta volta ao topo (3/10, como no iOS).
   const topoDaPagina = useRef<any>(null);
   const topoDosResultados = useRef<any>(null);
@@ -659,19 +661,36 @@ export function SearchScreen() {
       // barra compacta e não perde o foco quando a lista por baixo muda.
       fixo={
         <View style={styles.controls}>
-          <Input
-            icon="search"
-            placeholder="Songs, artists, playlists…"
-            value={query}
-            onChangeText={setQuery}
-            onClear={() => setQuery('')}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="search"
-            onSubmitEditing={() => { pesquisarAgora(); Keyboard.dismiss(); }}
-          />
+          {/* "Cancel" enquanto se pesquisa, como em qualquer pesquisa do iOS
+              (16/10, I5 de docs/ui-seguinte.html): fecha o teclado, limpa e
+              volta à Home. O ✕ da caixa continua a só apagar o texto. */}
+          <View style={styles.linhaDaPesquisa}>
+            <View style={{ flex: 1 }}>
+              <Input
+                icon="search"
+                placeholder="Songs, artists, playlists…"
+                value={query}
+                onChangeText={setQuery}
+                onClear={() => setQuery('')}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="search"
+                onSubmitEditing={() => { pesquisarAgora(); Keyboard.dismiss(); }}
+              />
+            </View>
+            {isFocused || query.length > 0 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Cancel search"
+                hitSlop={10}
+                onPress={() => { hapticSelection(); Keyboard.dismiss(); setQuery(''); setIsFocused(false); }}
+              >
+                <Text style={[type.body, { color: corDoTema }]}>Cancel</Text>
+              </Pressable>
+            ) : null}
+          </View>
           {query.trim().length >= 2 ? (
             <View style={styles.vistas} accessibilityRole="tablist">
               {([['musicas', 'Songs'], ['artistas', 'Artists'], ['albuns', 'Albums'], ['playlists', 'Playlists']] as const).map(([id, nome]) => (
@@ -1056,6 +1075,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl, paddingVertical: spacing.sm, minHeight: 68,
   },
   capaPorTipo: { width: 52, height: 52, borderRadius: radii.sm, backgroundColor: colors.surface },
+  linhaDaPesquisa: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   controls: {
     paddingHorizontal: spacing.xl,
     gap: spacing.md,

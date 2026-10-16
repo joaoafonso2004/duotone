@@ -156,9 +156,47 @@ caso('o erro sem cópia e a vigia dos 15 s tentam uma vez e depois saltam', () =
   assert.match(corpoDaFalha, /if \(tipo === 'sem-rede'\) \{[\s\S]*?return;\s*\}/);
   assert.match(corpoDaFalha, /tentadasOutraVez\.set\(track\.sourceId, Date\.now\(\)\);[\s\S]*?recarregar\(\);\s*return;/);
   assert.match(corpoDaFalha, /await state\.skipUnavailableTrack\(track\.sourceId\);/);
+  // à segunda falha, outra cópia da mesma música antes de saltar
+  assert.match(corpoDaFalha, /await recoverUnavailableVideo\(track, tipo\);/);
+  // num Jam nunca salta nem troca a música da sala: tenta outra vez
+  const noJam = corpoDaFalha.slice(corpoDaFalha.indexOf('if (useOuvirJuntos.getState().sessao) {'));
+  assert.match(noJam, /^if \(useOuvirJuntos\.getState\(\)\.sessao\) \{\s*state\.setError\(null\);\s*playbackNotice\(MENSAGEM_NO_JAM\);\s*recarregar\?\.\(\);\s*return;\s*\}/);
+});
+caso('um player encravado não se reaproveita: tentar outra vez é um player novo', () => {
+  const motor = ler('src/components/YouTubePlayerView.web.tsx');
+  const recarregar = motor.slice(motor.indexOf('function recarregarAtual() {'), motor.indexOf('const armarVigiaRef'));
+  assert.match(recarregar, /setGeracaoDoMotor\(\(n\) => n \+ 1\)/);
+  assert.doesNotMatch(recarregar, /loadVideoById/);
+  // o motor monta outra vez quando a geração muda
+  assert.match(motor, /\}, \[geracaoDoMotor\]\);/);
+  // a seguinte a um encravanço (ou a um salto de uma presa há mais de 4 s) começa num player novo
+  assert.match(motor, /if \(encravadoRef\.current \|\| preso\) \{\s*encravadoRef\.current = false;\s*state\._setBuffering\(true\);\s*setGeracaoDoMotor/);
+  // um vídeo que chega a tocar dá o player por são
+  assert.match(motor, /clearTimeout\(vigiaRef\.current\);\s*encravadoRef\.current = false;\s*state\.setError\(null\);\s*state\._onYtStateChange\('playing'\);/);
   // os dois sítios que ficavam parados passam por ela
   assert.equal((motor.match(/void falhaSemCopia\(faixaRef\.current, tipo, recarregarAtual\)/g) ?? []).length, 2);
   assert.doesNotMatch(motor, /state\.setError\(mensagemDaFalha\(tipo\)\);\s*playbackNotice\(mensagemDaFalha\(tipo\)\);\s*\}, 15000\)/);
+});
+
+console.log('\nW3, W5, I5 e o EQ (16/10, docs/ui-seguinte.html)');
+caso('W3: as Definições do PC leem-se sem chegar a cabeça ao ecrã', () => {
+  const e = ler('src/desktop/estilos.web.ts');
+  assert.match(e, /settingLabel: \{[^}]*fontSize: 13\.5/);
+  assert.match(e, /settingDescription: \{[^}]*fontSize: 12/);
+  assert.match(e, /smallSegmentText: \{[^}]*fontSize: 11/);
+});
+caso('W5: a falha diz-se no lugar do artista, e não numa linha de 10 px ao lado do volume', () => {
+  const c = ler('src/desktop/casca.web.tsx');
+  assert.match(c, /\{p\.error\s*\? <View[\s\S]{0,200}accessibilityRole="alert"/);
+  assert.doesNotMatch(c, /style=\{styles\.playerError\}/);
+});
+caso('I5: a pesquisa da Home do iPhone tem "Cancel"', () => {
+  const s = ler('src/screens/SearchScreen.tsx');
+  assert.match(s, /\{isFocused \|\| query\.length > 0 \? \([\s\S]{0,300}Keyboard\.dismiss\(\); setQuery\(''\); setIsFocused\(false\);[\s\S]{0,120}>Cancel</);
+});
+caso('o EQ do PC não escurece o leitor por trás', () => {
+  assert.match(ler('src/desktop/paginas/NowPlayingPage.web.tsx'), /<Dialog open=\{eqAberto\} title="Equaliser"[\s\S]{0,120}width=\{560\} semVeu>/);
+  assert.match(ler('src/desktop/ui.web.tsx'), /semVeu && \{ backgroundColor: 'transparent' \}/);
 });
 
 console.log(falhas ? `\n  ${falhas} caso(s) a falhar.\n` : '\n  Todos os casos passaram.\n');

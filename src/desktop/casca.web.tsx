@@ -655,7 +655,15 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
             título cru do upload, sem artista nenhum. */}
         <View style={{ minWidth: 0, flexShrink: 1 }}>
           <Text numberOfLines={1} style={styles.playerTitle}>{tituloDaFaixa(p.current)}</Text>
-          <Text numberOfLines={1} style={styles.playerArtista}>{displayArtist(p.current)}</Text>
+          {/* Uma falha diz-se no lugar do artista, a 12 px, enquanto dura (16/10,
+              W5, variante A de docs/ui-seguinte.html): era uma linha de 10 px
+              à direita, cortada a meio e a competir com o volume. */}
+          {p.error
+            ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 1, minWidth: 0 }} accessibilityRole="alert">
+                <Ionicons name="alert-circle-outline" size={13} color={COR.aviso} />
+                <Text numberOfLines={1} style={[styles.playerArtista, { color: COR.aviso, marginTop: 0, flexShrink: 1 }]}>{p.error}</Text>
+              </View>
+            : <Text numberOfLines={1} style={styles.playerArtista}>{displayArtist(p.current)}</Text>}
         </View>
       </Pressable>
       {/* As Faíscas a guardar e o Encolher a tirar, logo ao carregar (16/10). */}
@@ -692,7 +700,6 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
       <BarraDeProgresso />
     </View>
     <View style={styles.playerRight}>
-      {p.error && <Text numberOfLines={1} style={styles.playerError}>{p.error}</Text>}
       <SeguirNaBarra />
       {/* Quem vê o que está a tocar, ao lado do botão que abre o Jam. */}
       <IndicadorDeVisibilidade discordLigado={discordLigado} onJam={onJam} onAviso={onAviso} />

@@ -521,7 +521,7 @@ export function NowPlayingPage({
           />
         )}
       </Dialog>
-      <Dialog open={eqAberto} title="Equaliser" onClose={() => setEqAberto(false)} width={560}>
+      <Dialog open={eqAberto} title="Equaliser" onClose={() => setEqAberto(false)} width={560} semVeu>
         <PainelEqualizador
           ganhos={eqGanhos}
           aoMudarGanhos={setEqGanhos}

@@ -37,7 +37,10 @@ reset();
 const before=usePlayer.getState();
 assert.equal(await before.startRadio(),true);
 assert.deepEqual(usePlayer.getState().queue.map(t=>t.sourceId),['past','current','radio1','radio2']);
-assert.deepEqual(controlo.radioContextos[0].map(t=>t.sourceId),['heard'],'contexto só da escuta, nunca da posição passada nem futura na fila');
+// 16/10: parte da música que está a tocar, e não do que se ouviu antes de o
+// ligar (um rap do DaBaby dava funk, porque a sessão de antes era funk).
+assert.deepEqual(controlo.radioContextos[0].map(t=>t.sourceId),['current'],'o Radio parte da música atual, nunca da sessão de antes nem da fila');
+assert.equal(usePlayer.getState().radioListeningSession,null,'ligar o Radio recomeça a sessão: só ensina o que se ouve depois');
 assert.equal(controlo.radioModos[0],'session');
 assert.equal(usePlayer.getState().current,current);
 assert.equal(usePlayer.getState().positionMs,23_000);
@@ -47,7 +50,7 @@ assert.equal(usePlayer.getState().shuffle,false);
 usePlayer.setState({radioListeningSession:{owner:'utilizador-de-teste',tracks:[track('newlisten','Pop')]} });
 controlo.radio=[track('radio3')];
 assert.equal(await usePlayer.getState().extendQueueWithRadio(),true);
-assert.deepEqual(controlo.radioContextos[1].map(t=>t.sourceId),['heard'],'reabastecer conserva as âncoras de antes de ativar');
+assert.deepEqual(controlo.radioContextos[1].map(t=>t.sourceId),['current'],'reabastecer conserva a música de onde se ligou (uma escuta só ainda não é âncora)');
 usePlayer.getState().stopRadio();
 const after=usePlayer.getState().queue;
 assert.equal(await usePlayer.getState().extendQueueWithRadio(),false,'Off também impede a preferência de autoplay de o voltar a ligar');
@@ -161,7 +164,7 @@ usePlayer.getState()._onYtStateChange('playing');
 usePlayer.setState({positionMs:5_000});
 await usePlayer.getState().next();
 assert.deepEqual(usePlayer.getState().radioListeningSession?.skipped?.map(t=>t.sourceId),['radio1'],'o salto ficou na sessão do Radio');
-assert.deepEqual(usePlayer.getState().radioListeningSession?.tracks.map(t=>t.sourceId),['heard'],'e as escutas continuam');
+assert.deepEqual(usePlayer.getState().radioListeningSession?.tracks.map(t=>t.sourceId),[],'as escutas de antes de ligar já não contam (16/10): a sessão recomeçou');
 
 // Sobrevive a reabrir a app (5/10): fica ligado, com as mesmas âncoras.
 reset();
@@ -169,7 +172,7 @@ assert.equal(await usePlayer.getState().startRadio(),true);
 const opcoes=(usePlayer as any).persist.getOptions();
 const guardado=opcoes.partialize(usePlayer.getState());
 assert.equal(guardado.radioMode,'on');
-assert.deepEqual(guardado.radioContext.map((t:Track)=>t.sourceId),['heard']);
+assert.deepEqual(guardado.radioContext.map((t:Track)=>t.sourceId),['current'],'a âncora é a música de onde se ligou');
 const reposto=opcoes.merge(JSON.parse(JSON.stringify(guardado)),{...initial});
 assert.equal(reposto.radioMode,'on','volta ligado');
 assert.equal(reposto.radioStopped,false,'e o autoplay não fica travado');

@@ -1803,7 +1803,13 @@ export const usePlayer = create<PlayerState>()(
     const before = get(), current = before.current;
     if (!current || before.radioMode === 'preparing' || ouvirJuntos() || seguindoAmigo() || useConnectivity.getState().offline) return false;
     const request = ++radioRequest, owner = donoDoSmartShuffle(), playbackRequest = playRequestId;
-    const context = daMusica ? [current] : radioSessionSeeds(before.radioListeningSession, owner, current, displayArtist, chaveDeArtista);
+    // O Radio parte SEMPRE da música que está a tocar (16/10). A pastilha
+    // partia dos artistas mais ouvidos na sessão, com a música atual só como
+    // recurso: um amigo do João que tinha ouvido funk brasileiro ligou-o num
+    // rap do DaBaby e recebeu funk. A sessão continua a ensinar, mas só o que
+    // se ouve DEPOIS de o ligar (a sessão recomeça ao ligar; `ancorasDoRadio`).
+    void daMusica;
+    const context = [current];
     set({ radioMode: 'preparing', radioError: null });
     const valid = () => request === radioRequest && playbackRequest === playRequestId && get().current === current && get().queue === before.queue
       && get().radioMode === 'preparing' && donoDoSmartShuffle() === owner && !ouvirJuntos() && !seguindoAmigo() && !useConnectivity.getState().offline;
@@ -1813,7 +1819,9 @@ export const usePlayer = create<PlayerState>()(
       const heard = before.radioListeningSession?.owner === owner ? before.radioListeningSession.tracks : [];
       const lote = filterSuggestions(await fetchRadioTracks(context, [...before.queue, ...heard], 12, discovered, 'session', ouvidas));
       if (!valid()) return false;
-      const comNovo = await comLancamentoNovo(lote, context, heard,
+      // Ao ligar, só um lançamento do artista desta música: os da sessão de
+      // antes (outro género, às vezes) não são deste Radio.
+      const comNovo = await comLancamentoNovo(lote, context, [],
         crivoDoLancamento([...before.queue, ...heard], lote, discovered, ouvidas, () => false));
       const tracks = espalharArtistas(comNovo.lote,
         (t) => chaveDeArtista(displayArtist(t)), [chaveDeArtista(displayArtist(current))]);
@@ -1829,6 +1837,7 @@ export const usePlayer = create<PlayerState>()(
       const discovery = contextoDoRadioAutomatico();
       for (const track of tracks) contextosDaFila.set(trackKey(track),discovery);
       set({ queue, queueIndex: past.length, radioMode: 'on', radioContext: context, radioOwner: owner,
+        radioListeningSession: null,
         radioStopped: false, radioActive: true, radioError: null, doRadio: tracks.map(trackKey),
         shuffle: false, shuffleInteligente: false, shuffleOrder: [], repeatMode: 'off', sugeridas: [] });
       comNovo.marcar?.();

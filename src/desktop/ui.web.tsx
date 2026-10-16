@@ -903,10 +903,14 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
   </View>;
 }
 
-export function Dialog({ open, title, children, onClose, width = 460 }: { open: boolean; title: string; children: ReactNode; onClose: () => void; width?: number }) {
+/**
+ * `semVeu`: o que está por trás continua à vista, sem escurecer (16/10, o EQ:
+ * ajusta-se a ouvir e a ver o leitor). Tocar fora continua a fechar.
+ */
+export function Dialog({ open, title, children, onClose, width = 460, semVeu = false }: { open: boolean; title: string; children: ReactNode; onClose: () => void; width?: number; semVeu?: boolean }) {
   useEffect(() => { if (!open) return; const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', fn); return () => window.removeEventListener('keydown', fn); }, [open, onClose]);
   if (!open) return null;
-  return <View style={ui.dialogLayer} {...marcar('veu')}><P style={StyleSheet.absoluteFill} onPress={onClose} /><View style={[ui.dialog, { width, maxWidth: 'calc(100vw - 48px)' as any }]} {...marcar('dialogo')}><View style={ui.dialogHeader}><Text style={ui.dialogTitle}>{title}</Text><IconButton name="close" label="Close dialog" onPress={onClose} /></View>{children}</View></View>;
+  return <View style={[ui.dialogLayer, semVeu && { backgroundColor: 'transparent' }]} {...marcar('veu')}><P style={StyleSheet.absoluteFill} onPress={onClose} /><View style={[ui.dialog, { width, maxWidth: 'calc(100vw - 48px)' as any }]} {...marcar('dialogo')}><View style={ui.dialogHeader}><Text style={ui.dialogTitle}>{title}</Text><IconButton name="close" label="Close dialog" onPress={onClose} /></View>{children}</View></View>;
 }
 
 export function Toast({ message, onDone }: { message: string; onDone: () => void }) {

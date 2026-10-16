@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { pesquisarFaixas } from '../api/search';
 import { pickBest } from '../lib/trackMatch';
 import { rememberPlaybackAlternative } from '../lib/playbackAlternatives';
@@ -156,22 +156,37 @@ async function recoverUnavailableVideo(track: Track, tipo: TipoFalha) {
 
 /**
  * Uma falha sem outra cópia a tentar: o erro 5 do player (e um código que a
- * app não conhece), ou a vigia dos 15 s. Tenta a MESMA uma vez e, se voltar a
- * falhar, passa à seguinte (16/10). Ficava parada a dizer "Could not play this
- * track." -- ou "Retrying another way…", que no PC não existe (o embed é o
- * único caminho). Sem rede não se salta nada: percorria a fila toda em
- * segundos (`recuperacao`).
+ * app não conhece), ou a vigia dos 15 s. Ficava parada a dizer "Could not play
+ * this track." -- ou "Retrying another way…", que no PC não existia (16/10).
+ *
+ * Medido a 16/10: há vídeos que o IFrame deixa em "a carregar" com 0% durante
+ * 9 a 30 s e mais, sem erro nenhum (o mesmo vídeo, fora da app; outro arranca
+ * em menos de 1 s). É do lado do YouTube e muda de vídeo para vídeo. Por isso:
+ *   - tenta a MESMA outra vez (às vezes arranca à segunda);
+ *   - se voltar a falhar, outra cópia da mesma música (`recoverUnavailableVideo`,
+ *     a busca dos vídeos removidos), e só sem cópia é que salta;
+ *   - num Jam nunca salta nem troca de cópia: a música é a da sala, e um
+ *     problema deste PC não pode mudá-la para todos. Continua a tentar (a
+ *     vigia volta a armar-se a cada tentativa). Era o "Loading · 0%" eterno.
+ *   - sem rede não se salta nada: percorria a fila toda em segundos.
  */
 const TENTAR_OUTRA_VEZ_MS = 2 * 60_000;
 const tentadasOutraVez = new Map<string, number>();
 export const MENSAGEM_A_TENTAR = 'Could not play this track. Trying again…';
 export const MENSAGEM_A_SALTAR = 'Could not play this track. Skipping.';
+export const MENSAGEM_NO_JAM = "This song isn't loading here. Trying again…";
 async function falhaSemCopia(track: Track, tipo: TipoFalha, recarregar: (() => void) | null) {
   const state = usePlayer.getState();
   if (state.current?.sourceId !== track.sourceId) return;
   if (tipo === 'sem-rede') {
     state.setError(mensagemDaFalha(tipo));
     playbackNotice(mensagemDaFalha(tipo));
+    return;
+  }
+  if (useOuvirJuntos.getState().sessao) {
+    state.setError(null);
+    playbackNotice(MENSAGEM_NO_JAM);
+    recarregar?.();
     return;
   }
   const antes = tentadasOutraVez.get(track.sourceId);
@@ -183,6 +198,11 @@ async function falhaSemCopia(track: Track, tipo: TipoFalha, recarregar: (() => v
     return;
   }
   tentadasOutraVez.delete(track.sourceId);
+  if (tipo !== 'restrito-idade') {
+    // Outra cópia; sem uma segura, ela própria salta.
+    await recoverUnavailableVideo(track, tipo);
+    return;
+  }
   playbackNotice(MENSAGEM_A_SALTAR);
   await state.skipUnavailableTrack(track.sourceId);
 }
@@ -306,16 +326,27 @@ export function YouTubePlayerView({ track }: { track: Track }) {
    * ficava em ampulheta para sempre e sem erro nenhum. Com o player agora
    * reutilizado entre faixas, isto tem de ser re-armado a cada troca.
    */
-  /** Volta a pedir a faixa atual ao player ativo, no sítio onde estava (`falhaSemCopia`). */
+  /**
+   * Um player ENCRAVADO não se recupera com outro `loadVideoById` (16/10,
+   * medido fora da app): depois de um vídeo que fica em "a carregar" com 0%,
+   * nem o vídeo que tinha tocado bem volta a arrancar nesse player -- e num
+   * player novo arranca em 1 s. Por isso tentar outra vez é montar o motor de
+   * novo (`geracaoDoMotor`: a limpeza destrói os dois players e o `mount` cria
+   * outro com a faixa atual, no sítio onde estava), e a música seguinte a um
+   * encravanço também começa num player novo (`encravadoRef`). Um vídeo que
+   * chega a tocar dá o player por são.
+   */
+  const [geracaoDoMotor, setGeracaoDoMotor] = useState(0);
+  const encravadoRef = useRef(false);
+  /** Quando se pediu a faixa ao player (para saber se um salto deixa um player preso). */
+  const carregouEmRef = useRef(0);
+  /** Mais do que isto a carregar sem nunca tocar, e o salto já não confia no player. */
+  const PRESO_AO_SALTAR_MS = 4000;
   function recarregarAtual() {
-    const player = ativoRef.current;
-    const faixa = faixaRef.current;
-    if (!player?.loadVideoById) return;
-    try {
-      usePlayer.getState()._setBuffering(true);
-      player.loadVideoById({ videoId: faixa.sourceId, startSeconds: Math.max(0, usePlayer.getState().positionMs / 1000) });
-      armarVigiaRef.current();
-    } catch { /* a vigia volta a apanhá-la */ }
+    encravadoRef.current = false;
+    usePlayer.getState()._setBuffering(true);
+    setGeracaoDoMotor((n) => n + 1);
+    armarVigiaRef.current();
   }
   const armarVigiaRef = useRef<() => void>(() => {});
 
@@ -336,6 +367,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         tipo,
         detalhe: 'sem arranque em 15s (embed ' + (prontoRef.current ? 'pronto' : 'nunca ficou pronto') + ')',
       });
+      encravadoRef.current = true;
       void falhaSemCopia(faixaRef.current, tipo, recarregarAtual);
     }, 15000);
   }, []);
@@ -574,6 +606,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         if (medida) registarEvento('primeira_nota', medida);
       }
       clearTimeout(vigiaRef.current);
+      encravadoRef.current = false;
       state.setError(null);
       state._onYtStateChange('playing');
     }
@@ -610,6 +643,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (recuperacao(tipo).alternativa) {
       void recoverUnavailableVideo(faixaRef.current, tipo);
     } else {
+      if (tipo !== 'sem-rede') encravadoRef.current = true;
       void falhaSemCopia(faixaRef.current, tipo, recarregarAtual);
     }
   };
@@ -630,6 +664,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
 
     const mount = () => {
       if (disposed || !window.YT?.Player) return;
+      carregouEmRef.current = Date.now();
       player = new window.YT.Player(hostA.current, {
         // O mesmo player, servido do dominio sem cookies de publicidade. A app
         // do PC fica horas aberta, e o embed normal ia deixando esse rasto
@@ -774,9 +809,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       passagemRef.current = null;
       try { window.duotoneDesktop?.naoEstrangular?.(false); } catch {}
     };
-    // O motor monta uma vez; as funções da passagem são estáveis (useCallback sem estado).
+    // O motor monta uma vez -- e outra vez quando encrava (`geracaoDoMotor`); as
+    // funções da passagem são estáveis (useCallback sem estado).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [geracaoDoMotor]);
 
   /**
    * Trocar de faixa.
@@ -827,6 +863,19 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     // Outra faixa qualquer: a preparada cala-se (`abortar`).
     largarSeguinte();
     estrangular(true);
+    // Depois de um encravanço, a seguinte começa num player novo: no que
+    // encravou ficava presa outra vez (o `mount` carrega a faixa atual). Também
+    // quando se salta uma que estava há mais de 4 s a carregar sem tocar --
+    // não se espera pela vigia dos 15 s para o saber.
+    const preso = !arrancouRef.current && carregouEmRef.current > 0
+      && Date.now() - carregouEmRef.current > PRESO_AO_SALTAR_MS;
+    carregouEmRef.current = Date.now();
+    if (encravadoRef.current || preso) {
+      encravadoRef.current = false;
+      state._setBuffering(true);
+      setGeracaoDoMotor((n) => n + 1);
+      return;
+    }
     const p = ativoRef.current;
     if (!p?.loadVideoById) return;
     state._setBuffering(true);
