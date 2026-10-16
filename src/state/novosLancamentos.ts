@@ -15,6 +15,7 @@ import { contagensNoAparelho } from '../lib/playCounts';
 import type { Track } from '../types';
 import { useArtistasFavoritos } from './artistasFavoritos';
 import { useConnectivity } from './connectivity';
+import { emRecuo, faltaDoRecuo } from '../lib/pedidosAoYouTube';
 
 /**
  * Os novos lançamentos dos teus artistas (10/10, `lib/novosLancamentos.ts`).
@@ -136,6 +137,9 @@ async function verificar(daConta: string, minha: number): Promise<void> {
   if (aVerificar) { agendar(daConta, minha, 60_000); return; }
   // Sem rede: tenta-se mais tarde (e logo que ela volte, pelo `useConnectivity`).
   if (useConnectivity.getState().offline) { agendar(daConta, minha, esperaDepoisDeFalhar(++falhasSeguidas)); return; }
+  // O YouTube está a recusar pedidos desta ligação (16/10,
+  // lib/pedidosAoYouTube.ts): os lançamentos esperam que o recuo acabe.
+  if (emRecuo()) { agendar(daConta, minha, faltaDoRecuo() + 60_000); return; }
   aVerificar = true;
   let lidos = 0;
   let artistas: { chave: string }[] = [];
@@ -157,7 +161,7 @@ async function verificar(daConta: string, minha: number): Promise<void> {
     const escolhidos = escolherArtistas(favoritos, maisOuvidos, grupos, undefined, (chave) => memoria.artistas[chave]?.lidoEm ?? 0);
     artistas = escolhidos;
     for (const a of escolhidos) {
-      if (!viva() || useConnectivity.getState().offline) break;
+      if (!viva() || useConnectivity.getState().offline || emRecuo()) break;
       const lido = await lancamentosDoArtista(a.nome, a.faixas, memoria.artistas[a.chave]?.canal ?? null).catch(() => null);
       if (!viva()) return;
       if (!lido) continue;

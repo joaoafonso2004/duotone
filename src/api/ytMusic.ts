@@ -7,6 +7,7 @@ import { lerLetra, separadorDaLetra, VERSAO_DO_ANDROID_MUSIC, type LetraDoYtMusi
 import { FILTROS_DA_PESQUISA, type TipoDePesquisa } from '../lib/pesquisaPorTipo';
 import { registarArtistasDoVideo } from '../lib/artistName';
 import { lerReproducoes } from '../lib/ordemDoArtista';
+import { contarPedido, registarPedidoAoYouTube, type TipoDePedido } from '../lib/pedidosAoYouTube';
 
 /**
  * As visualizações que o rádio do YouTube Music trouxe, por vídeo (16/10): o
@@ -49,7 +50,7 @@ export async function pesquisarNoYtMusicCru(pergunta: string, tipo: TipoDePesqui
   if (!q) return null;
   try {
     const ponte = typeof window !== 'undefined' ? window.duotoneDesktop?.pesquisarCancoes : undefined;
-    if (ponte) return await ponte({ query: q, clientVersion: VERSAO_DO_CLIENTE, tipo });
+    if (ponte) return await contarPedido('ytm-pesquisa', () => ponte({ query: q, clientVersion: VERSAO_DO_CLIENTE, tipo }));
     return await pedirAoYtMusic('search', { ...corpoDaPesquisa(q), params: FILTROS_DA_PESQUISA[tipo] }, sinal);
   } catch {
     return null;
@@ -66,7 +67,7 @@ export async function lerNoYtMusic(browseId: string, sinal?: AbortSignal): Promi
   if (!FORMA_DO_CANAL.test(browseId) && !FORMA_DA_LISTA.test(browseId)) return null;
   try {
     const ponte = typeof window !== 'undefined' ? window.duotoneDesktop?.lerArtistaDoYtMusic : undefined;
-    if (ponte) return await ponte({ browseId, clientVersion: VERSAO_DO_CLIENTE });
+    if (ponte) return await contarPedido('ytm-pagina', () => ponte({ browseId, clientVersion: VERSAO_DO_CLIENTE }));
     return await pedirAoYtMusic('browse', {
       context: { client: { clientName: 'WEB_REMIX', clientVersion: VERSAO_DO_CLIENTE, hl: 'en', gl: 'US' } },
       browseId,
@@ -81,7 +82,7 @@ export async function continuarNoYtMusic(token: string, sinal?: AbortSignal): Pr
   if (!FORMA_DA_CONTINUACAO.test(token)) return null;
   try {
     const ponte = typeof window !== 'undefined' ? window.duotoneDesktop?.lerArtistaDoYtMusic : undefined;
-    if (ponte) return await ponte({ continuation: token, clientVersion: VERSAO_DO_CLIENTE });
+    if (ponte) return await contarPedido('ytm-pagina', () => ponte({ continuation: token, clientVersion: VERSAO_DO_CLIENTE }));
     return await pedirAoYtMusic('browse', {
       context: { client: { clientName: 'WEB_REMIX', clientVersion: VERSAO_DO_CLIENTE, hl: 'en', gl: 'US' } },
       continuation: token,
@@ -140,12 +141,32 @@ export async function lerPlaylistPeloYtMusic(id: string): Promise<{
  * do YouTube Music, como faixas da app. No PC pelo processo principal
  * (`ytmusic:radio`). Lista vazia se falhou.
  */
+/**
+ * O mesmo rádio pedido outra vez na meia hora seguinte vem daqui (16/10): as
+ * tentativas do Radio e os lotes seguidos repetiam as mesmas sementes, e
+ * cada uma era um pedido ao YouTube Music (lib/pedidosAoYouTube.ts).
+ */
+const RADIO_VALE_MS = 30 * 60_000;
+const radiosLidos = new Map<string, { em: number; faixas: Track[] }>();
+
 export async function lerRadioPeloYtMusic(mix: MixDoArtista): Promise<Track[]> {
+  const chave = `${mix.playlistId}|${mix.videoId ?? ''}|${mix.params ?? ''}`;
+  const lido = radiosLidos.get(chave);
+  if (lido && Date.now() - lido.em < RADIO_VALE_MS) return lido.faixas;
+  const faixas = await lerRadioSemGuardar(mix);
+  if (faixas.length) {
+    radiosLidos.set(chave, { em: Date.now(), faixas });
+    if (radiosLidos.size > 60) radiosLidos.delete(radiosLidos.keys().next().value as string);
+  }
+  return faixas;
+}
+
+async function lerRadioSemGuardar(mix: MixDoArtista): Promise<Track[]> {
   let resposta: unknown = null;
   try {
     const ponte = typeof window !== 'undefined' ? window.duotoneDesktop?.lerRadioDoYtMusic : undefined;
     resposta = ponte
-      ? await ponte({ ...mix, clientVersion: VERSAO_DO_CLIENTE })
+      ? await contarPedido('ytm-radio', () => ponte({ ...mix, clientVersion: VERSAO_DO_CLIENTE }))
       : await pedirAoYtMusic('next', {
         context: { client: { clientName: 'WEB_REMIX', clientVersion: VERSAO_DO_CLIENTE, hl: 'en', gl: 'US' } },
         playlistId: mix.playlistId, videoId: mix.videoId, ...(mix.params ? { params: mix.params } : {}),
@@ -185,7 +206,7 @@ export async function letraDoYtMusic(videoId: string): Promise<LetraDoYtMusic | 
   if (!/^[\w-]{11}$/.test(videoId)) return null;
   const ponte = typeof window !== 'undefined' ? window.duotoneDesktop?.lerLetraDoYtMusic : undefined;
   const pedir = (tipo: 'next' | 'letra', id: string, cliente: 'web' | 'android'): Promise<unknown | null> => ponte
-    ? ponte({ tipo, id, cliente, clientVersion: VERSAO_DO_CLIENTE, versaoDoAndroid: VERSAO_DO_ANDROID_MUSIC })
+    ? contarPedido('ytm-pagina', () => ponte({ tipo, id, cliente, clientVersion: VERSAO_DO_CLIENTE, versaoDoAndroid: VERSAO_DO_ANDROID_MUSIC }))
     : pedirAoYtMusic(tipo === 'next' ? 'next' : 'browse', {
       context: {
         client: cliente === 'android'
@@ -200,18 +221,28 @@ export async function letraDoYtMusic(videoId: string): Promise<LetraDoYtMusic | 
   return comTempos ?? lerLetra(await pedir('letra', separador, 'web'));
 }
 
+/** De que tipo é um pedido direto (o iPhone; no PC conta o `contarPedido` à volta da ponte). */
+const TIPO_DO_CAMINHO: Record<'search' | 'browse' | 'next', TipoDePedido> = { search: 'ytm-pesquisa', browse: 'ytm-pagina', next: 'ytm-radio' };
+
 async function pedirAoYtMusic(caminho: 'search' | 'browse' | 'next', corpo: unknown, sinal?: AbortSignal): Promise<unknown | null> {
   const controlo = new AbortController();
   const prazo = setTimeout(() => controlo.abort(), PRAZO_MS);
   const desistir = () => controlo.abort();
   sinal?.addEventListener('abort', desistir);
   try {
-    const r = await fetch(`https://music.youtube.com/youtubei/v1/${caminho}?prettyPrint=false`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(corpo),
-      signal: controlo.signal,
-    });
+    let r: Response;
+    try {
+      r = await fetch(`https://music.youtube.com/youtubei/v1/${caminho}?prettyPrint=false`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(corpo),
+        signal: controlo.signal,
+      });
+    } catch (e) {
+      registarPedidoAoYouTube(TIPO_DO_CAMINHO[caminho], 'erro');
+      throw e;
+    }
+    registarPedidoAoYouTube(TIPO_DO_CAMINHO[caminho], r.status);
     return r.ok ? await r.json() : null;
   } finally {
     clearTimeout(prazo);

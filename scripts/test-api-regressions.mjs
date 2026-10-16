@@ -1509,7 +1509,9 @@ console.log('Perfil: biblioteca anterior à migração, falhas independentes e e
 
   procuradas.length = 0;
   const hoje = await descoberta.descobertasDoDia(5, biblioteca, true);
-  assert.deepEqual(numeros(), [5, 6, 7, 8, 9]);
+  // 16/10: a 6 a 9 já se procuraram acima e vêm da procura guardada
+  // (api/procurasNoYouTube.ts) -- só a 5 vai ao YouTube.
+  assert.deepEqual(numeros(), [5], 'as que já se procuraram não voltam ao YouTube');
   assert.equal(hoje.length, 5);
   const historico = mundo.cache.get('descobertas:mostradas:v2');
   assert.ok(historico[0].chaves.some((k) => k.startsWith('musica2:')),
@@ -1518,7 +1520,8 @@ console.log('Perfil: biblioteca anterior à migração, falhas independentes e e
   historico[0].dia -= 1;
   procuradas.length = 0;
   await descoberta.descobertasDoDia(5, biblioteca, true);
-  assert.deepEqual(numeros(), [10, 11, 12, 13, 14],
+  // A 10 já se procurou no primeiro passo (o Smart Shuffle): vem guardada.
+  assert.deepEqual(numeros(), [11, 12, 13, 14],
     'o dia seguinte não gasta pesquisas com as do anterior e traz outras');
   console.log('Perfil e catálogo: confiança pela biblioteca inteira, top mais fundo e sem pesquisar o que já se tem ou já se viu.');
 }

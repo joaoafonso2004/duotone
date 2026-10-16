@@ -20,6 +20,7 @@ import { checkForUpdate, PORTFOLIO_URL } from '../../lib/updates';
 import { relatorio } from '../../lib/playbackDiagnostics';
 import { textoDoTrabalhoDeMetadados } from '../../lib/trabalhoDeMetadados';
 import { textoDoTrabalhoLocal } from '../../lib/trabalhoLocal';
+import { textoDosPedidos } from '../../lib/pedidosAoYouTube';
 import { textoDosRecursos } from '../../lib/recursosDaApp';
 import { textoDasMigracoes } from '../../lib/migracoes';
 import { verificarMigracoes } from '../../api/migracoes';
@@ -265,7 +266,8 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
       gerado: new Date().toISOString(),
     }) + (secaoDosRecursos ? `\n\n${secaoDosRecursos}\n` : '') + `\n${textoDasMigracoes(migracoes)}\n`
       + `\n${textoDoTrabalhoDeMetadados()}\n`
-      + `\n${textoDoTrabalhoLocal()}\n`;
+      + `\n${textoDoTrabalhoLocal()}\n`
+      + `\n${textoDosPedidos()}\n`;
     const url = URL.createObjectURL(new Blob([texto], { type: 'text/plain;charset=utf-8' }));
     const a = document.createElement('a');
     a.href = url;

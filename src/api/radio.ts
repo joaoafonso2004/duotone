@@ -21,6 +21,7 @@ import { getLibrary } from './library';
 import { lerFaixas } from '../lib/cacheDaBiblioteca';
 import { paginaDoArtista } from './albunsDoArtista';
 import { lerRadioPeloYtMusic, reproducoesConhecidas } from './ytMusic';
+import { emRecuo } from '../lib/pedidosAoYouTube';
 import type { Track } from '../types';
 import { misturarPorFamiliaridade } from '../lib/contextoDaDescoberta';
 import { candidatasParaDescoberta } from './descoberta';
@@ -170,7 +171,10 @@ export async function fetchRadioTracks(
   // 3. As músicas do canal confirmado no YouTube Music, com a cache da página
   //    do artista. Pesquisar só "Isak" no YouTube trazia o futebolista Alexander
   //    Isak: quatro minutos e o nome no título não provam que seja música.
-  if (artists[0]) {
+  // O YouTube está a recusar pedidos desta ligação (16/10,
+  // lib/pedidosAoYouTube.ts): o Radio fica com o que já tem (a biblioteca, o
+  // catálogo guardado) e não insiste -- era a insistência que piorava.
+  if (artists[0] && !emRecuo()) {
     try {
       const alvo = chaveDeArtista(artists[0]);
       const dele = (t: Track) => chaveDeArtista(displayArtist(t)) === alvo;
@@ -197,6 +201,7 @@ export async function fetchRadioTracks(
   //    voltavam as mesmas. Um pedido por semente, só enquanto o lote não chega.
   const comVideo = seeds.filter((t) => t.source === 'youtube' && /^[\w-]{11}$/.test(t.sourceId)).slice(0, 3);
   for (const daMusica of comVideo) {
+    if (emRecuo()) break;
     try {
       pool.push(...await lerRadioPeloYtMusic({ playlistId: `RDAMVM${daMusica.sourceId}`, videoId: daMusica.sourceId, params: null }));
     } catch {

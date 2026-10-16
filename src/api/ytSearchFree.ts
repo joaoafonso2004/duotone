@@ -1,4 +1,5 @@
 import type { Track } from '../types';
+import { contarPedido, type TipoDePedido } from '../lib/pedidosAoYouTube';
 
 /**
  * Pesquisa no YouTube sem gastar quota da Data API.
@@ -115,6 +116,16 @@ function collectVideos(node: unknown, out: any[], depth = 0): void {
  */
 async function pedirAoYouTube(
   alvo: { query?: string; continuation?: string },
+  signal: AbortSignal | undefined,
+  tipo: TipoDePedido,
+): Promise<any> {
+  // Conta-se aqui (16/10, lib/pedidosAoYouTube.ts): no PC o erro da ponte traz
+  // o estado no texto ("InnerTube HTTP 403").
+  return contarPedido(tipo, () => pedirAoYouTubeSemContar(alvo, signal));
+}
+
+async function pedirAoYouTubeSemContar(
+  alvo: { query?: string; continuation?: string },
   signal?: AbortSignal,
 ): Promise<any> {
   const ponte = typeof window !== 'undefined' ? window.duotoneDesktop?.pesquisarNoYouTube : undefined;
@@ -165,10 +176,11 @@ export interface PaginaDePesquisa {
 
 async function pedirPagina(
   alvo: { query?: string; continuation?: string },
-  signal?: AbortSignal,
+  signal: AbortSignal | undefined,
+  tipo: TipoDePedido,
 ): Promise<PaginaDePesquisa> {
   const renderers: any[] = [];
-  const corpo = await pedirAoYouTube(alvo, signal);
+  const corpo = await pedirAoYouTube(alvo, signal, tipo);
   // A primeira página vem em `contents`; as seguintes em
   // `onResponseReceivedCommands`. Exigir `contents` rejeitava toda a página 2.
   if (!corpo?.contents && !corpo?.onResponseReceivedCommands) {
@@ -215,12 +227,12 @@ async function pedirPagina(
  * de uma pesquisa exacta, não uma lista mais longa.
  */
 export async function searchYouTubeFreeWithChannel(query: string, signal?: AbortSignal): Promise<FreeSearchResult[]> {
-  return (await pedirPagina({ query }, signal)).resultados;
+  return (await pedirPagina({ query }, signal, 'procura-de-musica')).resultados;
 }
 
 /** A primeira página, com o token para continuar. Para a caixa de pesquisa. */
 export function pesquisarPaginaFree(query: string, signal?: AbortSignal): Promise<PaginaDePesquisa> {
-  return pedirPagina({ query }, signal);
+  return pedirPagina({ query }, signal, 'pesquisa');
 }
 
 /**
@@ -231,7 +243,7 @@ export function pesquisarPaginaFree(query: string, signal?: AbortSignal): Promis
  * inalcançável, mesmo estando no YouTube.
  */
 export function continuarPesquisaFree(continuacao: string, signal?: AbortSignal): Promise<PaginaDePesquisa> {
-  return pedirPagina({ continuation: continuacao }, signal);
+  return pedirPagina({ continuation: continuacao }, signal, 'pesquisa');
 }
 
 /** Só as faixas da primeira página. */

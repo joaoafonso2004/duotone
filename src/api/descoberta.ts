@@ -12,6 +12,8 @@ import {
   topDoArtista, vizinhancaConfirmada, vizinhancaDe, vizinhancaJaDecidida, type FaixaDoCatalogo,
 } from './catalogo';
 import { searchYouTubeFreeWithChannel } from './ytSearchFree';
+import { chaveDaProcura, guardarProcura, procuraGuardada } from './procurasNoYouTube';
+import { emRecuo } from '../lib/pedidosAoYouTube';
 import {
   apenasDeConfianca, chaveDeArtista, displayArtist, nomesDeConfianca, tituloNoLeitor,
   type FaixaParaAprender,
@@ -143,7 +145,9 @@ function aSaltar(
 }
 /** Procuras em paralelo. Sequencial demorava demasiado; todas de uma vez é
  * pouco simpático para o YouTube. */
-const EM_PARALELO = 4;
+// Duas de cada vez (eram 4, 16/10): menos rajadas de pedidos ao YouTube, que
+// trava uma ligação que pede demais (lib/pedidosAoYouTube.ts).
+const EM_PARALELO = 2;
 
 export async function candidatasParaDescoberta(
   contexto: readonly Track[],
@@ -419,13 +423,24 @@ export async function procurarNoYouTube(
    */
   aceitar?: (candidato: { titulo: string; duracaoSegundos: number | null }) => boolean,
 ): Promise<Track | null> {
+  // Guardada no aparelho (16/10, api/procurasNoYouTube.ts): as mesmas músicas
+  // do catálogo eram procuradas a cada lote do Radio e a cada Home. Com uma
+  // porta extra (`aceitar`) a decisão depende de quem pergunta: não se guarda.
+  const chave = aceitar ? null : chaveDaProcura(faixa.artista, faixa.titulo);
+  if (chave) {
+    const guardada = await procuraGuardada(chave);
+    if (guardada) return guardada.faixa;
+  }
+  // O YouTube está a recusar pedidos desta ligação: a descoberta é trabalho
+  // de fundo, espera que passe.
+  if (emRecuo()) return null;
   let achados;
   try {
     achados = await searchYouTubeFreeWithChannel(`${faixa.artista} ${faixa.titulo}`);
   } catch {
     return null;
   }
-  if (achados.length === 0) return null;
+  if (achados.length === 0) { if (chave) guardarProcura(chave, null); return null; }
 
   const { best, confident } = pickBest(
     achados.map((a) => ({
@@ -436,7 +451,7 @@ export async function procurarNoYouTube(
     })),
     { title: faixa.titulo, artist: faixa.artista, durationSec: faixa.duracaoS },
   );
-  if (!best || !confident) return null;
+  if (!best || !confident) { if (chave) guardarProcura(chave, null); return null; }
 
   const escolhida = achados.find((a) => a.track.sourceId === best.id);
   if (!escolhida) return null;
@@ -454,11 +469,13 @@ export async function procurarNoYouTube(
   // ela a música ficava presa no último segundo, sem nunca passar à seguinte
   // -- e só nas sugestões, porque as da biblioteca trazem a duração do
   // Supabase.
-  return {
+  const resultado: Track = {
     ...escolhida.track,
     artist: faixa.artista,
     durationSeconds: escolhida.track.durationSeconds ?? faixa.duracaoS,
   };
+  if (chave) guardarProcura(chave, resultado);
+  return resultado;
 }
 
 /**

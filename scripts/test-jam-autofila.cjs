@@ -68,6 +68,9 @@ async function fixture() {
       } }];
     } },
     './youtube': {}, '../lib/descobertasMostradas': {}, '../lib/misturaDoDia': {},
+    // A procura guardada e o recuo (16/10): aqui nunca há nada guardado nem recuo.
+    './procurasNoYouTube': { chaveDaProcura: (a, t) => `${a}|${t}`, procuraGuardada: async () => undefined, guardarProcura() {} },
+    '../lib/pedidosAoYouTube': { emRecuo: () => false },
   });
   let store;
   const exports = load('src/state/ouvirJuntos.ts', {
