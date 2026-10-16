@@ -151,6 +151,14 @@ async function recoverUnavailableVideo(track: Track, tipo: TipoFalha) {
   }
 }
 
+/** Quanto tempo uma música pode ficar a carregar, com o embed pronto, antes de saltar. */
+export const SEM_ARRANQUE_MS = 6000;
+/** Saltos seguidos por músicas que não arrancam, antes de parar e dizer porquê. */
+export const SALTOS_SEGUIDOS_NO_MAXIMO = 4;
+export const MENSAGEM_DO_SALTO = "This song didn't load. Skipping to the next one.";
+export const MENSAGEM_SEM_RESPOSTA = "Songs aren't loading right now. Try again in a moment.";
+let saltosSeguidos = 0;
+
 /**
  * Quanto tempo a passagem espera que a fila avance depois de pedir o `ended`.
  * Se a loja não mudar para a faixa preparada (fim da fila sem rádio, repeat
@@ -237,26 +245,51 @@ export function YouTubePlayerView({ track }: { track: Track }) {
    * ficava em ampulheta para sempre e sem erro nenhum. Com o player agora
    * reutilizado entre faixas, isto tem de ser re-armado a cada troca.
    */
+  /**
+   * Uma música que não arranca salta logo (16/10, pedido do João: "nem dar a
+   * impressão de que está ali a carregar infinito"). O YouTube deixa alguns
+   * vídeos em "a carregar" com 0% sem erro nenhum -- medido nesse dia, numa
+   * ligação que ele estava a travar. Com o embed pronto e sem som ao fim de
+   * `SEM_ARRANQUE_MS`, passa à seguinte. Não salta num Jam nem a seguir um
+   * amigo (a música é deles), nem sem rede (o embed nem ficou pronto: aí
+   * espera os 15 s de sempre e diz que é a rede), e pára ao fim de
+   * `SALTOS_SEGUIDOS_NO_MAXIMO` seguidos, para não varrer a fila toda quando
+   * o YouTube não responde a nada.
+   */
   const armarVigia = useCallback(() => {
     clearTimeout(vigiaRef.current);
     arrancouRef.current = false;
-    vigiaRef.current = setTimeout(() => {
-      const state = usePlayer.getState();
-      if (!deveAvisarArranquePreso(state.isPlaying, arrancouRef.current)) return;
-      state._setBuffering(false);
-      // Nunca arrancou: se nem o embed ficou pronto, o mais provável é a rede.
-      const tipo: TipoFalha = prontoRef.current ? 'tempo-esgotado' : 'sem-rede';
-      registar({
-        quando: Date.now(),
-        videoId: faixaRef.current.sourceId,
-        titulo: faixaRef.current.title,
-        fase: 'watchdog',
-        tipo,
-        detalhe: 'sem arranque em 15s (embed ' + (prontoRef.current ? 'pronto' : 'nunca ficou pronto') + ')',
-      });
-      state.setError(mensagemDaFalha(tipo));
-      playbackNotice(mensagemDaFalha(tipo));
-    }, 15000);
+    const desde = Date.now();
+    const vigiar = (esperaMs: number) => {
+      vigiaRef.current = setTimeout(() => {
+        const state = usePlayer.getState();
+        if (!deveAvisarArranquePreso(state.isPlaying, arrancouRef.current)) return;
+        // O embed ainda nem ficou pronto: o mais provável é a rede. Espera
+        // até aos 15 s antes de o dizer.
+        if (!prontoRef.current && Date.now() - desde < 15000) { vigiar(15000 - (Date.now() - desde)); return; }
+        state._setBuffering(false);
+        const tipo: TipoFalha = prontoRef.current ? 'tempo-esgotado' : 'sem-rede';
+        const segundos = Math.round((Date.now() - desde) / 1000);
+        registar({
+          quando: Date.now(),
+          videoId: faixaRef.current.sourceId,
+          titulo: faixaRef.current.title,
+          fase: 'watchdog',
+          tipo,
+          detalhe: `sem arranque em ${segundos}s (embed ${prontoRef.current ? 'pronto' : 'nunca ficou pronto'})`,
+        });
+        const daSala = !!useOuvirJuntos.getState().sessao || !!useSeguirAmigo.getState().seguindo;
+        if (tipo === 'tempo-esgotado' && !daSala && saltosSeguidos < SALTOS_SEGUIDOS_NO_MAXIMO) {
+          saltosSeguidos++;
+          playbackNotice(MENSAGEM_DO_SALTO);
+          void state.skipUnavailableTrack(faixaRef.current.sourceId);
+          return;
+        }
+        state.setError(saltosSeguidos >= SALTOS_SEGUIDOS_NO_MAXIMO ? MENSAGEM_SEM_RESPOSTA : mensagemDaFalha(tipo));
+        playbackNotice(saltosSeguidos >= SALTOS_SEGUIDOS_NO_MAXIMO ? MENSAGEM_SEM_RESPOSTA : mensagemDaFalha(tipo));
+      }, esperaMs);
+    };
+    vigiar(SEM_ARRANQUE_MS);
   }, []);
 
   // Uma sessão restaurada em pausa não está a tentar arrancar. A vigia nasce
@@ -462,6 +495,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       state._setActiveBackend('webview');
     }
     if (s === 1) {
+      saltosSeguidos = 0;
       const nota = notaRef.current;
       if (nota && nota.id === faixaRef.current.sourceId && estaNoVideo(event.target, nota.id)) {
         notaRef.current = null;

@@ -153,6 +153,13 @@ caso('as listas do iPhone abrem o compacto, com a capa e o coração em cima', (
 caso('o motor do PC e o leitor do iPhone são os da 5.0.1', () => {
   const motor = ler('src/components/YouTubePlayerView.web.tsx');
   assert.doesNotMatch(motor, /falhaSemCopia|geracaoDoMotor|comecarAlinhamento/);
+  // Mais o salto rápido (16/10, pedido do João): 6 s sem arrancar, salta; nunca
+  // num Jam nem a seguir um amigo, e pára ao fim de alguns seguidos.
+  assert.match(motor, /export const SEM_ARRANQUE_MS = 6000;/);
+  assert.match(motor, /const daSala = !!useOuvirJuntos\.getState\(\)\.sessao \|\| !!useSeguirAmigo\.getState\(\)\.seguindo;/);
+  assert.match(motor, /if \(tipo === 'tempo-esgotado' && !daSala && saltosSeguidos < SALTOS_SEGUIDOS_NO_MAXIMO\) \{[\s\S]{0,160}skipUnavailableTrack/);
+  assert.match(motor, /if \(s === 1\) \{\s*saltosSeguidos = 0;/);
+  assert.match(ler('src/api/search.ts'), /setTimeout\(cancelar, ESPERA_DA_PESQUISA_LIVRE_MS\)/);
   assert.doesNotMatch(ler('src/components/PlayerRoot.tsx'), /CoracaoAnimado|useCoracaoAoCarregar/);
   assert.doesNotMatch(ler('src/components/YouTubePlayerView.tsx'), /proximaFaixaParaOMotor/);
 });

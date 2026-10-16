@@ -25,13 +25,21 @@ function detalhesDe(resultados: FreeSearchResult[]): Record<string, DetalheDaPes
 
 const VAZIO: ResultadoDePesquisa = { faixas: [], continuacao: null };
 
+/**
+ * Quanto se espera pela pesquisa livre antes de ir à Data API (16/10). Eram
+ * 10 s: numa ligação que o YouTube estava a travar, a livre respondia 403 ao
+ * fim de 5 a 9 s (medido), e a pesquisa demorava isso tudo antes da
+ * alternativa. A livre normal responde em ~1 s.
+ */
+export const ESPERA_DA_PESQUISA_LIVRE_MS = 4000;
+
 /** A Data API só gasta quota quando a pesquisa livre falha. */
 export async function pesquisarMusica(query: string, signal?: AbortSignal): Promise<ResultadoDePesquisa> {
   const livre = new AbortController();
   const cancelar = () => livre.abort();
   if (signal?.aborted) return VAZIO;
   signal?.addEventListener('abort', cancelar, { once: true });
-  const timeout = setTimeout(cancelar, 10000);
+  const timeout = setTimeout(cancelar, ESPERA_DA_PESQUISA_LIVRE_MS);
   try {
     const pagina = await pesquisarPaginaFree(query, livre.signal);
     // Uma pesquisa livre VAZIA não cai para a Data API de propósito: são 100
