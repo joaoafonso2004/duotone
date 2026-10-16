@@ -8,13 +8,14 @@ import { hapticNotification } from '../lib/haptics';
 import type { Track } from '../types';
 import { contextoParaAnalytics, type DiscoveryContext } from '../lib/contextoDaDescoberta';
 import { registar } from '../lib/eventos';
-import { menuDaFaixa, type AcaoDoMenu, type IdDaAcao } from '../lib/menuDaFaixa';
+import { menuCompacto, menuDaFaixa, type AcaoDoMenu, type IdDaAcao } from '../lib/menuDaFaixa';
+import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { alternarDownload, downloadNoMenuDe, podeDescarregar, tocaSemRede, useRevisaoDosDownloads } from '../lib/descarregarFaixa';
 import { alternarGuardada, garantirGuardadas } from '../lib/guardarFaixa';
 import { savedKey, useSaved } from '../state/saved';
 import { usePlayer } from '../state/player';
 import { irParaNoIphone } from '../navigation/RootNavigator';
-import { MenuFlutuante, type Ancora } from './MenuFlutuante';
+import { MenuFlutuante, type Ancora, type FaixaDoMenu } from './MenuFlutuante';
 import type { PlayerAction } from './PlayerActionsSheet';
 import { ancoraDoUltimoToque } from '../lib/ultimoToque';
 import { ShareFriendSheet } from './ShareFriendSheet';
@@ -132,12 +133,36 @@ export function TrackActionsSheet({ visible, track, onClose, actions = [], cabec
   // desenho, com a faixa de quando se escolheu -- o pai pode já a ter largado.
   const pendente = React.useRef<(() => void) | null>(null);
   const escolher = (f: () => void) => { pendente.current = f; onClose(); };
-  const accoes: PlayerAction[] = track
-    ? menu.map((a) => ({ label: a.rotulo, icon: a.icone as any, destructive: a.destrutiva, motivo: a.indisponivel, onPress: () => escolher(() => fazer(a.id)) }))
+  // O menu de uma música é o compacto (16/10, variante B de
+  // docs/menus-ios.html, lib/menuDaFaixa.ts): o coração no cabeçalho, as três
+  // mais usadas em quadrados, o resto em grupos e, sem rede, um aviso só.
+  const compacto = track ? menuCompacto(menu, { semRede: offline, tocaSemRede: tocaSemRede(track) }) : null;
+  const paraAccao = (a: AcaoDoMenu & { motivoVisivel: string | null; inicioDeGrupo: boolean }): PlayerAction => ({
+    label: a.rotulo, icon: a.icone as any, destructive: a.destrutiva,
+    disabled: !!a.indisponivel, motivo: a.motivoVisivel, inicioDeGrupo: a.inicioDeGrupo,
+    onPress: () => escolher(() => fazer(a.id)),
+  });
+  const accoes: PlayerAction[] = compacto
+    ? compacto.linhas.map(paraAccao)
     : actions.map((a) => ({ label: a.label, icon: a.icon, destructive: a.destructive, onPress: () => escolher(a.onPress) }));
   const titulo = track
-    ? `${tituloDaFaixa(track)}${track.artist ? ` · ${nomeDoArtista}` : ''}`
+    ? null
     : cabecalho ? `${cabecalho.titulo}${cabecalho.subtitulo ? ` · ${cabecalho.subtitulo}` : ''}` : null;
+  // O coração do cabeçalho guarda sem fechar o menu: vê-se a animação, e o
+  // menu continua lá para o resto.
+  const faixaDoMenu: FaixaDoMenu | null = track ? {
+    capa: capaParaLista(track.artworkUrl),
+    titulo: tituloDaFaixa(track),
+    artista: nomeDoArtista,
+    coracao: compacto?.guardar ? {
+      guardada: lida ? naLoja : false,
+      disponivel: !compacto.guardar.indisponivel,
+      alternar: () => alternarGuardada(track).then((ficou) => {
+        if (ficou && discoveryContext) registar('recomendacao_guardada', contextoParaAnalytics(discoveryContext));
+        aoMudarBiblioteca?.();
+      }).catch((e: any) => avisarErro(mensagemDeErro(e, 'Could not update your library.'))),
+    } : null,
+  } : null;
   // Nasce junto ao dedo que o pediu (5/10, lib/ultimoToque.ts), como o "⋯" do leitor.
   const ancora = React.useMemo<Ancora | null>(
     () => (visible ? ancoraDoUltimoToque({ largura: width, altura: height }) : null),
@@ -153,6 +178,9 @@ export function TrackActionsSheet({ visible, track, onClose, actions = [], cabec
         ancora={ancora}
         accoes={accoes}
         titulo={titulo}
+        faixa={faixaDoMenu}
+        atalhos={compacto ? compacto.atalhos.map(paraAccao) : undefined}
+        aviso={compacto?.aviso ?? null}
         aoFechar={onClose}
         aoFechado={() => { const f = pendente.current; pendente.current = null; f?.(); }}
       />

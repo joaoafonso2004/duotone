@@ -29,6 +29,8 @@ import type { Track } from '../types';
 import { BottomSheet, BottomSheetScrollView } from './BottomSheet';
 import { FriendAvatar } from './FriendAvatar';
 import { Toque } from './Toque';
+import { CoracaoAnimado } from './CoracaoAnimado';
+import { useCoracaoAoCarregar } from '../hooks/useCoracaoAoCarregar';
 
 /** As reações que se mandam à conversa com o cartão da música. */
 const REACOES = ['🔥', '😍', '😂', '🤯', '👏'] as const;
@@ -114,6 +116,10 @@ export function FolhaDoAmigo() {
   void relogio;
   const aSeguir = aOuvir ? (crua?.aSeguir ?? []).slice(0, 5) : [];
   const guardada = useSaved((s) => (faixa ? s.keys.has(savedKey(faixa)) : false));
+  // Reage ao carregar (16/10, lib/coracaoAoCarregar.ts).
+  const coracao = useCoracaoAoCarregar(guardada, () => faixa
+    ? alternarGuardada(faixa).catch((e) => avisarErro(mensagemDeErro(e, 'Couldn’t save the song')))
+    : undefined);
   const [enviadas, setEnviadas] = useState<Set<string>>(new Set());
   useEffect(() => { setEnviadas(new Set()); }, [amigoId]);
 
@@ -198,10 +204,10 @@ export function FolhaDoAmigo() {
               onPress={() => { fechar(); void usePlayer.getState().tocarMusica(faixa, undefined, true); }} style={styles.accao}>
               <Ionicons name="play" size={15} color={colors.text} /><Text style={styles.accaoTexto}>Play</Text>
             </Toque>
-            <Toque escala={ESCALA.botao} accessibilityRole="button" accessibilityLabel={guardada ? 'Remove from Liked Songs' : 'Add to Liked Songs'}
-              onPress={() => { hapticSelection(); void alternarGuardada(faixa).catch((e) => avisarErro(mensagemDeErro(e, 'Couldn’t save the song'))); }} style={styles.accao}>
-              <Ionicons name={guardada ? 'heart' : 'heart-outline'} size={16} color={guardada ? tema.color : colors.text} />
-              <Text style={styles.accaoTexto}>{guardada ? 'Saved' : 'Save'}</Text>
+            <Toque escala={ESCALA.botao} accessibilityRole="button" accessibilityLabel={coracao.mostrada ? 'Remove from Liked Songs' : 'Add to Liked Songs'}
+              onPressIn={() => { hapticSelection(); coracao.onPressIn(); }} onPress={coracao.onPress} onPressOut={coracao.onPressOut} style={styles.accao}>
+              <CoracaoAnimado guardada={coracao.mostrada} pulso={coracao.pulso} tamanho={16} cor={colors.text} corCheio={tema.color} />
+              <Text style={styles.accaoTexto}>{coracao.mostrada ? 'Saved' : 'Save'}</Text>
             </Toque>
             <Toque escala={ESCALA.botao} accessibilityRole="button" accessibilityLabel="Add to queue"
               onPress={() => { hapticSelection(); usePlayer.getState().addToQueue(faixa); avisarFeito('Added to queue', tituloDaFaixa(faixa)); }} style={styles.accao}>

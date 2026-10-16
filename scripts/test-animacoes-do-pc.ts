@@ -47,9 +47,11 @@ const CASCA = readFileSync('src/desktop/casca.web.tsx', 'utf8');
  * Os sítios onde o `className` é legítimo, porque são `<div>` do DOM e num
  * elemento a sério o atributo passa: a fila do Now Playing (precisa de
  * `onPointerDown` e de captura do ponteiro) e a janela do mini leitor (24/9:
- * precisa do `-webkit-app-region` para se arrastar e de hover em CSS).
+ * precisa do `-webkit-app-region` para se arrastar e de hover em CSS). E o
+ * coração animado (16/10): um `<span>` e um `<svg>` do DOM, com o CSS dele
+ * injetado no documento de quem o desenha (o mini leitor é outra janela).
  */
-const COM_LICENCA = new Set(['src/desktop/FilaArrastavel.web.tsx', 'src/janelaMini.web.tsx']);
+const COM_LICENCA = new Set(['src/desktop/FilaArrastavel.web.tsx', 'src/janelaMini.web.tsx', 'src/components/CoracaoAnimado.web.tsx']);
 
 console.log('\no className não passa em componentes RN');
 caso('nenhum ficheiro do PC lhe volta a tocar', () => {
@@ -68,11 +70,11 @@ caso('nenhum ficheiro do PC lhe volta a tocar', () => {
   assert.deepEqual(culpados, [], `usa className (o RNW deita-o fora): ${culpados.join(', ')}`);
 });
 
-caso('o ficheiro com licença é mesmo um <div> e não um componente RN', () => {
+caso('o ficheiro com licença é mesmo um elemento do DOM (<div>, <span>, <svg>) e não um componente RN', () => {
   for (const f of COM_LICENCA) {
     const s = readFileSync(f, 'utf8');
-    const m = s.match(/<div[\s\S]{0,400}?className=/);
-    assert.ok(m, `${f} está na lista de exceções mas o className não está num <div>`);
+    const m = s.match(/<(?:div|span|svg|path)[\s\S]{0,400}?className=/);
+    assert.ok(m, `${f} está na lista de exceções mas o className não está num elemento do DOM`);
   }
 });
 

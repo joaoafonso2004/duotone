@@ -37,6 +37,8 @@ import { AtalhosNaLateral } from './AtalhosNaLateral.web';
 import { ProgressoDaImportacao } from './ProgressoDaImportacao.web';
 import { useDestinos } from '../navigation/destinos';
 import { SetaDoPainel } from './PainelDoLeitor.web';
+import { CoracaoAnimado } from '../components/CoracaoAnimado';
+import { useCoracaoAoCarregar } from '../hooks/useCoracaoAoCarregar';
 
 const P = Pressable as any;
 const V = View as any;
@@ -361,15 +363,13 @@ export function injectDesktopDocumentStyles() {
                           width var(--dt-normal) var(--dt-curva),
                           height var(--dt-normal) var(--dt-curva); }
 
-    /* Guardar: o coracao bate uma vez e abre um anel. */
-    [data-dt~="coracao"]{ animation: dt-bater 420ms var(--dt-curva); }
-    @keyframes dt-bater{ 0%{ transform: scale(.6) } 45%{ transform: scale(1.28) } 70%{ transform: scale(.94) } 100%{ transform:none } }
+    /* Guardar: o coracao anima-se a si proprio (components/CoracaoAnimado.web.tsx). */
 
     /* Quem pediu menos movimento no Windows nao leva nada disto. O estado
        final e o mesmo: aqui so morre o caminho ate la. */
     @media (prefers-reduced-motion: reduce){
       [data-dt~="painel-do-leitor"] { transition: none !important; }
-      [data-dt~="fila"], [data-dt~="dialogo"], [data-dt~="veu"], [data-dt~="aviso"], [data-dt~="coracao"],
+      [data-dt~="fila"], [data-dt~="dialogo"], [data-dt~="veu"], [data-dt~="aviso"],
       [data-dt~="menu-amigo"], [data-dt~="aviso-msg"],
       [data-dt~="pagina"], [data-dt~="pagina"] [data-dt~="cartao"], [data-dt~="carregar"],
       [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]{ animation: none !important; }
@@ -582,6 +582,8 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
 }) {
   // Abrir o Now Playing é navegar como outra coisa qualquer (fica no histórico).
   const { irPara } = useDestinos();
+  // O coração reage ao carregar (16/10, lib/coracaoAoCarregar.ts).
+  const coracao = useCoracaoAoCarregar(currentIsSaved, toggleSaveCurrent);
   // Só o que a barra desenha, e NUNCA a posição: o `usePlayer()` sem seletor
   // redesenhava a barra inteira a cada `_setProgress` (auditoria de 17/9, §1.5).
   // A posição vive na `BarraDeProgresso`, que é a única que precisa dela.
@@ -656,15 +658,16 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
           <Text numberOfLines={1} style={styles.playerArtista}>{displayArtist(p.current)}</Text>
         </View>
       </Pressable>
-      {/* A classe só existe quando está guardada: é a entrada dela que faz o
-          coração bater uma vez. Sai quando se desguarda, e volta a entrar na
-          próxima -- sem estado nenhum a mais. */}
-      <View style={styles.playerSave} {...(currentIsSaved ? marcar('coracao') : {})}>
+      {/* As Faíscas a guardar e o Encolher a tirar, logo ao carregar (16/10). */}
+      <View style={styles.playerSave}>
         <IconButton
-          name={currentIsSaved ? 'heart' : 'heart-outline'}
-          label={currentIsSaved ? 'Remove from Liked Songs' : 'Add to Liked Songs'}
-          onPress={toggleSaveCurrent}
-          active={currentIsSaved}
+          name={coracao.mostrada ? 'heart' : 'heart-outline'}
+          label={coracao.mostrada ? 'Remove from Liked Songs' : 'Add to Liked Songs'}
+          onPressIn={coracao.onPressIn}
+          onPress={coracao.onPress}
+          onPressOut={coracao.onPressOut}
+          active={coracao.mostrada}
+          desenho={(cor) => <CoracaoAnimado guardada={coracao.mostrada} pulso={coracao.pulso} tamanho={19} cor={cor} corCheio={cor} />}
         />
       </View>
     </View>

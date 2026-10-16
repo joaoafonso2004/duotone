@@ -64,8 +64,12 @@ export const desktop = {
   accent: COR.metalClaro, accentSoft: 'rgba(233,234,238,.12)', danger: COR.erro,
 };
 
-export function IconButton({ name, label, onPress, active = false, danger = false, estrela = false, marca }: {
+export function IconButton({ name, label, onPress, onPressIn, onPressOut, desenho, active = false, danger = false, estrela = false, marca }: {
   name: keyof typeof Ionicons.glyphMap; label: string; onPress?: () => void; active?: boolean; danger?: boolean;
+  /** Para quem reage ao carregar (o coração, `useCoracaoAoCarregar`). */
+  onPressIn?: () => void; onPressOut?: () => void;
+  /** Um desenho em vez do ícone (o coração animado), com a cor do estado. */
+  desenho?: (cor: string) => ReactNode;
   /** Estrelinha ao canto. Só o shuffle a usa, para se distinguir o modo
    * inteligente do normal — sem ela os dois estados ligados eram iguais. */
   estrela?: boolean;
@@ -79,10 +83,11 @@ export function IconButton({ name, label, onPress, active = false, danger = fals
    */
   marca?: string;
 }) {
-  return <P {...marcar('premir')} accessibilityLabel={label} onPress={onPress} style={({ hovered, pressed, focused }: any) => [
+  const cor = danger ? desktop.danger : active ? desktop.accent : desktop.muted;
+  return <P {...marcar('premir')} accessibilityLabel={label} onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} style={({ hovered, pressed, focused }: any) => [
     ui.iconButton, (hovered || focused) && ui.iconButtonHover, pressed && ui.pressed, active && ui.active,
   ]}>
-    <StateIcon name={name} size={19} color={danger ? desktop.danger : active ? desktop.accent : desktop.muted} />
+    {desenho ? desenho(cor) : <StateIcon name={name} size={19} color={cor} />}
     {marca ? <View style={ui.marcaDeModo}><Text style={ui.marcaDeModoTexto}>{marca}</Text></View> : null}
     {estrela ? <View style={{ position: 'absolute', top: 5, right: 5 }}>
       <EstrelaInteligente tamanho={6} />

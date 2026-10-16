@@ -1,8 +1,14 @@
 import { useNotificationOverlay } from '../hooks/useNotificationOverlay';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React from 'react';
-import { Animated, Modal, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Animated, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Image } from 'expo-image';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FundoDaFolha } from './FundoDaFolha';
+import { CoracaoAnimado } from './CoracaoAnimado';
+import { useCoracaoAoCarregar } from '../hooks/useCoracaoAoCarregar';
+import { posicaoDoMenu } from '../lib/posicaoDoMenu';
+import { useTheme } from '../state/theme';
 import { Toque } from './Toque';
 import { hapticSelection } from '../lib/haptics';
 import { useReducedMotion } from '../hooks/useReducedMotion';
@@ -14,7 +20,21 @@ import { DentroDeUmModal } from './dentroDeUmModal';
 export type Ancora = { x: number; y: number; width: number; height: number };
 
 const LARGURA = 232;
+/** O menu de uma música (variante B): cabe o cabeçalho e os três quadrados. */
+const LARGURA_DA_FAIXA = 286;
 const MARGEM = 12;
+
+/**
+ * O cabeçalho do menu de uma música (16/10, variante B de
+ * `docs/menus-ios.html`): a capa, o nome e o artista, e o coração ao lado --
+ * guardar fica a um toque e sai da lista.
+ */
+export type FaixaDoMenu = {
+  capa: string | null;
+  titulo: string;
+  artista: string;
+  coracao?: { guardada: boolean; disponivel: boolean; alternar: () => unknown } | null;
+};
 
 /**
  * Um menu que abre junto ao dedo.
@@ -42,8 +62,14 @@ const MARGEM = 12;
  * espaço em baixo, sobe. Sem isto nasceria sempre no mesmo sítio e a ligação
  * entre o que se tocou e o que abriu perdia-se.
  */
-export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado, titulo }: {
+export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado, titulo, faixa, atalhos, aviso }: {
   visivel: boolean;
+  /** O menu de uma música: o cabeçalho com a capa e o coração (no lugar do `titulo`). */
+  faixa?: FaixaDoMenu | null;
+  /** Até três ações em quadrados, por baixo do cabeçalho. */
+  atalhos?: PlayerAction[];
+  /** Uma linha por baixo do cabeçalho ("Offline · not downloaded"). */
+  aviso?: string | null;
   /**
    * De quem é o menu (5/10): o nome da música ou da playlist, numa linha
    * pequena por cima das ações, como o título de um menu do iOS.
@@ -73,8 +99,9 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado, ti
   // Os pais limpam a âncora e as ações ao fechar. Conservar a última escolha
   // mantém o mesmo Modal visível até acabar a saída; sem isto, o onDismiss
   // podia chegar antes de se registar a ação que abre o seletor de imagens.
-  const apresentacao = React.useRef({ ancora, accoes, titulo });
-  if (mostrar) apresentacao.current = { ancora, accoes, titulo };
+  const apresentacao = React.useRef({ ancora, accoes, titulo, faixa, atalhos, aviso });
+  if (mostrar) apresentacao.current = { ancora, accoes, titulo, faixa, atalhos, aviso };
+  const insets = useSafeAreaInsets();
   // O `Modal` só desmonta quando a saída acaba: fechá-lo no toque cortava a
   // animação a meio e o menu desaparecia de um fotograma para o outro.
   const [montado, setMontado] = React.useState(mostrar);
@@ -145,23 +172,29 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado, ti
   const ancoraVisivel = apresentacao.current.ancora;
   const accoesVisiveis = apresentacao.current.accoes;
   const tituloVisivel = apresentacao.current.titulo;
+  const faixaVisivel = apresentacao.current.faixa ?? null;
+  const atalhosVisiveis = apresentacao.current.atalhos ?? [];
+  const avisoVisivel = apresentacao.current.aviso ?? null;
   if (!montado || !ancoraVisivel) return <Modal visible={false} transparent animationType="none" onDismiss={aoDispensar}/>;
 
   // Uma linha com motivo leva mais uma linha de texto por baixo, e um grupo
   // novo leva o traço: sem contar isto, o menu achava que cabia em baixo e
   // saía pelo fundo do ecrã.
-  const alturaEstimada = accoesVisiveis.length * 52
-    + accoesVisiveis.filter((a) => a.motivo).length * 18
-    + accoesVisiveis.filter((a) => a.inicioDeGrupo).length * spacing.xs
-    + (tituloVisivel ? 34 : 0)
+  const alturaEstimada = accoesVisiveis.length * 46
+    + accoesVisiveis.filter((a) => a.motivo || a.nota).length * 18
+    + accoesVisiveis.filter((a) => a.inicioDeGrupo).length * (spacing.xs + 1)
+    + (faixaVisivel ? 65 : tituloVisivel ? 34 : 0)
+    + (avisoVisivel ? 24 : 0)
+    + (atalhosVisiveis.length ? 84 : 0)
     + spacing.sm * 2;
-  const cabeEmBaixo = ancoraVisivel.y + ancoraVisivel.height + MARGEM + alturaEstimada < height;
-  const topo = cabeEmBaixo
-    ? ancoraVisivel.y + ancoraVisivel.height + MARGEM
-    : Math.max(MARGEM, ancoraVisivel.y - alturaEstimada - MARGEM);
+  // Dentro da zona segura (16/10, I1): sem lugar em baixo, subia até 12 pt do
+  // topo -- por baixo da ilha. Mais alto do que ela, rola por dentro.
+  const { topo, altura } = posicaoDoMenu(ancoraVisivel, alturaEstimada, { altura: height, topo: insets.top, fundo: insets.bottom }, MARGEM);
+  const rola = altura < alturaEstimada;
+  const largura = faixaVisivel ? LARGURA_DA_FAIXA : LARGURA;
   const esquerda = Math.min(
-    Math.max(MARGEM, ancoraVisivel.x + ancoraVisivel.width - LARGURA),
-    width - LARGURA - MARGEM
+    Math.max(MARGEM, ancoraVisivel.x + ancoraVisivel.width - largura),
+    width - largura - MARGEM
   );
 
   return (
@@ -175,7 +208,8 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado, ti
         pointerEvents={mostrar ? 'auto' : 'none'}
         style={[
           styles.menu,
-          { top: topo, left: esquerda, width: LARGURA },
+          { top: topo, left: esquerda, width: largura },
+          rola && { height: altura },
           {
             opacity: entrada,
             transform: [{ scale: entrada.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) }],
@@ -185,7 +219,36 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado, ti
         {/* O fundo das folhas (11/10): o grafite, o preto do OLED ou a capa
             desfocada. Era um vidro cinzento-azulado fixo, fora do tema. */}
         <FundoDaFolha semLinha />
-        {tituloVisivel ? <Text numberOfLines={1} style={[type.caption, styles.titulo]}>{tituloVisivel}</Text> : null}
+        {faixaVisivel ? <CabecalhoDaFaixa faixa={faixaVisivel} ativo={mostrar} /> : tituloVisivel ? <Text numberOfLines={1} style={[type.caption, styles.titulo]}>{tituloVisivel}</Text> : null}
+        {avisoVisivel ? (
+          <View style={styles.aviso}>
+            <Ionicons name="cloud-offline-outline" size={14} color={colors.textSecondary} />
+            <Text numberOfLines={1} style={type.caption}>{avisoVisivel}</Text>
+          </View>
+        ) : null}
+        {atalhosVisiveis.length ? (
+          <View style={styles.atalhos}>
+            {atalhosVisiveis.map((a) => {
+              const apagada = !!a.disabled || !!a.motivo;
+              return (
+                <Toque
+                  key={a.label}
+                  acende
+                  accessibilityRole="button"
+                  accessibilityLabel={a.label}
+                  accessibilityState={{ disabled: apagada }}
+                  disabled={apagada || !mostrar}
+                  onPress={() => { hapticSelection(); a.onPress(); }}
+                  style={[styles.atalho, apagada && styles.apagada]}
+                >
+                  <Ionicons name={a.icon} size={21} color={colors.text} />
+                  <Text numberOfLines={1} style={styles.rotuloDoAtalho}>{a.label}</Text>
+                </Toque>
+              );
+            })}
+          </View>
+        ) : null}
+        <ScrollView scrollEnabled={rola} showsVerticalScrollIndicator={rola} style={{ flexShrink: 1 }} bounces={false}>
         {accoesVisiveis.map((accao) => {
           // Indisponível fica à vista e diz porquê (lib/menuDaFaixa.ts).
           const apagada = !!accao.disabled || !!accao.motivo;
@@ -224,6 +287,7 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado, ti
             </Toque>
           );
         })}
+        </ScrollView>
       </Animated.View>
     </DentroDeUmModal.Provider></Modal>
   );
@@ -254,4 +318,49 @@ const styles = StyleSheet.create({
   motivo: { marginTop: 1, color: colors.textSecondary },
   titulo: { paddingHorizontal: spacing.lg, paddingTop: 4, paddingBottom: 8, color: colors.textSecondary, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.borderStrong },
   grupo: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.borderStrong, marginTop: spacing.xs },
+  cabecalho: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    paddingLeft: spacing.md, paddingRight: spacing.sm, paddingTop: 4, paddingBottom: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.borderStrong,
+  },
+  capa: { width: 40, height: 40, borderRadius: 6, backgroundColor: colors.surfaceHigh },
+  coracao: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  aviso: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
+  atalhos: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.md, paddingTop: spacing.sm + 2, paddingBottom: spacing.xs },
+  atalho: {
+    flex: 1, height: 64, borderRadius: radii.md, borderCurve: 'continuous', gap: 5,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.07)',
+  },
+  rotuloDoAtalho: { fontSize: 12, fontWeight: '500', color: colors.text },
 });
+
+/** A capa, o nome e o artista, e o coração que reage ao carregar (`useCoracaoAoCarregar`). */
+function CabecalhoDaFaixa({ faixa, ativo }: { faixa: FaixaDoMenu; ativo: boolean }) {
+  const acento = useTheme((s) => s.theme.color);
+  const c = faixa.coracao;
+  const coracao = useCoracaoAoCarregar(!!c?.guardada, () => c?.alternar());
+  const pode = !!c && c.disponivel && ativo;
+  return (
+    <View style={styles.cabecalho}>
+      <Image source={faixa.capa ? { uri: faixa.capa } : null} style={styles.capa} contentFit="cover" />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text numberOfLines={1} style={[type.body, { fontWeight: '600' }]}>{faixa.titulo}</Text>
+        <Text numberOfLines={1} style={type.caption}>{faixa.artista}</Text>
+      </View>
+      {c ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={coracao.mostrada ? 'Remove from Liked Songs' : 'Add to Liked Songs'}
+          accessibilityState={{ disabled: !pode, selected: coracao.mostrada }}
+          disabled={!pode}
+          onPressIn={() => { hapticSelection(); coracao.onPressIn(); }}
+          onPress={coracao.onPress}
+          onPressOut={coracao.onPressOut}
+          style={[styles.coracao, !c.disponivel && styles.apagada]}
+        >
+          <CoracaoAnimado guardada={coracao.mostrada} pulso={coracao.pulso} tamanho={22} cor={colors.text} corCheio={acento} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}

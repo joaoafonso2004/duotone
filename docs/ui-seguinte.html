@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UI a seguir</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=JetBrains+Mono&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --fundo:#060608;--painel:#0D0D11;--borda:rgba(233,234,238,.09);--linhaSuave:rgba(233,234,238,.055);
+  --texto:#E9EAEE;--medio:#9DA0AA;--fraco:#84868F;--dim:#6E7079;--perigo:#FF6B6B;--acento:#B9A6FF;
+  --display:"Archivo",system-ui,sans-serif;--body:"Public Sans",system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,monospace;
+  --ios:-apple-system,"SF Pro Text","Segoe UI",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:#101014;color:var(--texto);font-family:var(--body)}
+.pagina{max-width:1180px;margin:0 auto;padding:36px 16px 80px}
+h1{font-family:var(--display);font-size:30px;letter-spacing:-.5px;margin:0 0 8px}
+h2{font-family:var(--display);font-size:21px;margin:48px 0 6px;display:flex;gap:10px;align-items:center}
+h2 .tag{font:11px var(--mono);letter-spacing:1px;color:var(--fraco);border:1px solid var(--borda);border-radius:4px;padding:2px 6px}
+.intro,.nota{color:var(--medio);font-size:14.5px;line-height:1.6;max-width:820px;margin:0 0 16px}
+.intro b,.nota b{color:var(--texto);font-weight:600}
+.par{display:grid;grid-template-columns:1fr;gap:22px;max-width:720px}
+.leg{font:11px var(--mono);letter-spacing:1px;color:var(--fraco);text-transform:uppercase;margin:0 0 8px;display:flex;gap:8px;align-items:center}
+.leg .rec{background:var(--texto);color:#0b0b0d;border-radius:4px;padding:2px 6px;letter-spacing:1px}
+.opcoes{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
+.op{height:34px;padding:0 14px;border-radius:999px;border:1px solid rgba(233,234,238,.16);background:transparent;color:var(--medio);font:600 13px var(--body);cursor:pointer}
+.op.on{background:var(--texto);color:#0b0b0d;border-color:var(--texto)}
+
+/* W3: Definições do PC */
+.cartao{border:1px solid var(--borda);border-radius:10px;background:var(--painel);overflow:hidden}
+.cartao .tit{height:53px;padding:0 17px;display:flex;align-items:center;border-bottom:1px solid var(--borda);font:600 14px var(--display)}
+.linhaD{min-height:52px;padding:10px 17px;border-bottom:1px solid var(--linhaSuave);display:flex;align-items:center;gap:12px}
+.linhaD:last-child{border-bottom:0}
+.linhaD .txt{flex:1;min-width:0}
+.seg{display:flex;gap:2px;padding:2px;border:1px solid var(--borda);border-radius:7px;flex:none}
+.seg span{padding:4px 8px;border-radius:5px;color:var(--dim);font:10px var(--mono)}
+.seg span.on{background:rgba(233,234,238,.1);color:var(--texto)}
+.tog{width:34px;height:20px;border-radius:10px;background:var(--texto);position:relative;flex:none}
+.tog:after{content:"";position:absolute;right:3px;top:3px;width:14px;height:14px;border-radius:7px;background:#0b0b0d}
+.efeito{color:var(--acento)}
+.antes .rot{font-size:12px;font-weight:550}
+.antes .desc{font-size:10px;color:var(--dim);margin-top:4px;line-height:1.35}
+.antes .efeito{font-size:10px;margin-top:3px}
+.depois .rot{font-size:13.5px;font-weight:600}
+.depois .desc{font-size:12px;color:var(--medio);margin-top:3px;line-height:1.45}
+.depois .efeito{font-size:12px;margin-top:3px}
+.depois .seg span{font-size:11px}
+
+/* I5: a pesquisa do iPhone */
+.ips{display:flex;flex-wrap:wrap;gap:26px}
+.col{width:312px}
+.col p{color:var(--medio);font-size:13px;line-height:1.5;margin:0 0 10px;min-height:58px}
+.moldura{width:312px;height:600px;border-radius:40px;overflow:hidden;border:1px solid rgba(255,255,255,.1);position:relative;box-shadow:0 30px 70px rgba(0,0,0,.55)}
+.iphone{width:390px;height:750px;transform:scale(.8);transform-origin:0 0;position:absolute;inset:0 auto auto 0;background:var(--fundo);font-family:var(--ios)}
+.estado{height:59px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 32px 8px;font:600 16px var(--ios)}
+.ilha{position:absolute;top:11px;left:50%;width:124px;height:36px;margin-left:-62px;border-radius:20px;background:#000}
+.home .t{font-size:32px;font-weight:700;padding:4px 20px 12px;letter-spacing:-.5px}
+.busca{display:flex;align-items:center;gap:10px;padding:0 16px 12px}
+.campo{flex:1;height:40px;border-radius:12px;background:rgba(255,255,255,.09);display:flex;align-items:center;gap:8px;padding:0 12px;color:var(--medio);font-size:16px;transition:flex .25s}
+.campo b{color:var(--texto);font-weight:400}
+.campo .x{margin-left:auto;width:18px;height:18px;border-radius:9px;background:rgba(255,255,255,.3);color:#000;font-size:12px;display:grid;place-items:center}
+.cancel{color:var(--acento);font-size:16px;cursor:pointer;white-space:nowrap}
+.secao{padding:6px 20px;font-size:13px;color:var(--medio)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;padding:6px 20px 14px}
+.chips span{padding:7px 12px;border-radius:999px;background:rgba(255,255,255,.08);font-size:14px}
+.pratel{padding:4px 20px}
+.pratel .h{font-size:20px;font-weight:700;margin:10px 0}
+.capas{display:flex;gap:12px}
+.capas div{width:120px;height:120px;border-radius:10px;flex:none}
+.teclado{position:absolute;left:0;right:0;bottom:0;height:290px;background:#1c1c20;border-top:1px solid #2a2a30;display:grid;grid-template-rows:repeat(4,1fr);padding:8px 4px 40px;gap:8px}
+.teclado .fila{display:flex;gap:6px;justify-content:center}
+.teclado .fila i{width:33px;border-radius:6px;background:#3a3a40}
+.seta{position:absolute;right:22px;top:118px;font:12px var(--mono);color:#FFB020}
+
+/* W5: a barra do leitor do PC */
+.barraPc{height:72px;border-top:1px solid var(--linhaSuave);display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:var(--fundo);border-radius:0 0 10px 10px;position:relative}
+.palcoPc{border:1px solid var(--borda);border-radius:10px;background:var(--fundo);overflow:visible}
+.palcoPc .acima{height:90px;display:flex;align-items:flex-end;padding:0 16px 10px;color:var(--dim);font-size:12px}
+.esq{width:30%;min-width:210px;display:flex;align-items:center;gap:12px}
+.esq .c{width:44px;height:44px;border-radius:5px;background:linear-gradient(135deg,#3a2a24,#120c0a);flex:none}
+.esq .t{font-size:14px;font-weight:600}
+.esq .a{font-size:12px;color:var(--medio);margin-top:1px;display:flex;gap:5px;align-items:center;white-space:nowrap}
+.esq .a.erro{color:#FF8A80}
+.esq .a svg{width:13px;height:13px;flex:none}
+.coracaoPc{width:32px;height:32px;display:grid;place-items:center;color:var(--medio)}
+.meio{flex:1;max-width:560px;display:flex;flex-direction:column;align-items:center;gap:4px;position:relative}
+.ctrl{display:flex;align-items:center;gap:14px;color:var(--medio)}
+.ctrl .play{width:35px;height:35px;border-radius:18px;background:var(--texto);display:grid;place-items:center;color:#0b0b0d}
+.prog{width:100%;display:flex;align-items:center;gap:9px;font:11px var(--mono);color:var(--fraco)}
+.prog .trilho{flex:1;height:3px;border-radius:2px;background:#353540}
+.dir{width:30%;min-width:120px;display:flex;justify-content:flex-end;align-items:center;gap:12px;color:var(--medio)}
+.dir .erroAntes{font-size:10px;color:var(--perigo);max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vol{width:90px;height:4px;border-radius:2px;background:#353540;position:relative}
+.vol:after{content:"";position:absolute;left:0;top:0;bottom:0;width:8%;background:#A09DA9;border-radius:2px}
+.pilula{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;white-space:nowrap;
+  padding:7px 8px 7px 12px;border-radius:999px;background:#1d1d23;border:1px solid rgba(255,138,128,.35);font-size:12.5px;color:var(--texto);box-shadow:0 10px 30px rgba(0,0,0,.5)}
+.pilula svg{width:14px;height:14px;color:#FF8A80}
+.pilula button{border:0;border-radius:999px;background:rgba(233,234,238,.1);color:var(--texto);font:600 12px var(--body);padding:4px 10px;cursor:pointer}
+.estadosW5{display:flex;gap:8px;margin:0 0 12px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="pagina">
+  <h1>A seguir: Definições, pesquisa e o erro do leitor</h1>
+  <p class="intro">Três maquetes numa página. O <b>C3</b> (traços entre grupos no menu de uma música) já entrou no menu compacto B do iPhone, por isso não está aqui.</p>
+
+  <h2>W3 · o texto das Definições do PC <span class="tag">PC</span></h2>
+  <p class="nota">As explicações estão a <b>10 px</b> e os nomes das opções a 12 px. Proposta: <b>12 px</b> nas explicações e no efeito ("Stops when this song ends"), <b>13,5 px</b> nos nomes e 11 px nas escolhas, com mais espaço entre linhas. Os textos são os de hoje, da secção Playback.</p>
+  <div class="par">
+    <div><p class="leg">Hoje</p><div class="cartao antes" id="w3a"></div></div>
+    <div><p class="leg">Proposta</p><div class="cartao depois" id="w3b"></div></div>
+  </div>
+
+  <h2>I5 · sair da pesquisa no iPhone <span class="tag">iPhone</span></h2>
+  <p class="nota">Hoje, ao tocar na caixa da Home abre-se o histórico e o teclado, e para sair só há o <b>✕</b>, que apaga o texto mas deixa o modo de pesquisa e o teclado. Proposta: como no iOS, aparece <b>"Cancel"</b> ao lado da caixa enquanto se pesquisa. O Cancel fecha o teclado, limpa e volta à Home onde estavas; o ✕ continua a só apagar o texto.</p>
+  <div class="ips" id="i5"></div>
+
+  <h2>W5 · quando uma música falha, na barra do PC <span class="tag">PC</span></h2>
+  <p class="nota">Hoje o erro é uma linha vermelha de <b>10 px</b> à direita, cortada a meio (como na tua captura: "This track did not start. Retryin…"), a competir com o volume. Com a correção de hoje a app tenta outra vez e salta sozinha; o aviso só tem de se ler. Escolhe o sítio. Muda o estado para ver as três frases.</p>
+  <div class="estadosW5" id="w5estados">
+    <button class="op on" data-e="0">A tentar outra vez</button>
+    <button class="op" data-e="1">A saltar</button>
+    <button class="op" data-e="2">Removida, à procura de outra cópia</button>
+  </div>
+  <div class="opcoes" id="w5ops">
+    <button class="op on" data-o="hoje">Hoje</button>
+    <button class="op" data-o="a">A · No lugar do artista (recomendo)</button>
+    <button class="op" data-o="b">B · Pílula por cima da barra</button>
+  </div>
+  <p class="nota" id="w5nota"></p>
+  <div class="palcoPc"><div class="acima">…a página por cima da barra</div><div class="barraPc" id="w5"></div></div>
+</div>
+<script>
+// ---------------------------------------------------------------- W3
+const LINHAS=[
+  {rot:'Smart shuffle',desc:"How many new songs it adds to what you're playing.",efeito:'About 1 new song in every 4',ctrl:'seg',esc:['Few','Some','Lots'],on:1},
+  {rot:'Crossfade',desc:'Blend the end of a song into the next one.',efeito:'Only when a song ends on its own · not on songs shorter than 12 s',ctrl:'seg',esc:['Off','3 s','6 s','9 s'],on:2},
+  {rot:'Autoplay',desc:'When the queue ends, keep playing music like it instead of stopping.',ctrl:'tog'},
+  {rot:'Sleep timer',desc:null,efeito:'Stops when this song ends',ctrl:'seg',esc:['Off','15 min','30 min','45 min','60 min','End of track'],on:5},
+];
+function cartao(id){
+  document.getElementById(id).innerHTML='<div class="tit">Playback</div>'+LINHAS.map(l=>`<div class="linhaD"><div class="txt"><div class="rot">${l.rot}</div>${l.desc?`<div class="desc">${l.desc}</div>`:''}${l.efeito?`<div class="efeito">${l.efeito}</div>`:''}</div>${l.ctrl==='tog'?'<div class="tog"></div>':`<div class="seg">${l.esc.map((e,i)=>`<span class="${i===l.on?'on':''}">${e}</span>`).join('')}</div>`}</div>`).join('');
+}
+cartao('w3a');cartao('w3b');
+
+// ---------------------------------------------------------------- I5
+const CORES=['#d4a15a','#5aa2d4','#d45a7a','#7ad45a','#a35ad4'];
+const LUPA='<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>';
+function teclado(){return '<div class="teclado">'+[10,9,7,4].map(n=>`<div class="fila">${'<i></i>'.repeat(n)}</div>`).join('')+'</div>';}
+function ecraI5(modo){
+  const pesquisa=modo!=='home';
+  let h='<div class="ilha"></div><div class="estado"><span>9:41</span><span>●●●</span></div><div class="home"><div class="t">Home</div></div>';
+  h+=`<div class="busca"><div class="campo">${LUPA}${modo==='antes'||modo==='depois'?'<b>pikete</b><span class="x">✕</span>':'Songs, artists, playlists'}</div>${modo==='depois'?'<span class="cancel">Cancel</span>':''}</div>`;
+  if(pesquisa){
+    h+='<div class="secao">Recent searches</div><div class="chips"><span>pikete</span><span>carti</span><span>2hollis</span><span>isak</span></div>'+teclado();
+  } else {
+    h+=['Jump back in','Daily mix'].map((n,k)=>`<div class="pratel"><div class="h">${n}</div><div class="capas">${CORES.map((c,i)=>`<div style="background:linear-gradient(135deg,${CORES[(i+k)%5]},#111 80%)"></div>`).join('')}</div></div>`).join('');
+  }
+  return h;
+}
+document.getElementById('i5').innerHTML=[
+  ['antes','Hoje, a pesquisar','O ✕ apaga "pikete", mas o histórico e o teclado ficam. Para voltar à Home é preciso tocar fora ou mudar de separador.'],
+  ['depois','Proposta, a pesquisar','"Cancel" ao lado da caixa, como em qualquer pesquisa do iOS. A caixa encolhe para lhe dar lugar.'],
+  ['home','Depois do Cancel','Teclado fechado, texto limpo, e a Home onde estava (o scroll guarda-se ao entrar na pesquisa).'],
+].map(([m,t,p])=>`<div class="col"><p class="leg">${t}</p><p>${p}</p><div class="moldura"><div class="iphone">${ecraI5(m)}</div></div></div>`).join('');
+
+// ---------------------------------------------------------------- W5
+const FRASES=['Could not play this track. Trying again…','Could not play this track. Skipping.','This upload is gone. Looking for another copy…'];
+const CURTAS=["Didn't play · trying again…","Didn't play · skipping…",'Upload gone · finding another copy…'];
+const ALERTA='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.01"/></svg>';
+const NOTAS={
+  hoje:'Hoje: 10 px, vermelho, à direita, cortado ao fim de ~150 px.',
+  a:'<b>A · No lugar do artista.</b> Por baixo do nome da música, a 12 px, enquanto dura, e o artista volta depois. Fica colado à música que falhou, que é onde se olha, e não mexe em mais nada da barra. A frase é a curta.',
+  b:'<b>B · Pílula por cima da barra.</b> Uma pílula ao centro, por cima dos controlos, com a frase inteira e um "Skip" para não esperar. Mais visível, mas tapa um pouco a página.',
+};
+let opW5='hoje',estado=0;
+function barraW5(){
+  const erroA=opW5==='a';
+  let h=`<div class="esq"><div class="c"></div><div style="min-width:0"><div class="t">Broke In A Minute</div><div class="a${erroA?' erro':''}">${erroA?ALERTA+CURTAS[estado]:'Tory Lanez'}</div></div><div class="coracaoPc"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20.3s-7.3-4.5-7.3-10.2A4.2 4.2 0 0 1 12 7.4a4.2 4.2 0 0 1 7.3 2.7c0 5.7-7.3 10.2-7.3 10.2z"/></svg></div></div>`;
+  h+=`<div class="meio">${opW5==='b'?`<div class="pilula">${ALERTA}${FRASES[estado]}<button>Skip</button></div>`:''}<div class="ctrl"><span>⤨</span><span>⏮</span><span class="play">❚❚</span><span>⏭</span><span>⟲</span></div><div class="prog"><span>–</span><div class="trilho"></div><span>–</span></div></div>`;
+  h+=`<div class="dir">${opW5==='hoje'?`<span class="erroAntes">${FRASES[estado].replace('Could not play this track. Trying again…','This track did not start. Retrying another way…')}</span>`:''}<span>◉</span><span>🎧</span><span>🔈</span><div class="vol"></div><span>✕</span></div>`;
+  document.getElementById('w5').innerHTML=h;
+  document.getElementById('w5nota').innerHTML=NOTAS[opW5];
+}
+function ligar(id,fn){document.querySelectorAll(`#${id} .op`).forEach(b=>b.onclick=()=>{document.querySelectorAll(`#${id} .op`).forEach(x=>x.classList.toggle('on',x===b));fn(b.dataset);barraW5();});}
+ligar('w5ops',d=>opW5=d.o);ligar('w5estados',d=>estado=Number(d.e));
+barraW5();
+</script>
+</body>
+</html>

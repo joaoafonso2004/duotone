@@ -10,6 +10,8 @@ import { partilharRelatorioDoArranque } from '../lib/partilharRelatorioDoArranqu
 import { ModoCarro } from './ModoCarro';
 import { loadCapaIOS, useCapaIOS } from '../state/capaIOS';
 import {StateIcon} from './StateIcon';
+import { CoracaoAnimado } from './CoracaoAnimado';
+import { useCoracaoAoCarregar } from '../hooks/useCoracaoAoCarregar';
 import { Toque } from './Toque';
 import { TextoQueCabe } from './TextoQueCabe';
 import { IndicadorDeVisibilidade } from './IndicadorDeVisibilidade';
@@ -1036,6 +1038,10 @@ export function PlayerRoot() {
       avisarErro(mensagemDeErro(e, 'Could not update library.'));
     }
   };
+  // O coração do título e o do mini leitor reagem ao carregar (16/10, pedido
+  // do João; lib/coracaoAoCarregar.ts): as Faíscas a guardar, o Encolher a
+  // tirar. Guardar continua a ser o `saveCurrentToLibrary`, ao largar.
+  const coracao = useCoracaoAoCarregar(saved, saveCurrentToLibrary);
 
   // Um aviso some-se sozinho; uma falha fica, porque tem o que fazer dentro.
   // Ver lib/erroDeReproducao.ts.
@@ -1432,17 +1438,14 @@ export function PlayerRoot() {
   const coracaoDoTitulo = (
     <Toque
       escala={ESCALA.icone}
-      onPress={saveCurrentToLibrary}
+      onPressIn={coracao.onPressIn}
+      onPress={coracao.onPress}
+      onPressOut={coracao.onPressOut}
       style={styles.ladoDoTitulo}
       accessibilityRole="button"
-      accessibilityLabel={saved ? 'Remove from Liked Songs' : 'Add to Liked Songs'}
+      accessibilityLabel={coracao.mostrada ? 'Remove from Liked Songs' : 'Add to Liked Songs'}
     >
-      <StateIcon
-        pulsar={saved}
-        name={saved ? 'heart' : 'heart-outline'}
-        size={22}
-        color={saved ? theme.color : colors.text}
-      />
+      <CoracaoAnimado guardada={coracao.mostrada} pulso={coracao.pulso} tamanho={22} cor={colors.text} corCheio={theme.color} />
     </Toque>
   );
   const veu = veuDoLeitor(ap.brilho);
@@ -2006,16 +2009,13 @@ export function PlayerRoot() {
             <Toque
               escala={ESCALA.icone}
               hitSlop={8}
-              onPress={saveCurrentToLibrary}
-              accessibilityLabel={saved ? 'Remove from Liked Songs' : 'Add to Liked Songs'}
+              onPressIn={coracao.onPressIn}
+              onPress={coracao.onPress}
+              onPressOut={coracao.onPressOut}
+              accessibilityLabel={coracao.mostrada ? 'Remove from Liked Songs' : 'Add to Liked Songs'}
               style={styles.miniBtn}
             >
-              <StateIcon
-                pulsar={saved}
-                name={saved ? 'heart' : 'heart-outline'}
-                size={19}
-                color={saved ? theme.color : colors.textSecondary}
-              />
+              <CoracaoAnimado guardada={coracao.mostrada} pulso={coracao.pulso} tamanho={19} cor={colors.textSecondary} corCheio={theme.color} />
             </Toque>
             <Toque escala={ESCALA.icone} accessibilityRole="button" accessibilityLabel={isPlaying ? 'Pause' : 'Play'} hitSlop={8} onPress={togglePlay} style={styles.miniBtn}>
               <StateIcon

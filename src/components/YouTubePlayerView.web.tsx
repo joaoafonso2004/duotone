@@ -157,6 +157,39 @@ async function recoverUnavailableVideo(track: Track, tipo: TipoFalha) {
 }
 
 /**
+ * Uma falha sem outra cópia a tentar: o erro 5 do player (e um código que a
+ * app não conhece), ou a vigia dos 15 s. Tenta a MESMA uma vez e, se voltar a
+ * falhar, passa à seguinte (16/10). Ficava parada a dizer "Could not play this
+ * track." -- ou "Retrying another way…", que no PC não existe (o embed é o
+ * único caminho). Sem rede não se salta nada: percorria a fila toda em
+ * segundos (`recuperacao`).
+ */
+const TENTAR_OUTRA_VEZ_MS = 2 * 60_000;
+const tentadasOutraVez = new Map<string, number>();
+export const MENSAGEM_A_TENTAR = 'Could not play this track. Trying again…';
+export const MENSAGEM_A_SALTAR = 'Could not play this track. Skipping.';
+async function falhaSemCopia(track: Track, tipo: TipoFalha, recarregar: (() => void) | null) {
+  const state = usePlayer.getState();
+  if (state.current?.sourceId !== track.sourceId) return;
+  if (tipo === 'sem-rede') {
+    state.setError(mensagemDaFalha(tipo));
+    playbackNotice(mensagemDaFalha(tipo));
+    return;
+  }
+  const antes = tentadasOutraVez.get(track.sourceId);
+  if (recarregar && tipo !== 'restrito-idade' && (!antes || Date.now() - antes > TENTAR_OUTRA_VEZ_MS)) {
+    tentadasOutraVez.set(track.sourceId, Date.now());
+    state.setError(null);
+    playbackNotice(MENSAGEM_A_TENTAR);
+    recarregar();
+    return;
+  }
+  tentadasOutraVez.delete(track.sourceId);
+  playbackNotice(MENSAGEM_A_SALTAR);
+  await state.skipUnavailableTrack(track.sourceId);
+}
+
+/**
  * Quanto tempo a passagem espera que a fila avance depois de pedir o `ended`.
  * Se a loja não mudar para a faixa preparada (fim da fila sem rádio, repeat
  * ligado a meio), quem entrou é calado -- em vez de ficar a tocar sem ninguém
@@ -333,6 +366,19 @@ export function YouTubePlayerView({ track }: { track: Track }) {
    * ficava em ampulheta para sempre e sem erro nenhum. Com o player agora
    * reutilizado entre faixas, isto tem de ser re-armado a cada troca.
    */
+  /** Volta a pedir a faixa atual ao player ativo, no sítio onde estava (`falhaSemCopia`). */
+  function recarregarAtual() {
+    const player = ativoRef.current;
+    const faixa = faixaRef.current;
+    if (!player?.loadVideoById) return;
+    try {
+      usePlayer.getState()._setBuffering(true);
+      player.loadVideoById({ videoId: faixa.sourceId, startSeconds: Math.max(0, usePlayer.getState().positionMs / 1000) });
+      armarVigiaRef.current();
+    } catch { /* a vigia volta a apanhá-la */ }
+  }
+  const armarVigiaRef = useRef<() => void>(() => {});
+
   const armarVigia = useCallback(() => {
     clearTimeout(vigiaRef.current);
     arrancouRef.current = false;
@@ -350,10 +396,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         tipo,
         detalhe: 'sem arranque em 15s (embed ' + (prontoRef.current ? 'pronto' : 'nunca ficou pronto') + ')',
       });
-      state.setError(mensagemDaFalha(tipo));
-      playbackNotice(mensagemDaFalha(tipo));
+      void falhaSemCopia(faixaRef.current, tipo, recarregarAtual);
     }, 15000);
   }, []);
+  armarVigiaRef.current = armarVigia;
 
   // Uma sessão restaurada em pausa não está a tentar arrancar. A vigia nasce
   // quando há intenção real de tocar (incluindo um Play posterior) e também é
@@ -638,8 +684,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (recuperacao(tipo).alternativa) {
       void recoverUnavailableVideo(faixaRef.current, tipo);
     } else {
-      state.setError(mensagemDaFalha(tipo));
-      playbackNotice(mensagemDaFalha(tipo));
+      void falhaSemCopia(faixaRef.current, tipo, recarregarAtual);
     }
   };
 

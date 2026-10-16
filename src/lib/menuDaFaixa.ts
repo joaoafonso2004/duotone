@@ -192,3 +192,82 @@ function descrever(id: IdDaAcao, c: ContextoDoMenu): AcaoDoMenu {
 export function menuDaFaixa(c: ContextoDoMenu): AcaoDoMenu[] {
   return ORDEM.filter((id) => aplicaSe(id, c)).map((id) => descrever(id, c));
 }
+
+// ------------------------------------------------- o menu compacto (iPhone) --
+
+/**
+ * Os grupos, pela ordem (C3 da auditoria de UI, 16/10): tocar, guardar,
+ * sobre a música, o gosto, e o que tira. O traço entre grupos ajuda a achar
+ * uma ação pela posição.
+ */
+export const GRUPO: Readonly<Record<IdDaAcao, number>> = {
+  'tocar-agora': 0, 'tocar-a-seguir': 0, 'por-na-fila': 0,
+  'guardar': 1, 'por-em-playlist': 1,
+  'ver-artista': 2, 'partilhar': 2, 'descarregar': 2,
+  'nao-interessa': 3, 'recomendacoes': 3,
+  'tirar-da-playlist': 4, 'tirar-da-fila': 4,
+};
+
+/** Os quadrados do menu compacto, pela ordem, com o nome curto que lá cabe. */
+export const ATALHOS: readonly IdDaAcao[] = ['tocar-a-seguir', 'por-na-fila', 'por-em-playlist'];
+export const ROTULO_CURTO: Readonly<Partial<Record<IdDaAcao, string>>> = {
+  'tocar-a-seguir': 'Play next', 'por-na-fila': 'Queue', 'por-em-playlist': 'Playlist',
+};
+
+/** O aviso único do menu compacto sem rede, no lugar de um por linha. */
+export const AVISO_SEM_REDE = {
+  descarregada: 'Offline · downloaded',
+  naoDescarregada: 'Offline · not downloaded',
+} as const;
+
+export type LinhaDoMenu = AcaoDoMenu & {
+  /** Começa um grupo: leva o traço por cima. */
+  inicioDeGrupo: boolean;
+  /** O motivo que se ESCREVE. Sem rede, o aviso de cima já o diz. */
+  motivoVisivel: string | null;
+};
+
+export type MenuCompacto = {
+  /** O "guardar", que vai para o coração do cabeçalho. */
+  guardar: AcaoDoMenu | null;
+  /** Os quadrados (dois ou três), ou nenhum. */
+  atalhos: LinhaDoMenu[];
+  /** O resto, em grupos. */
+  linhas: LinhaDoMenu[];
+  aviso: string | null;
+};
+
+/**
+ * O menu compacto de uma música no iPhone (16/10, variante B de
+ * `docs/menus-ios.html`): o coração vai para o cabeçalho, as três que mais se
+ * usam vão para quadrados, e o resto fica em grupos. Sem rede, um aviso só no
+ * topo em vez de "Needs internet" por baixo de cada linha -- era isso que
+ * fazia o menu passar dos 700 pt. Os outros motivos (só o dono, a fila do
+ * Jam) continuam escritos: esses o aviso não explica.
+ */
+export function menuCompacto(acoes: readonly AcaoDoMenu[], c: Pick<ContextoDoMenu, 'semRede' | 'tocaSemRede'>): MenuCompacto {
+  const doAviso = new Set<string>([MOTIVOS.semRede, MOTIVOS.naoDescarregada]);
+  const linha = (a: AcaoDoMenu): LinhaDoMenu => ({
+    ...a,
+    inicioDeGrupo: false,
+    motivoVisivel: c.semRede && a.indisponivel && doAviso.has(a.indisponivel) ? null : a.indisponivel,
+  });
+  const presentes = ATALHOS.filter((id) => acoes.some((a) => a.id === id));
+  // Um quadrado sozinho não é uma fila de atalhos: fica na lista.
+  const emQuadrados = new Set(presentes.length >= 2 ? presentes : []);
+  const atalhos = ATALHOS.filter((id) => emQuadrados.has(id))
+    .map((id) => linha(acoes.find((a) => a.id === id)!))
+    .map((a) => ({ ...a, rotulo: ROTULO_CURTO[a.id] ?? a.rotulo }));
+  const linhas: LinhaDoMenu[] = [];
+  for (const a of acoes) {
+    if (a.id === 'guardar' || emQuadrados.has(a.id)) continue;
+    const anterior = linhas[linhas.length - 1];
+    linhas.push({ ...linha(a), inicioDeGrupo: !!anterior && GRUPO[anterior.id] !== GRUPO[a.id] });
+  }
+  return {
+    guardar: acoes.find((a) => a.id === 'guardar') ?? null,
+    atalhos,
+    linhas,
+    aviso: c.semRede ? (c.tocaSemRede ? AVISO_SEM_REDE.descarregada : AVISO_SEM_REDE.naoDescarregada) : null,
+  };
+}

@@ -27,6 +27,8 @@ import { preCarregarCapaGrande, useCapaGrande } from '../useCapaGrande.web';
 import { disposicaoDoLeitor } from '../../lib/leitorDoPc';
 import type { CommonPageProps, NavegarFn, ShareTarget } from '../rotas';
 import type { Track } from '../../types';
+import { CoracaoAnimado } from '../../components/CoracaoAnimado';
+import { useCoracaoAoCarregar } from '../../hooks/useCoracaoAoCarregar';
 import { displayArtist, tituloDaFaixa } from '../../lib/artistName';
 import { comCatalogo, garantirCatalogo, useCatalogoDeFaixas } from '../../state/catalogoDeFaixas';
 
@@ -125,12 +127,14 @@ function ComandoDoAparelho({ nome, sessao, tique, aoVoltar, aoOrdenar, aoTrazer 
  * passar o rato; `ativo` acende-o de vez (o coração cheio) e `ponto` põe um
  * ponto por baixo (o som mexido). Ver a linha de ações mais abaixo.
  */
-function AcaoDoLeitor({ rotulo, onPress, ativo = false, ponto = false, children }: {
+function AcaoDoLeitor({ rotulo, onPress, onPressIn, onPressOut, ativo = false, ponto = false, children }: {
   rotulo: string; onPress: () => void; ativo?: boolean; ponto?: boolean;
+  /** Para quem reage ao carregar (o coração). */
+  onPressIn?: () => void; onPressOut?: () => void;
   children: (cor: string) => React.ReactNode;
 }) {
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={rotulo} onPress={onPress}
+    <Pressable accessibilityRole="button" accessibilityLabel={rotulo} onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut}
       style={({ pressed }: any) => [{ width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 17 }, pressed && ui.pressed]}>
       {({ hovered, focused }: any) => (
         <>
@@ -201,6 +205,8 @@ export function NowPlayingPage({
   // letras, fila e WebGL voltarem a renderizar a cada atualização da barra.
   const fila = useFilaDoLeitor({ more, notify });
   const { current, upNext, emJam } = fila;
+  // O coração reage ao carregar (16/10, lib/coracaoAoCarregar.ts).
+  const coracao = useCoracaoAoCarregar(currentIsSaved, toggleSaveCurrent);
   const eqGanhos = usePlayer((s) => s.eqGanhos);
   const setEqGanhos = usePlayer((s) => s.setEqGanhos);
   const playbackRate = usePlayer((s) => s.playbackRate);
@@ -365,8 +371,10 @@ export function NowPlayingPage({
           A ESTA FAIXA, à direita o que é da reprodução (onde toca, o mini
           leitor, o som). Estavam atirados para as duas pontas da capa. */}
       <View style={styles.npIcones}>
-        <AcaoDoLeitor rotulo={currentIsSaved ? 'Remove from Liked Songs' : 'Add to Liked Songs'} ativo={currentIsSaved} onPress={toggleSaveCurrent}>
-          {(cor) => <Ionicons name={currentIsSaved ? 'heart' : 'heart-outline'} size={20} color={cor} />}
+        {/* As Faíscas a guardar e o Encolher a tirar, logo ao carregar (16/10). */}
+        <AcaoDoLeitor rotulo={coracao.mostrada ? 'Remove from Liked Songs' : 'Add to Liked Songs'} ativo={coracao.mostrada}
+          onPressIn={coracao.onPressIn} onPress={coracao.onPress} onPressOut={coracao.onPressOut}>
+          {(cor) => <CoracaoAnimado guardada={coracao.mostrada} pulso={coracao.pulso} tamanho={20} cor={cor} corCheio={cor} />}
         </AcaoDoLeitor>
         <AcaoDoLeitor rotulo="Add to playlist" onPress={() => aoAdicionarAPlaylist(track)}>
           {(cor) => (

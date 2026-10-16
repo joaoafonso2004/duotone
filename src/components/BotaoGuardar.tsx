@@ -6,7 +6,8 @@ import { savedKey, useSaved } from '../state/saved';
 import { useTheme } from '../state/theme';
 import { colors } from '../theme';
 import type { Track } from '../types';
-import { StateIcon } from './StateIcon';
+import { CoracaoAnimado } from './CoracaoAnimado';
+import { useCoracaoAoCarregar } from '../hooks/useCoracaoAoCarregar';
 
 /**
  * O coração de uma música partilhada numa conversa.
@@ -20,31 +21,31 @@ export function BotaoGuardar({ track, tamanho = 18 }: { track: Track; tamanho?: 
   const acento = useTheme((s) => s.theme.color);
   const guardada = useSaved((s) => s.keys.has(savedKey(track)));
   const [aGuardar, setAGuardar] = React.useState(false);
+  // Reage ao carregar (16/10, lib/coracaoAoCarregar.ts); a guarda espera pelo
+  // servidor como antes, e até lá mostra-se o que se pediu. Se o toque virar
+  // scroll na conversa, o coração volta atrás.
+  const coracao = useCoracaoAoCarregar(guardada, () => {
+    setAGuardar(true);
+    // Falhar deixa o coração como estava: a marca só muda depois de o
+    // servidor confirmar, dentro do `alternarGuardada`.
+    return alternarGuardada(track).catch(() => {}).finally(() => setAGuardar(false));
+  });
 
   React.useEffect(() => { garantirGuardadas(); }, []);
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={guardada ? 'Remove from Liked Songs' : 'Add to Liked Songs'}
-      accessibilityState={{ busy: aGuardar, selected: guardada }}
+      accessibilityLabel={coracao.mostrada ? 'Remove from Liked Songs' : 'Add to Liked Songs'}
+      accessibilityState={{ busy: aGuardar, selected: coracao.mostrada }}
       hitSlop={10}
       disabled={aGuardar}
-      onPress={() => {
-        hapticSelection();
-        setAGuardar(true);
-        // Falhar deixa o coração como estava: a marca só muda depois de o
-        // servidor confirmar, dentro do `alternarGuardada`.
-        void alternarGuardada(track).catch(() => {}).finally(() => setAGuardar(false));
-      }}
-      style={({ pressed }) => [{ padding: 4, opacity: aGuardar ? 0.5 : pressed ? 0.7 : 1 }]}
+      onPressIn={() => { hapticSelection(); coracao.onPressIn(); }}
+      onPress={coracao.onPress}
+      onPressOut={coracao.onPressOut}
+      style={{ padding: 4 }}
     >
-      <StateIcon
-        pulsar={guardada}
-        name={guardada ? 'heart' : 'heart-outline'}
-        size={tamanho}
-        color={guardada ? acento : colors.textSecondary}
-      />
+      <CoracaoAnimado guardada={coracao.mostrada} pulso={coracao.pulso} tamanho={tamanho} cor={colors.textSecondary} corCheio={acento} />
     </Pressable>
   );
 }

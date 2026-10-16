@@ -116,6 +116,13 @@ const { MenuFlutuante } = load('src/components/MenuFlutuante.tsx', {
   '../lib/movimento': { ESTADO: {} },
   '../theme': { colors: {}, radii: {}, spacing: { xs: 4, sm: 8 }, type: {} },
   './dentroDeUmModal': { DentroDeUmModal: { Provider: 'Provider' } },
+  // O menu compacto e a zona segura (16/10).
+  'expo-image': { Image: 'Image' },
+  'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 59, bottom: 34, left: 0, right: 0 }) },
+  './CoracaoAnimado': { CoracaoAnimado: 'CoracaoAnimado' },
+  '../hooks/useCoracaoAoCarregar': { useCoracaoAoCarregar: () => ({ mostrada: false, pulso: 0, onPressIn() {}, onPress() {}, onPressOut() {} }) },
+  '../lib/posicaoDoMenu': load('src/lib/posicaoDoMenu.ts'),
+  '../state/theme': { useTheme: (seletor) => seletor({ theme: { color: '#fff' } }) },
 });
 const open = { visivel: true, ancora: { x: 20, y: 180, width: 300, height: 100 },
   accoes: [{ label: 'Choose a photo', icon: 'images-outline', onPress() {} }], aoFechar() {} };

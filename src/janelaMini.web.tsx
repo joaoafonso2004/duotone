@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState, type ComponentType } from 'react';
+import { CoracaoAnimado } from './components/CoracaoAnimado';
+import { useCoracaoAoCarregar } from './hooks/useCoracaoAoCarregar';
 
 /**
  * A janela do mini leitor do PC (entrega 2b do
@@ -131,7 +133,6 @@ const icone = {
   seguinte: <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 5h2v14h-2zM4 5v14l11-7z" /></svg>,
   tocar: <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4v16l13-8z" /></svg>,
   pausa: <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" /></svg>,
-  coracao: (cheio: boolean) => <svg width="16" height="16" viewBox="0 0 24 24" fill={cheio ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" /></svg>,
   expandir: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" /></svg>,
   encolher: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" /></svg>,
   esconder: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M8 14h8" /></svg>,
@@ -273,6 +274,14 @@ function MiniLeitor() {
   }, [r?.aTocar]);
 
   const mandar = (tipo: string, ms?: number) => ponte?.comando(ms === undefined ? { tipo } : { tipo, ms });
+  // O coração reage ao carregar (16/10, lib/coracaoAoCarregar.ts). A guarda
+  // faz-se na janela principal e o estado volta pelo resumo: até lá (ou até
+  // 1,5 s, se nada voltar) mostra-se o que se pediu.
+  const coracaoAoCarregar = useCoracaoAoCarregar(!!r?.guardada, () => {
+    mandar('guardar');
+    return new Promise((fim) => setTimeout(fim, 1500));
+  });
+  const carregouNoCoracao = useRef(false);
   // A pega mexe no canto oposto ao que está encostado ao ecrã. No compacto o
   // cartão está encostado em baixo (ou em cima), e a pega vai ao lado de cima
   // (ou de baixo) DELE. A página só diz a fase; o rato lê-o o processo
@@ -328,8 +337,18 @@ function MiniLeitor() {
     </button>
   );
   const coracao = (
-    <button aria-label={r?.guardada ? 'Remove from Liked Songs' : 'Add to Liked Songs'} aria-pressed={!!r?.guardada}
-      onClick={() => mandar('guardar')} style={{ width: 30, height: 30 }}>{icone.coracao(!!r?.guardada)}</button>
+    <button aria-label={coracaoAoCarregar.mostrada ? 'Remove from Liked Songs' : 'Add to Liked Songs'} aria-pressed={coracaoAoCarregar.mostrada}
+      onPointerDown={(e) => { if (e.button !== 0) return; carregouNoCoracao.current = true; coracaoAoCarregar.onPressIn(); }}
+      onPointerLeave={() => { if (carregouNoCoracao.current) { carregouNoCoracao.current = false; coracaoAoCarregar.onPressOut(); } }}
+      onClick={() => {
+        // Pelo teclado não há "carregar": o clique faz as duas coisas.
+        if (!carregouNoCoracao.current) coracaoAoCarregar.onPressIn();
+        carregouNoCoracao.current = false;
+        coracaoAoCarregar.onPress();
+      }}
+      style={{ width: 30, height: 30 }}>
+      <CoracaoAnimado guardada={coracaoAoCarregar.mostrada} pulso={coracaoAoCarregar.pulso} tamanho={16} cor="currentColor" corCheio="currentColor" />
+    </button>
   );
 
   // Abrir o Duotone e fechar: pequenos, no canto, só com o rato por cima.

@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Menus do iPhone</title>
+<style>
+:root{
+  --fundo:#060608;--grafite:#1C1C1F;--linha:rgba(255,255,255,.14);--linhaSuave:rgba(255,255,255,.07);
+  --texto:#F5F5F7;--medio:rgba(245,245,247,.58);--fraco:rgba(245,245,247,.38);--perigo:#FF453A;--cor:#B9A6FF;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:#101014;color:var(--texto);font-family:-apple-system,"SF Pro Text","Segoe UI",system-ui,sans-serif}
+.pagina{max-width:1240px;margin:0 auto;padding:36px 16px 80px}
+h1{font-size:28px;letter-spacing:-.4px;margin:0 0 8px}
+h2{font-size:20px;margin:46px 0 6px}
+.intro,.nota{color:var(--medio);font-size:14.5px;line-height:1.6;max-width:820px;margin:0 0 18px}
+.intro b,.nota b{color:var(--texto);font-weight:600}
+.controlos{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 22px}
+.grupoC{display:flex;gap:4px;padding:3px;border:1px solid var(--linha);border-radius:999px}
+.grupoC button{height:30px;padding:0 12px;border-radius:999px;border:0;background:transparent;color:var(--medio);font:600 13px inherit;cursor:pointer}
+.grupoC button.on{background:var(--texto);color:#0b0b0d}
+.palco{display:flex;flex-wrap:wrap;gap:26px;align-items:flex-start}
+.coluna{width:312px}
+.coluna h3{font-size:15px;margin:0 0 4px;display:flex;gap:8px;align-items:center}
+.coluna h3 .rec{font-size:10px;letter-spacing:1px;background:var(--texto);color:#0b0b0d;border-radius:4px;padding:2px 6px}
+.coluna p{color:var(--medio);font-size:13px;line-height:1.5;margin:0 0 12px;min-height:78px}
+.medida{font-size:12px;color:var(--fraco);margin-top:8px;font-family:ui-monospace,Consolas,monospace}
+
+/* o iPhone 15 em pontos reais, desenhado a 80% */
+.moldura{width:312px;height:675px;border-radius:40px;overflow:hidden;border:1px solid rgba(255,255,255,.1);box-shadow:0 30px 70px rgba(0,0,0,.55);position:relative}
+.iphone{width:390px;height:844px;transform:scale(.8);transform-origin:0 0;position:absolute;inset:0 auto auto 0;background:var(--fundo);overflow:hidden}
+.ilha{position:absolute;top:11px;left:50%;width:124px;height:36px;margin-left:-62px;border-radius:20px;background:#000;z-index:30}
+.estado{height:59px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 32px 8px;font:600 16px inherit}
+.cab{padding:6px 20px 10px}
+.cab .t{font-size:28px;font-weight:700;letter-spacing:-.4px}
+.cab .s{font-size:13px;color:var(--medio);margin-top:2px}
+.faixa{display:flex;align-items:center;gap:12px;height:60px;padding:0 20px}
+.faixa .c{width:44px;height:44px;border-radius:6px;flex:none}
+.faixa .tt{font-size:15px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.faixa .aa{font-size:13px;color:var(--medio);margin-top:2px}
+.faixa .info{flex:1;min-width:0}
+.faixa .mais{color:var(--fraco);font-size:20px}
+.faixa.ancora{background:rgba(255,255,255,.08);position:relative;z-index:12}
+.base{position:absolute;left:0;right:0;bottom:0;height:120px;background:linear-gradient(transparent,var(--fundo) 30%);display:flex;flex-direction:column;justify-content:flex-end;padding:0 0 30px}
+.barra{display:flex;justify-content:space-around;font-size:10px;color:var(--fraco)}
+.barra div{display:flex;flex-direction:column;align-items:center;gap:3px;width:60px}
+.barra svg{width:25px;height:25px}
+.barra .on{color:var(--cor)}
+.veu{position:absolute;inset:0;background:rgba(0,0,0,.55);z-index:10}
+.zonaSegura{position:absolute;left:0;right:0;border:1px dashed rgba(255,90,90,.6);pointer-events:none;z-index:40;display:none}
+.mostrarZona .zonaSegura{display:block}
+
+/* o menu de hoje (e a A) */
+.menu{position:absolute;z-index:20;width:232px;border-radius:16px;background:var(--grafite);border:.5px solid var(--linha);overflow:hidden;display:flex;flex-direction:column}
+.menu .titulo{font-size:13px;color:var(--medio);padding:12px 16px 8px;border-bottom:.5px solid var(--linha);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:none}
+.menu .corpo{overflow-y:auto;padding:4px 0 8px;scrollbar-width:none;flex:1;min-height:0}
+.menu .corpo::-webkit-scrollbar{display:none}
+.acao{display:flex;align-items:center;gap:12px;min-height:44px;padding:10px 16px}
+.acao svg{width:20px;height:20px;flex:none}
+.acao .r{font-size:15px}
+.acao .m{font-size:13px;color:var(--medio);margin-top:1px}
+.acao.apagada svg,.acao.apagada .r{opacity:.4}
+.acao.perigo{color:var(--perigo)}
+.acao.grupo{border-top:.5px solid var(--linha);margin-top:4px}
+.sombraFim{position:absolute;left:0;right:0;bottom:0;height:34px;background:linear-gradient(transparent,var(--grafite));pointer-events:none;display:none}
+.menu.rola .sombraFim{display:block}
+
+/* B: compacto */
+.menuB{width:286px}
+.cabB{display:flex;align-items:center;gap:10px;padding:12px 12px 10px 12px;border-bottom:.5px solid var(--linha);flex:none}
+.cabB .c{width:40px;height:40px;border-radius:6px;flex:none}
+.cabB .info{flex:1;min-width:0}
+.cabB .tt{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cabB .aa{font-size:13px;color:var(--medio)}
+.coracao{width:36px;height:36px;border:0;background:rgba(255,255,255,.08);border-radius:18px;color:var(--texto);display:grid;place-items:center;cursor:pointer;flex:none}
+.coracao svg{width:20px;height:20px}
+.coracao.on{color:#FF6B8B}
+.coracao.apagada{opacity:.4}
+.semRedeB{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--medio);padding:8px 14px 0;flex:none}
+.semRedeB svg{width:14px;height:14px}
+.mosaico{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:10px 12px 6px;flex:none}
+.mosaico div{height:62px;border-radius:12px;background:rgba(255,255,255,.07);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;font-size:12px}
+.mosaico svg{width:21px;height:21px}
+.mosaico .apagada{opacity:.4}
+
+/* C: folha de baixo */
+.folha{position:absolute;left:0;right:0;bottom:0;z-index:20;background:var(--grafite);border-radius:16px 16px 0 0;border-top:.5px solid var(--linha);padding:8px 0 34px}
+.pega{width:36px;height:5px;border-radius:3px;background:rgba(255,255,255,.25);margin:0 auto 6px}
+.folha .cabB{border-bottom:.5px solid var(--linha);padding:10px 20px 12px}
+.folha .cabB .c{width:48px;height:48px}
+.folha .acao{padding:10px 22px;min-height:48px}
+
+/* C5 */
+.barras{display:flex;flex-wrap:wrap;gap:20px}
+.cartaoBarra{width:390px;max-width:100%;background:var(--fundo);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:14px 8px 16px}
+.cartaoBarra .leg{font-size:12px;color:var(--medio);padding:0 10px 10px}
+.cartaoBarra .barra{font-size:11px}
+.cartaoBarra .marca{outline:1.5px dashed #FFB020;outline-offset:3px;border-radius:8px}
+</style>
+</head>
+<body>
+<div class="pagina">
+  <h1>Menus do iPhone (I1)</h1>
+  <p class="intro">O caso pior é o menu de uma música numa playlist: <b>10 linhas</b> (11 se for uma sugestão), ~520 pt. Sem rede quase todas ganham "Needs internet" por baixo e passa a <b>~710 pt</b>, num iPhone 15 onde cabem ~730 entre a ilha e o fundo. Hoje, quando o menu não cabe por baixo da música, sobe até ao <b>topo do ecrã, por baixo da ilha</b> &mdash; com rede basta a música estar a meio do ecrã. Num iPhone mais pequeno ou com letra maior, já nem cabe. Muda a rede e a posição da música para ver; os números por baixo de cada iPhone são medidos.</p>
+  <div class="controlos">
+    <div class="grupoC" id="cRede"><button data-v="on" class="on">Com rede</button><button data-v="off">Sem rede</button></div>
+    <div class="grupoC" id="cPos"><button data-v="topo">Música em cima</button><button data-v="meio" class="on">No meio</button><button data-v="fundo">Em baixo</button></div>
+    <div class="grupoC" id="cZona"><button data-v="nao" class="on">Sem guias</button><button data-v="sim">Mostrar a zona segura</button></div>
+  </div>
+  <div class="palco" id="palco"></div>
+
+  <h2>C5 · a barra de baixo</h2>
+  <p class="nota">Só se vê com os <b>nomes da barra ligados</b> (Personalize). O separador das tuas músicas guardadas diz <b>"Songs"</b> e tem o ícone das notas, mas o ecrã chama-se <b>Liked Songs</b> e o resto da app usa o coração para elas. A proposta é dizer <b>"Liked"</b> com o coração. Com os nomes desligados, só muda o ícone.</p>
+  <div class="barras">
+    <div class="cartaoBarra"><div class="leg">Hoje</div><div class="barra" id="barraHoje"></div></div>
+    <div class="cartaoBarra"><div class="leg">Proposta</div><div class="barra" id="barraNova"></div></div>
+  </div>
+</div>
+<script>
+const I={
+ play:'<path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 8.5v7l6-3.5z" fill="currentColor"/>',
+ next:'<path d="M4 6v12l8-6zM12 6v12l8-6z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
+ fila:'<path d="M4 6h16M4 12h16M4 18h10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
+ cor:'<path d="M12 20.3s-7.3-4.5-7.3-10.2A4.2 4.2 0 0 1 12 7.4a4.2 4.2 0 0 1 7.3 2.7c0 5.7-7.3 10.2-7.3 10.2z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>',
+ corCheio:'<path d="M12 20.3s-7.3-4.5-7.3-10.2A4.2 4.2 0 0 1 12 7.4a4.2 4.2 0 0 1 7.3 2.7c0 5.7-7.3 10.2-7.3 10.2z" fill="currentColor"/>',
+ pl:'<rect x="3" y="7" width="13" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M7 4h12a2 2 0 0 1 2 2v12" fill="none" stroke="currentColor" stroke-width="1.6"/>',
+ mic:'<rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4" fill="none" stroke="currentColor" stroke-width="1.6"/>',
+ share:'<circle cx="6" cy="12" r="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="17" cy="6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="17" cy="18" r="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8.2 11l6.6-3.8M8.2 13l6.6 3.8" stroke="currentColor" stroke-width="1.6"/>',
+ down:'<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 7.5v8M8.5 12.5 12 16l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6"/>',
+ opt:'<path d="M4 7h10M18 7h2M4 17h4M12 17h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="16" cy="7" r="2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="10" cy="17" r="2" fill="none" stroke="currentColor" stroke-width="1.6"/>',
+ lixo:'<path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
+ nuvem:'<path d="M3 3l18 18M8.5 8.6A5 5 0 0 0 7 17h10.5M12.5 6.1A6 6 0 0 1 18 12a4 4 0 0 1 2.4 3.6" fill="none" stroke="currentColor" stroke-width="1.8"/>',
+ casa:'<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" fill="currentColor"/>',
+ notas:'<path d="M9 18V6l11-2v12" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="6.5" cy="18" r="2.5" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="17.5" cy="16" r="2.5" fill="none" stroke="currentColor" stroke-width="1.7"/>',
+ artistas:'<circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6" fill="none" stroke="currentColor" stroke-width="1.7"/>',
+ playlists:'<path d="M4 6h16M4 12h10M4 18h7M17 14v6l4-3z" fill="none" stroke="currentColor" stroke-width="1.7"/>',
+ perfil:'<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="10" r="3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M6.5 18.5c1.4-2 3.3-3 5.5-3s4.1 1 5.5 3" fill="none" stroke="currentColor" stroke-width="1.7"/>',
+};
+const svg=(k)=>`<svg viewBox="0 0 24 24">${I[k]}</svg>`;
+const CORES=[['#d4a15a','#3b2611'],['#5aa2d4','#11263b'],['#d45a7a','#3b1120'],['#7ad45a','#1b3b11'],['#a35ad4','#28113b'],['#d4c35a','#3b3411'],['#5ad4c3','#113b34'],['#d47a5a','#3b1d11']];
+const capa=i=>`linear-gradient(135deg,${CORES[i%8][0]},${CORES[i%8][1]} 75%)`;
+const FAIXAS=[['Sanguine Paradise','Lil Uzi Vert'],['20 Min','Lil Uzi Vert'],['ILoveUIHateU','Playboi Carti'],['wokeuplikethis*','Playboi Carti'],['Pikete Italiano 2','Kyndy Swing'],['Max Win','Isak'],['Jet Lag','Future'],['Over','Playboi Carti'],['Sky','Playboi Carti'],['NEED','The Weeknd'],['@ MEH','Playboi Carti'],['Rock That Body','Playboi Carti'],['Timeless','The Weeknd']];
+const ALTURA=844,SEG_TOPO=59,SEG_FUNDO=34,MARGEM=12;
+let rede='on',pos='meio',zona='nao',coracaoB=false;
+
+const NR='Needs internet',ND='Not downloaded · needs internet';
+function acoes(off){return [
+  {r:'Play now',i:'play',m:off?ND:null},{r:'Play next',i:'next',m:off?ND:null},{r:'Add to queue',i:'fila',m:off?ND:null},
+  {r:'Add to Liked Songs',i:'cor',m:off?NR:null,g:true},{r:'Add to playlist…',i:'pl',m:off?NR:null},
+  {r:'View artist',i:'mic',m:null,g:true},{r:'Share with friends or groups…',i:'share',m:off?NR:null},{r:'Download',i:'down',m:off?NR:null},{r:'Recommendations…',i:'opt',m:off?NR:null},
+  {r:'Remove from this playlist',i:'lixo',m:off?NR:null,perigo:true,g:true}];}
+const linhaAcao=(a,grupos,semMotivo)=>`<div class="acao${a.m?' apagada':''}${a.perigo?' perigo':''}${grupos&&a.g?' grupo':''}">${svg(a.i)}<div><div class="r">${a.r}</div>${a.m&&!semMotivo?`<div class="m">${a.m}</div>`:''}</div></div>`;
+
+function ecra(ancoraY){
+  // a lista por trás, com a linha do toque longo em `ancoraY`
+  const primeira=SEG_TOPO+66, alt=60;
+  const idx=Math.round((ancoraY-primeira)/alt);
+  let h=`<div class="ilha"></div><div class="estado"><span>9:41</span><span>${rede==='off'?'✈':'●●●'}</span></div><div class="cab"><div class="t">late night</div><div class="s">13 songs</div></div>`;
+  FAIXAS.forEach((f,i)=>{h+=`<div class="faixa${i===idx?' ancora':''}"><div class="c" style="background:${capa(i)}"></div><div class="info"><div class="tt">${f[0]}</div><div class="aa">${f[1]}</div></div><span class="mais">⋯</span></div>`;});
+  h+=`<div class="base"><div class="barra">${barra(null)}</div></div><div class="veu"></div>`;
+  h+=`<div class="zonaSegura" style="top:${SEG_TOPO}px;height:${ALTURA-SEG_TOPO-SEG_FUNDO}px"></div>`;
+  return {html:h, linhaY:primeira+idx*alt};
+}
+function barra(nova){
+  const b=[['casa','Home',true],[nova?'cor':'notas',nova?'Liked':'Songs',false],['artistas','Artists',false],['playlists','Playlists',false],['perfil','Profile',false]];
+  return b.map(([i,n,on],k)=>`<div class="${on?'on':''}${k===1&&nova!==null?' marca':''}">${svg(i)}${n}</div>`).join('');
+}
+function ancoraDe(){return pos==='topo'?SEG_TOPO+66+60*1:pos==='meio'?SEG_TOPO+66+60*5:SEG_TOPO+66+60*10;}
+
+// coloca um menu como a app faria: em baixo se couber, senão em cima; a versão nova limita-se à zona segura
+function colocar(menu,linhaY,limitar){
+  const h=menu.scrollHeight;
+  const emBaixo=linhaY+60+MARGEM;
+  let topo, max=null;
+  if(!limitar){
+    topo = emBaixo+h<ALTURA ? emBaixo : Math.max(MARGEM, linhaY-h-MARGEM);
+  } else {
+    const minTopo=SEG_TOPO+MARGEM, maxFundo=ALTURA-SEG_FUNDO-MARGEM, disponivel=maxFundo-minTopo;
+    if(h>disponivel){ topo=minTopo; max=disponivel; }
+    else if(emBaixo+h<=maxFundo) topo=emBaixo;
+    else if(linhaY-MARGEM-h>=minTopo) topo=linhaY-MARGEM-h;
+    else topo=Math.max(minTopo, maxFundo-h);
+  }
+  menu.style.top=topo+'px';
+  if(max){ menu.style.maxHeight=max+'px'; menu.classList.add('rola'); }
+  menu.style.right='16px';
+  return {h, topo, corta: !limitar && (topo+h>ALTURA || topo<SEG_TOPO)};
+}
+
+const COLUNAS=[
+ {id:'hoje',nome:'Hoje',texto:'O menu de hoje, para comparar. Sem rede e com a música em baixo, ou sai do ecrã ou sobe para debaixo da ilha.'},
+ {id:'a',nome:'A · Cabe sempre',texto:'O mesmo menu, com os grupos separados por um traço (C3). Nunca passa da zona segura: se não couber, fica com a altura que há e rola por dentro, com o nome da música sempre em cima. A mudança mais pequena.'},
+ {id:'b',nome:'B · Compacto',rec:true,texto:'Em cima, a música com o coração ao lado (a tua ideia de há dias). Por baixo, as três que mais se usam em quadrados. O resto em grupos. Sem rede, um aviso só no topo em vez de um por linha. Cabe sem rolar em todos os casos.'},
+ {id:'c',nome:'C · Folha de baixo',texto:'Como o Spotify: sobe uma folha do fundo, sempre ao alcance do polegar, com tudo e em grupos. Cabe sempre. Mas deixa de abrir junto ao dedo, que foi o que se decidiu a 5/10 para os menus serem todos iguais.'},
+];
+
+function desenhar(){
+  const off=rede==='off';
+  const palco=document.getElementById('palco'); palco.innerHTML='';
+  const linhaY=ancoraDe();
+  for(const col of COLUNAS){
+    const c=document.createElement('div'); c.className='coluna';
+    c.innerHTML=`<h3>${col.nome}${col.rec?' <span class="rec">RECOMENDO</span>':''}</h3><p>${col.texto}</p><div class="moldura${zona==='sim'?' mostrarZona':''}"><div class="iphone"></div></div><div class="medida"></div>`;
+    palco.appendChild(c);
+    const tel=c.querySelector('.iphone'); const e=ecra(linhaY); tel.innerHTML=e.html;
+    const lista=acoes(off);
+    let menu, info='';
+    if(col.id==='hoje'||col.id==='a'){
+      menu=document.createElement('div'); menu.className='menu';
+      menu.innerHTML=`<div class="titulo">Sanguine Paradise · Lil Uzi Vert</div><div class="corpo">${lista.map(a=>linhaAcao(a,col.id==='a',false)).join('')}</div><div class="sombraFim"></div>`;
+      tel.appendChild(menu);
+      const r=colocar(menu,e.linhaY,col.id==='a');
+      info=`${Math.round(r.h)} pt de menu${r.corta?' · fica fora da zona segura':''}${menu.classList.contains('rola')?' · rola por dentro':''}`;
+    } else if(col.id==='b'){
+      menu=document.createElement('div'); menu.className='menu menuB';
+      const tiles=[['next','Play next'],['fila','Queue'],['pl','Playlist']];
+      const resto=lista.filter(a=>!['Play next','Add to queue','Add to Liked Songs','Add to playlist…'].includes(a.r));
+      menu.innerHTML=`<div class="cabB"><div class="c" style="background:${capa(0)}"></div><div class="info"><div class="tt">Sanguine Paradise</div><div class="aa">Lil Uzi Vert</div></div><button class="coracao${coracaoB?' on':''}${off?' apagada':''}" aria-label="Add to Liked Songs">${svg(coracaoB?'corCheio':'cor')}</button></div>`
+        +(off?`<div class="semRedeB">${svg('nuvem')}Offline · not downloaded</div>`:'')
+        +`<div class="mosaico">${tiles.map(([i,n],k)=>`<div class="${off&&k<2?'apagada':''}${off&&k===2?'apagada':''}">${svg(i)}${n}</div>`).join('')}</div>`
+        +`<div class="corpo">${resto.map(a=>linhaAcao(a,true,true)).join('')}</div><div class="sombraFim"></div>`;
+      tel.appendChild(menu);
+      const bt=menu.querySelector('.coracao'); if(!off) bt.addEventListener('pointerdown',()=>{coracaoB=!coracaoB;desenhar();});
+      const r=colocar(menu,e.linhaY,true);
+      info=`${Math.round(r.h)} pt de menu${menu.classList.contains('rola')?' · rola por dentro':''}`;
+    } else {
+      menu=document.createElement('div'); menu.className='folha';
+      menu.innerHTML=`<div class="pega"></div><div class="cabB"><div class="c" style="background:${capa(0)}"></div><div class="info"><div class="tt">Sanguine Paradise</div><div class="aa">Lil Uzi Vert</div></div><button class="coracao${off?' apagada':''}">${svg('cor')}</button></div>`
+        +(off?`<div class="semRedeB" style="padding:8px 22px 0">${svg('nuvem')}Offline · not downloaded</div>`:'')
+        +`<div class="corpo" style="overflow:auto">${lista.filter(a=>a.r!=='Add to Liked Songs').map(a=>linhaAcao(a,true,true)).join('')}</div>`;
+      tel.appendChild(menu);
+      const max=ALTURA-SEG_TOPO-40; if(menu.scrollHeight>max){menu.style.maxHeight=max+'px';menu.style.display='flex';menu.style.flexDirection='column';}
+      info=`${Math.round(menu.scrollHeight)} pt de folha · abre sempre no fundo`;
+    }
+    c.querySelector('.medida').textContent=info;
+  }
+}
+function ligar(id,fn){document.querySelectorAll(`#${id} button`).forEach(b=>b.onclick=()=>{document.querySelectorAll(`#${id} button`).forEach(x=>x.classList.toggle('on',x===b));fn(b.dataset.v);desenhar();});}
+ligar('cRede',v=>rede=v);ligar('cPos',v=>pos=v);ligar('cZona',v=>zona=v);
+document.getElementById('barraHoje').innerHTML=barra(false);
+document.getElementById('barraNova').innerHTML=barra(true);
+desenhar();
+</script>
+</body>
+</html>
