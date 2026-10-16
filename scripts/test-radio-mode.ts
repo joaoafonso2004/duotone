@@ -121,6 +121,37 @@ assert.ok(modos.slice(0,-1).every(m=>m==='session'),'as outras não');
 assert.equal(controlo.radioJaDescobertas?.size,0,'e já sem a memória');
 assert.ok(controlo.chamadas.radio-chamadasAntes>=4,'antes disso, caminhou e largou a memória');
 
+// Um lançamento novo de um artista que se ouve entra no lote, no início, e só
+// fica marcado como usado depois de o lote entrar na fila (16/10).
+reset();
+assert.equal(await usePlayer.getState().startRadio(),true);
+controlo.lancamentoNoRadio=track('single-novo','Pop Star');
+controlo.radio=[track('r-a','Holly Hood'),track('r-b','Dillaz'),track('r-c','Plutonio')];
+assert.equal(await usePlayer.getState().extendQueueWithRadio(),true);
+let ids=usePlayer.getState().queue.map(t=>t.sourceId);
+assert.ok(ids.includes('single-novo'),'o single novo entrou');
+assert.ok(ids.indexOf('single-novo')<=ids.indexOf('r-c'),'no início do lote');
+assert.equal(controlo.lancamentosMarcados,1,'marcado depois de entrar');
+// Já na fila: o crivo não o deixa entrar outra vez, e não se marca nada.
+controlo.lancamentosMarcados=0;
+controlo.radio=[track('r-d','Holly Hood')];
+{const q=usePlayer.getState().queue;usePlayer.setState({queueIndex:q.length-1,current:q[q.length-1]});}
+assert.equal(await usePlayer.getState().extendQueueWithRadio(),true);
+ids=usePlayer.getState().queue.map(t=>t.sourceId);
+assert.equal(ids.filter(id=>id==='single-novo').length,1,'nunca duas vezes na fila');
+assert.equal(controlo.lancamentosMarcados,0);
+// Um lote deitado fora (a fila mudou entretanto) não gasta o lançamento.
+reset();
+assert.equal(await usePlayer.getState().startRadio(),true);
+controlo.lancamentoNoRadio=track('outro-single','Pop Star');
+const resolveTarde=pending();
+const extensao=usePlayer.getState().extendQueueWithRadio();
+for(let n=0;n<10&&controlo.radioPendentes.length;n++)await new Promise(r=>setTimeout(r,0));
+usePlayer.setState({queue:[current,track('manual')]});
+resolveTarde([track('tarde','Holly Hood')]);
+assert.equal(await extensao,false);
+assert.equal(controlo.lancamentosMarcados,0,'o lote não entrou: o lançamento fica para a próxima');
+
 // Aprende com um salto cedo de uma faixa do Radio, com som (5/10).
 reset();
 assert.equal(await usePlayer.getState().startRadio(),true);

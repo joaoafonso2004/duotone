@@ -43,6 +43,9 @@ export interface Controlo {
   radioOuvidas: ReadonlyMap<string, number> | null;
   /** O histórico de escutas do aparelho que o duplo do playCounts devolve. */
   ouvidasNoAparelho: unknown[];
+  /** A música de um lançamento novo que o duplo dos lançamentos no Radio oferece. */
+  lancamentoNoRadio: Track | null;
+  lancamentosMarcados: number;
   /** O histórico remoto que existia antes desta versão. */
   recentes: (Track & { lastPlayed?: number })[];
   /** A biblioteca (guardadas e playlists) que o `getLibrary` devolve. */
@@ -54,7 +57,7 @@ export interface Controlo {
   /** Está sem rede? */
   offline: boolean;
   /** Chamadas feitas, para o teste poder afirmar que NÃO se foi à rede. */
-  chamadas: { candidatas: number; radio: number };
+  chamadas: { candidatas: number; radio: number; lancamentos: number };
   /**
    * O que foi contado, por `sourceId`: no `plays`, no `user_play_counts`, e
    * os inícios. Para o teste poder afirmar QUANDO uma reprodução conta.
@@ -80,12 +83,14 @@ export const controlo: Controlo = {
   radioJaDescobertas: null,
   radioOuvidas: null,
   ouvidasNoAparelho: [],
+  lancamentoNoRadio: null,
+  lancamentosMarcados: 0,
   recentes: [],
   biblioteca: [],
   sessao: null,
   semConta: false,
   offline: false,
-  chamadas: { candidatas: 0, radio: 0 },
+  chamadas: { candidatas: 0, radio: 0, lancamentos: 0 },
   contagens: { plays: [], locais: [], inicios: [] },
   aprendizagem: { saltos: [], escutas: [] },
   eventos: [],
@@ -105,12 +110,14 @@ export function reporControlo(): void {
   controlo.radioJaDescobertas = null;
   controlo.radioOuvidas = null;
   controlo.ouvidasNoAparelho = [];
+  controlo.lancamentoNoRadio = null;
+  controlo.lancamentosMarcados = 0;
   controlo.recentes = [];
   controlo.biblioteca = [];
   controlo.sessao = null;
   controlo.semConta = false;
   controlo.offline = false;
-  controlo.chamadas = { candidatas: 0, radio: 0 };
+  controlo.chamadas = { candidatas: 0, radio: 0, lancamentos: 0 };
   controlo.contagens = { plays: [], locais: [], inicios: [] };
   controlo.aprendizagem = { saltos: [], escutas: [] };
   controlo.eventos = [];

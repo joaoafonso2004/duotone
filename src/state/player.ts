@@ -23,7 +23,11 @@ import {
   lerHistoricoDoSmartShuffle, modoDeShuffle, posicaoDaSugestao, proximoModo,
   juntarHistoricos, registarNoHistoricoDoSmartShuffle, type SugestaoNoHistorico,
 } from '../lib/smartShuffle';
-import { espalharArtistas, radioSeeds, shouldExtendWithRadio, tentativasDoRadio, type TentativaDoRadio } from '../lib/radio';
+import {
+  espalharArtistas, JANELA_DAS_OUVIDAS_MS, ouvidaEm, radioSeeds, shouldExtendWithRadio, tentativasDoRadio, type TentativaDoRadio,
+} from '../lib/radio';
+import { juntarAoLote } from '../lib/lancamentosNoRadio';
+import { chaveDoArtistaPrincipal, lancamentoParaOLote } from './lancamentosNoRadio';
 import { fetchRadioTracks } from '../api/radio';
 import { ancorasDoRadio, rememberRadioListen, rememberRadioSkip, radioSessionSeeds, type RadioListeningSession } from '../lib/radioSession';
 import { comecaListaNova, origemAoTocar, type OrigemDaFila } from '../lib/origemDaFila';
@@ -1010,6 +1014,41 @@ function identidadesOuvidas(): Promise<Map<string, number>> {
   return pedido;
 }
 
+/**
+ * O crivo de uma música de um lançamento novo antes de entrar no lote (16/10):
+ * o mesmo do Radio -- nem na fila (o upload, e a música nas últimas 60 e no
+ * lote), nem ouvida nas últimas 24 h, nem sugerida nos últimos 30 dias, nem
+ * "não me interessa", nem de um artista que se saltou duas vezes.
+ */
+function crivoDoLancamento(
+  fila: readonly Track[], lote: readonly Track[], jaDescobertas: ReadonlySet<string>,
+  ouvidas: ReadonlyMap<string, number>, evitado: (t: Track) => boolean,
+): (t: Track) => boolean {
+  const naFila = new Set(fila.map(trackKey));
+  const identidades = new Set([...fila.slice(-60), ...lote].flatMap((t) => chavesDaMusica(t)));
+  const desde = Date.now() - JANELA_DAS_OUVIDAS_MS;
+  return (t) => {
+    if (naFila.has(trackKey(t)) || evitado(t) || !filterSuggestions([t]).length) return false;
+    const chaves = chavesDaMusica(t);
+    return !chaves.some((k) => identidades.has(k) || jaDescobertas.has(k)) && ouvidaEm(chaves, ouvidas) <= desde;
+  };
+}
+
+/**
+ * Um lançamento novo de um artista que se está a ouvir, no início do lote
+ * (16/10, `state/lancamentosNoRadio.ts`). Devolve o lote (com ou sem ele) e
+ * quem marca o lançamento como usado -- só depois de o lote entrar na fila.
+ */
+async function comLancamentoNovo(
+  lote: Track[], sementes: readonly Track[], ouvidasNaSessao: readonly Track[], podeEntrar: (t: Track) => boolean,
+): Promise<{ lote: Track[]; marcar: (() => void) | null }> {
+  if (!lote.length) return { lote, marcar: null };
+  const novo = await lancamentoParaOLote({ sementes, ouvidasNaSessao, podeEntrar }).catch(() => null);
+  if (!novo) return { lote, marcar: null };
+  registarNaFila(`radio: new release "${novo.lancamento.titulo}" (${novo.lancamento.artista}) -> ${novo.faixa.sourceId}`);
+  return { lote: juntarAoLote(lote, novo.faixa, chaveDoArtistaPrincipal), marcar: novo.marcar };
+}
+
 async function chavesDasDescobertasRecentes(dono: string | null): Promise<Set<string>> {
   try {
     await trazerHistoricoDaConta(dono);
@@ -1739,7 +1778,11 @@ export const usePlayer = create<PlayerState>()(
       const [discovered, ouvidas] = await Promise.all([chavesDasDescobertasRecentes(owner), identidadesOuvidas()]);
       if (!valid()) return false;
       const heard = before.radioListeningSession?.owner === owner ? before.radioListeningSession.tracks : [];
-      const tracks = espalharArtistas(filterSuggestions(await fetchRadioTracks(context, [...before.queue, ...heard], 12, discovered, 'session', ouvidas)),
+      const lote = filterSuggestions(await fetchRadioTracks(context, [...before.queue, ...heard], 12, discovered, 'session', ouvidas));
+      if (!valid()) return false;
+      const comNovo = await comLancamentoNovo(lote, context, heard,
+        crivoDoLancamento([...before.queue, ...heard], lote, discovered, ouvidas, () => false));
+      const tracks = espalharArtistas(comNovo.lote,
         (t) => chaveDeArtista(displayArtist(t)), [chaveDeArtista(displayArtist(current))]);
       if (!valid()) return false;
       if (!tracks.length) { set({ radioMode: 'off', radioError: 'No related music found for this session. Your queue is unchanged.' }); return false; }
@@ -1755,6 +1798,7 @@ export const usePlayer = create<PlayerState>()(
       set({ queue, queueIndex: past.length, radioMode: 'on', radioContext: context, radioOwner: owner,
         radioStopped: false, radioActive: true, radioError: null, doRadio: tracks.map(trackKey),
         shuffle: false, shuffleInteligente: false, shuffleOrder: [], repeatMode: 'off', sugeridas: [] });
+      comNovo.marcar?.();
       void chavesDaBiblioteca().then(known=>registarSugestoesGuardadas(owner,tracks.filter(t=>!chavesDaFaixaSugerida(t).some(k=>known.has(k))))).catch(()=>{});
       return true;
     } catch {
@@ -1852,6 +1896,11 @@ export const usePlayer = create<PlayerState>()(
         if (tracks.length && i > 0) registarNaFila(`radio: the usual seeds ran dry, kept going (try ${i + 1})`);
         if (tracks.length || get().queue !== queue || request !== radioRequest) break;
       }
+      // Um lançamento novo de um artista que se está a ouvir (16/10).
+      const daSessaoOuvida = get().radioListeningSession?.owner === dono ? get().radioListeningSession!.tracks : [];
+      const comNovo = await comLancamentoNovo(tracks, seeds, daSessaoOuvida,
+        crivoDoLancamento(queue, tracks, jaDescobertas, ouvidas, doArtistaEvitado));
+      tracks = comNovo.lote;
       // Sem o mesmo artista colado, também contra o fim da fila que já lá está.
       tracks = espalharArtistas(tracks, (t) => chaveDeArtista(displayArtist(t)),
         queue.slice(-3).map((t) => chaveDeArtista(displayArtist(t))));
@@ -1874,6 +1923,7 @@ export const usePlayer = create<PlayerState>()(
           ? reconciliarOrdemDoShuffle(live.shuffleOrder, merged, live.queueIndex)
           : [],
       });
+      comNovo.marcar?.();
       registar('recomendacao_mostrada',{...contextoParaAnalytics(contexto),quantidade:tracks.length});
       // As novas (fora da biblioteca) entram na memória, como uma sugestão do
       // Smart Shuffle: nem ele nem o rádio as trazem outra vez durante 30 dias.

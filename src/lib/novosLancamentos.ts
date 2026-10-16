@@ -236,6 +236,21 @@ export function prateleira(m: MemoriaDosLancamentos, agora: number, ordem: reado
   return fora.slice(0, MAX_NA_PRATELEIRA);
 }
 
+/**
+ * O lançamento de um artista que o Radio pode usar (16/10,
+ * `lib/lancamentosNoRadio.ts`): o novo mais recente dos últimos 14 dias; sem
+ * nenhum, o mais recente dele se for deste ano (o mesmo que a prateleira mostra
+ * para não nascer vazia).
+ */
+export function lancamentoRecenteDoArtista(m: MemoriaDosLancamentos, chave: string, agora: number): Lancamento | null {
+  const novo = limparNovos(m, agora).novos
+    .filter((n) => n.lancamento.chave === chave)
+    .sort((a, b) => b.desde - a.desde)[0];
+  if (novo) return novo.lancamento;
+  const recente = m.artistas[chave]?.recente ?? null;
+  return recente && anoRecente(recente.ano, agora) ? recente : null;
+}
+
 /** Os artistas com um lançamento novo que ainda não se foi ver à página dele. */
 export function artistasComNovidade(m: MemoriaDosLancamentos, agora: number): Set<string> {
   const fora = new Set<string>();

@@ -53,6 +53,8 @@ const DUPLOS = new Map([
   ['src/api/plays', 'plays.ts'],
   ['src/api/radio', 'radio.ts'],
   ['src/api/descoberta', 'descoberta.ts'],
+  // Os lançamentos novos no Radio (16/10): a prateleira importa o react-native.
+  ['src/state/lancamentosNoRadio', 'lancamentosNoRadio.ts'],
   ['src/lib/playCounts', 'playCounts.ts'],
   ['src/lib/prefs', 'prefs.ts'],
   ['src/lib/playbackAlternatives', 'playbackAlternatives.ts'],

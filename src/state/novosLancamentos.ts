@@ -7,8 +7,9 @@ import { lerPerfilDeRecomendacoes } from '../api/perfilDeRecomendacoes';
 import { agruparPorArtista } from '../lib/artistName';
 import { lerFaixas } from '../lib/cacheDaBiblioteca';
 import {
-  artistasComNovidade, escolherArtistas, esperaAteVerificar, esperaDepoisDeFalhar, lerMemoria, limparNovos, marcarAberto,
-  memoriaVazia, prateleira, registarArtista, type ItemDaPrateleira, type MemoriaDosLancamentos,
+  artistasComNovidade, escolherArtistas, esperaAteVerificar, esperaDepoisDeFalhar, lancamentoRecenteDoArtista, lerMemoria,
+  limparNovos, marcarAberto, memoriaVazia, prateleira, registarArtista, type ItemDaPrateleira, type Lancamento,
+  type MemoriaDosLancamentos,
 } from '../lib/novosLancamentos';
 import { contagensNoAparelho } from '../lib/playCounts';
 import type { Track } from '../types';
@@ -181,6 +182,15 @@ async function verificar(daConta: string, minha: number): Promise<void> {
   }
   publicar();
   await gravar(daConta);
+}
+
+/**
+ * Para o Radio (16/10, `state/lancamentosNoRadio.ts`): o lançamento recente de
+ * um artista que a prateleira segue, pela memória dela. Zero pedidos.
+ */
+export function lancamentoParaORadio(chave: string): Lancamento | null {
+  if (!conta || !chave) return null;
+  return lancamentoRecenteDoArtista(memoria, chave, Date.now());
 }
 
 /** Abriu-se a página do artista: o ponto dele nos Artists sai. */
