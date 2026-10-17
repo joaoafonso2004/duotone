@@ -105,7 +105,7 @@ async function main() {
     a.estado('inactive'); a.estado('background'); await flush();
     assert.equal(publicados.length, 2); assert.equal(publicados.at(-1).p_active, false);
     a.avancar(75_000); player.mudar({ positionMs: 75_000, positionAt: 85_000 });
-    a.bater(75_000); await flush();
+    a.bater(60_000); await flush();
     assert.equal(publicados.length, 3, 'timeUpdate e intervalo só dão um batimento');
     assert.ok(publicados.at(-1).p_track, 'continua a anunciar música com o ecrã bloqueado');
     a.estado('active'); await flush(); assert.equal(publicados.length, 4);

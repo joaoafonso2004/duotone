@@ -81,6 +81,9 @@ declare global {
        * passam vivem no `electron/main.cjs`. Devolve `null` num HTTP mau, que é
        * o que o `api/catalogo.ts` já sabe ler. */
       pedirAoCatalogo?: (caminho: string) => Promise<any>;
+      /** Um pedido à API do Supabase (REST e autenticação) pelo processo
+       * principal, sem o OPTIONS do CORS (17/10, `lib/fetchDoSupabase.ts`). */
+      pedirAoSupabase?: (pedido: import('../lib/fetchDoSupabase').PedidoPelaPonte) => Promise<import('../lib/fetchDoSupabase').RespostaPelaPonte>;
       lerEmbedDoSpotify?: (id: string) => Promise<string | null>;
       /** Larga as caches de memória do Blink que já não se usam. */
       aliviarMemoria?: () => void;

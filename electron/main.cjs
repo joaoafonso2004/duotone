@@ -1516,6 +1516,53 @@ ipcMain.handle('catalogo:pedir', async (event, caminho) => {
 });
 
 /**
+ * Os pedidos ao Supabase (REST e autenticacao), pelo processo principal (17/10).
+ *
+ * Na janela, cada pedido com cabecalhos (apikey, Authorization) levava antes
+ * um OPTIONS -- o preflight do CORS --, e o Supabase guarda uma linha de log
+ * por cada um: 130 dos ~590 pedidos de uma hora medida eram isso, e os logs
+ * tem um teto de 1 GB por ciclo no plano gratis. Aqui nao ha CORS.
+ *
+ * So o endereco de um projeto Supabase, so /rest/v1 e /auth/v1, e so corpo de
+ * texto: a mesma regra do `PELA_PONTE` em src/lib/fetchDoSupabase.ts. Uma
+ * falha de rede volta como `{ falhou }` (o renderer da-a como o TypeError do
+ * fetch); um pedido fora da regra atira, e o renderer manda-o pela janela.
+ */
+const PELA_PONTE_DO_SUPABASE = /^https:\/\/[a-z0-9]{20}\.supabase\.co\/(rest|auth)\/v1\//;
+const METODOS_DO_SUPABASE = new Set(['GET', 'HEAD', 'POST', 'PATCH', 'PUT', 'DELETE']);
+ipcMain.handle('supabase:pedir', async (event, pedido) => {
+  if (!daJanelaPrincipal(event)) throw new Error('Pedido invalido.');
+  const { url, method, headers, body } = pedido || {};
+  if (typeof url !== 'string' || url.length > 16384 || !PELA_PONTE_DO_SUPABASE.test(url)) throw new Error('Endereco invalido.');
+  if (!METODOS_DO_SUPABASE.has(method)) throw new Error('Metodo invalido.');
+  if (body !== null && typeof body !== 'string') throw new Error('Corpo invalido.');
+  if (!Array.isArray(headers) || headers.length > 64
+    || !headers.every((h) => Array.isArray(h) && h.length === 2 && typeof h[0] === 'string' && typeof h[1] === 'string')) {
+    throw new Error('Cabecalhos invalidos.');
+  }
+  const controlador = new AbortController();
+  const relogio = setTimeout(() => controlador.abort(), 120_000);
+  try {
+    const resposta = await net.fetch(url, {
+      method,
+      headers,
+      body: body === null || method === 'GET' || method === 'HEAD' ? undefined : body,
+      signal: controlador.signal,
+    });
+    return {
+      status: resposta.status,
+      statusText: resposta.statusText,
+      headers: [...resposta.headers],
+      corpo: await resposta.text(),
+    };
+  } catch (erro) {
+    return { falhou: String(erro && erro.message || erro) };
+  } finally {
+    clearTimeout(relogio);
+  }
+});
+
+/**
  * A presenca do Discord.
  *
  * O `clientId` vem das Definicoes -- e a aplicacao QUE O UTILIZADOR criou no

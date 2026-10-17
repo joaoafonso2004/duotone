@@ -5,6 +5,11 @@ if (Platform.OS !== 'web') {
 import { authStorage } from './authStorage';
 import { createClient } from '@supabase/supabase-js';
 import { ENV } from './env';
+import { criarFetchDoSupabase } from './fetchDoSupabase';
+
+// Conta cada pedido e, no PC, manda-o pelo processo principal (sem o OPTIONS
+// do CORS). Ver `lib/fetchDoSupabase.ts`.
+const ponte = typeof window !== 'undefined' ? window.duotoneDesktop?.pedirAoSupabase : undefined;
 
 export const supabase = createClient(
   ENV.SUPABASE_URL || 'https://placeholder.supabase.co',
@@ -16,5 +21,6 @@ export const supabase = createClient(
       persistSession: true,
       detectSessionInUrl: false,
     },
+    global: { fetch: criarFetchDoSupabase(ponte) },
   }
 );

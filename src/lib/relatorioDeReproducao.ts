@@ -13,6 +13,7 @@ import { textoDoProcessamentoAgora } from '../state/processamentoDoAudio';
 import { textoDoTrabalhoDeMetadados } from './trabalhoDeMetadados';
 import { textoDoTrabalhoLocal } from './trabalhoLocal';
 import { textoDosPedidos } from './pedidosAoYouTube';
+import { textoDoSupabase } from './pedidosAoSupabase';
 
 /**
  * O relatório de reprodução, pela folha de partilha do iPhone.
@@ -43,6 +44,8 @@ export async function partilharRelatorioDeReproducao(): Promise<void> {
     + `\n${textoDoTrabalhoDeMetadados()}\n`
     + `\n${textoDoTrabalhoLocal()}\n`
     + `\n${textoDosPedidos()}\n`
+    // Os pedidos ao servidor, por caminho (17/10, os logs do Supabase).
+    + `\n${textoDoSupabase()}\n`
     // O que se gastou com a app em segundo plano (1/10, ecrã desligado).
     + `\n${textoDaEnergiaAgora()}\n`
     // Que SQL falta na base (29/9, lib/migracoes.ts): uma chamada, só aqui.

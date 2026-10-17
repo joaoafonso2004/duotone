@@ -72,6 +72,10 @@ contextBridge.exposeInMainWorld('duotoneDesktop', Object.freeze({
    * deita-a fora, o que deixava a descoberta toda vazia no Windows. Leva o
    * CAMINHO; o endereco e a lista de formas validas vivem do outro lado. */
   pedirAoCatalogo: (caminho) => ipcRenderer.invoke('catalogo:pedir', caminho),
+  /** Os pedidos ao Supabase (REST e autenticacao) pelo processo principal:
+   * na janela, cada um levava antes um OPTIONS do CORS, e o Supabase guarda
+   * uma linha de log por cada (17/10). Ver src/lib/fetchDoSupabase.ts. */
+  pedirAoSupabase: (pedido) => ipcRenderer.invoke('supabase:pedir', pedido),
   /** A pagina de embed de uma playlist publica do Spotify, pelo processo
    * principal (sem CORS). Leva so o id; o endereco vive do outro lado. */
   lerEmbedDoSpotify: (id) => ipcRenderer.invoke('spotify:embed', id),

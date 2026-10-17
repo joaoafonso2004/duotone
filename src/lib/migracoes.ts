@@ -67,6 +67,7 @@ export const MIGRACOES: readonly Migracao[] = [
   { ficheiro: 'presenca-com-posicao.sql', marca: 'txt:publish_social_presence~positionMs', efeito: "Friends' progress bars" },
   { ficheiro: 'presenca-com-fila.sql', marca: 'txt:publish_social_presence~aSeguir', efeito: "Listen along shows the friend's Up next" },
   { ficheiro: 'presenca-mais-longa.sql', marca: 'txt:publish_social_presence~300 seconds', efeito: 'Fewer presence updates' },
+  { ficheiro: 'presenca-quinze-minutos.sql', marca: 'txt:publish_social_presence~900 seconds', efeito: 'Even fewer presence updates' },
   { ficheiro: 'inbox-archive.sql', marca: 'col:shared_items.archived_at', efeito: 'Archive inbox items' },
   { ficheiro: 'message-notifications.sql', marca: 'pub:shared_items', efeito: 'Messages arrive live' },
   { ficheiro: 'chat-reads.sql', marca: 'tab:chat_reads', efeito: 'Read receipts' },

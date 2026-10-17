@@ -29,13 +29,32 @@ const BATIMENTO_ESCONDIDO_NO_PC_MS=50_000;
  */
 const BATIMENTO_COM_VALIDADE_LONGA_MS=200_000;
 const MARCA_DA_VALIDADE_LONGA='txt:publish_social_presence~300 seconds';
-let validadeLonga: Promise<boolean> | null = null;
-/** A migração da validade longa já correu? Uma pergunta por arranque. */
-function servidorComValidadeLonga(): Promise<boolean> {
-  validadeLonga ??= Promise.resolve(supabase.rpc('marcas_em_falta', { p_marcas: [MARCA_DA_VALIDADE_LONGA] }))
-    .then(({ data, error }) => !error && Array.isArray(data) && data.length === 0)
-    .catch(() => false);
-  return validadeLonga;
+/**
+ * Com a validade de 900 s (supabase/presenca-quinze-minutos.sql, 17/10) publica-se
+ * de 10 em 10 min: a presença era o caminho mais pedido da API (80 das ~590
+ * linhas de log de uma hora medida). Mudar de música, pausar, saltar na barra,
+ * ir para trás e sair continuam a publicar logo; isto é só o batimento.
+ */
+const BATIMENTO_COM_QUINZE_MINUTOS_MS=600_000;
+const MARCA_DOS_QUINZE_MINUTOS='txt:publish_social_presence~900 seconds';
+/**
+ * De quanto em quanto tempo se vê se o batimento já é devido. Ver não custa
+ * nada (só publica quando é); com o intervalo igual ao batimento, uma
+ * publicação a meio (mudar de música) empurrava a seguinte para quase o dobro,
+ * já para lá da validade do servidor.
+ */
+const VER_O_BATIMENTO_MS=60_000;
+let batimentoDoServidor: Promise<number> | null = null;
+/** Que validade dá o servidor, e portanto de quanto em quanto bater? Uma pergunta por arranque. */
+function batimentoPeloServidor(): Promise<number> {
+  batimentoDoServidor ??= Promise.resolve(supabase.rpc('marcas_em_falta', { p_marcas: [MARCA_DA_VALIDADE_LONGA, MARCA_DOS_QUINZE_MINUTOS] }))
+    .then(({ data, error }) => {
+      if (error || !Array.isArray(data)) return PRESENCE_PUBLISH_MS;
+      if (!data.includes(MARCA_DOS_QUINZE_MINUTOS)) return BATIMENTO_COM_QUINZE_MINUTOS_MS;
+      return data.includes(MARCA_DA_VALIDADE_LONGA) ? PRESENCE_PUBLISH_MS : BATIMENTO_COM_VALIDADE_LONGA_MS;
+    })
+    .catch(() => PRESENCE_PUBLISH_MS);
+  return batimentoDoServidor;
 }
 export async function terminarPresenca(): Promise<void> { await terminarAtual?.(); }
 
@@ -170,13 +189,8 @@ export function iniciarPresenca(userId: string): () => void {
     if (!terminado && Date.now() - lastPublished >= batimentoMs
       && (appEstaVisivel() || usePlayer.getState().isPlaying)) void publicar();
   };
-  let beat = setInterval(baterSeDevido, batimentoMs);
-  void servidorComValidadeLonga().then((longa) => {
-    if (terminado || !longa) return;
-    batimentoMs = BATIMENTO_COM_VALIDADE_LONGA_MS;
-    clearInterval(beat);
-    beat = setInterval(baterSeDevido, batimentoMs);
-  });
+  const beat = setInterval(baterSeDevido, VER_O_BATIMENTO_MS);
+  void batimentoPeloServidor().then((ms) => { if (!terminado) batimentoMs = ms; });
   // O batimento de cima nao corre no PC escondido e parado, e era ai que a
   // pessoa desaparecia: minimizada, sem musica, sentada ao computador (1/10).
   // Pergunta-se ao sistema (local, sem rede) e so se publica com ela la --

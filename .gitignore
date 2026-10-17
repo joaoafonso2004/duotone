@@ -66,6 +66,7 @@ test-*.mjs
 !scripts/test-radio-no-jam-sql.mjs
 !scripts/test-painel-de-saude-sql.mjs
 !scripts/test-presenca-mais-longa-sql.mjs
+!scripts/test-presenca-quinze-minutos-sql.mjs
 !scripts/test-playlists-colaborativas-sql.mjs
 !scripts/test-playlists-ao-vivo-sql.mjs
 !scripts/test-versao-coerente.mjs

@@ -170,6 +170,36 @@ assert.throws(() => handlers.get('saude:ler')({ sender: janela.webContents, send
 assert.equal(handlers.get('sistema:segundos-sem-interacao')(evento()), 42, 'a presença lê a inatividade do sistema');
 assert.throws(() => handlers.get('sistema:segundos-sem-interacao')({ sender: janela.webContents, senderFrame: { url: 'https://www.youtube-nocookie.com' } }),
   'o iframe do YouTube não lê a inatividade');
+// Os pedidos ao Supabase pelo processo principal (17/10): sem o OPTIONS do CORS.
+{
+  const pedir = handlers.get('supabase:pedir');
+  const url = 'https://abcdefghijklmnopqrst.supabase.co/rest/v1/rpc/publish_social_presence';
+  const pedido = { url, method: 'POST', headers: [['apikey', 'k']], body: '{}' };
+  await assert.rejects(pedir({ sender: janela.webContents, senderFrame: { url: 'https://www.youtube-nocookie.com' } }, pedido),
+    /invalido/, 'o iframe do YouTube não usa a ponte');
+  await assert.rejects(pedir(evento(), { ...pedido, url: 'https://evil.test/rest/v1/x' }), /Endereco invalido/);
+  await assert.rejects(pedir(evento(), { ...pedido, url: 'https://abcdefghijklmnopqrst.supabase.co/storage/v1/object/x' }), /Endereco invalido/);
+  await assert.rejects(pedir(evento(), { ...pedido, method: 'TRACE' }), /Metodo invalido/);
+  await assert.rejects(pedir(evento(), { ...pedido, headers: [['a']] }), /Cabecalhos invalidos/);
+  await assert.rejects(pedir(evento(), { ...pedido, body: { a: 1 } }), /Corpo invalido/);
+  const fetchAntes = electron.net.fetch;
+  let recebido;
+  electron.net.fetch = async (u, opcoes) => {
+    recebido = { u, opcoes };
+    return { status: 204, statusText: 'No Content', headers: new Map([['x-a', '1']]), text: async () => '' };
+  };
+  assert.deepEqual(JSON.parse(JSON.stringify(await pedir(evento(), pedido))), { status: 204, statusText: 'No Content', headers: [['x-a', '1']], corpo: '' });
+  assert.equal(recebido.u, url);
+  assert.equal(recebido.opcoes.method, 'POST');
+  assert.equal(recebido.opcoes.body, '{}');
+  assert.deepEqual(recebido.opcoes.headers, [['apikey', 'k']]);
+  await pedir(evento(), { ...pedido, method: 'GET', body: null });
+  assert.equal(recebido.opcoes.body, undefined, 'um GET vai sem corpo');
+  electron.net.fetch = async () => { throw new Error('net::ERR_INTERNET_DISCONNECTED'); };
+  assert.deepEqual(JSON.parse(JSON.stringify(await pedir(evento(), pedido))), { falhou: 'net::ERR_INTERNET_DISCONNECTED' },
+    'uma falha de rede volta como resposta, para o renderer a dar como o fetch daria');
+  electron.net.fetch = fetchAntes;
+}
 janela.emit('ready-to-show');
 assert.equal(janela.visivel, false, 'O arranque automático no tabuleiro não abre a janela');
 aoJuntarDiscord('duotone-jam:123e4567-e89b-42d3-a456-426614174000');
