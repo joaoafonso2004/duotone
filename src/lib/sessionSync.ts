@@ -4,6 +4,7 @@ import {
   completarSessao,
   deleteOwnSession,
   fetchOtherSessionsLeves,
+  haOutrosAparelhos,
   temAvisosLeves,
   writeSession,
   type SessionSnapshot,
@@ -33,6 +34,23 @@ import { supabase } from './supabase';
  */
 
 const POLL_MS = 60_000;
+/**
+ * A leitura de segurança (17/10, logs do Supabase). Com o canal ligado cada
+ * escrita de outro aparelho já avisa, e a leitura periódica era de 5 em 5 min:
+ * 12 por hora por cada PC à vista, numa conta que muitas vezes nem tem outro
+ * aparelho. Agora de 30 em 30 min; sem o canal, de 5 em 5 (era de minuto a
+ * minuto).
+ */
+const SEGURANCA_AO_VIVO_MS = 30 * 60_000;
+const SEGURANCA_SEM_CANAL_MS = 5 * 60_000;
+/**
+ * No PC, voltar à janela (sair de um jogo, um alt-tab) só relê se chegou um
+ * aviso entretanto, ou se passou este tempo: escondida, a janela não suspende
+ * nada e os avisos continuam a chegar. No iPhone relê-se sempre ao voltar do
+ * segundo plano: o iOS suspende o JS, e o canal pode ter perdido avisos sem
+ * o saber.
+ */
+const RELER_AO_VOLTAR_NO_PC_MS = 10 * 60_000;
 
 /** Quanto tempo um dispositivo fica silenciado depois de o dispensarmos (ou
  * de lhe assumirmos a reprodução). Ver a nota em `shouldOfferHandoff`: a
@@ -205,11 +223,18 @@ export function useHandoffSession(): {
   /** O canal dos avisos está `SUBSCRIBED`: as mudanças chegam por ele. */
   const aoVivo = useRef(false);
   const ultimaLeituraEm = useRef(0);
+  /** Chegou um aviso com a app escondida: relê-se ao voltar. */
+  const avisoPorLer = useRef(false);
   const refresh = useCallback(() => {
     ultimaLeituraEm.current = Date.now();
+    avisoPorLer.current = false;
     const leitura = (async () => {
+      const sozinha = haOutrosAparelhos() === false;
       const rows = await fetchOtherSessionsLeves();
       if (mounted.current) setSessions(rows);
+      // Apareceu outro aparelho numa conta que não escrevia (ver
+      // `haOutrosAparelhos`): escreve-se já, para ele encontrar esta sessão.
+      if (sozinha && rows.length > 0 && usePlayer.getState().current) publishSessionNow();
     })();
     primeira.current ??= leitura;
     return leitura;
@@ -217,21 +242,23 @@ export function useHandoffSession(): {
 
   useEffect(() => {
     if(appEstaVisivel())void refresh();
-    let voltas = 0;
     let esteveEmSegundoPlano = !appEstaVisivel();
     const pararRelogio = intervaloComAppVisivel(() => {
       // Em segundo plano não vale a pena gastar rede: ao voltar a "active"
       // o listener abaixo recarrega de imediato.
       if (!appEstaVisivel()) return;
-      // Com o canal ligado, cada escrita de outro aparelho já avisa: a leitura
-      // periódica passa a ser de cinco em cinco minutos, só por segurança
-      // (30/9, egress).
-      if (aoVivo.current && ++voltas % 5 !== 0) return;
+      // Só por segurança: ver `SEGURANCA_AO_VIVO_MS`.
+      const seguranca = aoVivo.current ? SEGURANCA_AO_VIVO_MS : SEGURANCA_SEM_CANAL_MS;
+      if (Date.now() - ultimaLeituraEm.current < seguranca) return;
       void refresh();
     }, POLL_MS);
     const acordar=(estado?: unknown)=>{
       if (estado === 'background' || (Platform.OS === 'web' && !appEstaVisivel())) esteveEmSegundoPlano = true;
-      if (appEstaVisivel() && (esteveEmSegundoPlano || !aoVivo.current || Date.now() - ultimaLeituraEm.current >= POLL_MS)) {
+      if (!appEstaVisivel()) return;
+      const desde = Date.now() - ultimaLeituraEm.current;
+      const voltou = esteveEmSegundoPlano
+        && (Platform.OS !== 'web' || avisoPorLer.current || desde >= RELER_AO_VOLTAR_NO_PC_MS);
+      if (voltou || !aoVivo.current || desde >= (Platform.OS === 'web' ? RELER_AO_VOLTAR_NO_PC_MS : POLL_MS)) {
         esteveEmSegundoPlano = false;
         void refresh();
       }
@@ -252,7 +279,11 @@ export function useHandoffSession(): {
     let espera: ReturnType<typeof setTimeout> | null = null;
     const agendar = () => {
       if (espera) clearTimeout(espera);
-      espera = setTimeout(() => { espera = null; if (appEstaVisivel()) void refresh(); }, 400);
+      espera = setTimeout(() => {
+        espera = null;
+        if (appEstaVisivel()) void refresh();
+        else avisoPorLer.current = true;
+      }, 400);
     };
     void (async () => {
       const [{ data }, meu] = await Promise.all([supabase.auth.getSession(), getDeviceId()]);

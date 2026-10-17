@@ -201,7 +201,7 @@ async function main() {
       const handoff = a.carregar('src/lib/sessionSync.ts', {
         react, 'react-native': a.rn, './appVisibility': a.visibilidade, './handoff': sessao,
         '../state/player': { usePlayer }, './deviceIdentity': { getDeviceId: async () => 'phone' },
-        '../api/playerSessions': { fetchOtherSessionsLeves: async () => { leituras++; return []; }, temAvisosLeves: () => true },
+        '../api/playerSessions': { fetchOtherSessionsLeves: async () => { leituras++; return []; }, temAvisosLeves: () => true, haOutrosAparelhos: () => null },
         './supabase': { supabase: { auth: { getSession: async () => ({ data: { session: { user: { id: 'me' } } } }) },
           channel: () => ({ on() { return this; }, subscribe(fn) { estadoDoCanal = estado => fn(estado ? 'SUBSCRIBED' : 'CLOSED'); fn('SUBSCRIBED'); return this; } }),
           removeChannel: async () => {},
@@ -220,6 +220,44 @@ async function main() {
     assert.equal(leituras, 3, `${hook}: sem Realtime relê sempre ao voltar`);
     for (const limpar of limpezas) limpar?.();
     assert.equal(a.intervalos.size + a.ouvintes.size, 0);
+  }
+  // O handoff no PC (17/10, logs do Supabase): a janela escondida não suspende
+  // nada, por isso voltar a ela (o alt-tab de um jogo) só relê se chegou um
+  // aviso entretanto; e a leitura de segurança é de 30 em 30 min com o canal.
+  {
+    const a = ambiente('web'), efeitos = []; let leituras = 0, estadoDoCanal, aviso;
+    const react = { useEffect: fn => efeitos.push(fn), useCallback: fn => fn,
+      useRef: x => ({ current: x }), useState: x => [x, () => {}] };
+    const player = store({ current: null, isPlaying: false });
+    const usePlayer = Object.assign(fn => fn(player.getState()), player);
+    const handoff = a.carregar('src/lib/sessionSync.ts', {
+      react, 'react-native': a.rn, './appVisibility': a.visibilidade, './handoff': a.carregar('src/lib/handoff.ts'),
+      '../state/player': { usePlayer }, './deviceIdentity': { getDeviceId: async () => 'pc' },
+      '../api/playerSessions': { fetchOtherSessionsLeves: async () => { leituras++; return []; }, temAvisosLeves: () => true, haOutrosAparelhos: () => null },
+      './supabase': { supabase: { auth: { getSession: async () => ({ data: { session: { user: { id: 'me' } } } }) },
+        channel: () => ({ on(_, __, fn) { aviso = fn; return this; }, subscribe(fn) { estadoDoCanal = estado => fn(estado ? 'SUBSCRIBED' : 'CLOSED'); fn('SUBSCRIBED'); return this; } }),
+        removeChannel: async () => {},
+      } },
+    });
+    handoff.useHandoffSession();
+    const limpezas = efeitos.map(fn => fn()); await flush();
+    assert.equal(leituras, 1, 'PC: uma leitura no arranque');
+    a.avancar(2 * 60_000); a.janela('hidden'); a.janela('visible'); await flush();
+    assert.equal(leituras, 1, 'PC: voltar à janela sem aviso nenhum não relê');
+    a.janela('hidden'); aviso({ new: { device_id: 'iphone' } }); a.vencer(400); await flush();
+    assert.equal(leituras, 1, 'PC: o aviso com a janela escondida espera');
+    a.janela('visible'); await flush();
+    assert.equal(leituras, 2, 'PC: e lê-se ao voltar');
+    aviso({ new: { device_id: 'pc' } }); a.vencer(400); await flush();
+    assert.equal(leituras, 2, 'as escritas deste aparelho não fazem reler');
+    a.avancar(5 * 60_000); a.bater(60_000); await flush();
+    assert.equal(leituras, 2, 'com o canal, a segurança já não é de 5 em 5 min');
+    a.avancar(26 * 60_000); a.bater(60_000); await flush();
+    assert.equal(leituras, 3, 'é de 30 em 30');
+    estadoDoCanal(false); await flush();
+    a.avancar(5 * 60_000); a.bater(60_000); await flush();
+    assert.equal(leituras, 4, 'sem o canal, de 5 em 5');
+    for (const limpar of limpezas) limpar?.();
   }
   console.log('Poupança em segundo plano: temporizadores, capa, presença e leituras da inbox passaram.');
 }

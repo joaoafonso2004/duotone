@@ -46,6 +46,31 @@ let colunasNovas: boolean | null = null;
 let filaNoServidor: { conta: string; fila: readonly Track[]; indice: number; em: number } | null = null;
 const FILA_DE_SEGURANCA_MS = 10 * 60_000;
 let leituraPeloServidor: boolean | null = null;
+
+/**
+ * Se esta conta tem OUTROS aparelhos (17/10, logs do Supabase). `null` =
+ * ainda não se leu.
+ *
+ * A sessão só serve a outro aparelho da mesma conta (o "Continue here" e o
+ * "Play on…"). Numa conta com um aparelho só, cada escrita -- uma por música,
+ * e uma de 140 em 140 s a tocar -- era um pedido que ninguém ia ler. Sabe-se
+ * pela leitura das sessões dos outros, que traz as linhas todas, de qualquer
+ * idade. A PRIMEIRA escrita de cada arranque sai sempre (e uma por dia), para
+ * um aparelho novo encontrar esta conta: ele lê a linha, passa a escrever, o
+ * aviso do Realtime faz este reler, e daí em diante os dois escrevem.
+ */
+let outrosAparelhos: { conta: string; ha: boolean } | null = null;
+let ultimaEscritaFeita: { conta: string; em: number } | null = null;
+const ESCREVER_PELO_MENOS_MS = 24 * 60 * 60_000;
+
+/** A conta tem outros aparelhos? `null` enquanto não se leu. */
+export function haOutrosAparelhos(): boolean | null {
+  return outrosAparelhos?.ha ?? null;
+}
+
+function lembrarOutros(conta: string, linhas: readonly unknown[]): void {
+  outrosAparelhos = { conta, ha: linhas.length > 0 };
+}
 /** Se existe a leitura leve (supabase/handoff-leve.sql). `null` = ainda não se perguntou. */
 let leituraLeve: boolean | null = null;
 
@@ -87,10 +112,13 @@ export async function writeSession(snapshot: SessionSnapshot): Promise<void> {
   try {
     const uid = await idDaConta();
     if (!uid) return;
+    const agora = Date.now();
+    const sozinha = outrosAparelhos?.conta === uid && !outrosAparelhos.ha;
+    if (sozinha && ultimaEscritaFeita?.conta === uid && agora - ultimaEscritaFeita.em < ESCREVER_PELO_MENOS_MS) return;
+    ultimaEscritaFeita = { conta: uid, em: agora };
 
     const [deviceId, deviceName] = await Promise.all([getDeviceId(), getDeviceName()]);
     const trimmed = trimQueueForSync(snapshot.queue, snapshot.queueIndex);
-    const agora = Date.now();
 
     const filaIgual = !!filaNoServidor && filaNoServidor.conta === uid && filaNoServidor.fila === snapshot.queue
       && filaNoServidor.indice === snapshot.queueIndex && agora - filaNoServidor.em < FILA_DE_SEGURANCA_MS;
@@ -194,6 +222,7 @@ export async function fetchOtherSessions(): Promise<RemoteSession[]> {
       const lidaEm = Date.now();
       if (!error && Array.isArray(data)) {
         leituraPeloServidor = true;
+        lembrarOutros(uid, data);
         return data.map((row) => rowToSession(row, lidaEm));
       }
       if (naoExiste(error)) leituraPeloServidor = false;
@@ -209,6 +238,7 @@ export async function fetchOtherSessions(): Promise<RemoteSession[]> {
     const lidaEm = Date.now();
 
     if (error || !data) return [];
+    lembrarOutros(uid, data);
     return data.map((row) => rowToSession(row, lidaEm));
   } catch {
     return [];
@@ -233,6 +263,7 @@ export async function fetchOtherSessionsLeves(): Promise<RemoteSession[]> {
       const lidaEm = Date.now();
       if (!error && Array.isArray(data)) {
         leituraLeve = true;
+        lembrarOutros(uid, data);
         return data.map((row) => ({
           ...rowToSession(row, lidaEm),
           filaPorLer: true,

@@ -936,6 +936,47 @@ console.log('Perfil: biblioteca anterior à migração, falhas independentes e e
   console.log('Continuar aqui, leve: sem a fila no banner, com ela ao adotar, e sem a migração como antes.');
 }
 
+// Uma conta com um aparelho só (17/10, logs do Supabase): ninguém lê a sessão
+// dela, por isso só sai a primeira escrita de cada arranque (e uma por dia),
+// para um aparelho novo a encontrar. Com outro aparelho, escreve-se sempre.
+{
+  let outros = [];
+  const upserts = [];
+  const supabaseFalso = {
+    auth: { getSession: async () => ({ data: { session: { user: { id: 'eu' } } } }) },
+    from: () => ({ upsert: async () => { upserts.push(1); return { error: null }; } }),
+    rpc: async () => ({ data: outros, error: null }),
+  };
+  const api = ambiente(async () => {}, {
+    'src/lib/supabase.ts': { supabase: supabaseFalso },
+    'src/lib/deviceIdentity.ts': { getDeviceId: async () => 'pc', getDeviceName: async () => 'PC', deviceKind: () => 'desktop' },
+  }).carregar('src/api/playerSessions.ts');
+  const instantaneo = { track: { source: 'youtube', sourceId: 'a', title: 'A' }, queue: [], queueIndex: 0,
+    positionMs: 0, positionAt: Date.now(), isPlaying: true, ritmo: 1 };
+
+  await api.writeSession(instantaneo);
+  assert.equal(upserts.length, 1, 'antes de se saber, escreve-se');
+  assert.equal(api.haOutrosAparelhos(), null);
+  await api.fetchOtherSessionsLeves();
+  assert.equal(api.haOutrosAparelhos(), false, 'a leitura diz que a conta não tem outros aparelhos');
+  await api.writeSession(instantaneo);
+  await api.writeSession(instantaneo);
+  assert.equal(upserts.length, 1, 'e daí em diante não se escreve: ninguém ia ler');
+
+  outros = [{ device_id: 'iphone', device_name: 'iPhone', device_kind: 'ios', track: instantaneo.track,
+    queue_index: 0, position_ms: 0, is_playing: false, updated_at: new Date().toISOString(), idade_ms: 0, ritmo: 1 }];
+  await api.fetchOtherSessionsLeves();
+  assert.equal(api.haOutrosAparelhos(), true, 'apareceu outro aparelho');
+  await api.writeSession(instantaneo);
+  await api.writeSession(instantaneo);
+  assert.equal(upserts.length, 3, 'com ele, escreve-se sempre');
+
+  const sessao = fs.readFileSync(new URL('../src/lib/sessionSync.ts', import.meta.url), 'utf8');
+  assert.match(sessao, /if \(sozinha && rows\.length > 0 && usePlayer\.getState\(\)\.current\) publishSessionNow\(\);/,
+    'quando aparece outro aparelho, escreve-se logo, para ele encontrar a sessão');
+  console.log('Continuar aqui numa conta com um aparelho só: só a primeira escrita, e todas quando aparece outro.');
+}
+
 // Perfil pessoal de ponta a ponta: plays + Spotify/sementes -> crivo real de
 // confiança -> âncoras consultadas no catálogo. A rede é o único duplo aqui.
 {
