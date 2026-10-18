@@ -14,6 +14,7 @@ import { ganhosEmVigor, usePlayer } from '../state/player';
 import { mudarPresets, usePresets } from '../state/presets';
 import { colors, spacing, type } from '../theme';
 import { BarraVelocidade } from './BarraVelocidade';
+import { useVelocidadePresa } from '../hooks/useVelocidadePresa';
 import { BottomSheet, BottomSheetGestureGuard, BottomSheetScrollView } from './BottomSheet';
 import { BotaoGuardarPreset, Equalizador, ReporEqualizador } from './Equalizador';
 import { Input } from './Input';
@@ -42,6 +43,7 @@ export function EqualizadorSheet({ visible, onClose }: { visible: boolean; onClo
   const setEqGanhos = usePlayer((s) => s.setEqGanhos);
   const playbackRate = usePlayer((s) => s.playbackRate);
   const setPlaybackRate = usePlayer((s) => s.setPlaybackRate);
+  const velocidadePresa = useVelocidadePresa();
   const eqAtivo = usePlayer((s) => s.eqAtivo);
   const current = usePlayer((s) => s.current);
   const ajustesPorFaixa = usePlayer((s) => s.ajustesPorFaixa);
@@ -171,12 +173,23 @@ export function EqualizadorSheet({ visible, onClose }: { visible: boolean; onClo
           </Toque>
         ) : null}
 
-        <BarraVelocidade
-          key={current ? chaveDaFaixa(current) : 'sem-faixa'}
-          titulo="Speed"
-          valor={playbackRate}
-          aoMudar={(v) => setPlaybackRate(v)}
-        />
+        {velocidadePresa ? (
+          // Numa Jam (ou a ouvir com um amigo) a velocidade não é a escolhida:
+          // a barra fica parada no valor real, e diz porquê (18/10).
+          <View>
+            <View pointerEvents="none" style={{ opacity: 0.45 }}>
+              <BarraVelocidade titulo="Speed" valor={velocidadePresa.ritmo} aoMudar={() => {}} />
+            </View>
+            <Text style={[type.caption, { color: colors.textSecondary }]}>{velocidadePresa.motivo}</Text>
+          </View>
+        ) : (
+          <BarraVelocidade
+            key={current ? chaveDaFaixa(current) : 'sem-faixa'}
+            titulo="Speed"
+            valor={playbackRate}
+            aoMudar={(v) => setPlaybackRate(v)}
+          />
+        )}
 
         <View>
           <View style={styles.linhaDoTitulo}>

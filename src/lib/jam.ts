@@ -256,6 +256,38 @@ export function escolherSessao<T extends { id: string; entrouEm: number }>(
 }
 
 /**
+ * Ao abrir a app, só se volta a uma Jam em que se ESTEVE há pouco (18/10).
+ *
+ * A regra era "fechar a app não é sair": voltava-se a qualquer Jam aberta de
+ * que se fosse membro. Mas uma Jam só fecha sozinha com três horas sem sinal
+ * de NINGUÉM, e basta outro membro com a app aberta (o PC de um amigo parado
+ * na sala) para ela nunca fechar. A 17/10 o João abriu a app sem estar em Jam
+ * nenhuma e caiu numa: a música de outra pessoa a meio, a velocidade presa a
+ * 1x (o Speed "não fazia nada"), e a pausar quando a sala pausava.
+ *
+ * Conta o MEU último sinal nessa sala (`last_seen`: a entrada e o batimento
+ * de 30 s com a app à vista). Mais de `VOLTAR_A_JAM_MS` e sai-se dela. Uma
+ * app que morreu a meio da Jam e se reabre logo continua lá dentro; a Jam a
+ * que já se estava ligado (uma religação, quando a rede volta) também. Sem o
+ * sinal (`vistoEm` null), como antes: volta-se.
+ */
+export const VOLTAR_A_JAM_MS = 15 * 60_000;
+
+export function separarJamsAntigas<T extends { id: string; vistoEm?: number | null }>(
+  abertas: readonly T[],
+  agora: number,
+  ligadaAgora?: string | null,
+): { recentes: T[]; antigas: T[] } {
+  const recentes: T[] = [];
+  const antigas: T[] = [];
+  for (const s of abertas) {
+    const antiga = s.id !== ligadaAgora && typeof s.vistoEm === 'number' && agora - s.vistoEm > VOLTAR_A_JAM_MS;
+    (antiga ? antigas : recentes).push(s);
+  }
+  return { recentes, antigas };
+}
+
+/**
  * A Jam passou para mim (28/9, `supabase/jam-passa-o-anfitriao.sql`): o
  * anfitrião saiu e o servidor escolheu-me. A mesma sessão, outro anfitrião, e
  * esse sou eu -- é quando se avisa, porque passo a ser eu a avançar a fila.

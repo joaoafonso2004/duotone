@@ -276,10 +276,16 @@ export async function fecharJamsAbandonadas(): Promise<void> {
  * haver mais do que um (ver `escolherSessao` em lib/jam.ts): devolver só o
  * primeiro ligava a app a um Jam velho.
  */
-export async function minhasSessoesAbertas(userId: string): Promise<{ id: string; sessao: SessaoDeEscuta; entrouEm: number }[]> {
-  const { data } = await supabase
-    .from('listening_members').select('session_id, joined_at').eq('user_id', userId);
-  const linhas = (data ?? []) as { session_id: string; joined_at: string | null }[];
+export async function minhasSessoesAbertas(userId: string): Promise<{ id: string; sessao: SessaoDeEscuta; entrouEm: number; vistoEm: number | null }[]> {
+  // O `last_seen` diz quando se esteve lá pela última vez (18/10, ver
+  // `separarJamsAntigas`). Sem a coluna, a leitura de sempre.
+  type Linha = { session_id: string; joined_at: string | null; last_seen?: string | null };
+  const comSinal = await supabase
+    .from('listening_members').select('session_id, joined_at, last_seen').eq('user_id', userId);
+  const data: Linha[] | null = comSinal.error
+    ? (await supabase.from('listening_members').select('session_id, joined_at').eq('user_id', userId)).data
+    : comSinal.data;
+  const linhas = data ?? [];
   if (!linhas.length) return [];
   // As abertas numa consulta só (6/10). Era um pedido por cada Jam em que se
   // esteve -- as que acabam (abandonadas, ou o anfitrião a sair sozinho) não
@@ -290,9 +296,10 @@ export async function minhasSessoesAbertas(userId: string): Promise<{ id: string
     .is('ended_at', null);
   if (error || !sessoes) return [];
   const entrouEm = new Map(linhas.map((l) => [l.session_id, instante(l.joined_at) ?? 0]));
+  const vistoEm = new Map(linhas.map((l) => [l.session_id, l.last_seen === undefined ? null : instante(l.last_seen) ?? instante(l.joined_at)]));
   return sessoes.map(sessaoDaLinha)
     .filter((s) => !s.acabouEm)
-    .map((s) => ({ id: s.id, sessao: s, entrouEm: entrouEm.get(s.id) ?? 0 }));
+    .map((s) => ({ id: s.id, sessao: s, entrouEm: entrouEm.get(s.id) ?? 0, vistoEm: vistoEm.get(s.id) ?? null }));
 }
 
 // ---------------------------------------------------------------------------

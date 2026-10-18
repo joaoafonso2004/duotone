@@ -50,7 +50,7 @@ async function main() {
   api.lerFila=async()=>{filas++;return [];};api.lerMembros=async()=>{membros++;return [];};api.relogioActualizado=async()=>null;
   api.itemDaLinha=r=>({id:r.id,posicao:r.posicao,track:r.track,postoPor:r.added_by});
   api.membroDaLinha=r=>({userId:r.user_id,pronta:r.ready,percentagem:r.download_pct,vistoEm:Date.parse(r.last_seen)});
-  mocks['../lib/jam'].escolherSessao=()=>({escolhida:{sessao:confirmada},sobras:[]});
+  mocks['../lib/jam'].escolherSessao=()=>({escolhida:{sessao:confirmada},sobras:[]});mocks['../lib/jam'].separarJamsAntigas=(a)=>({recentes:a,antigas:[]});
   mocks['../lib/jam'].semOApagado=(f,id)=>f.some(i=>i.id===id)?f.filter(i=>i.id!==id):f;
   mocks['../lib/appVisibility'].appEstaVisivel=()=>true;
   mocks['react-native'].AppState.addEventListener=(_n,fn)=>{aoEstado=fn;return {remove:()=>{}};};

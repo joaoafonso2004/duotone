@@ -10,6 +10,7 @@ import {
 } from '../lib/presetsDoEqualizador';
 import { mudarPresets, usePresets } from '../state/presets';
 import { BarraVelocidade } from './BarraVelocidade.web';
+import { useVelocidadePresa } from '../hooks/useVelocidadePresa';
 import { COR, ESP, RAIO, TIPO } from './tokens.web';
 import { Button, Field, ui } from './ui.web';
 
@@ -233,6 +234,7 @@ export function PainelEqualizador({
   lembrado: boolean;
 }) {
   const memoria = usePresets((st) => st.memoria);
+  const velocidadePresa = useVelocidadePresa();
   const presets = useMemo(() => presetsVisiveis(memoria), [memoria]);
   // Guardar a curva como preset: o campo aparece no lugar da linha de baixo.
   const [aGuardar, setAGuardar] = useState(false);
@@ -248,7 +250,16 @@ export function PainelEqualizador({
     <View style={{ gap: ESP.xl }}>
       <View style={{ gap: ESP.sm }}>
         <Text style={ui.eyebrow}>SPEED</Text>
-        <BarraVelocidade valor={rate} aoMudar={aoMudarRate} />
+        {velocidadePresa ? (
+          // Numa Jam (ou a ouvir com um amigo) a velocidade não é a escolhida:
+          // a barra fica parada no valor real, e diz porquê (18/10).
+          <>
+            <View pointerEvents="none" style={{ opacity: 0.45 }}>
+              <BarraVelocidade valor={velocidadePresa.ritmo} aoMudar={() => {}} />
+            </View>
+            <Text style={{ ...TIPO.legenda, color: COR.textoMedio }}>{velocidadePresa.motivo}</Text>
+          </>
+        ) : <BarraVelocidade valor={rate} aoMudar={aoMudarRate} />}
       </View>
 
       <View style={{ gap: ESP.sm }}>

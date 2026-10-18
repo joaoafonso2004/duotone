@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { registarOuvirJuntos, usePlayer } from '../src/state/player.ts';
 import type { Track } from '../src/types.ts';
-import { anteriorDaSessao, efeitoDaAutoFila, percursoDaSessao, proximaFaixa, decisaoDeControlo, porSemear, restoDaLista, velocidadeNaSessao, assinaturaDaSessao, baralhada, semOApagado, escolherSessao, passouParaMim, type PonteJam } from '../src/lib/jam.ts';
+import { anteriorDaSessao, efeitoDaAutoFila, percursoDaSessao, proximaFaixa, decisaoDeControlo, porSemear, restoDaLista, velocidadeNaSessao, assinaturaDaSessao, baralhada, semOApagado, escolherSessao, passouParaMim, separarJamsAntigas, VOLTAR_A_JAM_MS, type PonteJam } from '../src/lib/jam.ts';
 import { readFileSync } from 'node:fs';
 import { closePlayerSmoothly, confirmaSwipe } from '../src/lib/closePlayer.ts';
 import { seguirSessao } from '../src/lib/seguirSessao.ts';
@@ -531,11 +531,42 @@ assert.ok(efeitoDaAutoFila(false, true) === efeitoDaAutoFila(false, false),
   assert.deepEqual(escolherSessao([velho, novo], 'ja-acabou'), { escolhida: novo, sobras: [velho] });
   assert.deepEqual(escolherSessao([]), { escolhida: null, sobras: [] });
   const store = readFileSync(new URL('../src/state/ouvirJuntos.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
-  assert.match(store, /escolherSessao\(await minhasSessoesAbertas\(userId\), preferida\)/, 'o ligar escolhe entre todos');
-  assert.match(store, /for \(const resto of sobras\) void sair\(resto\.id\)/, 'e sai dos restos');
+  assert.match(store, /const abertas = await minhasSessoesAbertas\(userId\);/, 'o ligar lê todas');
+  assert.match(store, /escolherSessao\(recentes, preferida\)/, 'e escolhe entre as recentes');
+  assert.match(store, /for \(const resto of \[\.\.\.antigas, \.\.\.sobras\]\) void sair\(resto\.id\)/, 'e sai das antigas e dos restos');
   assert.match(store, /await entrar\(sessao\);\n\s+const euId = get\(\)\.euId;\n\s+if \(euId\) await get\(\)\.ligar\(euId, sessao\);/,
     'entrar liga ao Jam em que se entrou');
   assert.match(store, /if \(euId\) await get\(\)\.ligar\(euId, id\);/, 'abrir liga ao Jam que se abriu');
+}
+
+// Ao abrir a app só se volta a uma Jam em que se esteve há pouco (18/10): o
+// João abriu a app sem estar em Jam nenhuma e caiu numa que outro membro
+// mantinha aberta -- música a meio, o Speed preso a 1x, as pausas da sala.
+{
+  const agora = 10_000_000;
+  const recente = { id: 'recente', vistoEm: agora - 60_000 };
+  const velha = { id: 'velha', vistoEm: agora - VOLTAR_A_JAM_MS - 1 };
+  const semSinal = { id: 'sem-sinal', vistoEm: null };
+  assert.deepEqual(separarJamsAntigas([recente, velha, semSinal], agora), { recentes: [recente, semSinal], antigas: [velha] },
+    'a de há um minuto volta; a de há mais de 15 min sai; sem o sinal, como antes');
+  assert.deepEqual(separarJamsAntigas([velha], agora, 'velha'), { recentes: [velha], antigas: [] },
+    'a Jam a que já se estava ligado (a rede voltou) não se larga');
+  const store = readFileSync(new URL('../src/state/ouvirJuntos.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  assert.match(store, /const ligadaAgora = get\(\)\.sessao\?\.id \?\? null;\n\s+get\(\)\.desligar\(\);/,
+    'lembra-se da Jam ligada ANTES de desligar');
+  assert.match(store, /preferida\n\s+\? \{ recentes: abertas, antigas: \[\] \}\n\s+: separarJamsAntigas\(abertas, Date\.now\(\), ligadaAgora\);/,
+    'entrar numa Jam à mão não passa pela regra');
+  const api = readFileSync(new URL('../src/api/ouvirJuntos.ts', import.meta.url), 'utf8');
+  assert.match(api, /select\('session_id, joined_at, last_seen'\)/, 'o sinal vem do last_seen do membro');
+  // E o Speed diz porquê, em vez de parecer avariado.
+  for (const f of ['src/components/EqualizadorSheet.tsx', 'src/desktop/PainelEqualizador.web.tsx']) {
+    const ecra = readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
+    assert.match(ecra, /const velocidadePresa = useVelocidadePresa\(\);/, `${f}: sabe quando a velocidade está presa`);
+    assert.match(ecra, /velocidadePresa \? \(/, `${f}: e mostra a barra parada com o motivo`);
+  }
+  const presa = readFileSync(new URL('../src/hooks/useVelocidadePresa.ts', import.meta.url), 'utf8');
+  assert.match(presa, /'Everyone plays at 1x in a Jam\.'/);
+  assert.match(presa, /if \(ritmoDoAmigo != null\) return[\s\S]*if \(emJam\) return/, 'a mesma ordem do motor: seguir um amigo ganha à Jam');
 }
 
 // O anfitrião sai e a Jam continua (28/9, supabase/jam-passa-o-anfitriao.sql;

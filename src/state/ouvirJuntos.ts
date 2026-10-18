@@ -16,7 +16,7 @@ import { candidatasParaDescoberta } from '../api/descoberta';
 import { chaveDeArtista, displayArtist } from '../lib/artistName';
 import { fetchRadioTracks } from '../api/radio';
 import { espalharArtistas } from '../lib/radio';
-import { anteriorDaSessao, escolherSessao, passouParaMim, percursoDaSessao, porSemear, semOApagado } from '../lib/jam';
+import { anteriorDaSessao, escolherSessao, passouParaMim, percursoDaSessao, porSemear, semOApagado, separarJamsAntigas } from '../lib/jam';
 import { getJamAutoFila, setJamAutoFila } from '../lib/prefs';
 import { trackKey } from '../lib/shuffle';
 import { registar } from '../lib/eventos';
@@ -208,6 +208,8 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
   // -------------------------------------------------------------------------
 
   ligar: async (userId, preferida) => {
+    // A Jam a que já se estava ligado: uma religação (a rede voltou) não a larga.
+    const ligadaAgora = get().sessao?.id ?? null;
     get().desligar();
     const minha = ++geracao;
     set({ euId: userId });
@@ -221,9 +223,16 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     // (supabase/fechar-jams-abandonadas.sql), e não se volta a ligar a ela.
     if (!preferida) await fecharJamsAbandonadas();
     if (minha !== geracao) return;
-    const { escolhida, sobras } = escolherSessao(await minhasSessoesAbertas(userId), preferida);
+    const abertas = await minhasSessoesAbertas(userId);
     if (minha !== geracao) return;
-    for (const resto of sobras) void sair(resto.id).catch(() => {});
+    // Ao abrir a app só se volta a uma Jam em que se esteve há pouco; das
+    // outras sai-se (18/10, ver `separarJamsAntigas`). Entrar numa à mão
+    // (`preferida`) não passa por aqui.
+    const { recentes, antigas } = preferida
+      ? { recentes: abertas, antigas: [] }
+      : separarJamsAntigas(abertas, Date.now(), ligadaAgora);
+    const { escolhida, sobras } = escolherSessao(recentes, preferida);
+    for (const resto of [...antigas, ...sobras]) void sair(resto.id).catch(() => {});
     if (!escolhida) return;
     const sessao = escolhida.sessao;
 
