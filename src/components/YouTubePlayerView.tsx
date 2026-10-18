@@ -121,6 +121,7 @@ async function adiantarFaixa(
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { anotarPrimeiroSom } from '../state/tempoAteAoSom';
 import { aplicarEqualizadorNativo, ligarAudioNativo, aplicarVelocidadeNativa, estadoDaVelocidadeNativa } from '../../modules/duotone-audio';
+import { marcarPausaDeFora, PAUSA_DE_FORA_MS, pausaDeFora, playDeFora } from '../lib/pausaDeFora';
 import { registarNaVelocidade } from '../lib/playbackDiagnostics';
 
 /** Para a secção "speed" do relatório: o que o expo-video diz e o que o AVPlayer tem mesmo. */
@@ -1755,7 +1756,53 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       onStateChange(isPlaying ? 'playing' : 'paused');
     }
     if (!isPlaying) recuperarSeParouAoArrancar();
+    verSeFoiDeFora(player, isPlaying);
   });
+  /**
+   * Pausar ou retomar no ecrã bloqueado, no Centro de Controlo, nos AirPods ou
+   * no carro (18/10) -- ver `lib/pausaDeFora.ts`. O expo-video pausa (ou toca)
+   * o AVPlayer e o JS só vê este evento; sem isto a intenção ficava a "tocar",
+   * o watchdog julgava o stream preso e a música voltava sozinha. Espera-se um
+   * pouco (as chamadas e os auscultadores avisam antes, e as pausas de
+   * passagem do próprio motor acabam antes) e só então se decide.
+   */
+  const verSeFoiDeFora = (motor: typeof player, aTocarAgora: boolean) => {
+    if (backend !== 'native') return;
+    const run = runIdRef.current;
+    const faixa = track.sourceId;
+    const duracaoDaFaixa = track.durationSeconds;
+    // Medido no instante do evento: depois da espera já não diz nada.
+    const msDesdeOUltimoAvanco = Date.now() - lastProgressRef.current.at;
+    setTimeout(() => {
+      if (!isMountedRef.current || run !== runIdRef.current) return;
+      let aTocar = aTocarAgora;
+      let posicaoS = 0;
+      let duracao: number | null = null;
+      let estadoNativo = '';
+      try {
+        aTocar = !!motor.playing;
+        posicaoS = motor.currentTime || 0;
+        duracao = motor.duration || null;
+        estadoNativo = estadoDaVelocidadeNativa(motor);
+      } catch { return; }
+      if (aTocar !== aTocarAgora) return;
+      const motorAtivoEDestaFaixa = motorActivo() === motor && nativeTrackIdRef.current === faixa;
+      const st = usePlayer.getState();
+      if (!aTocarAgora && pausaDeFora({
+        queriaTocar: wantsPlayRef.current && st.isPlaying, motorAtivoEDestaFaixa, aTocar, estadoNativo,
+        posicaoS, duracaoS: duracaoDaFaixa ?? duracao, msDesdeOUltimoAvanco, entregaAMeio: !!entregaRef.current,
+      })) {
+        registarNaVelocidade(`paused outside the app (lock screen, Control Center, headphones) -> pause | ${fotoDaVelocidade(motor)}`);
+        marcarPausaDeFora();
+        st.pausePlayback();
+      } else if (aTocarAgora && playDeFora({
+        queriaTocar: wantsPlayRef.current || st.isPlaying, motorAtivoEDestaFaixa, aTocar, estadoNativo,
+      })) {
+        registarNaVelocidade(`played outside the app (lock screen, Control Center, headphones) -> play | ${fotoDaVelocidade(motor)}`);
+        void st.togglePlay();
+      }
+    }, aTocarAgora ? 400 : PAUSA_DE_FORA_MS);
+  };
   /** Ver `arranqueRef`. A pausa de uma chamada ou de tirar os auscultadores
    *  chega antes dos 400 ms e põe o `wantsPlayRef` a falso. */
   const recuperarSeParouAoArrancar = () => {

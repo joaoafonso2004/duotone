@@ -102,6 +102,7 @@ const TESTES = [
   `${TS} scripts/test-radio.ts`,
   `${DUPLOS} scripts/test-radio-mode.ts`,
   `${TS} scripts/test-mix-do-radio.ts`,
+  `${TS} scripts/test-pausa-de-fora.ts`,
   `${DUPLOS} scripts/test-radio-ao-tocar.ts`,
   `${TS} scripts/test-duplo-toque.ts`,
   `${TS} scripts/test-aquecer-ao-tocar.ts`,

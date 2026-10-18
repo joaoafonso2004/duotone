@@ -1,5 +1,6 @@
 import { CapaComTransicao } from './CapaComTransicao';
-import { sentidoDaTransicao, type Sentido } from '../lib/transicaoDaCapa';
+import { sentidoDaTransicao, type Sentido } from '../lib/transicaoDaCapa';
+import { pausouDeForaHaPouco } from '../lib/pausaDeFora';
 import { CapaFlutuante3D } from './CapaFlutuante3D';
 import { CAPA_FLUTUANTE } from '../lib/capaFlutuante3D';
 import { useMontagemDaCapa, type MontagemDaCapa } from '../hooks/useMontagemDaCapa';
@@ -558,7 +559,9 @@ export function PlayerRoot() {
       const deixarDeOuvir = addAudioInterruptionListeners(
         (saida) => {
           const st = usePlayer.getState();
-          interrupcao.current = { tocavaAntes: st.isPlaying, saidaAntes: saida, saidaRemovidaAMeio: false };
+          // Uma pausa de fora mesmo antes (lib/pausaDeFora.ts) pode ter sido
+          // desta interrupção, e não da pessoa: conta como "estava a tocar".
+          interrupcao.current = { tocavaAntes: st.isPlaying || pausouDeForaHaPouco(), saidaAntes: saida, saidaRemovidaAMeio: false };
           registarNaSessaoDeAudio(
             `interrupted while ${st.isPlaying ? 'playing' : 'paused'} (output ${descreverSaida(saida)})`,
           );
