@@ -256,35 +256,39 @@ export function escolherSessao<T extends { id: string; entrouEm: number }>(
 }
 
 /**
- * Ao abrir a app, só se volta a uma Jam em que se ESTEVE há pouco (18/10).
+ * Ao abrir a app, só se volta à Jam em que ESTE APARELHO esteve há pouco (18/10).
  *
- * A regra era "fechar a app não é sair": voltava-se a qualquer Jam aberta de
- * que se fosse membro. Mas uma Jam só fecha sozinha com três horas sem sinal
- * de NINGUÉM, e basta outro membro com a app aberta (o PC de um amigo parado
- * na sala) para ela nunca fechar. A 17/10 o João abriu a app sem estar em Jam
- * nenhuma e caiu numa: a música de outra pessoa a meio, a velocidade presa a
- * 1x (o Speed "não fazia nada"), e a pausar quando a sala pausava.
+ * A regra era "fechar a app não é sair": voltava-se em silêncio a qualquer Jam
+ * aberta de que a CONTA fosse membro. A 17/10 o João abriu a app no iPhone sem
+ * estar em Jam nenhuma e caiu numa: a música a meio (5:47), o Speed preso a
+ * 1x, e a pausar quando a sala pausava. Ser membro é por conta, não por
+ * aparelho -- uma Jam aberta noutro aparelho (o PC, por um toque nos
+ * auscultadores de uma conversa) arrastava o iPhone para dentro, e uma Jam só
+ * fecha sozinha com 3 h sem sinal de ninguém.
  *
- * Conta o MEU último sinal nessa sala (`last_seen`: a entrada e o batimento
- * de 30 s com a app à vista). Mais de `VOLTAR_A_JAM_MS` e sai-se dela. Uma
- * app que morreu a meio da Jam e se reabre logo continua lá dentro; a Jam a
- * que já se estava ligado (uma religação, quando a rede volta) também. Sem o
- * sinal (`vistoEm` null), como antes: volta-se.
+ * Agora cada aparelho guarda a Jam em que esteve e quando (`desteAparelho`,
+ * lib/prefs.ts, a cada batimento e ao ir para segundo plano). Só se volta a
+ * ELA, e só com menos de `VOLTAR_A_JAM_MS` -- a app que morreu a meio da Jam e
+ * se reabre logo. A que já estava ligada (religar quando a rede volta) também.
+ *
+ * Das outras, sai-se só das que nenhum aparelho desta conta usa há mais de
+ * `VOLTAR_A_JAM_MS` (o `last_seen` do membro, que é por conta): restos. Uma em
+ * que outro aparelho meu está agora fica como está -- sair dela tirava-o de lá.
  */
 export const VOLTAR_A_JAM_MS = 15 * 60_000;
 
-export function separarJamsAntigas<T extends { id: string; vistoEm?: number | null }>(
+export function aoAbrirAApp<T extends { id: string; vistoEm?: number | null }>(
   abertas: readonly T[],
   agora: number,
+  desteAparelho: { id: string; em: number } | null,
   ligadaAgora?: string | null,
-): { recentes: T[]; antigas: T[] } {
-  const recentes: T[] = [];
-  const antigas: T[] = [];
-  for (const s of abertas) {
-    const antiga = s.id !== ligadaAgora && typeof s.vistoEm === 'number' && agora - s.vistoEm > VOLTAR_A_JAM_MS;
-    (antiga ? antigas : recentes).push(s);
-  }
-  return { recentes, antigas };
+): { voltar: T | null; sair: T[] } {
+  const alvo = ligadaAgora
+    ?? (desteAparelho && agora - desteAparelho.em <= VOLTAR_A_JAM_MS ? desteAparelho.id : null);
+  const voltar = abertas.find((s) => s.id === alvo) ?? null;
+  const sair = abertas.filter((s) => s !== voltar
+    && typeof s.vistoEm === 'number' && agora - s.vistoEm > VOLTAR_A_JAM_MS);
+  return { voltar, sair };
 }
 
 /**

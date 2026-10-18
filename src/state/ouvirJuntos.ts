@@ -16,8 +16,8 @@ import { candidatasParaDescoberta } from '../api/descoberta';
 import { chaveDeArtista, displayArtist } from '../lib/artistName';
 import { fetchRadioTracks } from '../api/radio';
 import { espalharArtistas } from '../lib/radio';
-import { anteriorDaSessao, escolherSessao, passouParaMim, percursoDaSessao, porSemear, semOApagado, separarJamsAntigas } from '../lib/jam';
-import { getJamAutoFila, setJamAutoFila } from '../lib/prefs';
+import { anteriorDaSessao, escolherSessao, passouParaMim, percursoDaSessao, porSemear, semOApagado, aoAbrirAApp } from '../lib/jam';
+import { getJamAutoFila, getJamDesteAparelho, setJamAutoFila, setJamDesteAparelho } from '../lib/prefs';
 import { trackKey } from '../lib/shuffle';
 import { registar } from '../lib/eventos';
 import type { Track } from '../types';
@@ -223,16 +223,21 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     // (supabase/fechar-jams-abandonadas.sql), e não se volta a ligar a ela.
     if (!preferida) await fecharJamsAbandonadas();
     if (minha !== geracao) return;
-    const abertas = await minhasSessoesAbertas(userId);
+    const [abertas, desteAparelho] = await Promise.all([minhasSessoesAbertas(userId), getJamDesteAparelho()]);
     if (minha !== geracao) return;
-    // Ao abrir a app só se volta a uma Jam em que se esteve há pouco; das
-    // outras sai-se (18/10, ver `separarJamsAntigas`). Entrar numa à mão
-    // (`preferida`) não passa por aqui.
-    const { recentes, antigas } = preferida
-      ? { recentes: abertas, antigas: [] }
-      : separarJamsAntigas(abertas, Date.now(), ligadaAgora);
-    const { escolhida, sobras } = escolherSessao(recentes, preferida);
-    for (const resto of [...antigas, ...sobras]) void sair(resto.id).catch(() => {});
+    let escolhida: (typeof abertas)[number] | null;
+    if (preferida) {
+      // Entrar numa à mão: fica essa, e sai-se das outras (restos).
+      const escolha = escolherSessao(abertas, preferida);
+      escolhida = escolha.escolhida;
+      for (const resto of escolha.sobras) void sair(resto.id).catch(() => {});
+    } else {
+      // Ao abrir a app: só a Jam em que ESTE aparelho esteve há pouco (18/10,
+      // ver `aoAbrirAApp`), e sai-se só das que ninguém desta conta usa.
+      const aoAbrir = aoAbrirAApp(abertas, Date.now(), desteAparelho, ligadaAgora);
+      escolhida = aoAbrir.voltar;
+      for (const resto of aoAbrir.sair) void sair(resto.id).catch(() => {});
+    }
     if (!escolhida) return;
     const sessao = escolhida.sessao;
 
@@ -243,6 +248,7 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     ]);
     if (minha !== geracao) return;
     set({ sessao, membros, fila, relogio });
+    void setJamDesteAparelho({ id: sessao.id, em: Date.now() });
 
     // Só um fallback por rajada; eventos completos já trazem a linha nova.
     let versaoFila = 0, versaoMembros = 0;
@@ -337,6 +343,7 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
       const s = get().sessao;
       if (!s || !appEstaVisivel()) return;
       void continuoNaSessao(s.id);
+      void setJamDesteAparelho({ id: s.id, em: Date.now() });
     }, BATIMENTO_MS);
 
     // Ao voltar ao primeiro plano, o relógio pode ter envelhecido e a sessão
@@ -344,7 +351,13 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     let esteveEmSegundoPlano = false;
     let recuperouEm = Date.now();
     subscricaoDeEstado = AppState.addEventListener('change', estado => {
-      if (estado === 'background') { esteveEmSegundoPlano = true; return; }
+      if (estado === 'background') {
+        esteveEmSegundoPlano = true;
+        // A última vez que este aparelho esteve na Jam (ver `aoAbrirAApp`).
+        const s = get().sessao;
+        if (s && minha === geracao) void setJamDesteAparelho({ id: s.id, em: Date.now() });
+        return;
+      }
       if (estado !== 'active') return;
       if (!appEstaVisivel() || minha !== geracao) return;
       if (!esteveEmSegundoPlano && Date.now() - recuperouEm < 30_000) return;
@@ -429,6 +442,7 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     if (!s) return;
     await sair(s.id);
     if (get().sessao?.id === s.id) get().desligar();
+    void setJamDesteAparelho(null);
     set({ acabouSemAviso: false });
   },
 

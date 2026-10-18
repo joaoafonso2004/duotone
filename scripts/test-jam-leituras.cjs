@@ -12,7 +12,7 @@ const mocks = {
   '../lib/supabase': {}, '../api/descoberta': {}, '../lib/artistName': {},
   '../api/radio': {}, '../lib/radio': {},
   '../lib/jam': { passouParaMim: () => false, percursoDaSessao: p => p },
-  '../lib/prefs': { getJamAutoFila: async () => false }, '../lib/shuffle': {}, '../lib/eventos': {},
+  '../lib/prefs': { getJamAutoFila: async () => false, getJamDesteAparelho: async () => null, setJamDesteAparelho: async () => {} }, '../lib/shuffle': {}, '../lib/eventos': {},
 };
 const moduleOfStore = { exports: {} };
 const file = require('node:path').resolve(__dirname, '../src/state/ouvirJuntos.ts');
@@ -50,7 +50,7 @@ async function main() {
   api.lerFila=async()=>{filas++;return [];};api.lerMembros=async()=>{membros++;return [];};api.relogioActualizado=async()=>null;
   api.itemDaLinha=r=>({id:r.id,posicao:r.posicao,track:r.track,postoPor:r.added_by});
   api.membroDaLinha=r=>({userId:r.user_id,pronta:r.ready,percentagem:r.download_pct,vistoEm:Date.parse(r.last_seen)});
-  mocks['../lib/jam'].escolherSessao=()=>({escolhida:{sessao:confirmada},sobras:[]});mocks['../lib/jam'].separarJamsAntigas=(a)=>({recentes:a,antigas:[]});
+  mocks['../lib/jam'].escolherSessao=()=>({escolhida:{sessao:confirmada},sobras:[]});mocks['../lib/jam'].aoAbrirAApp=()=>({voltar:{sessao:confirmada},sair:[]});
   mocks['../lib/jam'].semOApagado=(f,id)=>f.some(i=>i.id===id)?f.filter(i=>i.id!==id):f;
   mocks['../lib/appVisibility'].appEstaVisivel=()=>true;
   mocks['react-native'].AppState.addEventListener=(_n,fn)=>{aoEstado=fn;return {remove:()=>{}};};

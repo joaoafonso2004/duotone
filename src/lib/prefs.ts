@@ -706,3 +706,26 @@ export async function getAtalhosDaLateral(): Promise<unknown> {
 export async function setAtalhosDaLateral(lista: readonly unknown[]): Promise<void> {
   await AsyncStorage.setItem(KEY_ATALHOS_DA_LATERAL, JSON.stringify(lista));
 }
+
+/**
+ * A Jam em que ESTE aparelho esteve, e quando (18/10, ver `aoAbrirAApp` em
+ * lib/jam.ts). Só do aparelho: a conta já sabe de quem é membro, e é isso que
+ * arrastava um aparelho para a Jam de outro.
+ */
+const JAM_DESTE_APARELHO = 'duotone:jam-deste-aparelho:v1';
+export async function getJamDesteAparelho(): Promise<{ id: string; em: number } | null> {
+  try {
+    const v = JSON.parse((await AsyncStorage.getItem(JAM_DESTE_APARELHO)) ?? 'null');
+    return v && typeof v.id === 'string' && typeof v.em === 'number' ? v : null;
+  } catch {
+    return null;
+  }
+}
+export async function setJamDesteAparelho(v: { id: string; em: number } | null): Promise<void> {
+  try {
+    if (v) await AsyncStorage.setItem(JAM_DESTE_APARELHO, JSON.stringify(v));
+    else await AsyncStorage.removeItem(JAM_DESTE_APARELHO);
+  } catch {
+    // Perder isto só faz não voltar sozinho à Jam: entra-se à mão.
+  }
+}

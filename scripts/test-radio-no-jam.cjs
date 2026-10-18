@@ -53,7 +53,7 @@ const mocks = {
   } },
   '../lib/radio': { espalharArtistas: (lista) => lista },
   '../lib/jam': carregar('src/lib/jam.ts'),
-  '../lib/prefs': { getJamAutoFila: async () => false, setJamAutoFila: async () => {} },
+  '../lib/prefs': { getJamAutoFila: async () => false, setJamAutoFila: async () => {}, getJamDesteAparelho: async () => null, setJamDesteAparelho: async () => {} },
   '../lib/shuffle': carregar('src/lib/shuffle.ts'),
   '../lib/eventos': { registar() {} },
 };

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { registarOuvirJuntos, usePlayer } from '../src/state/player.ts';
 import type { Track } from '../src/types.ts';
-import { anteriorDaSessao, efeitoDaAutoFila, percursoDaSessao, proximaFaixa, decisaoDeControlo, porSemear, restoDaLista, velocidadeNaSessao, assinaturaDaSessao, baralhada, semOApagado, escolherSessao, passouParaMim, separarJamsAntigas, VOLTAR_A_JAM_MS, type PonteJam } from '../src/lib/jam.ts';
+import { anteriorDaSessao, efeitoDaAutoFila, percursoDaSessao, proximaFaixa, decisaoDeControlo, porSemear, restoDaLista, velocidadeNaSessao, assinaturaDaSessao, baralhada, semOApagado, escolherSessao, passouParaMim, aoAbrirAApp, VOLTAR_A_JAM_MS, type PonteJam } from '../src/lib/jam.ts';
 import { readFileSync } from 'node:fs';
 import { closePlayerSmoothly, confirmaSwipe } from '../src/lib/closePlayer.ts';
 import { seguirSessao } from '../src/lib/seguirSessao.ts';
@@ -531,31 +531,42 @@ assert.ok(efeitoDaAutoFila(false, true) === efeitoDaAutoFila(false, false),
   assert.deepEqual(escolherSessao([velho, novo], 'ja-acabou'), { escolhida: novo, sobras: [velho] });
   assert.deepEqual(escolherSessao([]), { escolhida: null, sobras: [] });
   const store = readFileSync(new URL('../src/state/ouvirJuntos.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
-  assert.match(store, /const abertas = await minhasSessoesAbertas\(userId\);/, 'o ligar lê todas');
-  assert.match(store, /escolherSessao\(recentes, preferida\)/, 'e escolhe entre as recentes');
-  assert.match(store, /for \(const resto of \[\.\.\.antigas, \.\.\.sobras\]\) void sair\(resto\.id\)/, 'e sai das antigas e dos restos');
+  assert.match(store, /await Promise\.all\(\[minhasSessoesAbertas\(userId\), getJamDesteAparelho\(\)\]\)/, 'o ligar lê todas');
+  assert.match(store, /const escolha = escolherSessao\(abertas, preferida\);/, 'entrar à mão escolhe entre todas');
+  assert.match(store, /for \(const resto of escolha\.sobras\) void sair\(resto\.id\)/, 'e sai dos restos');
   assert.match(store, /await entrar\(sessao\);\n\s+const euId = get\(\)\.euId;\n\s+if \(euId\) await get\(\)\.ligar\(euId, sessao\);/,
     'entrar liga ao Jam em que se entrou');
   assert.match(store, /if \(euId\) await get\(\)\.ligar\(euId, id\);/, 'abrir liga ao Jam que se abriu');
 }
 
-// Ao abrir a app só se volta a uma Jam em que se esteve há pouco (18/10): o
-// João abriu a app sem estar em Jam nenhuma e caiu numa que outro membro
-// mantinha aberta -- música a meio, o Speed preso a 1x, as pausas da sala.
+// Ao abrir a app só se volta à Jam em que ESTE aparelho esteve há pouco
+// (18/10): o João abriu a app no iPhone sem estar em Jam nenhuma e caiu numa
+// -- ser membro é por conta, e uma Jam aberta noutro aparelho arrastava-o.
 {
   const agora = 10_000_000;
-  const recente = { id: 'recente', vistoEm: agora - 60_000 };
+  const minha = { id: 'minha', vistoEm: agora - 60_000 };
+  const doPc = { id: 'do-pc', vistoEm: agora - 30_000 };
   const velha = { id: 'velha', vistoEm: agora - VOLTAR_A_JAM_MS - 1 };
   const semSinal = { id: 'sem-sinal', vistoEm: null };
-  assert.deepEqual(separarJamsAntigas([recente, velha, semSinal], agora), { recentes: [recente, semSinal], antigas: [velha] },
-    'a de há um minuto volta; a de há mais de 15 min sai; sem o sinal, como antes');
-  assert.deepEqual(separarJamsAntigas([velha], agora, 'velha'), { recentes: [velha], antigas: [] },
-    'a Jam a que já se estava ligado (a rede voltou) não se larga');
+  const todas = [minha, doPc, velha, semSinal];
+  assert.deepEqual(aoAbrirAApp(todas, agora, { id: 'minha', em: agora - 5 * 60_000 }), { voltar: minha, sair: [velha] },
+    'volta à deste aparelho; sai só da que ninguém desta conta usa; a do PC fica como está');
+  assert.deepEqual(aoAbrirAApp(todas, agora, null), { voltar: null, sair: [velha] },
+    'o iPhone que nunca esteve numa Jam não é arrastado para a do PC');
+  assert.deepEqual(aoAbrirAApp(todas, agora, { id: 'minha', em: agora - VOLTAR_A_JAM_MS - 1 }).voltar, null,
+    'a deste aparelho, mas de há mais de 15 min: não se volta');
+  assert.deepEqual(aoAbrirAApp(todas, agora, null, 'do-pc').voltar, doPc,
+    'a que já estava ligada (a rede voltou) não se larga');
   const store = readFileSync(new URL('../src/state/ouvirJuntos.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
   assert.match(store, /const ligadaAgora = get\(\)\.sessao\?\.id \?\? null;\n\s+get\(\)\.desligar\(\);/,
     'lembra-se da Jam ligada ANTES de desligar');
-  assert.match(store, /preferida\n\s+\? \{ recentes: abertas, antigas: \[\] \}\n\s+: separarJamsAntigas\(abertas, Date\.now\(\), ligadaAgora\);/,
-    'entrar numa Jam à mão não passa pela regra');
+  assert.match(store, /aoAbrirAApp\(abertas, Date\.now\(\), desteAparelho, ligadaAgora\)/);
+  assert.match(store, /set\(\{ sessao, membros, fila, relogio \}\);\n\s+void setJamDesteAparelho\(\{ id: sessao\.id, em: Date\.now\(\) \}\);/,
+    'ligar guarda a Jam deste aparelho');
+  assert.match(store, /void continuoNaSessao\(s\.id\);\n\s+void setJamDesteAparelho\(\{ id: s\.id, em: Date\.now\(\) \}\);/,
+    'e o batimento renova-a');
+  assert.match(store, /await sair\(s\.id\);\n\s+if \(get\(\)\.sessao\?\.id === s\.id\) get\(\)\.desligar\(\);\n\s+void setJamDesteAparelho\(null\);/,
+    'sair à mão esquece-a');
   const api = readFileSync(new URL('../src/api/ouvirJuntos.ts', import.meta.url), 'utf8');
   assert.match(api, /select\('session_id, joined_at, last_seen'\)/, 'o sinal vem do last_seen do membro');
   // E o Speed diz porquê, em vez de parecer avariado.

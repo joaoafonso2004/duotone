@@ -89,7 +89,7 @@ async function fixture() {
       if (gate) await gate.promise;
       return result;
     } },
-    '../lib/prefs': { getJamAutoFila: async () => true, setJamAutoFila: async () => {} },
+    '../lib/prefs': { getJamAutoFila: async () => true, setJamAutoFila: async () => {}, getJamDesteAparelho: async () => null, setJamDesteAparelho: async () => {} },
     '../lib/eventos': { registar() {} },
     // Sem o Radio da sala ligado, o enchimento é o de sempre (6/10).
     '../api/radio': { fetchRadioTracks: async () => { throw Error('sem o Radio da sala não se usa o Radio'); } },
