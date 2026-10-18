@@ -187,5 +187,26 @@ assert.equal(await usePlayer.getState().extendQueueWithRadio(),false);
 assert.equal(usePlayer.getState().radioMode,'on','não desligou');
 controlo.semConta=false;
 
+// O Mix (18/10): de tudo o que se ouve. Os lotes vêm do `loteDaMix`, e não do
+// rádio desta música; o seguinte também; e volta Mix depois de reabrir.
+reset();
+controlo.mix=[track('mix1','Drake'),track('mix2','2hollis')];
+assert.equal(await usePlayer.getState().startRadio(false,'mix'),true);
+assert.equal(usePlayer.getState().radioTipo,'mix');
+assert.equal(controlo.chamadas.mix,1,'o Mix pede ao loteDaMix');
+assert.equal(controlo.chamadas.radio,0,'e não ao rádio da música');
+assert.deepEqual(usePlayer.getState().queue.map(t=>t.sourceId),['past','current','mix1','mix2']);
+controlo.mix=[track('mix3','Travis Scott')];
+assert.equal(await usePlayer.getState().extendQueueWithRadio(),true);
+assert.equal(controlo.chamadas.mix,2,'o lote seguinte também é do Mix');
+assert.equal(controlo.chamadas.radio,0);
+assert.equal(usePlayer.getState().queue.at(-1)?.sourceId,'mix3');
+const opcoesDoMix=(usePlayer as any).persist.getOptions();
+assert.equal(opcoesDoMix.merge(JSON.parse(JSON.stringify(opcoesDoMix.partialize(usePlayer.getState()))),{...initial}).radioTipo,'mix','volta Mix');
+reset();
+assert.equal(await usePlayer.getState().startRadio(),true);
+assert.equal(usePlayer.getState().radioTipo,'musica','sem dizer qual, é o de uma música');
+assert.equal(controlo.chamadas.mix,0);
+
 console.log('Radio session: listening context, strict discovery, uninterrupted audio, replenishment and cancellation races passed.');
 console.log('Radio que aprende: não acaba, aprende com um salto, sobrevive a reabrir e espera pela conta.');

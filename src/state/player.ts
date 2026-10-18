@@ -32,7 +32,7 @@ import { chaveDoArtistaPrincipal, lancamentoParaOLote } from './lancamentosNoRad
 import { fetchRadioTracks } from '../api/radio';
 import { ancorasDoRadio, rememberRadioListen, rememberRadioSkip, radioSessionSeeds, type RadioListeningSession } from '../lib/radioSession';
 import { comecaListaNova, origemAoTocar, type OrigemDaFila } from '../lib/origemDaFila';
-import { candidatasParaDescoberta } from '../api/descoberta';
+import { candidatasParaDescoberta, loteDaMix } from '../api/descoberta';
 import { lerPerfilDeRecomendacoes } from '../api/perfilDeRecomendacoes';
 import { getLibrary } from '../api/library';
 import { cacheGet, cacheSet } from '../api/cache';
@@ -82,6 +82,9 @@ import { registar } from '../lib/eventos';
 import { contarEscolha } from '../lib/ultimaEscolha';
 
 /** Controlo do player YouTube (registado pelo YouTubePlayerView). */
+/** Que Radio é: o de uma música, ou o Mix de tudo o que se ouve (18/10). */
+export type TipoDeRadio = 'musica' | 'mix';
+
 export type YtControls = PlaybackControls;
 
 /**
@@ -358,6 +361,12 @@ interface PlayerState {
   /** true enquanto a cauda da fila veio do rádio — só para a UI o dizer. */
   radioActive: boolean;
   radioMode: 'off' | 'preparing' | 'on';
+  /**
+   * Que Radio é (18/10): "Songs like this one" (`musica`, parte da música que
+   * toca) ou "Mix" (`mix`, de tudo o que se ouve -- `loteDaMix`). Escolhe-se no
+   * menu da pastilha; fica o último escolhido.
+   */
+  radioTipo: TipoDeRadio;
   radioContext: Track[];
   radioOwner: string | null;
   radioStopped: boolean;
@@ -367,7 +376,7 @@ interface PlayerState {
    * `daMusica`: o Radio parte só da música que toca, e não do que se ouviu na
    * sessão -- é o de tocar numa música com o Radio ligado (`tocarMusica`).
    */
-  startRadio: (daMusica?: boolean) => Promise<boolean>;
+  startRadio: (daMusica?: boolean, tipo?: TipoDeRadio) => Promise<boolean>;
   stopRadio: () => void;
   /**
    * Tocar numa MÚSICA de uma lista (a linha, o cartão, o "Play now" de um
@@ -1125,7 +1134,7 @@ export const usePlayer = create<PlayerState>()(
   saltoDaFaixa: null,
   autoplayRadio: true,
   radioActive: false,
-  radioMode: 'off', radioContext: [], radioOwner: null, radioStopped: false, radioError: null,
+  radioMode: 'off', radioTipo: 'musica', radioContext: [], radioOwner: null, radioStopped: false, radioError: null,
   radioListeningSession: null,
   volumeNormalization: true,
   crossfadeSegundos: 0,
@@ -1799,7 +1808,7 @@ export const usePlayer = create<PlayerState>()(
 
   setAutoplayRadio: (v) => set({ autoplayRadio: v }),
 
-  startRadio: async (daMusica = false) => {
+  startRadio: async (daMusica = false, tipo: TipoDeRadio = 'musica') => {
     const before = get(), current = before.current;
     if (!current || before.radioMode === 'preparing' || ouvirJuntos() || seguindoAmigo() || useConnectivity.getState().offline) return false;
     const request = ++radioRequest, owner = donoDoSmartShuffle(), playbackRequest = playRequestId;
@@ -1817,11 +1826,15 @@ export const usePlayer = create<PlayerState>()(
       const [discovered, ouvidas] = await Promise.all([chavesDasDescobertasRecentes(owner), identidadesOuvidas()]);
       if (!valid()) return false;
       const heard = before.radioListeningSession?.owner === owner ? before.radioListeningSession.tracks : [];
-      const lote = filterSuggestions(await fetchRadioTracks(context, [...before.queue, ...heard], 12, discovered, 'session', ouvidas));
+      // O Mix (18/10) parte de tudo o que se ouve, e não desta música.
+      const lote = tipo === 'mix'
+        ? await loteDaMix(12, [...before.queue, ...heard], discovered, ouvidas)
+        : filterSuggestions(await fetchRadioTracks(context, [...before.queue, ...heard], 12, discovered, 'session', ouvidas));
       if (!valid()) return false;
       // Ao ligar, só um lançamento do artista desta música: os da sessão de
-      // antes (outro género, às vezes) não são deste Radio.
-      const comNovo = await comLancamentoNovo(lote, context, [],
+      // antes (outro género, às vezes) não são deste Radio. O Mix não é desta
+      // música: sem lançamento ao ligar.
+      const comNovo = tipo === 'mix' ? { lote, marcar: undefined } : await comLancamentoNovo(lote, context, [],
         crivoDoLancamento([...before.queue, ...heard], lote, discovered, ouvidas, () => false));
       const tracks = espalharArtistas(comNovo.lote,
         (t) => chaveDeArtista(displayArtist(t)), [chaveDeArtista(displayArtist(current))]);
@@ -1836,7 +1849,7 @@ export const usePlayer = create<PlayerState>()(
       const queue = [...past, current, ...tracks];
       const discovery = contextoDoRadioAutomatico();
       for (const track of tracks) contextosDaFila.set(trackKey(track),discovery);
-      set({ queue, queueIndex: past.length, radioMode: 'on', radioContext: context, radioOwner: owner,
+      set({ queue, queueIndex: past.length, radioMode: 'on', radioTipo: tipo, radioContext: context, radioOwner: owner,
         radioListeningSession: null,
         radioStopped: false, radioActive: true, radioError: null, doRadio: tracks.map(trackKey),
         shuffle: false, shuffleInteligente: false, shuffleOrder: [], repeatMode: 'off', sugeridas: [] });
@@ -1864,6 +1877,8 @@ export const usePlayer = create<PlayerState>()(
     if (!comRadio || useConnectivity.getState().offline || seguindoAmigo()) {
       return get().playTrack(track, lista, shouldExpand, false, discoveryContext, origem);
     }
+    // O tipo de Radio que estava ligado: o Mix continua Mix depois desta música.
+    const tipo = get().radioTipo;
     // Só esta música: o resto da lista não vai atrás (nem para a fila do Jam,
     // que o Radio da sala continua a encher).
     await get().playTrack(track, [track], shouldExpand, false, discoveryContext, origem);
@@ -1871,14 +1886,14 @@ export const usePlayer = create<PlayerState>()(
     // O `playTrack` de uma lista nova desligou-o; volta a partir desta. O
     // `startRadio` confirma ele próprio que a música ainda é esta (outro toque
     // entretanto muda o pedido e ele desiste).
-    if (get().radioMode === 'off') await get().startRadio(true);
+    if (get().radioMode === 'off') await get().startRadio(true, tipo);
   },
 
   setVolumeNormalization: (v) => set({ volumeNormalization: v }),
 
   extendQueueWithRadio: async () => {
     if (ouvirJuntos() || seguindoAmigo()) return false;
-    const { autoplayRadio, current, queue, queueIndex, repeatMode, radioMode, radioStopped, radioContext, radioOwner } = get();
+    const { autoplayRadio, current, queue, queueIndex, repeatMode, radioMode, radioStopped, radioContext, radioOwner, radioTipo } = get();
     if (radioMode === 'preparing' || radioStopped) return false;
     if (
       radioMode === 'on' ? !current || repeatMode !== 'off' || get().upcomingQueue().length > 3
@@ -1929,7 +1944,14 @@ export const usePlayer = create<PlayerState>()(
       ], trackKey);
       const doArtistaEvitado = (t: Track) => ancoras.evitar.has(chaveDeArtista(displayArtist(t)));
       let tracks: Track[] = [];
-      for (let i = 0; i < tentativas.length; i++) {
+      // O Mix (18/10): o lote seguinte da roda dos teus artistas. Não caminha
+      // pelas sementes desta música -- não é dela.
+      const doMix = radioMode === 'on' && radioTipo === 'mix';
+      if (doMix) {
+        tracks = (await loteDaMix(12, [...queue, ...(get().radioListeningSession?.owner === dono ? get().radioListeningSession!.tracks : [])], jaDescobertas, ouvidas))
+          .filter((x) => !doArtistaEvitado(x));
+      }
+      for (let i = 0; !doMix && i < tentativas.length; i++) {
         const t = tentativas[i];
         // A última do Radio pede como o autoplay: no fim aceita repetidas.
         tracks = filterSuggestions(await fetchRadioTracks([...t.sementes], queue, radioMode === 'on' ? 12 : undefined,
@@ -1940,7 +1962,7 @@ export const usePlayer = create<PlayerState>()(
       }
       // Um lançamento novo de um artista que se está a ouvir (16/10).
       const daSessaoOuvida = get().radioListeningSession?.owner === dono ? get().radioListeningSession!.tracks : [];
-      const comNovo = await comLancamentoNovo(tracks, seeds, daSessaoOuvida,
+      const comNovo = doMix ? { lote: tracks, marcar: undefined } : await comLancamentoNovo(tracks, seeds, daSessaoOuvida,
         crivoDoLancamento(queue, tracks, jaDescobertas, ouvidas, doArtistaEvitado));
       tracks = comNovo.lote;
       // Sem o mesmo artista colado, também contra o fim da fila que já lá está.
@@ -2687,7 +2709,7 @@ export const usePlayer = create<PlayerState>()(
       // e a fila acabava sem ninguém o ter desligado. Uma preparação a meio não
       // conta como ligado.
       partialize: s => ({...sessaoParaGuardar(s),radioStopped:s.radioStopped,
-        ...(s.radioMode === 'on' ? { radioMode: 'on' as const, radioContext: s.radioContext, radioOwner: s.radioOwner } : {})}),
+        ...(s.radioMode === 'on' ? { radioMode: 'on' as const, radioTipo: s.radioTipo, radioContext: s.radioContext, radioOwner: s.radioOwner } : {})}),
       // No restauro, a sessão volta PAUSADA: o player prepara o áudio
       // (autoplayOnLoad=false) e retoma na posição guardada quando o
       // utilizador carregar em play.
@@ -2701,7 +2723,7 @@ export const usePlayer = create<PlayerState>()(
           escutasDaSessao: null,
           radioListeningSession:null,radioError:null,radioActive:!!persisted.doRadio?.length,
           ...(persisted.radioMode === 'on' && Array.isArray(persisted.radioContext) && persisted.radioContext.length && persisted.radioOwner
-            ? { radioMode:'on' as const, radioContext:persisted.radioContext, radioOwner:persisted.radioOwner }
+            ? { radioMode:'on' as const, radioTipo:persisted.radioTipo==='mix'?'mix' as const:'musica' as const, radioContext:persisted.radioContext, radioOwner:persisted.radioOwner }
             : { radioMode:'off' as const, radioContext:[], radioOwner:null }),
           radioStopped:persisted.radioStopped===true,
           // Uma sessao gravada por uma versao anterior nao tem estes dois

@@ -57,7 +57,9 @@ export interface Controlo {
   /** Está sem rede? */
   offline: boolean;
   /** Chamadas feitas, para o teste poder afirmar que NÃO se foi à rede. */
-  chamadas: { candidatas: number; radio: number; lancamentos: number };
+  chamadas: { candidatas: number; radio: number; lancamentos: number; mix: number };
+  /** O que o `loteDaMix` devolve (o Radio "Mix", 18/10). */
+  mix: Track[];
   /**
    * O que foi contado, por `sourceId`: no `plays`, no `user_play_counts`, e
    * os inícios. Para o teste poder afirmar QUANDO uma reprodução conta.
@@ -90,7 +92,8 @@ export const controlo: Controlo = {
   sessao: null,
   semConta: false,
   offline: false,
-  chamadas: { candidatas: 0, radio: 0, lancamentos: 0 },
+  chamadas: { candidatas: 0, radio: 0, lancamentos: 0, mix: 0 },
+  mix: [],
   contagens: { plays: [], locais: [], inicios: [] },
   aprendizagem: { saltos: [], escutas: [] },
   eventos: [],
@@ -117,7 +120,8 @@ export function reporControlo(): void {
   controlo.sessao = null;
   controlo.semConta = false;
   controlo.offline = false;
-  controlo.chamadas = { candidatas: 0, radio: 0, lancamentos: 0 };
+  controlo.chamadas = { candidatas: 0, radio: 0, lancamentos: 0, mix: 0 };
+  controlo.mix = [];
   controlo.contagens = { plays: [], locais: [], inicios: [] };
   controlo.aprendizagem = { saltos: [], escutas: [] };
   controlo.eventos = [];

@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Radio · a animação do menu</title>
+<style>
+  :root {
+    --fundo: #060608; --grafite: #1C1C1F; --linha: rgba(255,255,255,.14); --linhaSuave: rgba(255,255,255,.07);
+    --texto: #F5F5F7; --medio: rgba(245,245,247,.58); --fraco: rgba(245,245,247,.38); --cor: #B9A6FF;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #101014; color: var(--texto);
+    font-family: -apple-system, "SF Pro Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif; }
+  .pagina { max-width: 1180px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 26px; margin: 0 0 8px; letter-spacing: -.3px; }
+  .intro { color: var(--medio); font-size: 14.5px; line-height: 1.6; max-width: 860px; margin: 0 0 18px; }
+  .intro b { color: var(--texto); font-weight: 600; }
+  .controlos { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 18px; }
+  .grupo { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--linha); border-radius: 999px; }
+  .grupo button { height: 32px; padding: 0 14px; border-radius: 999px; border: 0; background: transparent; color: var(--medio);
+    font: 600 13px inherit; cursor: pointer; }
+  .grupo button.on { background: var(--texto); color: #0b0b0d; }
+  .descricao { min-height: 48px; color: var(--medio); font-size: 13.5px; line-height: 1.55; max-width: 860px; margin: 0 0 18px; }
+  .descricao b { color: var(--texto); }
+  .palcos { display: flex; gap: 26px; flex-wrap: wrap; align-items: flex-start; }
+  .legenda { font-size: 12px; color: var(--fraco); margin: 8px 0 0; text-align: center; }
+  button { font: inherit; color: inherit; -webkit-tap-highlight-color: transparent; }
+  button:focus-visible { outline: 2px solid var(--cor); outline-offset: 3px; }
+
+  /* ------------------------------------------------------------------ palcos */
+  .palco { position: relative; overflow: hidden; flex: none; }
+  .iphone { width: 340px; height: 700px; border-radius: 44px; border: 1px solid rgba(255,255,255,.12);
+    background: linear-gradient(180deg, #5a1717 0%, #2a0d0d 38%, var(--fundo) 78%); box-shadow: 0 30px 60px rgba(0,0,0,.45);
+    padding: 58px 18px 0; }
+  .iphone .pega { width: 36px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.3); margin: 0 auto 18px; }
+  .rotulo { font-size: 11.5px; letter-spacing: 1.3px; font-weight: 700; color: var(--fraco); }
+  .agora { display: flex; gap: 12px; align-items: center; margin: 10px 0 22px; }
+  .agora .c { width: 50px; height: 50px; border-radius: 8px; background: linear-gradient(135deg, #7a1d1d, #e0452f); flex: none; }
+  .agora .t { font-size: 15.5px; font-weight: 600; } .agora .a { font-size: 13.5px; color: var(--medio); margin-top: 2px; }
+  .cabeca { display: flex; align-items: center; gap: 10px; }
+  .cabeca .titulo { flex: 1; min-width: 0; }
+  .cabeca .de { font-size: 13px; color: var(--medio); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .limpar { background: none; border: 0; color: var(--medio); font-size: 14px; padding: 6px 2px; cursor: pointer; }
+  .linhas { margin-top: 14px; display: grid; gap: 2px; }
+  .linha { display: flex; align-items: center; gap: 12px; padding: 7px 0; }
+  .linha .c { width: 44px; height: 44px; border-radius: 6px; flex: none; }
+  .linha .t { font-size: 14.5px; font-weight: 600; } .linha .a { font-size: 12.5px; color: var(--medio); margin-top: 2px; }
+  .vazio { color: var(--fraco); font-size: 14px; padding: 26px 0; text-align: center; }
+
+  .pc { width: 640px; height: 420px; border-radius: 14px; border: 1px solid rgba(255,255,255,.12); background: #0B0B10;
+    box-shadow: 0 30px 60px rgba(0,0,0,.45); display: grid; grid-template-columns: 1fr 290px; }
+  .pc .esquerda { padding: 22px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    background: radial-gradient(circle at 50% 40%, rgba(122,29,29,.45), transparent 70%); }
+  .pc .esquerda .capa { width: 190px; height: 190px; border-radius: 12px; background: linear-gradient(135deg, #7a1d1d, #e0452f); box-shadow: 0 20px 40px rgba(0,0,0,.4); }
+  .pc .esquerda .t { font-size: 18px; font-weight: 700; } .pc .esquerda .a { font-size: 13px; color: var(--medio); }
+  .pc .painel { border-left: 1px solid var(--linhaSuave); padding: 18px 16px; background: #0F0F15; position: relative; }
+  .pc .painel .linha .c { width: 38px; height: 38px; }
+  .pc .painel .linha .t { font-size: 13px; } .pc .painel .linha .a { font-size: 11.5px; }
+  .pc .opcao:hover { background: rgba(255,255,255,.06); }
+
+  /* ------------------------------------------------------------------ a pastilha */
+  .pastilha { height: 32px; padding: 0 13px 0 10px; border-radius: 999px; border: .5px solid rgba(255,255,255,.28);
+    background: rgba(255,255,255,.1); display: flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 600; cursor: pointer;
+    position: relative; overflow: hidden; isolation: isolate; }
+  .pastilha svg { width: 16px; height: 16px; }
+  .pastilha .enchimento { position: absolute; inset: 0; background: var(--texto); transform-origin: left center; transform: scaleX(0); z-index: -1; border-radius: inherit; }
+  .pastilha.ligada { color: #0b0b0d; border-color: transparent; }
+  .pastilha.ligada .enchimento { transform: none; }
+  .pastilha.ligada .ondas path { animation: pulsar 1.6s infinite ease-in-out; }
+  .pastilha.ligada .ondas path:nth-child(3) { animation-delay: .2s; }
+  @keyframes pulsar { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+
+  /* ------------------------------------------------------------------ o menu */
+  .veu { position: absolute; inset: 0; background: rgba(0,0,0,.32); opacity: 0; pointer-events: none; z-index: 10; }
+  .forma { position: absolute; z-index: 11; background: var(--grafite); border: .5px solid var(--linha); display: none; pointer-events: none; }
+  .menu { position: absolute; z-index: 12; width: 292px; border-radius: 16px; background: var(--grafite); border: .5px solid var(--linha);
+    overflow: hidden; display: none; box-shadow: 0 24px 50px rgba(0,0,0,.45); }
+  .pc .menu { width: 268px; }
+  .menu.sem-fundo { background: transparent; border-color: transparent; box-shadow: none; }
+  .menu .titulo { font-size: 12.5px; color: var(--medio); padding: 12px 16px 9px; border-bottom: .5px solid var(--linha); }
+  .opcao { width: 100%; display: flex; align-items: center; gap: 12px; padding: 11px 14px; background: none; border: 0; text-align: left; cursor: pointer; }
+  .opcao + .opcao { border-top: .5px solid var(--linhaSuave); }
+  .opcao.escolhida { background: rgba(255,255,255,.1); }
+  .opcao .c { width: 44px; height: 44px; border-radius: 8px; flex: none; position: relative; }
+  .pc .opcao .c { width: 38px; height: 38px; }
+  .opcao .c.musica { background: linear-gradient(135deg, #7a1d1d, #e0452f); }
+  .opcao .c.musica::after { content: ""; position: absolute; inset: 35%; border-radius: 50%; background: rgba(0,0,0,.25); opacity: 0; }
+  .opcao .c.tua { background: none; }
+  .opcao .c.tua span { position: absolute; width: 52%; height: 52%; border-radius: 50%; display: grid; place-items: center;
+    font-size: 10.5px; font-weight: 700; border: 1.5px solid var(--grafite); }
+  .opcao .c.tua span:nth-child(1) { left: 0; top: 0; } .opcao .c.tua span:nth-child(2) { right: 0; top: 0; }
+  .opcao .c.tua span:nth-child(3) { left: 0; bottom: 0; } .opcao .c.tua span:nth-child(4) { right: 0; bottom: 0; }
+  .opcao .txt { flex: 1; min-width: 0; }
+  .opcao .t { font-size: 15px; font-weight: 600; } .pc .opcao .t { font-size: 13.5px; }
+  .opcao .s { font-size: 12.5px; color: var(--medio); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .anel { position: absolute; z-index: 9; border-radius: 50%; border: 1.5px solid rgba(255,255,255,.55); pointer-events: none; }
+  .nota { margin-top: 28px; color: var(--medio); font-size: 13.5px; line-height: 1.65; max-width: 860px; }
+  .nota b { color: var(--texto); }
+</style>
+</head>
+<body>
+<div class="pagina">
+  <h1>O menu do Radio: como abre</h1>
+  <p class="intro">Três maneiras de abrir o menu do Radio, cada uma <b>vista no iPhone e no PC</b>. Carrega na pastilha <b>Radio</b>, escolhe uma linha e vê também <b>como fecha</b>: o menu volta para dentro da pastilha e ela acende. Com o Radio ligado, carregar desliga. "Lento" mostra tudo em câmara lenta.</p>
+  <div class="controlos">
+    <div class="grupo" id="variantes">
+      <button type="button" data-v="forma" class="on">A · Nasce da pastilha</button>
+      <button type="button" data-v="ondas">B · Ondas</button>
+      <button type="button" data-v="cartas">C · Cartas</button>
+    </div>
+    <div class="grupo" id="velocidade">
+      <button type="button" data-k="1" class="on">Normal</button>
+      <button type="button" data-k="4">Lento</button>
+    </div>
+  </div>
+  <p class="descricao" id="descricao"></p>
+
+  <div class="palcos">
+    <div>
+      <div class="palco iphone" data-palco>
+        <div class="pega"></div>
+        <div class="rotulo">NOW PLAYING</div>
+        <div class="agora"><div class="c"></div><div><div class="t">Blinding Lights</div><div class="a">The Weeknd</div></div></div>
+        <div class="cabeca">
+          <div class="titulo"><div class="rotulo">UP NEXT</div><div class="de">The queue ends after this song</div></div>
+          <button type="button" class="pastilha"><span class="enchimento"></span>
+            <svg class="ondas" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/><path d="M8 8a5.6 5.6 0 0 0 0 8M16 8a5.6 5.6 0 0 1 0 8"/><path d="M5.2 5.2a9.6 9.6 0 0 0 0 13.6M18.8 5.2a9.6 9.6 0 0 1 0 13.6"/></svg>
+            <span>Radio</span></button>
+          <button type="button" class="limpar">Clear</button>
+        </div>
+        <div class="linhas"></div>
+      </div>
+      <p class="legenda">iPhone · a fila</p>
+    </div>
+    <div>
+      <div class="palco pc" data-palco>
+        <div class="esquerda"><div class="capa"></div><div class="t">Blinding Lights</div><div class="a">The Weeknd</div></div>
+        <div class="painel">
+          <div class="cabeca">
+            <div class="titulo"><div class="rotulo">UP NEXT</div><div class="de">The queue ends after this song</div></div>
+            <button type="button" class="pastilha"><span class="enchimento"></span>
+              <svg class="ondas" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/><path d="M8 8a5.6 5.6 0 0 0 0 8M16 8a5.6 5.6 0 0 1 0 8"/><path d="M5.2 5.2a9.6 9.6 0 0 0 0 13.6M18.8 5.2a9.6 9.6 0 0 1 0 13.6"/></svg>
+              <span>Radio</span></button>
+          </div>
+          <div class="linhas"></div>
+        </div>
+      </div>
+      <p class="legenda">PC · o painel da fila no Now Playing</p>
+    </div>
+  </div>
+
+  <p class="nota"><b>Nos dois:</b> o resto do ecrã escurece um pouco (no PC sem desfocar, que lá não se usa desfoque) e o menu é o de sempre da app, com o mesmo fundo e os mesmos cantos. <b>No iPhone</b> a animação corre fora do JavaScript, a 120 Hz, e há um toque leve ao abrir e ao escolher. <b>No PC</b> também abre com a tecla Enter na pastilha e fecha com Esc. Quem tem "Reduzir movimento" ligado vê só aparecer e desaparecer.</p>
+</div>
+
+<template id="menu-modelo">
+  <div class="veu"></div>
+  <div class="forma"></div>
+  <div class="menu" role="menu">
+    <div class="titulo">Start Radio</div>
+    <button type="button" class="opcao" role="menuitem" data-tipo="musica">
+      <div class="c musica"></div>
+      <div class="txt"><div class="t">Songs like this one</div><div class="s">Based on Blinding Lights</div></div>
+    </button>
+    <button type="button" class="opcao" role="menuitem" data-tipo="tua">
+      <div class="c tua"><span style="background:#3b5ce0">D</span><span style="background:#2fae8f">2</span><span style="background:#7b5ce0">L</span><span style="background:#c4842f">T</span></div>
+      <div class="txt"><div class="t">Your music</div><div class="s">A mix of everything you play</div></div>
+    </button>
+  </div>
+</template>
+
+<script>
+  const DESCRICOES = {
+    forma: '<b>A · Nasce da pastilha.</b> A própria pastilha estica-se e transforma-se no menu (os cantos redondos passam a cantos de cartão), e só depois aparecem as linhas, uma a seguir à outra. Ao escolher, o menu encolhe de volta para dentro dela, e ela acende da esquerda para a direita. É a mais "Apple": parece a mesma peça a mudar de forma.',
+    ondas: '<b>B · Ondas.</b> Saem duas ondas de rádio da pastilha e o menu chega com elas. A capa da música entra a rodar como um disco, e as caras dos teus artistas juntam-se de um monte para os quatro cantos. É a mais "rádio" e a mais viva.',
+    cartas: '<b>C · Cartas.</b> O fundo do menu aparece e as duas linhas saem da pastilha como cartas a ser distribuídas, uma depois da outra, com uma pequena inclinação que se endireita. É a mais divertida, e continua rápida.',
+  };
+  const FILA = {
+    musica: [['Save Your Tears', 'The Weeknd', '#3b1f4f', '#b04a8a'], ['Take On Me', 'a-ha', '#1f3b4f', '#4aa3b0'], ['Physical', 'Dua Lipa', '#4f1f2e', '#e0607e'], ['Starboy', 'The Weeknd, Daft Punk', '#3a1f1f', '#c4483a']],
+    tua: [['XO Tour Llif3', 'Lil Uzi Vert', '#2a1f4f', '#7b5ce0'], ['Mask Off', 'Future', '#1f2a3a', '#5a7ab0'], ['goosebumps', 'Travis Scott', '#3a2a1f', '#c47a4a'], ['Warhorse', '2hollis', '#1f4f45', '#4ad1b0']],
+  };
+  const DE = { musica: 'Radio · like Blinding Lights', tua: 'Radio · your music', off: 'The queue ends after this song' };
+  const MOLA = 'cubic-bezier(.3,1.28,.45,1)';
+  const SUAVE = 'cubic-bezier(.2,.8,.2,1)';
+  let variante = 'forma', k = 1;
+  const reduzir = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const ms = (x) => (reduzir ? 1 : x * k);
+
+  document.querySelectorAll('#variantes button').forEach((b) => b.addEventListener('click', () => {
+    variante = b.dataset.v;
+    document.querySelectorAll('#variantes button').forEach((x) => x.classList.toggle('on', x === b));
+    document.getElementById('descricao').innerHTML = DESCRICOES[variante];
+    document.querySelectorAll('[data-palco]').forEach((p) => p.repor());
+  }));
+  document.querySelectorAll('#velocidade button').forEach((b) => b.addEventListener('click', () => {
+    k = Number(b.dataset.k);
+    document.querySelectorAll('#velocidade button').forEach((x) => x.classList.toggle('on', x === b));
+  }));
+  document.getElementById('descricao').innerHTML = DESCRICOES[variante];
+
+  // A posição de um elemento dentro do palco.
+  function caixa(el, palco) {
+    const a = el.getBoundingClientRect(), b = palco.getBoundingClientRect();
+    return { x: a.left - b.left, y: a.top - b.top, w: a.width, h: a.height };
+  }
+
+  document.querySelectorAll('[data-palco]').forEach((palco) => {
+    palco.appendChild(document.getElementById('menu-modelo').content.cloneNode(true));
+    const pastilha = palco.querySelector('.pastilha');
+    const menu = palco.querySelector('.menu'), veu = palco.querySelector('.veu'), forma = palco.querySelector('.forma');
+    const linhas = palco.querySelector('.linhas'), de = palco.querySelector('.de');
+    const opcoes = [...menu.querySelectorAll('.opcao')];
+    let tipo = null, aberto = false, ocupado = false;
+
+    function desenharFila() {
+      de.textContent = DE[tipo ?? 'off'];
+      linhas.innerHTML = '';
+      if (!tipo) { linhas.innerHTML = '<div class="vazio">Nothing next</div>'; return; }
+      FILA[tipo].forEach(([t, a, c1, c2], i) => {
+        const l = document.createElement('div');
+        l.className = 'linha';
+        l.innerHTML = `<div class="c" style="background:linear-gradient(135deg,${c1},${c2})"></div><div><div class="t"></div><div class="a"></div></div>`;
+        l.querySelector('.t').textContent = t; l.querySelector('.a').textContent = a;
+        linhas.appendChild(l);
+        l.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: ms(340), delay: ms(i * 50), easing: SUAVE, fill: 'backwards' });
+      });
+    }
+
+    function posicionar() {
+      const p = caixa(pastilha, palco);
+      menu.style.display = 'block';
+      menu.style.left = `${Math.max(12, p.x + p.w - menu.offsetWidth)}px`;
+      menu.style.top = `${p.y + p.h + 10}px`;
+      return { p, m: caixa(menu, palco) };
+    }
+
+    function abrir() {
+      if (ocupado) return;
+      ocupado = true; aberto = true;
+      const { p, m } = posicionar();
+      veu.style.pointerEvents = 'auto';
+      veu.animate([{ opacity: 0 }, { opacity: 1 }], { duration: ms(220), fill: 'forwards' });
+      const fim = () => { ocupado = false; };
+
+      if (variante === 'forma') {
+        // A pastilha estica-se até ser o menu; as linhas entram depois.
+        menu.classList.add('sem-fundo');
+        forma.style.display = 'block';
+        const a = forma.animate([
+          { left: `${p.x}px`, top: `${p.y}px`, width: `${p.w}px`, height: `${p.h}px`, borderRadius: `${p.h / 2}px`, background: 'rgba(255,255,255,.16)' },
+          { left: `${m.x}px`, top: `${m.y}px`, width: `${m.w}px`, height: `${m.h}px`, borderRadius: '16px', background: '#1C1C1F' },
+        ], { duration: ms(480), easing: MOLA, fill: 'forwards' });
+        const partes = [menu.querySelector('.titulo'), ...opcoes];
+        partes.forEach((el, i) => el.animate([{ opacity: 0, transform: 'translateY(-6px) scale(.98)' }, { opacity: 1, transform: 'none' }],
+          { duration: ms(300), delay: ms(150 + i * 55), easing: SUAVE, fill: 'backwards' }));
+        a.finished.then(() => { menu.classList.remove('sem-fundo'); forma.style.display = 'none'; a.cancel(); fim(); });
+      } else if (variante === 'ondas') {
+        // Duas ondas saem da pastilha; o menu chega com elas.
+        [0, 1].forEach((i) => {
+          const anel = document.createElement('div');
+          anel.className = 'anel';
+          const r = p.h;
+          Object.assign(anel.style, { left: `${p.x + p.w / 2 - r / 2}px`, top: `${p.y + p.h / 2 - r / 2}px`, width: `${r}px`, height: `${r}px` });
+          palco.appendChild(anel);
+          anel.animate([{ transform: 'scale(.8)', opacity: .7 }, { transform: 'scale(7)', opacity: 0 }], { duration: ms(760), delay: ms(i * 120), easing: 'cubic-bezier(.1,.6,.3,1)', fill: 'both' })
+            .finished.then(() => anel.remove());
+        });
+        menu.style.transformOrigin = `${p.x + p.w / 2 - m.x}px ${p.y - m.y}px`;
+        menu.animate([{ opacity: 0, transform: 'scale(.55)' }, { opacity: 1, transform: 'none' }], { duration: ms(440), delay: ms(70), easing: MOLA, fill: 'backwards' })
+          .finished.then(fim);
+        opcoes.forEach((o, i) => o.animate([{ opacity: 0, transform: 'translateX(10px)' }, { opacity: 1, transform: 'none' }], { duration: ms(320), delay: ms(170 + i * 70), easing: SUAVE, fill: 'backwards' }));
+        menu.querySelector('.c.musica').animate([{ transform: 'rotate(-140deg) scale(.6)', borderRadius: '50%' }, { transform: 'rotate(0) scale(1)', borderRadius: '50%', offset: .7 }, { transform: 'none', borderRadius: '8px' }],
+          { duration: ms(700), delay: ms(170), easing: SUAVE, fill: 'backwards' });
+        const caras = [...menu.querySelectorAll('.c.tua span')];
+        const centro = [[11, 11], [-11, 11], [11, -11], [-11, -11]];
+        caras.forEach((s, i) => s.animate([{ transform: `translate(${centro[i][0]}px,${centro[i][1]}px) scale(.5)`, opacity: 0 }, { transform: 'none', opacity: 1 }],
+          { duration: ms(520), delay: ms(260 + i * 45), easing: MOLA, fill: 'backwards' }));
+      } else {
+        // O fundo aparece e as linhas saem da pastilha como cartas.
+        menu.animate([{ opacity: 0, transform: 'scaleY(.94)' }, { opacity: 1, transform: 'none' }], { duration: ms(220), easing: SUAVE, fill: 'backwards' });
+        menu.querySelector('.titulo').animate([{ opacity: 0 }, { opacity: 1 }], { duration: ms(200), delay: ms(80), fill: 'backwards' });
+        const ultimas = opcoes.map((o, i) => {
+          const c = caixa(o, palco);
+          const dx = p.x + p.w / 2 - (c.x + c.w / 2), dy = p.y + p.h / 2 - (c.y + c.h / 2);
+          return o.animate([
+            { opacity: 0, transform: `translate(${dx}px,${dy}px) rotate(-9deg) scale(.42)` },
+            { opacity: 1, transform: 'none' },
+          ], { duration: ms(520), delay: ms(90 + i * 90), easing: MOLA, fill: 'backwards' });
+        });
+        ultimas[ultimas.length - 1].finished.then(fim);
+      }
+    }
+
+    function fechar(escolha) {
+      if (!aberto) return;
+      aberto = false; ocupado = true;
+      veu.style.pointerEvents = 'none';
+      veu.animate([{ opacity: 1 }, { opacity: 0 }], { duration: ms(220), fill: 'forwards' });
+      const p = caixa(pastilha, palco), m = caixa(menu, palco);
+      const acabar = () => {
+        menu.style.display = 'none'; forma.style.display = 'none';
+        menu.getAnimations().forEach((a) => a.cancel());
+        opcoes.forEach((o) => o.classList.remove('escolhida'));
+        ocupado = false;
+        if (escolha) acender(escolha);
+      };
+      if (!escolha) {
+        menu.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.96)' }], { duration: ms(160), easing: 'ease-in', fill: 'forwards' }).finished.then(acabar);
+        return;
+      }
+      // Escolheu: a linha acende, e o menu volta para dentro da pastilha.
+      opcoes.find((o) => o.dataset.tipo === escolha).classList.add('escolhida');
+      menu.style.transformOrigin = `${p.x + p.w / 2 - m.x}px ${p.y + p.h / 2 - m.y}px`;
+      menu.animate([
+        { opacity: 1, transform: 'none', offset: 0 },
+        { opacity: 1, transform: 'none', offset: .3 },
+        { opacity: 0, transform: `scale(${(p.w / m.w).toFixed(3)}, ${(p.h / m.h).toFixed(3)})` },
+      ], { duration: ms(420), easing: 'cubic-bezier(.5,0,.3,1)', fill: 'forwards' }).finished.then(acabar);
+    }
+
+    function acender(escolha) {
+      tipo = escolha;
+      pastilha.classList.add('ligada');
+      pastilha.querySelector('.enchimento').animate([{ transform: 'scaleX(0)' }, { transform: 'none' }], { duration: ms(380), easing: SUAVE });
+      pastilha.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.08)', offset: .45 }, { transform: 'scale(1)' }], { duration: ms(420), easing: SUAVE });
+      desenharFila();
+    }
+
+    function desligar() {
+      tipo = null;
+      pastilha.classList.remove('ligada');
+      pastilha.querySelector('.enchimento').animate([{ transform: 'none' }, { transform: 'scaleX(0)' }], { duration: ms(260), easing: SUAVE });
+      desenharFila();
+    }
+
+    pastilha.addEventListener('click', () => { if (ocupado) return; if (tipo) desligar(); else if (!aberto) abrir(); });
+    veu.addEventListener('click', () => fechar(null));
+    opcoes.forEach((o) => o.addEventListener('click', () => { if (!ocupado) fechar(o.dataset.tipo); }));
+    palco.addEventListener('keydown', (e) => { if (e.key === 'Escape') fechar(null); });
+    palco.repor = () => {
+      document.getAnimations?.();
+      menu.style.display = 'none'; forma.style.display = 'none'; veu.style.opacity = 0; veu.style.pointerEvents = 'none';
+      [...menu.getAnimations(), ...veu.getAnimations()].forEach((a) => a.cancel());
+      aberto = false; ocupado = false;
+      if (tipo) desligar();
+    };
+    desenharFila();
+  });
+</script>
+</body>
+</html>

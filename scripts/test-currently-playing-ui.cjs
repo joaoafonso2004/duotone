@@ -75,6 +75,7 @@ const mocks = {
   '../lib/guardarFila': carregar('src/lib/guardarFila.ts'),
   './RecommendationPreferences':{RecommendationPreferences:'Recs'},
   './RadioQueueControl':{RadioQueueControl:'RadioQueueControl',ErroDoRadio:'ErroDoRadio'},
+  '../lib/menuDoRadio':{MARCA_DA_FILA:{musica:'RADIO',mix:'MIX'}},
   '../lib/descarregarFaixa':{alternarDownload(){},downloadNoMenuDe:()=>null,podeDescarregar:()=>false,tocaSemRede:()=>true,useRevisaoDosDownloads:()=>0},
   '../lib/guardarFaixa':{alternarGuardada:async()=>{},garantirGuardadas(){}},
   '../state/saved':{savedKey:t=>t.source+':'+t.sourceId,useSaved:sel=>sel({loaded:true,keys:new Set()})},
@@ -155,8 +156,14 @@ async function testRadioControl(){
   usePlayer.getState=()=>({...store}); // Zustand devolve um snapshot que a atualização seguinte não modifica.
   usePlayer.setState=patch=>Object.assign(store,patch);
   const radio=carregar('src/components/RadioQueueControl.tsx',{
-    react:React,'react-native':{...native,Switch:'Switch',ActivityIndicator:'Spinner'},
+    react:React,'react-native':{...native,Switch:'Switch',ActivityIndicator:'Spinner',
+      Animated:{Value:class{setValue(){}},View:'AnimatedView',timing:()=>({start(){},stop(){}})},
+      Easing:{out:x=>x,cubic:x=>x},StyleSheet:{...native.StyleSheet,absoluteFill:{}}},
     '@expo/vector-icons/Ionicons':'Icon','../state/player':{usePlayer},
+    // O menu "Songs like this one / Mix" (18/10): aqui só se lhe leem as props.
+    './MenuDoRadio':{MenuDoRadio:'MenuDoRadio'},'../hooks/useCapasDoMix':{useCapasDoMix:()=>[]},
+    '../lib/menuDoRadio':{ROTULO_LIGADO:{musica:'Radio on',mix:'Mix on'}},
+    '../state/fluidez':{pedirFluidez(){}},'../hooks/useReducedMotion':{useReducedMotion:()=>false},
     '../state/connectivity':{useConnectivity},'../state/auth':{useAuth},
     '../theme':{colors:{},spacing:{},type:{},radii:{}},'../lib/artistName':{displayArtist:t=>t.artist},
     '../state/seguirAmigo':{useSeguirAmigo},
@@ -169,15 +176,27 @@ async function testRadioControl(){
     Object.assign(store,{current:a,queue:original,queueIndex:0,positionMs:84_000,
       radioMode:'off',radioContext:[],radioOwner:null,radioStopped:false,
       radioActive:false,doRadio:[],radioError:null,shuffle:true,repeatMode:'all',
-      startRadio:async()=>{store.queue=generated;store.radioMode='on';return true;},
+      radioTipo:'musica',tipoPedido:null,
+      startRadio:async(_daMusica,tipo)=>{store.queue=generated;store.radioMode='on';store.tipoPedido=tipo;return true;},
       stopRadio:()=>{store.radioMode='off';store.radioStopped=true;},
     });
   }
-  async function activate(){
-    // A pastilha do cabeçalho (5/10) liga com um toque, como o interruptor ligava.
-    find(draw(),'Pressable',p=>p.accessibilityLabel==='Radio').props.onPress();
-    assert.equal(store.queue,generated,'a pastilha ativa diretamente mesmo com músicas na fila');
-    assert.ok(!nodes(draw()).some(n=>n.type==='Text'&&n.props.children.includes('Start Radio')),'não pede confirmação');
+  /** Desligada, a pastilha abre o menu a partir dela (18/10); a escolha liga. */
+  function abrirMenu(){
+    const pastilha=find(draw(),'Pressable',p=>p.accessibilityLabel==='Radio');
+    pastilha.props.ref.current={measureInWindow:cb=>cb(300,120,80,28)};
+    pastilha.props.onPress();
+    const menu=find(draw(),'MenuDoRadio',()=>true);
+    assert.equal(menu.props.visivel,true,'desligada, a pastilha abre o menu');
+    assert.deepEqual(JSON.parse(JSON.stringify(menu.props.ancora)),{x:300,y:120,width:80,height:28},'o menu nasce da pastilha');
+    return menu;
+  }
+  async function activate(tipo='musica'){
+    const menu=abrirMenu();
+    assert.equal(store.queue,original,'abrir o menu ainda não mexe na fila');
+    menu.props.aoEscolher(tipo);
+    assert.equal(store.queue,generated,'a escolha liga o Radio');
+    assert.equal(store.tipoPedido,tipo,'o Radio escolhido');
     await new Promise(resolve=>setImmediate(resolve));
     return find(draw(),'Pressable',p=>p.accessibilityLabel==='Undo Radio and restore previous queue');
   }
@@ -199,9 +218,16 @@ async function testRadioControl(){
   ligada.props.onPress();assert.equal(store.radioMode,'off');assert.equal(store.radioStopped,true);
   assert.ok(!nodes(draw()).some(n=>n.props?.accessibilityLabel==='Undo Radio and restore previous queue'),'desligar tira o Undo');
 
-  // A seguir um amigo (5/10): ligar o Radio deixa de o seguir e liga.
+  // O Mix também se liga pelo menu, e a pastilha diz "Mix on".
+  setup();await activate('mix');store.radioTipo='mix';
+  assert.ok(nodes(draw()).some(n=>n.type==='Text'&&String(n.props.children).includes('Mix on')),'ligado no Mix, diz Mix on');
+
+  // A seguir um amigo (5/10): ligar o Radio deixa de o seguir e liga. Abrir o
+  // menu ainda não deixa de o seguir; escolher, sim.
   setup();seguir.seguindo={id:'amigo',nome:'Juj'};
-  find(draw(),'Pressable',p=>p.accessibilityLabel==='Radio').props.onPress();
+  const menuDoAmigo=abrirMenu();
+  assert.equal(seguir.seguindo?.id,'amigo','abrir o menu não deixa de seguir');
+  menuDoAmigo.props.aoEscolher('musica');
   assert.equal(seguir.seguindo,null,'deixou de seguir');
   assert.equal(store.queue,generated,'e o Radio ligou');
 

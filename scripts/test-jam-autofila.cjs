@@ -71,6 +71,8 @@ async function fixture() {
     // A procura guardada e o recuo (16/10): aqui nunca há nada guardado nem recuo.
     './procurasNoYouTube': { chaveDaProcura: (a, t) => `${a}|${t}`, procuraGuardada: async () => undefined, guardarProcura() {} },
     '../lib/pedidosAoYouTube': { emRecuo: () => false },
+    // O histórico do aparelho, que o Mix lê (18/10): aqui vazio.
+    '../lib/playCounts': { contagensNoAparelho: async () => [] },
   });
   let store;
   const exports = load('src/state/ouvirJuntos.ts', {

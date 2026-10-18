@@ -6,7 +6,7 @@ import { getLibrary, getLibraryKeys } from './library';
 import { lerFaixas } from '../lib/cacheDaBiblioteca';
 import { chavesDaMusica, chavesDeTodas, chavesDoCatalogo } from '../lib/identidadeDaMusica';
 import { artistasParaRecomendacoes, getEscutasRecentes, getHeavyRotation, type TopArtist } from './plays';
-import { lerPerfilDeRecomendacoes } from './perfilDeRecomendacoes';
+import { lerPerfilDeRecomendacoes, type PerfilDeRecomendacoes } from './perfilDeRecomendacoes';
 import { paresDeArtistaEPlaylist } from './afinidade';
 import {
   topDoArtista, vizinhancaConfirmada, vizinhancaDe, vizinhancaJaDecidida, type FaixaDoCatalogo,
@@ -37,6 +37,12 @@ import {
   ancorasDoDia, comporMistura, diaDe, DIAS_DAS_RECENTES, FRACAO_DE_NOVAS, misturaGuardada,
   rodarParaODia, TENTATIVAS_DA_MISTURA,
 } from '../lib/misturaDoDia';
+import { JANELA_DAS_OUVIDAS_MS, ouvidaEm } from '../lib/radio';
+import { contagensNoAparelho } from '../lib/playCounts';
+import {
+  ancorasDoLote, ANCORAS_DA_MIX, conhecidasDoLote, ENTRADAS_DO_MIX_VALEM_MS, entradasDoAparelho, FRACAO_DE_NOVAS_NO_MIX,
+} from '../lib/mixDoRadio';
+import type { AncoraDoDia } from '../lib/misturaDoDia';
 import type { Track } from '../types';
 
 /**
@@ -764,6 +770,105 @@ export async function misturaDoDia(
 }
 
 /**
+ * As entradas do Radio "Mix": os artistas da roda, o que se ouviu esta semana
+ * e as favoritas. Saem do histórico de escutas do APARELHO
+ * (`entradasDoAparelho`): zero pedidos ao Supabase, como o Smart Shuffle desde
+ * 16/10. Refeitas de meia em meia hora, para entrar o que se ouviu entretanto.
+ */
+let entradasDoMix: {
+  em: number; ancoras: AncoraDoDia[]; ouvidas: Track[]; favoritas: Track[]; perfil: PerfilDeRecomendacoes;
+} | null = null;
+/** Em que volta da roda vai o Mix: cada lote passa aos artistas seguintes. */
+let voltaDoMix = 0;
+
+/** Só para os testes, e para quem sai da conta. */
+export function esquecerMix(): void {
+  entradasDoMix = null;
+  voltaDoMix = 0;
+}
+
+/**
+ * Um lote do Radio "Mix" (18/10): de tudo o que se ouve, metade tuas e metade
+ * novas parecidas -- as regras e o porquê vivem em `lib/mixDoRadio.ts`. As
+ * mesmas peças da Daily mix (`ancorasDoDia`, `descobertasPorAncora`,
+ * `comporMistura`), mas a rodar pelos artistas lote a lote, e com as regras do
+ * Radio: nada do que está na fila ou se ouviu nas últimas 24 h, e as novas
+ * não voltam durante 30 dias (`jaDescobertas`). Sem escutas nem perfil (uma
+ * conta nova), o flow, com as mesmas regras.
+ */
+export async function loteDaMix(
+  limite: number,
+  exclude: readonly Track[],
+  jaDescobertas: ReadonlySet<string>,
+  ouvidas: ReadonlyMap<string, number>,
+): Promise<Track[]> {
+  if (useConnectivity.getState().offline) return [];
+  await feedbackReady();
+  const agora = Date.now();
+  if (!entradasDoMix || agora - entradasDoMix.em > ENTRADAS_DO_MIX_VALEM_MS) {
+    const contagens = await contagensNoAparelho().catch(() => []);
+    const { recentes, perfil, daSemana, favoritas } = entradasDoAparelho(
+      contagens.map((c) => ({
+        faixa: {
+          source: c.source, sourceId: c.sourceId, title: c.title, artist: c.artist,
+          album: null, artworkUrl: c.artworkUrl, durationSeconds: c.durationSeconds,
+        } as Track,
+        count: c.count, lastPlayed: c.lastPlayed,
+      })),
+      (t) => ({ chave: chaveDeArtista(displayArtist(t)), nome: displayArtist(t) }),
+      agora,
+    );
+    const ancoras = ancorasDoDia(recentes, perfil, agora, ANCORAS_DA_MIX);
+    // O perfil da busca de parecidas também sai daqui: sem ele, cada lote lia o
+    // da conta (uma RPC e o gosto do Spotify).
+    const doPerfil: PerfilDeRecomendacoes = { escutas: new Map(perfil.map((a) => [a.chave, a.escutas])), externos: new Map() };
+    entradasDoMix = { em: agora, ancoras, ouvidas: daSemana, favoritas, perfil: doPerfil };
+  }
+  const { ancoras, ouvidas: daSemana, favoritas, perfil: perfilDoMix } = entradasDoMix;
+  let biblioteca: Track[] = [];
+  try { biblioteca = await lerFaixas(getLibrary); } catch { /* sai das escutas e das favoritas */ }
+
+  const desde = agora - JANELA_DAS_OUVIDAS_MS;
+  const naFila = new Set(exclude.flatMap((t) => [trackKey(t), ...chavesDaMusica(t)]));
+  const podeEntrar = (t: Track) => {
+    const chaves = chavesDaMusica(t);
+    return !naFila.has(trackKey(t)) && !chaves.some((k) => naFila.has(k)) && ouvidaEm(chaves, ouvidas) <= desde;
+  };
+  const nova = (t: Track) => podeEntrar(t) && !chavesDaMusica(t).some((k) => jaDescobertas.has(k));
+
+  if (ancoras.length === 0) {
+    return filterSuggestions((await flowDoDia(limite * 2, biblioteca)).filter(podeEntrar)).slice(0, limite);
+  }
+  const doLote = ancorasDoLote(ancoras, voltaDoMix++);
+  // O que não se quer: salta-se antes de pesquisar (poupa procuras).
+  const evitar = new Set<string>([...naFila, ...jaDescobertas]);
+  for (const [k, em] of ouvidas) if (em > desde) evitar.add(k);
+  const { vizinhas, ancoras: confirmadas } = await descobertasPorAncora(
+    biblioteca, doLote.map((a) => a.nome), doLote.length, evitar, perfilDoMix,
+  );
+  const aceites = new Set(confirmadas.map(chaveDeArtista));
+  // Um artista que o catálogo não confirmou continua com as tuas dele.
+  const finais = doLote.map((a) => ({ ...a, peso: aceites.has(a.chave) ? a.peso : a.peso * 0.6 }));
+  const soma = finais.reduce((t, a) => t + a.peso, 0) || 1;
+  const pesos = finais.map((a) => ({ ...a, peso: a.peso / soma }));
+  const novas = new Map([...vizinhas].map(([k, l]) => [k, l.filter(nova)] as const));
+  const conhecidas = conhecidasDoLote(
+    new Set(doLote.map((a) => a.chave)), daSemana, biblioteca, favoritas,
+    (t) => chaveDeArtista(displayArtist(t)), trackKey, podeEntrar,
+  );
+  const mix = comporMistura(pesos, novas, conhecidas, limite, trackKey, FRACAO_DE_NOVAS_NO_MIX);
+  // Pouco (artistas sem nada que possa entrar): o que faltar vem das favoritas.
+  if (mix.length < limite) {
+    const jaLa = new Set(mix.map(trackKey));
+    for (const t of favoritas) {
+      if (mix.length >= limite) break;
+      if (!jaLa.has(trackKey(t)) && podeEntrar(t)) { jaLa.add(trackKey(t)); mix.push(t); }
+    }
+  }
+  return filterSuggestions(mix);
+}
+
+/**
  * Por que artistas começar, e o mapa de afinidade que ordena o resto.
  *
  * Na Search, mistura o retrato com vizinhos de playlists, cujo peso agregado é
@@ -1006,6 +1111,9 @@ export async function descobertasPorAncora(
   /** O que não se quer outra vez (a Daily mix dos dias anteriores): salta-se
    * antes de pesquisar, e o top do artista desce. */
   evitar: ReadonlySet<string> = new Set(),
+  /** O perfil, quando quem chama já o tem (o Mix tira-o do aparelho, 18/10):
+   * sem ele lê-se o da conta, que é um pedido por chamada. */
+  perfil?: PerfilDeRecomendacoes,
 ): Promise<DescobertasPorAncora> {
   const vazio: DescobertasPorAncora = { vizinhas: new Map(), ancoras: [] };
   if (useConnectivity.getState().offline || pedidos.length === 0) return vazio;
@@ -1014,7 +1122,7 @@ export async function descobertasPorAncora(
   try {
     await feedbackReady();
     const toda = await bibliotecaInteira();
-    const { escutas, externos } = await lerPerfilDeRecomendacoes();
+    const { escutas, externos } = perfil ?? await lerPerfilDeRecomendacoes();
     const { alvos, afinidade } = await escolherAlvos(
       biblioteca, quantasAncoras, escutas, externos, false, pedidos, toda,
     );

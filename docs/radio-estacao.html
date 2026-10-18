@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your Station</title>
+<style>
+  :root {
+    --fundo: #0A0A0F; --cartao: #14141C; --elevado: #1B1B25; --linha: rgba(255,255,255,.08);
+    --texto: #F5F5F7; --fraco: rgba(245,245,247,.58); --muito-fraco: rgba(245,245,247,.34);
+    --v1: #8B5CF6; --v2: #EC4899; --v3: #22D3EE; --vel: 1;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fundo); color: var(--texto);
+    font-family: "Segoe UI Variable", "Segoe UI", -apple-system, system-ui, sans-serif; }
+  main { max-width: 1200px; margin: 0 auto; padding: 36px 16px 64px; }
+  h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -.3px; }
+  .sub { color: var(--fraco); margin: 0 0 26px; font-size: 14px; line-height: 1.6; max-width: 860px; }
+  .sub b { color: var(--texto); font-weight: 600; }
+  .ecras { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 22px; align-items: start; }
+  .passo { display: grid; gap: 10px; }
+  .passo h2 { margin: 0; font-size: 14px; display: flex; gap: 8px; align-items: center; color: var(--fraco); font-weight: 600; }
+  .passo h2 span { width: 22px; height: 22px; border-radius: 50%; background: var(--texto); color: var(--fundo); display: grid; place-items: center; font-size: 12px; }
+  .passo > p { margin: 0; font-size: 12.5px; color: var(--fraco); line-height: 1.5; }
+  .telefone { width: 100%; max-width: 340px; aspect-ratio: 9 / 18.5; border-radius: 38px; background: var(--fundo);
+    border: 1px solid rgba(255,255,255,.12); box-shadow: 0 30px 60px rgba(0,0,0,.45); overflow: hidden; position: relative; }
+  .ecra { position: absolute; inset: 0; padding: 50px 16px 16px; overflow: hidden; display: flex; flex-direction: column; }
+  button { font: inherit; color: inherit; -webkit-tap-highlight-color: transparent; }
+  button:focus-visible { outline: 2px solid var(--v1); outline-offset: 3px; }
+
+  /* ---------------------------------------------------------------- Home */
+  .saudacao { font-size: 24px; font-weight: 700; letter-spacing: -.4px; margin: 6px 0 14px; }
+  .chips { display: flex; gap: 8px; margin-bottom: 16px; }
+  .chips span { font-size: 12.5px; padding: 6px 12px; border-radius: 999px; background: var(--elevado); color: var(--fraco); }
+  .chips span:first-child { background: var(--texto); color: var(--fundo); font-weight: 600; }
+  .estacao { border-radius: 18px; padding: 16px; position: relative; overflow: hidden; min-height: 176px; display: flex; flex-direction: column; justify-content: flex-end;
+    background: #1a1030; cursor: pointer; border: 0; text-align: left; width: 100%; }
+  .estacao .aurora { position: absolute; inset: -40%; filter: blur(28px); opacity: .9;
+    background: conic-gradient(from 0deg at 50% 50%, var(--v1), var(--v2), #f59e0b, var(--v3), var(--v1));
+    animation: aurora calc(14s * var(--vel)) linear infinite; }
+  @keyframes aurora { to { transform: rotate(360deg); } }
+  .estacao .veu { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(10,10,15,.05), rgba(10,10,15,.72)); }
+  .estacao > * { position: relative; }
+  .estacao .rotulo { font-size: 11px; letter-spacing: 1.4px; font-weight: 700; color: rgba(255,255,255,.75); }
+  .estacao .nome { font-size: 26px; font-weight: 800; letter-spacing: -.6px; margin: 2px 0 4px; }
+  .estacao .quem { font-size: 12.5px; color: rgba(255,255,255,.8); padding-right: 58px; }
+  .estacao .caras { position: absolute; top: 16px; left: 16px; display: flex; }
+  .estacao .caras i { width: 30px; height: 30px; border-radius: 50%; border: 2px solid rgba(10,10,15,.6); margin-right: -8px; display: grid; place-items: center;
+    font-style: normal; font-size: 11px; font-weight: 700; }
+  .estacao .play { position: absolute; right: 14px; bottom: 14px; width: 48px; height: 48px; border-radius: 50%; background: var(--texto); color: var(--fundo);
+    display: grid; place-items: center; box-shadow: 0 8px 20px rgba(0,0,0,.35); transition: transform calc(.2s * var(--vel)); }
+  .estacao:active .play { transform: scale(.92); }
+  .prateleira { margin-top: 18px; }
+  .prateleira h3 { font-size: 15px; margin: 0 0 10px; }
+  .mixes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .mix .capa { aspect-ratio: 1; border-radius: 10px; }
+  .mix .t { font-size: 12px; font-weight: 600; margin-top: 6px; }
+  .mix .a { font-size: 11px; color: var(--fraco); }
+
+  /* ---------------------------------------------------------------- Now Playing */
+  .np { background: linear-gradient(180deg, #2a1647 0%, #120c1d 60%, var(--fundo)); transition: background calc(.8s * var(--vel)); }
+  .np[data-vibe="1"] { background: linear-gradient(180deg, #0f3a40 0%, #0b1a1d 60%, var(--fundo)); }
+  .np[data-vibe="2"] { background: linear-gradient(180deg, #4a1d1d 0%, #1d0f0f 60%, var(--fundo)); }
+  .np-topo { text-align: center; margin-bottom: 18px; }
+  .np-topo .de { font-size: 10.5px; letter-spacing: 1.4px; color: var(--fraco); font-weight: 700; }
+  .np-topo .fonte { font-size: 13px; font-weight: 700; margin-top: 2px; }
+  .np-topo .fonte em { font-style: normal; color: var(--fraco); font-weight: 600; transition: opacity calc(.25s * var(--vel)); }
+  .np .capa-grande { aspect-ratio: 1; border-radius: 14px; margin: 0 6px; box-shadow: 0 20px 40px rgba(0,0,0,.4);
+    transition: background calc(.6s * var(--vel)), transform calc(.5s * var(--vel)) cubic-bezier(.3,1.3,.45,1); }
+  .np .capa-grande.trocar { transform: scale(.94); }
+  .np .faixa { margin: 18px 6px 0; display: flex; align-items: center; gap: 10px; }
+  .np .faixa .t { font-size: 18px; font-weight: 700; }
+  .np .faixa .a { font-size: 13.5px; color: var(--fraco); }
+  .np .faixa .txt { flex: 1; min-width: 0; }
+  .barra-tempo { height: 4px; border-radius: 2px; background: rgba(255,255,255,.15); margin: 16px 6px 0; position: relative; }
+  .barra-tempo::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 38%; border-radius: 2px; background: var(--texto); }
+  .controlos { display: flex; align-items: center; justify-content: space-between; margin: 18px 6px 0; }
+  .controlos .grande { width: 60px; height: 60px; border-radius: 50%; background: var(--texto); color: var(--fundo); display: grid; place-items: center; }
+  .vibe-botao { margin: 18px auto 0; display: flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: 999px; border: 1px solid rgba(255,255,255,.2);
+    background: rgba(255,255,255,.08); cursor: pointer; font-size: 13px; font-weight: 600; }
+  .vibe-botao svg { transition: transform calc(.6s * var(--vel)) cubic-bezier(.3,1.3,.45,1); }
+  .vibe-botao.girar svg { transform: rotate(360deg); }
+  .vibes { display: flex; gap: 6px; justify-content: center; margin-top: 10px; flex-wrap: wrap; }
+  .vibes button { font-size: 11.5px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--linha); background: none; color: var(--fraco); cursor: pointer;
+    transition: all calc(.25s * var(--vel)); }
+  .vibes button[aria-pressed="true"] { background: var(--texto); color: var(--fundo); border-color: transparent; }
+
+  /* ---------------------------------------------------------------- Fila */
+  .fila-ecra { background: var(--cartao); }
+  .fila-ecra h4 { margin: 0; font-size: 11px; letter-spacing: 1.4px; color: var(--muito-fraco); }
+  .agora { display: flex; gap: 10px; align-items: center; padding: 8px 0 14px; border-bottom: 1px solid var(--linha); }
+  .agora .capa { width: 44px; height: 44px; border-radius: 8px; flex-shrink: 0; }
+  .bloco { margin-top: 14px; animation: entrar calc(.4s * var(--vel)) both cubic-bezier(.2,.8,.2,1); }
+  .bloco .cab { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
+  .bloco .cab b { font-size: 13px; }
+  .bloco .cab small { font-size: 11px; color: var(--muito-fraco); }
+  .lin { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+  .lin .capa { width: 36px; height: 36px; border-radius: 6px; flex-shrink: 0; }
+  .lin .txt { flex: 1; min-width: 0; }
+  .lin .t { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lin .a { font-size: 11.5px; color: var(--fraco); }
+  .marca { font-size: 10px; letter-spacing: .4px; padding: 2px 7px; border-radius: 999px; }
+  .marca.nova { background: linear-gradient(90deg, var(--v1), var(--v2)); color: #fff; }
+  .marca.descobre { border: 1px solid rgba(255,255,255,.2); color: var(--fraco); }
+  @keyframes entrar { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  .comparar { margin-top: 34px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+  .comparar section { background: var(--cartao); border: 1px solid var(--linha); border-radius: 16px; padding: 16px 18px; }
+  .comparar h3 { margin: 0 0 8px; font-size: 15px; }
+  .comparar ul { margin: 0; padding-left: 18px; color: var(--fraco); font-size: 13px; line-height: 1.6; }
+  .comparar li b { color: var(--texto); font-weight: 600; }
+  @media (prefers-reduced-motion: reduce) { :root { --vel: .01; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Your Station: o rádio de tudo o que ouves</h1>
+  <p class="sub">Sem interruptor. <b>É o sítio onde carregas que diz qual rádio queres</b>, como no Spotify (o rádio de uma música está no menu dela; o DJ e os Daily Mix são cartões na Home). O <b>Radio</b> de hoje fica igual: continua a partir da música que está a tocar. O novo é um <b>destino</b>: um cartão na Home, um toque, e nunca acaba. E não é uma papa de tudo misturado: anda pelos teus <b>estilos</b>, uns blocos de cada, e dá para trocar de estilo quando te apetecer. <b>Carrega no cartão</b> e depois em "Change vibe".</p>
+
+  <div class="ecras">
+    <div class="passo">
+      <h2><span>1</span>Home: um cartão, um toque</h2>
+      <div class="telefone"><div class="ecra">
+        <div class="saudacao">Good evening</div>
+        <div class="chips"><span>All</span><span>Music</span><span>Friends</span></div>
+        <button type="button" class="estacao" id="estacao" aria-label="Play Your Station">
+          <div class="aurora"></div><div class="veu"></div>
+          <div class="caras">
+            <i style="background:#3b5ce0">D</i><i style="background:#2fae8f">2</i><i style="background:#7b5ce0">L</i><i style="background:#c4842f">T</i>
+          </div>
+          <div class="rotulo">MADE FROM WHAT YOU PLAY</div>
+          <div class="nome">Your Station</div>
+          <div class="quem">Drake, 2hollis, Lil Uzi Vert and more · never ends</div>
+          <div class="play"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg></div>
+        </button>
+        <div class="prateleira"><h3>Made for you</h3>
+          <div class="mixes">
+            <div class="mix"><div class="capa" style="background:linear-gradient(135deg,#2a1f4f,#7b5ce0)"></div><div class="t">Daily mix</div><div class="a">Today</div></div>
+            <div class="mix"><div class="capa" style="background:linear-gradient(135deg,#1f4f45,#4ad1b0)"></div><div class="t">New releases</div><div class="a">2hollis, Drake</div></div>
+            <div class="mix"><div class="capa" style="background:linear-gradient(135deg,#4f3a1f,#e0a84a)"></div><div class="t">Liked Songs</div><div class="a">739 songs</div></div>
+          </div>
+        </div>
+      </div></div>
+      <p>Fica no topo da Home, acima das prateleiras. A capa é feita das cores e caras dos teus artistas e mexe-se devagar. No PC é o mesmo cartão, na Home.</p>
+    </div>
+
+    <div class="passo">
+      <h2><span>2</span>A tocar: diz de onde vem, e deixa mudar o estilo</h2>
+      <div class="telefone"><div class="ecra np" id="np" data-vibe="0">
+        <div class="np-topo"><div class="de">PLAYING FROM YOUR STATION</div><div class="fonte"><em id="np-vibe">Rap &amp; trap</em></div></div>
+        <div class="capa-grande" id="np-capa" style="background:linear-gradient(135deg,#4f3a1f,#e0a84a)"></div>
+        <div class="faixa"><div class="txt"><div class="t" id="np-t">Toosie Slide</div><div class="a" id="np-a">Drake</div></div>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg></div>
+        <div class="barra-tempo"></div>
+        <div class="controlos">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" opacity=".5"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zM9.5 12 18 6v12z"/></svg>
+          <div class="grande"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg></div>
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" opacity=".5"><path d="M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3"/></svg>
+        </div>
+        <button type="button" class="vibe-botao" id="mudar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg>Change vibe</button>
+        <div class="vibes" id="vibes"></div>
+      </div></div>
+      <p>Por cima diz sempre de onde vem: "Your Station · Rap &amp; trap". <b>Change vibe</b> salta para outro dos teus estilos (como o botão do DJ do Spotify), ou tocas num estilo para ir direto a ele. Isto só aparece na Station.</p>
+    </div>
+
+    <div class="passo">
+      <h2><span>3</span>A fila: blocos dos teus estilos</h2>
+      <div class="telefone"><div class="ecra fila-ecra">
+        <h4>NOW PLAYING</h4>
+        <div class="agora"><div class="capa" id="fila-capa" style="background:linear-gradient(135deg,#4f3a1f,#e0a84a)"></div>
+          <div class="txt"><div class="t" style="font-size:14px;font-weight:700" id="fila-t">Toosie Slide</div><div class="a" style="font-size:12px;color:var(--fraco)" id="fila-a">Drake · Your Station</div></div></div>
+        <div id="blocos"></div>
+      </div></div>
+      <p>Uns 5 de cada estilo, e passa ao estilo mais parecido (rap → underground, não rap → pop de repente). Mais ou menos <b>6 tuas para 4 novas</b>, sem repetir o que ouviste nas últimas 24 h e sem o mesmo artista seguido.</p>
+    </div>
+  </div>
+
+  <div class="comparar">
+    <section><h3>Radio (fica como está)</h3><ul>
+      <li><b>Onde:</b> a pastilha no Up next, e "Start radio" no menu de uma música.</li>
+      <li><b>De onde parte:</b> da música que está a tocar.</li>
+      <li><b>Para quê:</b> "quero mais disto".</li>
+    </ul></section>
+    <section><h3>Your Station (novo)</h3><ul>
+      <li><b>Onde:</b> um cartão na Home (iPhone e PC).</li>
+      <li><b>De onde parte:</b> de tudo o que ouves, separado por estilos.</li>
+      <li><b>Para quê:</b> "põe música minha e não me faças escolher".</li>
+      <li><b>Aprende na hora:</b> saltar nos primeiros 30 s dá menos daquele estilo; o coração dá mais.</li>
+    </ul></section>
+    <section><h3>Como se faz por trás</h3><ul>
+      <li><b>Estilos:</b> os teus artistas mais ouvidos (com o peso das escutas recentes) e as Liked Songs, agrupados pelo género que o catálogo já guarda.</li>
+      <li><b>Fontes:</b> as da Daily mix e do Radio, que já ficam guardadas no aparelho, por isso gasta pouco plafond.</li>
+      <li><b>Regras:</b> as do Radio de hoje (24 h sem repetir, artistas espalhados, lançamentos novos dos teus artistas).</li>
+    </ul></section>
+  </div>
+</main>
+
+<script>
+  const VIBES = [
+    { nome: 'Rap & trap', faixas: [
+      { t: 'Toosie Slide', a: 'Drake', c: ['#4f3a1f', '#e0a84a'] },
+      { t: 'goosebumps', a: 'Travis Scott', c: ['#3a2a1f', '#c47a4a'] },
+      { t: 'XO Tour Llif3', a: 'Lil Uzi Vert', c: ['#2a1f4f', '#7b5ce0'] },
+      { t: 'Mask Off', a: 'Future', c: ['#1f2a3a', '#5a7ab0'], marca: 'descobre' },
+      { t: 'Lifestyle', a: 'Lil Mosey & Hurricane Wisdom', c: ['#3a1f2a', '#b05a7a'] },
+    ] },
+    { nome: 'Underground', faixas: [
+      { t: 'whiplash', a: '2hollis', c: ['#0f3a40', '#3ad1c0'] },
+      { t: 'Warhorse', a: '2hollis', c: ['#1f4f45', '#4ad1b0'], marca: 'nova' },
+      { t: 'Cold Shoulder', a: 'Unknown T', c: ['#22303a', '#6a8aa0'] },
+      { t: 'Flicker', a: 'Jane Remover', c: ['#2a1f40', '#8a6ad0'], marca: 'descobre' },
+    ] },
+    { nome: 'Pop', faixas: [
+      { t: 'Blinding Lights', a: 'The Weeknd', c: ['#7a1d1d', '#e0452f'] },
+      { t: 'Physical', a: 'Dua Lipa', c: ['#4f1f2e', '#e0607e'], marca: 'descobre' },
+      { t: 'Save Your Tears', a: 'The Weeknd', c: ['#3b1f4f', '#b04a8a'] },
+      { t: 'Take On Me', a: 'a-ha', c: ['#1f3b4f', '#4aa3b0'] },
+    ] },
+  ];
+  // A ordem dos estilos segue o mais parecido: rap -> underground -> pop -> rap.
+  let atual = 0;
+  const np = document.getElementById('np');
+  const vel = () => Number(getComputedStyle(document.documentElement).getPropertyValue('--vel')) || 1;
+
+  function grad(c) { return `linear-gradient(135deg,${c[0]},${c[1]})`; }
+  function linha(f) {
+    const marca = f.marca === 'nova' ? '<span class="marca nova">NEW</span>' : f.marca === 'descobre' ? '<span class="marca descobre">for you</span>' : '';
+    const l = document.createElement('div');
+    l.className = 'lin';
+    l.innerHTML = `<div class="capa" style="background:${grad(f.c)}"></div><div class="txt"><div class="t"></div><div class="a"></div></div>${marca}`;
+    l.querySelector('.t').textContent = f.t;
+    l.querySelector('.a').textContent = f.a;
+    return l;
+  }
+  function desenhar() {
+    const v = VIBES[atual];
+    const f = v.faixas[0];
+    np.dataset.vibe = String(atual);
+    document.getElementById('np-vibe').textContent = v.nome;
+    const capa = document.getElementById('np-capa');
+    capa.classList.add('trocar');
+    setTimeout(() => { capa.style.background = grad(f.c); capa.classList.remove('trocar'); }, 180 * vel());
+    document.getElementById('np-t').textContent = f.t;
+    document.getElementById('np-a').textContent = f.a;
+    document.getElementById('fila-capa').style.background = grad(f.c);
+    document.getElementById('fila-t').textContent = f.t;
+    document.getElementById('fila-a').textContent = `${f.a} · Your Station`;
+    const vibes = document.getElementById('vibes');
+    vibes.innerHTML = '';
+    VIBES.forEach((x, i) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.textContent = x.nome; b.setAttribute('aria-pressed', String(i === atual));
+      b.addEventListener('click', () => { if (i !== atual) { atual = i; desenhar(); } });
+      vibes.appendChild(b);
+    });
+    const blocos = document.getElementById('blocos');
+    blocos.innerHTML = '';
+    const proximo = VIBES[(atual + 1) % VIBES.length];
+    [[`Next in ${v.nome}`, v.faixas.slice(1, 4), `${v.faixas.length - 1} more`], [`Then ${proximo.nome}`, proximo.faixas.slice(0, 2), 'the closest style']]
+      .forEach(([titulo, faixas, nota], i) => {
+        const b = document.createElement('div');
+        b.className = 'bloco'; b.style.animationDelay = `${i * 90 * vel()}ms`;
+        b.innerHTML = '<div class="cab"><b></b><small></small></div>';
+        b.querySelector('b').textContent = titulo; b.querySelector('small').textContent = nota;
+        faixas.forEach((f2) => b.appendChild(linha(f2)));
+        blocos.appendChild(b);
+      });
+  }
+  document.getElementById('mudar').addEventListener('click', (e) => {
+    const b = e.currentTarget;
+    b.classList.remove('girar'); void b.offsetWidth; b.classList.add('girar');
+    atual = (atual + 1) % VIBES.length;
+    desenhar();
+  });
+  document.getElementById('estacao').addEventListener('click', () => {
+    atual = 0; desenhar();
+    np.animate([{ transform: 'scale(.96)', opacity: .4 }, { transform: 'none', opacity: 1 }], { duration: 420 * vel(), easing: 'cubic-bezier(.2,.8,.2,1)' });
+  });
+  desenhar();
+</script>
+</body>
+</html>

@@ -10,6 +10,11 @@ const ts = require('typescript');
 const raiz = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // Carrega os módulos reais com rede/cache substituídas; não copia a lógica testada.
+/** Duplos para quando um módulo importa outro que só o aparelho tem. */
+const POR_OMISSAO = {
+  'src/lib/playCounts.ts': { contagensNoAparelho: async () => [] },
+};
+
 function ambiente(fetch, substituicoes = {}) {
   const cache = new Map();
   const modulos = new Map();
@@ -47,7 +52,12 @@ function ambiente(fetch, substituicoes = {}) {
         if (stubs[pedido]) return stubs[pedido];
         if (!pedido.startsWith('.')) return require(pedido);
         const destino = path.relative(raiz, path.resolve(path.dirname(ficheiro), pedido));
-        return carregar(destino.endsWith('.ts') ? destino : `${destino}.ts`);
+        const alvo = destino.endsWith('.ts') ? destino : `${destino}.ts`;
+        // Importado por outro módulo (e não carregado à mão por um teste): o
+        // histórico de escutas do aparelho, que o Mix lê (18/10), vem vazio.
+        const normal = alvo.replaceAll('\\', '/');
+        if (!stubs[normal] && POR_OMISSAO[normal]) return POR_OMISSAO[normal];
+        return carregar(alvo);
       },
     });
     vm.runInContext(codigo, contexto, { filename: ficheiro });

@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Radio · dois lados</title>
+<style>
+  :root {
+    --fundo: #0A0A0F; --cartao: #14141C; --vidro: rgba(255,255,255,.045); --linha: rgba(255,255,255,.08);
+    --texto: #F5F5F7; --fraco: rgba(245,245,247,.55); --muito-fraco: rgba(245,245,247,.32);
+    --acento: #8B5CF6; --acento2: #EC4899; --capa1: #7a1d1d; --capa2: #e0452f;
+    --vel: 1;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fundo); color: var(--texto);
+    font-family: "Segoe UI Variable", "Segoe UI", -apple-system, system-ui, sans-serif; }
+  main { max-width: 1180px; margin: 0 auto; padding: 36px 16px 64px; }
+  h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -.3px; }
+  .sub { color: var(--fraco); margin: 0 0 18px; font-size: 14px; line-height: 1.55; max-width: 820px; }
+  .sub b { color: var(--texto); font-weight: 600; }
+  .barra { display: flex; gap: 8px; align-items: center; margin-bottom: 22px; flex-wrap: wrap; font-size: 13px; color: var(--fraco); }
+  .barra button { background: var(--cartao); color: var(--texto); border: 1px solid var(--linha);
+    border-radius: 999px; padding: 7px 14px; font: inherit; cursor: pointer; }
+  .barra button[aria-pressed="true"] { background: var(--texto); color: var(--fundo); }
+  .grelha { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 16px; }
+  .opcao { background: var(--cartao); border: 1px solid var(--linha); border-radius: 18px; padding: 18px;
+    display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .opcao h2 { margin: 0; font-size: 16px; display: flex; gap: 8px; align-items: center; }
+  .opcao h2 .letra { width: 22px; height: 22px; border-radius: 6px; background: rgba(255,255,255,.08);
+    display: grid; place-items: center; font-size: 12px; }
+  .opcao h2 .rec { font-size: 10px; letter-spacing: 1px; background: var(--texto); color: var(--fundo);
+    border-radius: 4px; padding: 2px 6px; }
+  .opcao > p { margin: 0; color: var(--fraco); font-size: 13px; line-height: 1.5; }
+  .gestos { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 12.5px; color: var(--fraco); }
+  .gestos b { color: var(--texto); font-weight: 600; }
+
+  /* A folha da fila do iPhone, em miniatura: o cabeçalho do Up next e três linhas. */
+  .fila { border-radius: 16px; padding: 14px 14px 10px; position: relative; overflow: hidden;
+    background: linear-gradient(180deg, rgba(122,29,29,.42), rgba(20,20,28,.96) 62%); }
+  .cabeca { display: flex; align-items: center; gap: 10px; min-height: 76px; }
+  .cabeca .titulo { flex: 1; min-width: 0; }
+  .eyebrow { font-size: 11px; letter-spacing: 1.4px; font-weight: 700; color: var(--muito-fraco); }
+  .estado { font-size: 13px; color: var(--texto); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    transition: opacity calc(.25s * var(--vel)); }
+  .estado.mudar { opacity: 0; }
+  .limpar { font-size: 13px; color: var(--fraco); background: none; border: 0; padding: 4px 2px; font: inherit; }
+  .linhas { display: grid; gap: 4px; margin-top: 10px; min-height: 150px; }
+  .linha { display: flex; align-items: center; gap: 10px; padding: 6px; border-radius: 10px;
+    animation: entrar calc(.38s * var(--vel)) both cubic-bezier(.2,.8,.2,1); }
+  .linha .capa { width: 36px; height: 36px; border-radius: 6px; flex-shrink: 0; }
+  .linha .txt { flex: 1; min-width: 0; }
+  .linha .t { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .linha .a { font-size: 12px; color: var(--fraco); }
+  .tag { font-size: 10.5px; letter-spacing: .4px; border-radius: 999px; padding: 2px 8px; border: 1px solid var(--linha); color: var(--fraco); }
+  .tag.tua { color: var(--texto); border-color: rgba(255,255,255,.22); }
+  .tag.nova { color: #fff; background: linear-gradient(90deg, var(--acento), var(--acento2)); border-color: transparent; }
+  .vazio { font-size: 13px; color: var(--muito-fraco); padding: 18px 6px; text-align: center; animation: entrar calc(.3s * var(--vel)) both; }
+  @keyframes entrar { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .mini { font-size: 12px; color: var(--fraco); background: rgba(255,255,255,.06); border: 1px solid var(--linha);
+    border-radius: 999px; padding: 4px 10px; cursor: pointer; font: inherit; font-size: 12px; }
+  .mini:hover { color: var(--texto); }
+  button { -webkit-tap-highlight-color: transparent; }
+  button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--acento); outline-offset: 3px; }
+
+  /* ---------------------------------------------------------------- A · Moeda */
+  .moeda { width: 60px; height: 60px; border: 0; padding: 0; background: none; cursor: pointer; position: relative;
+    perspective: 420px; touch-action: none; flex-shrink: 0; }
+  .moeda .giro { position: absolute; inset: 0; transform-style: preserve-3d;
+    transition: transform calc(.7s * var(--vel)) cubic-bezier(.3,1.45,.45,1); }
+  .moeda[data-lado="tudo"] .giro { transform: rotateY(180deg); }
+  .moeda .face { position: absolute; inset: 0; border-radius: 50%; backface-visibility: hidden; display: grid; place-items: center;
+    box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.18); overflow: hidden; }
+  .moeda .frente { background: linear-gradient(135deg, var(--capa1), var(--capa2)); }
+  .moeda .verso { transform: rotateY(180deg); background: #1b1b26; }
+  .moeda .verso .mosaico { display: grid; grid-template-columns: 1fr 1fr; width: 100%; height: 100%; }
+  .moeda .verso .mosaico span { display: grid; place-items: center; font-size: 12px; font-weight: 700; color: rgba(255,255,255,.9); }
+  .moeda .icone { width: 22px; height: 22px; color: #fff; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); position: relative; z-index: 1; }
+  .moeda .verso .icone { position: absolute; }
+  .moeda::before, .moeda::after { content: ""; position: absolute; inset: -2px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,.55);
+    opacity: 0; pointer-events: none; }
+  .moeda.ligado::before { animation: onda calc(2.4s * var(--vel)) infinite ease-out; }
+  .moeda.ligado::after { animation: onda calc(2.4s * var(--vel)) infinite ease-out calc(1.2s * var(--vel)); }
+  .moeda:not(.ligado) .giro { filter: saturate(.25) brightness(.7); }
+  @keyframes onda { from { transform: scale(1); opacity: .65; } to { transform: scale(1.75); opacity: 0; } }
+  .moeda-rotulo { display: grid; justify-items: center; gap: 2px; }
+  .moeda-rotulo small { font-size: 11px; color: var(--muito-fraco); letter-spacing: .3px; }
+
+  /* ---------------------------------------------------------------- B · Sintonizador */
+  .sintonia { width: 196px; height: 58px; border-radius: 14px; background: rgba(0,0,0,.35); border: 1px solid var(--linha);
+    position: relative; overflow: hidden; cursor: pointer; touch-action: none; flex-shrink: 0; user-select: none; }
+  .sintonia .escala { position: absolute; left: 10px; right: 10px; top: 8px; height: 12px;
+    background: repeating-linear-gradient(90deg, rgba(255,255,255,.28) 0 1px, transparent 1px 8px);
+    -webkit-mask: linear-gradient(180deg, #000 55%, transparent); mask: linear-gradient(180deg, #000 55%, transparent); }
+  .sintonia .estacao { position: absolute; bottom: 7px; font-size: 10px; letter-spacing: 1.2px; font-weight: 700; color: var(--muito-fraco);
+    transform: translateX(-50%); transition: color calc(.3s * var(--vel)); white-space: nowrap; }
+  .sintonia .estacao.e1 { left: 26%; } .sintonia .estacao.e2 { left: 74%; }
+  .sintonia .estacao.ativa { color: var(--texto); }
+  .sintonia.ligado .estacao.ativa { text-shadow: 0 0 10px rgba(236,72,153,.8); }
+  .sintonia .agulha { position: absolute; top: 4px; bottom: 22px; width: 2px; border-radius: 2px; background: #ff5a6e; left: 26%;
+    transform: translateX(-50%); transition: left calc(.75s * var(--vel)) cubic-bezier(.3,1.35,.45,1); box-shadow: 0 0 8px rgba(255,90,110,.8); }
+  .sintonia[data-lado="tudo"] .agulha { left: 74%; }
+  .sintonia.arrastar .agulha { transition: none; }
+  .sintonia .ruido { position: absolute; inset: 0; opacity: 0; pointer-events: none; mix-blend-mode: screen;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='60'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='120' height='60' filter='url(%23n)' opacity='.55'/></svg>"); }
+  .sintonia.estatica .ruido { animation: estatica calc(.7s * var(--vel)) steps(6) both; }
+  @keyframes estatica { 0% { opacity: 0; } 20% { opacity: .55; background-position: 0 0; } 60% { opacity: .4; background-position: -40px 10px; } 100% { opacity: 0; background-position: 30px -10px; } }
+  .sintonia:not(.ligado) { filter: brightness(.65); }
+  .ligar { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--linha); background: rgba(255,255,255,.05); color: var(--fraco);
+    display: grid; place-items: center; cursor: pointer; flex-shrink: 0; transition: all calc(.25s * var(--vel)); }
+  .ligar.ligado { color: #fff; background: #ff5a6e; border-color: transparent; box-shadow: 0 0 14px rgba(255,90,110,.55); }
+
+  /* ---------------------------------------------------------------- C · Pílula que se abre */
+  .pilula { height: 36px; border-radius: 999px; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.07);
+    color: var(--texto); display: flex; align-items: center; gap: 0; padding: 0; position: relative; cursor: pointer;
+    width: 112px; transition: width calc(.42s * var(--vel)) cubic-bezier(.3,1.3,.45,1), background calc(.25s * var(--vel));
+    overflow: hidden; touch-action: none; flex-shrink: 0; font: inherit; }
+  .pilula.ligado { background: var(--texto); color: var(--fundo); border-color: transparent; }
+  .pilula .fechada { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 7px; font-size: 13px; font-weight: 600;
+    transition: opacity calc(.2s * var(--vel)); }
+  .pilula .metades { position: absolute; inset: 3px; display: flex; gap: 3px; opacity: 0; transition: opacity calc(.2s * var(--vel)); }
+  .pilula .metades span { flex: 1; border-radius: 999px; display: flex; align-items: center; justify-content: center; gap: 6px;
+    font-size: 12px; font-weight: 600; color: var(--texto); background: rgba(255,255,255,.06);
+    transition: background calc(.18s * var(--vel)), transform calc(.18s * var(--vel)); }
+  .pilula .metades span.sob { background: var(--texto); color: var(--fundo); transform: scale(1.03); }
+  .pilula.aberta { width: 236px; background: rgba(20,20,28,.9); color: var(--texto); border-color: rgba(255,255,255,.2); }
+  .pilula.aberta .fechada { opacity: 0; }
+  .pilula.aberta .metades { opacity: 1; }
+  .pilula .ondas { display: inline-flex; gap: 2px; align-items: flex-end; height: 12px; }
+  .pilula .ondas i { width: 2.5px; border-radius: 2px; background: currentColor; height: 4px; }
+  .pilula.ligado .ondas i { animation: barra calc(.9s * var(--vel)) infinite ease-in-out; }
+  .pilula.ligado .ondas i:nth-child(2) { animation-delay: calc(-.3s * var(--vel)); }
+  .pilula.ligado .ondas i:nth-child(3) { animation-delay: calc(-.6s * var(--vel)); }
+  @keyframes barra { 0%, 100% { height: 4px; } 50% { height: 12px; } }
+
+  /* ---------------------------------------------------------------- D · Órbita */
+  .orbita { width: 64px; height: 64px; border: 0; background: none; padding: 0; cursor: pointer; position: relative; flex-shrink: 0; }
+  .orbita svg { width: 64px; height: 64px; overflow: visible; display: block; }
+  .orbita .centro { transform-origin: 32px 32px; transition: transform calc(.6s * var(--vel)) cubic-bezier(.3,1.4,.45,1), opacity calc(.4s * var(--vel)); }
+  .orbita[data-lado="tudo"] .centro { transform: scale(.42); }
+  .orbita .anel { transform-origin: 32px 32px; transition: transform calc(.6s * var(--vel)) cubic-bezier(.3,1.4,.45,1), opacity calc(.45s * var(--vel)); }
+  .orbita .anel-musica { animation: rodar calc(5s * var(--vel)) linear infinite; }
+  .orbita .anel-tudo1 { animation: rodar calc(9s * var(--vel)) linear infinite; }
+  .orbita .anel-tudo2 { animation: rodar calc(14s * var(--vel)) linear infinite reverse; }
+  .orbita[data-lado="musica"] .anel-tudo1, .orbita[data-lado="musica"] .anel-tudo2 { opacity: 0; transform: scale(.5); }
+  .orbita[data-lado="tudo"] .anel-musica { opacity: 0; transform: scale(1.5); }
+  .orbita:not(.ligado) .anel { animation-play-state: paused; }
+  .orbita:not(.ligado) svg { filter: saturate(.2) brightness(.7); }
+  @keyframes rodar { to { transform: rotate(360deg); } }
+  .orbita-lado { display: grid; gap: 4px; }
+
+  /* ---------------------------------------------------------------- E · Gota */
+  .gota { position: relative; width: 210px; height: 40px; flex-shrink: 0; }
+  .gota .massa { position: absolute; inset: 0; filter: url(#goo); }
+  .gota .blob { position: absolute; top: 3px; height: 34px; width: 100px; border-radius: 999px; background: var(--texto); left: 3px;
+    transition: left calc(.5s * var(--vel)) cubic-bezier(.5,1.6,.4,1), transform calc(.5s * var(--vel)) cubic-bezier(.5,1.6,.4,1), background calc(.3s * var(--vel)); }
+  .gota .rasto { position: absolute; top: 9px; height: 22px; width: 40px; border-radius: 999px; background: var(--texto); left: 33px;
+    transition: left calc(.62s * var(--vel)) cubic-bezier(.5,1.2,.4,1), background calc(.3s * var(--vel)); }
+  .gota[data-lado="tudo"] .blob { left: 107px; }
+  .gota[data-lado="tudo"] .rasto { left: 137px; }
+  .gota:not(.ligado) .blob, .gota:not(.ligado) .rasto { background: rgba(255,255,255,.13); }
+  .gota .fundo { position: absolute; inset: 0; border-radius: 999px; background: rgba(255,255,255,.06); border: 1px solid var(--linha); }
+  .gota .lados { position: absolute; inset: 0; display: flex; }
+  .gota .lados button { flex: 1; background: none; border: 0; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--fraco);
+    display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; border-radius: 999px;
+    transition: color calc(.3s * var(--vel)); }
+  .gota.ligado[data-lado="musica"] .lados button:first-child, .gota.ligado[data-lado="tudo"] .lados button:last-child { color: var(--fundo); }
+  .gota:not(.ligado)[data-lado="musica"] .lados button:first-child, .gota:not(.ligado)[data-lado="tudo"] .lados button:last-child { color: var(--texto); }
+
+  .nota { margin-top: 26px; color: var(--fraco); font-size: 13px; line-height: 1.65; max-width: 860px; }
+  .nota b { color: var(--texto); }
+  @media (prefers-reduced-motion: reduce) { :root { --vel: .01; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="goo"><feGaussianBlur in="SourceGraphic" stdDeviation="5" result="b"/>
+    <feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -9" result="g"/><feComposite in="SourceGraphic" in2="g" operator="atop"/></filter>
+</svg>
+<main>
+  <h1>Os dois Radios num botão só</h1>
+  <p class="sub">Um lado é o Radio de hoje, <b>"This song"</b>: parte da música que está a tocar. O outro é o novo, <b>"Everything you play"</b>: parte de tudo o que ouves (os artistas que mais ouves e as Liked Songs, a rodar), com músicas tuas e parecidas que ainda não conheces. Cada ideia está na fila do iPhone, no sítio da pastilha do Radio. <b>Mexe em todas</b>: a lista do Up next muda com o lado escolhido.</p>
+  <div class="barra">
+    Animações:
+    <button type="button" data-vel="1" aria-pressed="true">Normal</button>
+    <button type="button" data-vel="3" aria-pressed="false">Lentas (para ver)</button>
+  </div>
+
+  <div class="grelha">
+
+    <section class="opcao" data-cartao="moeda">
+      <h2><span class="letra">A</span>Moeda <span class="rec">RECOMENDO</span></h2>
+      <p>Um botão redondo com <b>dois lados, como uma moeda</b>: à frente a capa da música, atrás um mosaico dos artistas que mais ouves. Virar a moeda é mudar de rádio. É do tamanho da pastilha de hoje, e é a cara do nome da app (duas faces).</p>
+      <div class="fila">
+        <div class="cabeca">
+          <div class="moeda-rotulo">
+            <button type="button" class="moeda ligado" data-lado="musica" aria-label="Radio">
+              <div class="giro">
+                <div class="face frente"><svg class="icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="2.2" fill="currentColor"/><path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4M5 5a10 10 0 0 0 0 14M19 5a10 10 0 0 1 0 14"/></svg></div>
+                <div class="face verso"><div class="mosaico"><span style="background:#3b5ce0">D</span><span style="background:#7b5ce0">L</span><span style="background:#2fae8f">2</span><span style="background:#c4842f">T</span></div>
+                  <svg class="icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="2.2" fill="currentColor"/><path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4M5 5a10 10 0 0 0 0 14M19 5a10 10 0 0 1 0 14"/></svg></div>
+              </div>
+            </button>
+            <small data-rotulo>THIS SONG</small>
+          </div>
+          <div class="titulo"><div class="eyebrow">UP NEXT</div><div class="estado"></div></div>
+          <button type="button" class="mini" data-virar>⇄ Flip</button>
+        </div>
+        <div class="linhas"></div>
+      </div>
+      <ul class="gestos">
+        <li><b>Tocar</b>: liga e desliga (ligado, saem ondas da moeda).</li>
+        <li><b>Arrastar para o lado</b>: a moeda vira e muda de rádio. O "⇄ Flip" faz o mesmo.</li>
+        <li>No PC: clicar liga, a roda do rato vira.</li>
+      </ul>
+    </section>
+
+    <section class="opcao" data-cartao="sintonia">
+      <h2><span class="letra">B</span>Sintonizador</h2>
+      <p>Um mostrador de rádio antigo com <b>duas estações</b>. A agulha anda de uma para a outra, com um bocadinho de estática pelo meio. É o mais "rádio" de todos, mas ocupa a largura do cabeçalho.</p>
+      <div class="fila">
+        <div class="cabeca">
+          <button type="button" class="ligar ligado" aria-label="Radio on/off"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 3v8M6.3 6.3a8 8 0 1 0 11.4 0"/></svg></button>
+          <div class="sintonia ligado" data-lado="musica" role="slider" tabindex="0" aria-label="Radio station" aria-valuetext="This song">
+            <div class="escala"></div><div class="agulha"></div><div class="ruido"></div>
+            <span class="estacao e1 ativa">THIS SONG</span><span class="estacao e2">EVERYTHING</span>
+          </div>
+        </div>
+        <div class="cabeca" style="min-height:0;margin-top:2px"><div class="titulo"><div class="eyebrow">UP NEXT</div><div class="estado"></div></div></div>
+        <div class="linhas"></div>
+      </div>
+      <ul class="gestos">
+        <li><b>Arrastar a agulha</b> ou <b>tocar numa estação</b>: muda de rádio.</li>
+        <li><b>O botão vermelho</b>: liga e desliga.</li>
+      </ul>
+    </section>
+
+    <section class="opcao" data-cartao="pilula">
+      <h2><span class="letra">C</span>Pílula que se abre</h2>
+      <p>A pastilha de hoje, quase igual. <b>Um toque</b> liga o último rádio. <b>Segurar</b> abre-a em duas metades: escorrega o dedo para uma e larga. Muda pouco o que já conheces.</p>
+      <div class="fila">
+        <div class="cabeca">
+          <div class="titulo"><div class="eyebrow">UP NEXT</div><div class="estado"></div></div>
+          <button type="button" class="pilula ligado" data-lado="musica" aria-label="Radio">
+            <span class="fechada"><span class="ondas"><i></i><i></i><i></i></span><span data-rotulo>This song</span></span>
+            <span class="metades"><span data-escolha="musica">This song</span><span data-escolha="tudo">Everything</span></span>
+          </button>
+          <button type="button" class="limpar">Clear</button>
+        </div>
+        <div class="linhas"></div>
+      </div>
+      <ul class="gestos">
+        <li><b>Tocar</b>: liga e desliga o último rádio.</li>
+        <li><b>Segurar e escorregar</b>: escolhe o lado (aqui, clicar e segurar com o rato).</li>
+      </ul>
+    </section>
+
+    <section class="opcao" data-cartao="orbita">
+      <h2><span class="letra">D</span>Órbita</h2>
+      <p>A capa no centro com <b>pontos a orbitar</b>. "This song": três pontos colados à música (as parecidas). "Everything": a capa encolhe e vira mais uma no meio de uma constelação, que são os teus artistas.</p>
+      <div class="fila">
+        <div class="cabeca">
+          <button type="button" class="orbita ligado" data-lado="musica" aria-label="Radio">
+            <svg viewBox="0 0 64 64">
+              <defs><linearGradient id="capaG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7a1d1d"/><stop offset="1" stop-color="#e0452f"/></linearGradient></defs>
+              <g class="anel anel-musica"><circle cx="32" cy="9" r="3.4" fill="#fff"/><circle cx="51.9" cy="43.5" r="3" fill="#fff" opacity=".8"/><circle cx="12.1" cy="43.5" r="2.6" fill="#fff" opacity=".6"/></g>
+              <g class="anel anel-tudo1"><circle cx="32" cy="5" r="3.2" fill="#3b5ce0"/><circle cx="55.4" cy="45.5" r="3.2" fill="#7b5ce0"/><circle cx="8.6" cy="45.5" r="3.2" fill="#2fae8f"/></g>
+              <g class="anel anel-tudo2"><circle cx="32" cy="16" r="2.6" fill="#c4842f"/><circle cx="48" cy="32" r="2.6" fill="#e0607e"/><circle cx="32" cy="48" r="2.6" fill="#4ad1b0"/><circle cx="16" cy="32" r="2.6" fill="#e0a84a"/></g>
+              <g class="centro"><circle cx="32" cy="32" r="15" fill="url(#capaG)" stroke="rgba(255,255,255,.25)" stroke-width="1"/></g>
+            </svg>
+          </button>
+          <div class="titulo orbita-lado"><div class="eyebrow">UP NEXT</div><div class="estado"></div>
+            <div><button type="button" class="mini" data-virar><span data-rotulo>This song</span> ▾</button></div></div>
+        </div>
+        <div class="linhas"></div>
+      </div>
+      <ul class="gestos">
+        <li><b>Tocar na órbita</b>: liga e desliga (desligada, pára de girar).</li>
+        <li><b>Tocar no nome</b> ("This song ▾"): troca de lado.</li>
+      </ul>
+    </section>
+
+    <section class="opcao" data-cartao="gota">
+      <h2><span class="letra">E</span>Gota</h2>
+      <p>Um interruptor de dois lados em que <b>uma gota líquida</b> escorre de um para o outro e se estica pelo caminho. É o mais claro de perceber à primeira, mas o menos único.</p>
+      <div class="fila">
+        <div class="cabeca">
+          <div class="gota ligado" data-lado="musica">
+            <div class="fundo"></div>
+            <div class="massa"><div class="rasto"></div><div class="blob"></div></div>
+            <div class="lados"><button type="button" data-escolha="musica">This song</button><button type="button" data-escolha="tudo">Everything</button></div>
+          </div>
+        </div>
+        <div class="cabeca" style="min-height:0;margin-top:2px"><div class="titulo"><div class="eyebrow">UP NEXT</div><div class="estado"></div></div><button type="button" class="limpar">Clear</button></div>
+        <div class="linhas"></div>
+      </div>
+      <ul class="gestos">
+        <li><b>Tocar num lado</b>: liga esse rádio.</li>
+        <li><b>Tocar no lado aceso</b>: desliga (a gota fica vazia).</li>
+      </ul>
+    </section>
+
+  </div>
+
+  <p class="nota"><b>Porque recomendo a A:</b> cabe onde já está a pastilha, não precisa de explicação ("tem dois lados" vê-se) e é uma peça que só esta app tem. O "Everything you play" usa as mesmas fontes da Daily mix, já guardadas no aparelho: gasta pouco. <b>As regras são as do Radio de hoje</b>: não repete o que ouviste nas últimas 24 h e espalha os artistas. A <b>proporção</b> de músicas tuas e novas pode ficar fixa (1 em cada 3 tuas, como na lista) ou ter um ajuste. Diz qual das ideias e se queres o ajuste.</p>
+</main>
+
+<script>
+  // ---------------------------------------------------------------------------
+  // O que a fila mostra em cada lado. Igual para todas as ideias.
+  // ---------------------------------------------------------------------------
+  const FAIXAS = {
+    musica: [
+      { t: 'Save Your Tears', a: 'The Weeknd', c: ['#3b1f4f', '#b04a8a'], tag: ['similar', ''] },
+      { t: 'Take On Me', a: 'a-ha', c: ['#1f3b4f', '#4aa3b0'], tag: ['similar', ''] },
+      { t: 'Physical', a: 'Dua Lipa', c: ['#4f1f2e', '#e0607e'], tag: ['similar', ''] },
+    ],
+    tudo: [
+      { t: 'XO Tour Llif3', a: 'Lil Uzi Vert', c: ['#2a1f4f', '#7b5ce0'], tag: ['yours', 'tua'] },
+      { t: 'Warhorse', a: '2hollis', c: ['#1f4f45', '#4ad1b0'], tag: ['new', 'nova'] },
+      { t: 'goosebumps', a: 'Travis Scott', c: ['#3a2a1f', '#c47a4a'], tag: ['similar', ''] },
+      { t: 'Toosie Slide', a: 'Drake', c: ['#4f3a1f', '#e0a84a'], tag: ['yours', 'tua'] },
+    ],
+  };
+  const ESTADO = {
+    musica: 'Radio · from “Blinding Lights”',
+    tudo: 'Your radio · everything you play',
+    off: 'Radio off · the queue ends after this',
+  };
+
+  function desenharFila(cartao, estado) {
+    const linhas = cartao.querySelector('.linhas');
+    const texto = cartao.querySelector('.estado');
+    const novo = estado.on ? ESTADO[estado.lado] : ESTADO.off;
+    if (texto.textContent !== novo) {
+      texto.classList.add('mudar');
+      setTimeout(() => { texto.textContent = novo; texto.classList.remove('mudar'); }, 140 * vel());
+    }
+    linhas.innerHTML = '';
+    if (!estado.on) {
+      linhas.innerHTML = '<div class="vazio">Turn Radio on to keep the music going</div>';
+      return;
+    }
+    FAIXAS[estado.lado].forEach((f, i) => {
+      const l = document.createElement('div');
+      l.className = 'linha';
+      l.style.animationDelay = `${i * 60 * vel()}ms`;
+      l.innerHTML = `<div class="capa" style="background:linear-gradient(135deg,${f.c[0]},${f.c[1]})"></div>
+        <div class="txt"><div class="t"></div><div class="a"></div></div><span class="tag ${f.tag[1]}"></span>`;
+      l.querySelector('.t').textContent = f.t;
+      l.querySelector('.a').textContent = f.a;
+      l.querySelector('.tag').textContent = f.tag[0];
+      linhas.appendChild(l);
+    });
+  }
+
+  let velocidade = 1;
+  const vel = () => velocidade;
+  document.querySelectorAll('[data-vel]').forEach((b) => b.addEventListener('click', () => {
+    velocidade = Number(b.dataset.vel);
+    document.documentElement.style.setProperty('--vel', velocidade);
+    document.querySelectorAll('[data-vel]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  }));
+
+  const rotulo = (lado) => (lado === 'musica' ? 'This song' : 'Everything');
+
+  // Cada ideia: o estado { on, lado }, e como o desenha.
+  function cartao(nome, desenhar, ligar) {
+    const el = document.querySelector(`[data-cartao="${nome}"]`);
+    const estado = { on: true, lado: 'musica' };
+    const mudar = (patch) => { Object.assign(estado, patch); desenhar(el, estado); desenharFila(el, estado); };
+    ligar(el, estado, mudar);
+    desenhar(el, estado);
+    desenharFila(el, estado);
+  }
+
+  // Arrastar na horizontal (rato e dedo): devolve true se foi um arrasto.
+  function arrasto(el, aoArrastar) {
+    let x0 = null, arrastou = false;
+    el.addEventListener('pointerdown', (e) => { x0 = e.clientX; arrastou = false; el.setPointerCapture(e.pointerId); });
+    el.addEventListener('pointermove', (e) => {
+      if (x0 === null || arrastou) return;
+      if (Math.abs(e.clientX - x0) > 22) { arrastou = true; aoArrastar(Math.sign(e.clientX - x0)); }
+    });
+    el.addEventListener('pointerup', () => { x0 = null; });
+    return () => arrastou;
+  }
+
+  // A · Moeda
+  cartao('moeda', (el, s) => {
+    const m = el.querySelector('.moeda');
+    m.dataset.lado = s.lado;
+    m.classList.toggle('ligado', s.on);
+    m.setAttribute('aria-label', `Radio ${s.on ? 'on' : 'off'}: ${rotulo(s.lado)}`);
+    el.querySelector('[data-rotulo]').textContent = s.lado === 'musica' ? 'THIS SONG' : 'EVERYTHING';
+  }, (el, s, mudar) => {
+    const m = el.querySelector('.moeda');
+    const virar = () => mudar({ lado: s.lado === 'musica' ? 'tudo' : 'musica', on: true });
+    const foiArrasto = arrasto(m, virar);
+    m.addEventListener('click', () => { if (!foiArrasto()) mudar({ on: !s.on }); });
+    m.addEventListener('wheel', (e) => { e.preventDefault(); virar(); }, { passive: false });
+    el.querySelector('[data-virar]').addEventListener('click', virar);
+  });
+
+  // B · Sintonizador
+  cartao('sintonia', (el, s) => {
+    const d = el.querySelector('.sintonia');
+    d.dataset.lado = s.lado;
+    d.classList.toggle('ligado', s.on);
+    d.setAttribute('aria-valuetext', rotulo(s.lado));
+    d.querySelector('.e1').classList.toggle('ativa', s.lado === 'musica');
+    d.querySelector('.e2').classList.toggle('ativa', s.lado === 'tudo');
+    el.querySelector('.ligar').classList.toggle('ligado', s.on);
+  }, (el, s, mudar) => {
+    const d = el.querySelector('.sintonia');
+    const agulha = d.querySelector('.agulha');
+    const sintonizar = (lado) => {
+      if (lado === s.lado) return;
+      d.classList.remove('estatica'); void d.offsetWidth; d.classList.add('estatica');
+      mudar({ lado, on: true });
+    };
+    let aArrastar = false, moveu = false;
+    d.addEventListener('pointerdown', (e) => { aArrastar = true; moveu = false; d.setPointerCapture(e.pointerId); });
+    d.addEventListener('pointermove', (e) => {
+      if (!aArrastar) return;
+      const r = d.getBoundingClientRect();
+      const p = Math.min(.9, Math.max(.1, (e.clientX - r.left) / r.width));
+      moveu = true; d.classList.add('arrastar'); agulha.style.left = `${p * 100}%`;
+      // Entre as duas estações há estática: mais longe de ambas, mais ruído.
+      const longe = Math.min(Math.abs(p - .26), Math.abs(p - .74));
+      d.querySelector('.ruido').style.opacity = String(Math.min(.55, longe * 2.2));
+    });
+    d.addEventListener('pointerup', (e) => {
+      if (!aArrastar) return;
+      aArrastar = false; d.classList.remove('arrastar'); d.querySelector('.ruido').style.opacity = '';
+      const r = d.getBoundingClientRect();
+      const p = (e.clientX - r.left) / r.width;
+      agulha.style.left = '';
+      sintonizar(p < .5 ? 'musica' : 'tudo');
+    });
+    d.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') sintonizar('musica');
+      if (e.key === 'ArrowRight') sintonizar('tudo');
+    });
+    el.querySelector('.ligar').addEventListener('click', () => mudar({ on: !s.on }));
+  });
+
+  // C · Pílula que se abre
+  cartao('pilula', (el, s) => {
+    const p = el.querySelector('.pilula');
+    p.classList.toggle('ligado', s.on);
+    p.dataset.lado = s.lado;
+    p.querySelector('[data-rotulo]').textContent = rotulo(s.lado);
+  }, (el, s, mudar) => {
+    const p = el.querySelector('.pilula');
+    let segurar = null, aberta = false;
+    const metades = [...p.querySelectorAll('[data-escolha]')];
+    const sob = (x) => metades.find((m) => { const r = m.getBoundingClientRect(); return x >= r.left && x <= r.right; });
+    p.addEventListener('pointerdown', (e) => {
+      p.setPointerCapture(e.pointerId);
+      segurar = setTimeout(() => { aberta = true; p.classList.add('aberta'); }, 260);
+    });
+    p.addEventListener('pointermove', (e) => {
+      if (!aberta) return;
+      metades.forEach((m) => m.classList.toggle('sob', m === sob(e.clientX)));
+    });
+    p.addEventListener('pointerup', (e) => {
+      clearTimeout(segurar);
+      if (aberta) {
+        const m = sob(e.clientX);
+        if (m) mudar({ lado: m.dataset.escolha, on: true });
+        aberta = false;
+        setTimeout(() => { p.classList.remove('aberta'); metades.forEach((x) => x.classList.remove('sob')); }, 120 * vel());
+      } else {
+        mudar({ on: !s.on });
+      }
+    });
+  });
+
+  // D · Órbita
+  cartao('orbita', (el, s) => {
+    const o = el.querySelector('.orbita');
+    o.dataset.lado = s.lado;
+    o.classList.toggle('ligado', s.on);
+    el.querySelector('[data-rotulo]').textContent = rotulo(s.lado);
+  }, (el, s, mudar) => {
+    el.querySelector('.orbita').addEventListener('click', () => mudar({ on: !s.on }));
+    el.querySelector('[data-virar]').addEventListener('click', () => mudar({ lado: s.lado === 'musica' ? 'tudo' : 'musica', on: true }));
+  });
+
+  // E · Gota
+  cartao('gota', (el, s) => {
+    const g = el.querySelector('.gota');
+    g.dataset.lado = s.lado;
+    g.classList.toggle('ligado', s.on);
+  }, (el, s, mudar) => {
+    el.querySelectorAll('.gota [data-escolha]').forEach((b) => b.addEventListener('click', () => {
+      const lado = b.dataset.escolha;
+      mudar(lado === s.lado ? { on: !s.on } : { lado, on: true });
+    }));
+  });
+</script>
+</body>
+</html>

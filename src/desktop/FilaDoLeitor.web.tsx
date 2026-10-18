@@ -1,7 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { ROTULO_DO_RADIO, useRadioDaFila } from '../components/RadioQueueControl';
+import { MenuDoRadio, type AncoraDoMenuDoRadio } from '../components/MenuDoRadio';
+import { useCapasDoMix } from '../hooks/useCapasDoMix';
+import { usePlayer } from '../state/player';
 import { FilaArrastavel } from './FilaArrastavel.web';
 import { useFilaDoLeitor } from './useFilaDoLeitor.web';
 import { styles } from './estilos.web';
@@ -17,23 +20,37 @@ function RadioNaFila() {
   const radio = useRadioDaFila();
   const ligado = radio.mode === 'on', aPreparar = radio.mode === 'preparing';
   const apagada = !!radio.reason && radio.mode === 'off';
+  const capa = usePlayer((s) => s.current?.artworkUrl ?? null);
+  const capasDoMix = useCapasDoMix(radio.menuAberto);
+  const pastilha = useRef<any>(null);
+  const [ancora, setAncora] = useState<AncoraDoMenuDoRadio | null>(null);
+  // Desligado, abre o menu a partir da pastilha (18/10); senão, o de sempre.
+  const carregar = () => {
+    if (radio.abreMenu) {
+      const r = pastilha.current?.getBoundingClientRect?.();
+      if (r) setAncora({ x: r.left, y: r.top, width: r.width, height: r.height });
+    }
+    radio.alternar();
+  };
   if (!radio.visivel) return null;
   return <>
     {radio.podeDesfazer ? <Pressable accessibilityRole="button" accessibilityLabel="Undo Radio and restore previous queue"
       onPress={radio.desfazer} style={({ hovered }: any) => [styles.npFilaLimpar, hovered && { backgroundColor: RADIO_HOVER }]}>
       <Text style={[styles.npFilaLimparTexto, { textDecorationLine: 'underline', fontWeight: '400' }]}>Undo</Text>
     </Pressable> : null}
-    <Pressable accessibilityRole="switch" accessibilityLabel="Radio" accessibilityHint={radio.reason ?? radio.dica}
-      accessibilityState={{ checked: ligado, busy: aPreparar, disabled: apagada }} onPress={radio.alternar}
+    <Pressable ref={pastilha} accessibilityRole="switch" accessibilityLabel="Radio" accessibilityHint={radio.reason ?? radio.dica}
+      accessibilityState={{ checked: ligado, busy: aPreparar, disabled: apagada }} onPress={carregar}
       style={({ hovered }: any) => [styles.npRadio, ligado && styles.npRadioLigado,
         hovered && !apagada && { backgroundColor: ligado ? 'rgba(233,234,238,0.16)' : RADIO_HOVER },
         apagada && { opacity: 0.45, cursor: 'default' as any }]}>
       {aPreparar ? <ActivityIndicator size={12} color={COR.texto} />
         : <Ionicons name={ligado ? 'radio' : 'radio-outline'} size={15} color={ligado ? COR.texto : COR.textoMedio} />}
       <Text style={[styles.npRadioTexto, (ligado || aPreparar) && { color: COR.texto }]}>
-        {aPreparar ? ROTULO_DO_RADIO.aPreparar : ligado ? ROTULO_DO_RADIO.ligado : ROTULO_DO_RADIO.desligado}
+        {aPreparar ? ROTULO_DO_RADIO.aPreparar : ligado ? radio.rotuloLigado : ROTULO_DO_RADIO.desligado}
       </Text>
     </Pressable>
+    <MenuDoRadio ancora={ancora} visivel={radio.menuAberto} capa={capa} capasDoMix={capasDoMix}
+      aoEscolher={radio.escolher} aoFechar={radio.fecharMenu} />
   </>;
 }
 

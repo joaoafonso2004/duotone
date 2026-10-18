@@ -7,6 +7,7 @@ import { chavesEstaveis } from '../lib/arrastarFila';
 import { useArrastarLista } from '../hooks/useArrastarLista';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { usePlayer } from '../state/player';
+import { MARCA_DA_FILA } from '../lib/menuDoRadio';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { useSeguirAmigo } from '../state/seguirAmigo';
 import { colors, spacing, type, radii } from '../theme';
@@ -131,6 +132,8 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
   // Dizer de onde vêm as faixas: se a fila acabou e o rádio a estendeu, o
   // utilizador tem de perceber porque é que continua a tocar.
   const radioActive = usePlayer((s) => s.radioActive);
+  const radioMode = usePlayer((s) => s.radioMode);
+  const radioTipo = usePlayer((s) => s.radioTipo);
 
   // A faixa, e nao o indice, e o que da nome a cada linha. Ver `chavesEstaveis`.
   const chaves = React.useMemo(
@@ -270,7 +273,7 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
       <View style={styles.tituloDaFila}>
         <Text style={[type.micro, styles.sectionTitle, { flex: 1, marginBottom: 0 }]}>
           UP NEXT ({upNext.length})
-          {emSessao ? ' · SHARED' : radioActive ? ' · RADIO' : ''}
+          {emSessao ? ' · SHARED' : radioActive ? ` · ${radioMode === 'on' ? MARCA_DA_FILA[radioTipo] : 'RADIO'}` : ''}
         </Text>
         {emSessao && onOpenSession && (
           <Pressable hitSlop={10} onPress={onOpenSession}>

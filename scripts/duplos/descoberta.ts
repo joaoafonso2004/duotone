@@ -31,3 +31,12 @@ export function candidatasParaDescoberta(
     return faixas;
   });
 }
+
+/** O lote do Radio "Mix" (18/10): o que o teste programou em `controlo.mix`. */
+export async function loteDaMix(
+  _limite: number, exclude: readonly Track[], _jaDescobertas?: ReadonlySet<string>, _ouvidas?: ReadonlyMap<string, number>,
+): Promise<Track[]> {
+  controlo.chamadas.mix++;
+  const fora = new Set(exclude.map((t) => `${t.source}:${t.sourceId}`));
+  return controlo.mix.filter((t) => !fora.has(`${t.source}:${t.sourceId}`));
+}
