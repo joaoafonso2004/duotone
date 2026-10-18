@@ -18,7 +18,8 @@ function caso(nome: string, fn: () => void): void {
   try { fn(); console.log(`  ok    ${nome}`); }
   catch (e) { falhas++; console.log(`  FALHA ${nome}\n        ${(e as Error).message}`); }
 }
-const ler = (f: string) => readFileSync(f, 'utf8');
+// Os finais de linha do Windows (o CI faz checkout com CRLF): tudo em LF.
+const ler = (f: string) => readFileSync(f, 'utf8').replace(/\r\n/g, '\n');
 const AGORA = 1_800_000_000_000;
 const DIA = 24 * 60 * 60_000;
 
