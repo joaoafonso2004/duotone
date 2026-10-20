@@ -4,6 +4,7 @@
  * Correr: node --experimental-strip-types scripts/test-atalhos-da-lateral.ts
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   MAXIMO_DE_ATALHOS, chaveDoAtalho, estaFixado, fixar, lerAtalhos, mover, tirar, type Atalho,
 } from '../src/lib/atalhosDaLateral.ts';
@@ -68,6 +69,18 @@ caso('tirar e mover, presos às pontas', () => {
   assert.deepEqual(mover(lista, 'playlist:c', -1).map(chaveDoAtalho), ['playlist:a', 'playlist:c', 'playlist:b']);
   assert.deepEqual(mover(lista, 'playlist:a', -1).map(chaveDoAtalho), ['playlist:a', 'playlist:b', 'playlist:c']);
   assert.deepEqual(mover(lista, 'playlist:x', 1).map(chaveDoAtalho), ['playlist:a', 'playlist:b', 'playlist:c']);
+});
+
+console.log('\ncom muitos atalhos, os de baixo alcançam-se');
+
+caso('a lateral tem a altura da janela, e a lista "Pinned" fica com o resto e rola', () => {
+  // Sem o `flex: 1` + `minHeight: 0` da lateral (uma View do RNW não encolhe),
+  // a lista crescia para lá do fundo, cortada, e o scroll nunca existia (20/10).
+  const casca = readFileSync('src/desktop/casca.web.tsx', 'utf8').replace(/\r\n/g, '\n');
+  assert.match(casca, /return <View style=\{\[styles\.sidebar, \{ flex: 1, minHeight: 0 \}\]\}>/);
+  const atalhos = readFileSync('src/desktop/AtalhosNaLateral.web.tsx', 'utf8').replace(/\r\n/g, '\n');
+  assert.match(atalhos, /<View style=\{\{ flex: 1, minHeight: 0, paddingHorizontal: ESP\.md, paddingTop: ESP\.md \}\}>/);
+  assert.match(atalhos, /<ScrollView style=\{\{ flex: 1 \}\}/);
 });
 
 if (falhas) {

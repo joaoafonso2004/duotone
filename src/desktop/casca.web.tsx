@@ -484,7 +484,11 @@ export function Sidebar({ route, navigate, notify }: { route: Route; navigate: (
   },[]);
   useEffect(()=>{setMedicao((n)=>n+1);},[active]);
 
-  return <View style={styles.sidebar}>
+  // `flex: 1` e `minHeight: 0`: a lateral tem a altura da janela, e não a do
+  // que tem dentro. Sem isto (uma View do RNW não encolhe), com muitos atalhos
+  // a lista "Pinned" crescia para lá do fundo, cortada, e o scroll dela nunca
+  // chegava a existir -- os de baixo não se alcançavam (João, 20/10).
+  return <View style={[styles.sidebar, { flex: 1, minHeight: 0 }]}>
     {/* Do tamanho do que tem: o espaço de baixo é dos atalhos. */}
     <ScrollView style={{ flexGrow: 0, flexShrink: 0 }} contentContainerStyle={styles.sidebarContent}>
       {realce?<View pointerEvents="none" {...marcar('desliza')}
