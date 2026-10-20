@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { pesquisarMaisMusica, pesquisarMusica } from '../api/search';
 import { getLibrary } from '../api/library';
 import { faixasEmCache, lerFaixas } from '../lib/cacheDaBiblioteca';
+import { FRASES_DA_PESQUISA } from '../lib/estadoDaPesquisa';
+import { mensagemDeErro } from '../lib/mensagemDeErro';
 import { pesquisarNaBiblioteca } from '../lib/pesquisaLocal';
 import { comCatalogo, useCatalogoDeFaixas } from '../state/catalogoDeFaixas';
 import type { Track } from '../types';
@@ -92,7 +94,8 @@ export function useMusicSearch(query: string, onFound: (query: string) => void) 
           }
         }
       } catch (e: any) {
-        if (atual) setErrorMsg(e?.message || 'Search failed.');
+        // A frase para pessoas, e não o texto do `fetch` ou do InnerTube.
+        if (atual) setErrorMsg(mensagemDeErro(e, FRASES_DA_PESQUISA.semMotivo));
       } finally {
         if (atual) setLoading(false);
       }

@@ -70,6 +70,7 @@ import { registar } from '../lib/eventos';
 import { useAlturaDosSeparadores } from '../state/doca';
 import { avisarErro } from '../lib/avisoDeRemocao';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
+import { estadoDaPesquisa, FRASES_DA_PESQUISA } from '../lib/estadoDaPesquisa';
 import { usePuxarParaAtualizar } from '../components/PuxarParaAtualizar';
 import { useSocial } from '../state/social';
 import { useShallow } from 'zustand/react/shallow';
@@ -260,6 +261,12 @@ export function SearchScreen() {
   useEffect(() => { setVersao('todas'); }, [query]);
   const { results, naBiblioteca, loading, errorMsg, pesquisarAgora } = useMusicSearch(query, (q) => {
     void addSearchHistoryEntry(q).then(setHistory).catch(() => {});
+  });
+  // O que é teu aparece sem esperar pela rede, e uma falha tem "Try again"
+  // (20/10, lib/estadoDaPesquisa.ts): o esqueleto e o erro vinham antes da
+  // lista e escondiam as músicas da biblioteca.
+  const estado = estadoDaPesquisa({
+    pergunta: query, aCarregar: loading, erro: errorMsg, online: results.length, naBiblioteca: naBiblioteca.length,
   });
   useEffect(() => { void recs.carregar(); }, [recs.carregar]);
   // A pesquisa por tipo (29/9, `lib/pesquisaPorTipo.ts`), a mesma do PC: só
@@ -735,9 +742,11 @@ export function SearchScreen() {
               ListEmptyComponent={
                 <EmptyState
                   icon={porTipo.falhou ? 'cloud-offline-outline' : tipoAtivo === 'artistas' ? 'person-outline' : tipoAtivo === 'albuns' ? 'albums-outline' : 'list-outline'}
-                  title={porTipo.falhou ? 'Search failed' : tipoAtivo === 'artistas' ? 'No artists found' : tipoAtivo === 'albuns' ? 'No albums found' : 'No playlists found'}
-                  subtitle={porTipo.falhou ? 'Check your connection and try again.' : 'Try a different search term.'}
-                />
+                  title={porTipo.falhou ? FRASES_DA_PESQUISA.falhou : tipoAtivo === 'artistas' ? 'No artists found' : tipoAtivo === 'albuns' ? 'No albums found' : 'No playlists found'}
+                  subtitle={porTipo.falhou ? FRASES_DA_PESQUISA.semMotivo : FRASES_DA_PESQUISA.semResultadosCorpo}
+                >
+                  {porTipo.falhou ? <PillButton label={FRASES_DA_PESQUISA.tentarDeNovo} onPress={porTipo.repetir} /> : null}
+                </EmptyState>
               }
               renderItem={({ item }) => ('canal' in item ? (
                 <LinhaDoResultado redonda capa={item.foto} titulo={item.nome} legenda={item.legenda}
@@ -748,15 +757,17 @@ export function SearchScreen() {
               ))}
             />
           )
-        ) : loading ? (
+        ) : estado.tipo === 'a-carregar' ? (
           <View style={{ paddingTop: cab.espaco }}><SkeletonDeFaixas /></View>
-        ) : errorMsg ? (
+        ) : estado.tipo === 'falhou' ? (
           <Pressable style={{ flex: 1, paddingTop: cab.espaco }} onPress={Keyboard.dismiss}>
             <EmptyState
               icon="cloud-offline-outline"
-              title="Something went wrong"
-              subtitle={errorMsg}
-            />
+              title={FRASES_DA_PESQUISA.falhou}
+              subtitle={errorMsg ?? FRASES_DA_PESQUISA.semMotivo}
+            >
+              <PillButton label={FRASES_DA_PESQUISA.tentarDeNovo} onPress={pesquisarAgora} />
+            </EmptyState>
           </Pressable>
         ) : query.trim().length < 2 && isFocused && history.length > 0 ? (
           /* Focused Search input - Show Search History */
@@ -846,16 +857,12 @@ export function SearchScreen() {
               </View>
             )}
           </Animated.ScrollView>
-        ) : results.length === 0 && naBiblioteca.length === 0 ? (
+        ) : estado.tipo !== 'resultados' ? (
           <Pressable style={{ flex: 1, paddingTop: cab.espaco }} onPress={Keyboard.dismiss}>
             <EmptyState
               icon="search-outline"
-              title={query.trim().length >= 2 ? 'No results' : 'Start typing to search'}
-              subtitle={
-                query.trim().length >= 2
-                  ? 'Try a different search term.'
-                  : 'Search for any song.'
-              }
+              title={estado.tipo === 'sem-resultados' ? FRASES_DA_PESQUISA.semResultados : 'Start typing to search'}
+              subtitle={estado.tipo === 'sem-resultados' ? FRASES_DA_PESQUISA.semResultadosCorpo : 'Search for any song.'}
             />
           </Pressable>
         ) : (
@@ -934,6 +941,20 @@ export function SearchScreen() {
                 actionIcon="add-circle-outline"
               />
             )}
+            /* A parte online, por baixo do que é teu: ainda a chegar, ou a
+               falha com "Try again" -- nunca no lugar das tuas músicas. */
+            ListFooterComponent={estado.tipo === 'resultados' && estado.rodape === 'a-carregar' ? (
+              <SkeletonDeFaixas linhas={3} />
+            ) : estado.tipo === 'resultados' && estado.rodape === 'falhou' ? (
+              <View style={styles.falhaOnline} accessibilityRole="alert">
+                <Ionicons name="cloud-offline-outline" size={18} color={colors.textSecondary} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[type.body, { fontWeight: '600' }]}>{FRASES_DA_PESQUISA.falhouOnline}</Text>
+                  <Text style={type.caption}>{errorMsg ?? FRASES_DA_PESQUISA.semMotivo}</Text>
+                </View>
+                <PillButton small variant="ghost" label={FRASES_DA_PESQUISA.tentarDeNovo} onPress={pesquisarAgora} />
+              </View>
+            ) : null}
           />
         )}
       </KeyboardAvoidingView>
@@ -1251,6 +1272,13 @@ const styles = StyleSheet.create({
   verTudo: {
     ...type.caption,
     color: colors.textSecondary,
+  },
+  /** A parte online falhou, por baixo das músicas da biblioteca (20/10). */
+  falhaOnline: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    marginHorizontal: spacing.xl, marginTop: spacing.lg, padding: spacing.md,
+    borderRadius: radii.md, borderCurve: 'continuous', backgroundColor: colors.surface,
+    borderWidth: 1, borderColor: colors.border,
   },
   emptyRecsText: {
     ...type.caption,

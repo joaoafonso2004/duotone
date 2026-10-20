@@ -59,6 +59,7 @@ import { BottomSheet } from '../components/BottomSheet';
 import { CabecalhoDaPlaylist } from '../components/CabecalhoDaPlaylist';
 import { ConfirmSheet } from '../components/ConfirmSheet';
 import { EmptyState } from '../components/EmptyState';
+import { PillButton } from '../components/PillButton';
 import { Input } from '../components/Input';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
@@ -358,7 +359,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
       else setQuemPosMapa(new Map());
     } catch(e:any) {
       if(token!==detailRequest.current||silencioso)return;
-      setDetails(null);setTracks([]);setLoadError(e?.message || 'Could not load playlist.');
+      setDetails(null);setTracks([]);setLoadError(mensagemDeErro(e, "Couldn't load this playlist."));
     } finally {
       if(token===detailRequest.current&&!silencioso)setLoading(false);
     }
@@ -820,7 +821,9 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
       }
     >
 
-      {loadError ? <View style={{padding:24,paddingTop:24+cab.espaco,gap:12}}><Text style={{color:colors.danger}}>{loadError}</Text><Pressable onPress={()=>void load()}><Text style={{color:theme.color}}>Try again</Text></Pressable></View> : loading ? (
+      {/* O estado de erro das outras listas (20/10): o texto do erro estava a
+          vermelho, cru, e o "Try again" era só uma palavra. */}
+      {loadError ? <View style={{paddingTop:cab.espaco}}><EmptyState icon="cloud-offline-outline" title="Couldn't load this playlist" subtitle={loadError}><PillButton label="Try again" onPress={()=>void load()} /></EmptyState></View> : loading ? (
         <ActivityIndicator color={theme.color} style={{ marginTop: cab.espaco + 48 }} />
       ) : rascunho ? (
         // A edição (28/9): arrasta-se pela pega ou com meio segundo de dedo

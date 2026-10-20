@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { pesquisarNoYtMusicCru } from '../api/ytMusic';
 import { chaveDeArtista } from '../lib/artistName';
 import {
@@ -60,6 +60,8 @@ export function usePesquisaPorTipo(query: string, separador: SeparadorDaPesquisa
   const [resultado, setResultado] = useState<Resultado>(VAZIO);
   const [loading, setLoading] = useState(false);
   const [falhou, setFalhou] = useState(false);
+  // O "Try again" de uma falha: a MESMA pergunta, outra vez (20/10).
+  const [tentativa, setTentativa] = useState(0);
   useEffect(() => {
     const q = query.trim();
     setResultado(VAZIO);
@@ -76,8 +78,9 @@ export function usePesquisaPorTipo(query: string, separador: SeparadorDaPesquisa
       });
     }, 350);
     return () => { atual = false; clearTimeout(timer); };
-  }, [query, separador]);
-  return { ...resultado, loading, falhou };
+  }, [query, separador, tentativa]);
+  const repetir = useCallback(() => setTentativa((n) => n + 1), []);
+  return { ...resultado, loading, falhou, repetir };
 }
 
 /**

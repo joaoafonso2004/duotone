@@ -30,6 +30,7 @@ import { ordenarArtistas, ordenarFaixas } from '../../lib/ordenacao';
 import { useAuth } from '../../state/auth';
 import { correspondeAPesquisa } from '../../lib/searchText';
 import { useMusicSearch } from '../../hooks/useMusicSearch';
+import { estadoDaPesquisa, FRASES_DA_PESQUISA } from '../../lib/estadoDaPesquisa';
 import { useArtistaEmDestaque, usePesquisaPorTipo, type SeparadorDaPesquisa } from '../../hooks/usePesquisaPorTipo';
 import { legendaDoAlbumEncontrado, separadorPedidoPelaPergunta, type ArtistaEncontrado } from '../../lib/pesquisaPorTipo';
 import { usePlayer } from '../../state/player';
@@ -110,6 +111,11 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
   });
   const run = (q = query) => { setQuery(q); pesquisarAgora(); };
   const semPesquisa = query.trim().length < 2;
+  // O mesmo do iPhone (20/10, lib/estadoDaPesquisa.ts): com resultados da
+  // biblioteca, uma falha online calava-se; e nenhuma falha deixava repetir.
+  const estado = estadoDaPesquisa({
+    pergunta: query, aCarregar: loading, erro: errorMsg, online: results.length, naBiblioteca: naBiblioteca.length,
+  });
   // O filtro por versão (26/9): só aparecem os que têm resultados, e volta a
   // "All" a cada pesquisa nova. Ver lib/filtroDeVersao.ts.
   const [versao, setVersao] = useState<FiltroDeVersao>('todas');
@@ -149,8 +155,8 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
       {destaque && (tipoAtivo === 'musicas' || tipoAtivo === 'playlists') ? <ArtistaEmDestaque artista={destaque}
         aoAbrir={() => abrirArtista(destaque)} aoTocarMix={() => void tocarMixDoDestaque(destaque)} aAbrirMix={aAbrirMix} /> : null}
       {
-      tipoAtivo === 'artistas' ? <ResultadosDeArtistas artistas={porTipo.artistas} loading={porTipo.loading} falhou={porTipo.falhou} aoAbrir={abrirArtista} />
-      : tipoAtivo === 'albuns' || tipoAtivo === 'playlists' ? <ResultadosEmCapas loading={porTipo.loading} falhou={porTipo.falhou}
+      tipoAtivo === 'artistas' ? <ResultadosDeArtistas artistas={porTipo.artistas} loading={porTipo.loading} falhou={porTipo.falhou} aoTentar={porTipo.repetir} aoAbrir={abrirArtista} />
+      : tipoAtivo === 'albuns' || tipoAtivo === 'playlists' ? <ResultadosEmCapas loading={porTipo.loading} falhou={porTipo.falhou} aoTentar={porTipo.repetir}
           itens={tipoAtivo === 'albuns'
             ? porTipo.albuns.map((a) => ({ id: a.id, titulo: a.titulo, legenda: legendaDoAlbumEncontrado(a), capa: a.capa }))
             : porTipo.playlists}
@@ -160,12 +166,13 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
       :
       /* O que já é teu vem primeiro e não espera pela rede; o YouTube fica por
          baixo. Ver lib/pesquisaLocal.ts. */
-      naBiblioteca.length || (results.length && !loading) ? <>
+      estado.tipo === 'resultados' ? <>
         {naBiblioteca.length ? <>
           <Text style={styles.sectionTitle}>In your library</Text>
           <TrackTable tracks={naBiblioteca} onPlay={(t) => tocarMusica(t, naBiblioteca, undefined, { tipo: 'pesquisa', nome: query })} onMore={more} />
         </> : null}
-        {loading ? <View style={{ height: 200 }}><Loading /></View>
+        {estado.rodape === 'a-carregar' ? <View style={{ height: 200 }}><Loading /></View>
+          : estado.rodape === 'falhou' ? <FalhaDaPesquisaOnline mensagem={errorMsg} aoTentar={pesquisarAgora} />
           : results.length ? <>
             {naBiblioteca.length ? <Text style={[styles.sectionTitle, { marginTop: 24 }]}>More results</Text> : null}
             {filtrosDaVersao.length > 2 ? <View style={[styles.chips, { marginBottom: 12 }]}>{FILTROS_DE_VERSAO.filter((f) => filtrosDaVersao.includes(f.id)).map((f) => (
@@ -180,9 +187,10 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
             <TrackTable tracks={resultadosVisiveis} showSavedBadge onPlay={(t) => tocarMusica(t, undefined, undefined, { tipo: 'pesquisa', nome: query })} onMore={more} />
           </> : null}
       </>
-      : loading ? <View style={{ height: 320 }}><Loading /></View>
-      : errorMsg ? <Empty icon="cloud-offline-outline" title="Search failed" body={errorMsg} />
-      : query.trim().length >= 2 ? <Empty icon="search-outline" title="No results" body="Try a different search term." />
+      : estado.tipo === 'a-carregar' ? <View style={{ height: 320 }}><Loading /></View>
+      : estado.tipo === 'falhou' ? <Empty icon="cloud-offline-outline" title={FRASES_DA_PESQUISA.falhou} body={errorMsg ?? FRASES_DA_PESQUISA.semMotivo}
+          action={<Button onPress={pesquisarAgora}>{FRASES_DA_PESQUISA.tentarDeNovo}</Button>} />
+      : estado.tipo === 'sem-resultados' ? <Empty icon="search-outline" title={FRASES_DA_PESQUISA.semResultados} body={FRASES_DA_PESQUISA.semResultadosCorpo} />
       : temRecomendacoes(recs) ? <>
           {/* Os sítios de onde se ouviu, como na Home do iPhone (5/10). */}
           <VoltarAOuvir />
@@ -260,13 +268,34 @@ function ArtistaEmDestaque({ artista, aoAbrir, aoTocarMix, aAbrirMix }: {
 }
 
 /** Os artistas da pesquisa por tipo: a foto redonda, o nome e a audiência. */
-function ResultadosDeArtistas({ artistas, loading, falhou, aoAbrir }: {
-  artistas: ArtistaEncontrado[]; loading: boolean; falhou: boolean; aoAbrir: (a: ArtistaEncontrado) => void;
+/**
+ * A parte online da pesquisa falhou, por baixo do que já é teu (20/10): antes
+ * calava-se, e a lista parecia ser tudo o que havia.
+ */
+function FalhaDaPesquisaOnline({ mensagem, aoTentar }: { mensagem: string | null; aoTentar: () => void }) {
+  return <View style={artistStyles.falhaOnline} accessibilityRole="alert">
+    <Ionicons name="cloud-offline-outline" size={18} color={COR.textoMedio} />
+    <View style={{ flex: 1, minWidth: 0 }}>
+      <Text style={[TIPO.corpo, { color: COR.texto, fontWeight: '600' as any }]}>{FRASES_DA_PESQUISA.falhouOnline}</Text>
+      <Text style={[TIPO.legenda, { color: COR.textoMedio, marginTop: 2 }]}>{mensagem ?? FRASES_DA_PESQUISA.semMotivo}</Text>
+    </View>
+    <Button secondary onPress={aoTentar}>{FRASES_DA_PESQUISA.tentarDeNovo}</Button>
+  </View>;
+}
+
+/** A falha de uma pesquisa por tipo, com o "Try again" que a repete (20/10). */
+function FalhaDaPesquisa({ aoTentar }: { aoTentar: () => void }) {
+  return <Empty icon="cloud-offline-outline" title={FRASES_DA_PESQUISA.falhou} body={FRASES_DA_PESQUISA.semMotivo}
+    action={<Button onPress={aoTentar}>{FRASES_DA_PESQUISA.tentarDeNovo}</Button>} />;
+}
+
+function ResultadosDeArtistas({ artistas, loading, falhou, aoTentar, aoAbrir }: {
+  artistas: ArtistaEncontrado[]; loading: boolean; falhou: boolean; aoTentar: () => void; aoAbrir: (a: ArtistaEncontrado) => void;
 }) {
   if (loading) return <View style={{ height: 320 }}><Loading /></View>;
   if (!artistas.length) return falhou
-    ? <Empty icon="cloud-offline-outline" title="Search failed" body="Check your connection and try again." />
-    : <Empty icon="person-outline" title="No artists found" body="Try a different search term." />;
+    ? <FalhaDaPesquisa aoTentar={aoTentar} />
+    : <Empty icon="person-outline" title="No artists found" body={FRASES_DA_PESQUISA.semResultadosCorpo} />;
   return <View style={artistStyles.albumGrid}>{artistas.map((a) => <Pressable key={a.canal} onPress={() => aoAbrir(a)}
     accessibilityRole="button" accessibilityLabel={a.nome}
     style={({ hovered, focused }: any) => [artistStyles.artistaCard, (hovered || focused) && artistStyles.albumCardHover]}>
@@ -310,14 +339,14 @@ function CapaSemReferer({ uri, lado, redonda, icone }: {
  * Os álbuns e as playlists da pesquisa por tipo, em grelha de capas. Os dois
  * abrem o mesmo diálogo (tocar, ou guardar como playlist).
  */
-function ResultadosEmCapas({ itens, loading, falhou, icone, vazio, aoAbrir }: {
-  itens: ItemEmCapa[]; loading: boolean; falhou: boolean; icone: 'albums-outline' | 'list-outline';
+function ResultadosEmCapas({ itens, loading, falhou, aoTentar, icone, vazio, aoAbrir }: {
+  itens: ItemEmCapa[]; loading: boolean; falhou: boolean; aoTentar: () => void; icone: 'albums-outline' | 'list-outline';
   vazio: string; aoAbrir: (a: ItemEmCapa) => void;
 }) {
   if (loading) return <View style={{ height: 320 }}><Loading /></View>;
   if (!itens.length) return falhou
-    ? <Empty icon="cloud-offline-outline" title="Search failed" body="Check your connection and try again." />
-    : <Empty icon={icone} title={vazio} body="Try a different search term." />;
+    ? <FalhaDaPesquisa aoTentar={aoTentar} />
+    : <Empty icon={icone} title={vazio} body={FRASES_DA_PESQUISA.semResultadosCorpo} />;
   return <View style={artistStyles.albumGrid}>{itens.map((a) => <Pressable key={a.id} onPress={() => aoAbrir(a)}
     accessibilityRole="button" accessibilityLabel={a.legenda ? `${a.titulo}, ${a.legenda}` : a.titulo}
     style={({ hovered, focused }: any) => [artistStyles.albumCard, (hovered || focused) && artistStyles.albumCardHover]}>
@@ -897,6 +926,11 @@ const artistStyles = StyleSheet.create({
   ordemTexto: { ...TIPO.legenda, color: COR.textoFraco, fontWeight: '600' as any },
   detalhe: { ...TIPO.legenda, color: COR.textoFraco, marginRight: ESP.md, fontVariant: ['tabular-nums'] as any },
   albumGrid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: ESP.xxl, rowGap: ESP.xxl },
+  /** A falha da parte online, por baixo do que é teu (`FalhaDaPesquisaOnline`). */
+  falhaOnline: {
+    flexDirection: 'row', alignItems: 'center', gap: ESP.md, marginTop: ESP.xl, padding: ESP.lg,
+    borderRadius: RAIO.cartao, borderWidth: 1, borderColor: COR.linhaSuave, backgroundColor: COR.painel,
+  },
   albumCard: { width: 190 },
   artistaCard: { width: 170, alignItems: 'center' },
   artistaFoto: { width: 170, height: 170, borderRadius: 85, backgroundColor: COR.elevado },
