@@ -11,6 +11,7 @@ import { useConnectivity } from '../state/connectivity';
 import { useAuth } from '../state/auth';
 import { useSeguirAmigo } from '../state/seguirAmigo';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
+import { avisarInfo } from '../lib/avisoDeRemocao';
 import { colors, spacing, type } from '../theme';
 
 /** Quanto tempo o "Undo" fica ao lado da pastilha depois de ligar o Radio. */
@@ -62,9 +63,16 @@ export function useRadioDaFila() {
   };
   /** Desligado liga; a preparar ou ligado, para. */
   const alternar=()=>{
+    // Apagada, a pastilha diz PORQUÊ em vez de não fazer nada (20/10: um
+    // convidado de uma Jam achava que o Radio não funcionava). No PC o motivo
+    // é a legenda dela (FilaDoLeitor.web.tsx): lá estes avisos não aparecem.
+    if(reason&&!(emJam&&aLigarNoJam)&&(emJam||usePlayer.getState().radioMode==='off')){
+      avisarInfo(reason,emJam&&!offline?DETALHE_SEM_CONTROLO:undefined);
+      return;
+    }
     if(emJam){
       // Na sala é uma decisão sobre o que todos ouvem: só quem manda nela.
-      if(reason||aLigarNoJam)return;
+      if(aLigarNoJam)return;
       setALigarNoJam(true);
       void useOuvirJuntos.getState().ligarRadio(!radioDoJam).finally(()=>setALigarNoJam(false));
       return;
@@ -105,6 +113,9 @@ export function useRadioDaFila() {
     visivel: emJam ? radioDoJam !== null : !!current,
     dica: emJam ? ROTULO_DO_RADIO.dicaNoJam : ROTULO_DO_RADIO.dica };
 }
+
+/** Quem não manda na Jam: como é que passa a poder (o interruptor da folha da Jam). */
+export const DETALHE_SEM_CONTROLO = 'The host can turn on "Guests can control" in the Jam.';
 
 export const ROTULO_DO_RADIO = {
   desligado: 'Radio', aPreparar: 'Starting…', ligado: 'Radio on',

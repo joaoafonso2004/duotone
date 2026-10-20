@@ -168,7 +168,9 @@ async function testRadioControl(){
     '../theme':{colors:{},spacing:{},type:{},radii:{}},'../lib/artistName':{displayArtist:t=>t.artist},
     '../state/seguirAmigo':{useSeguirAmigo},
     '../state/ouvirJuntos':{useOuvirJuntos:jamDoRadio},
+    '../lib/avisoDeRemocao':{avisarInfo:(texto,detalhe)=>avisosDoRadio.push([texto,detalhe])},
   });
+  const avisosDoRadio=[];
   const draw=()=>{cursor=0;return radio.RadioQueueControl({});};
   const original=[a,b,c],generated=[a,track('radio')];
   function setup(){
@@ -246,6 +248,8 @@ async function testRadioControl(){
   pastilha().props.onPress();
   assert.deepEqual(sala.ligacoes,[],'sem controlo não mexe');
   assert.match(pastilha().props.accessibilityHint,/Only the host/);
+  // ...mas diz porquê, e como passa a poder (20/10: o convidado achava que o Radio não funcionava).
+  assert.deepEqual(avisosDoRadio.at(-1),['Only the host can change the Jam Radio','The host can turn on "Guests can control" in the Jam.']);
   setup();sala.sessao={radio:null};sala.manda=true;
   assert.equal(draw(),null,'sem a migração, não há Radio no Jam');
   sala.sessao=null;

@@ -8,7 +8,7 @@ import { usePlayer } from '../state/player';
 import { FilaArrastavel } from './FilaArrastavel.web';
 import { useFilaDoLeitor } from './useFilaDoLeitor.web';
 import { styles } from './estilos.web';
-import { Button, Dialog, Field } from './ui.web';
+import { Button, comDica, Dialog, Field } from './ui.web';
 import { COR, ESP, ESTADO } from './tokens.web';
 import type { CommonPageProps } from './rotas';
 
@@ -38,7 +38,9 @@ function RadioNaFila() {
       onPress={radio.desfazer} style={({ hovered }: any) => [styles.npFilaLimpar, hovered && { backgroundColor: RADIO_HOVER }]}>
       <Text style={[styles.npFilaLimparTexto, { textDecorationLine: 'underline', fontWeight: '400' }]}>Undo</Text>
     </Pressable> : null}
-    <Pressable ref={pastilha} accessibilityRole="switch" accessibilityLabel="Radio" accessibilityHint={radio.reason ?? radio.dica}
+    {/* Apagada, diz porquê na legenda (20/10): um convidado de uma Jam achava
+        que o Radio não funcionava. No iPhone é o aviso do toque. */}
+    <Pressable ref={pastilha} {...(apagada ? comDica(radio.reason!, undefined) : {})} accessibilityRole="switch" accessibilityLabel="Radio" accessibilityHint={radio.reason ?? radio.dica}
       accessibilityState={{ checked: ligado, busy: aPreparar, disabled: apagada }} onPress={carregar}
       style={({ hovered }: any) => [styles.npRadio, ligado && styles.npRadioLigado,
         hovered && !apagada && { backgroundColor: ligado ? 'rgba(233,234,238,0.16)' : RADIO_HOVER },
