@@ -192,6 +192,16 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="np-fundo"]{ animation: dt-np-fundo 700ms ease both; }
     /* A cor da capa a encher a janela ao abrir o Now Playing (26/9). */
     [data-dt~="janela-cor"]{ animation: dt-np-fundo 450ms ease both; }
+    /* E a sair (20/10, pedido do João: entrava devagar e saía num fotograma).
+       A camada apaga-se e recua um nada, mais depressa do que entrou; a cor da
+       capa apaga-se na janela quase ao passo com que acendeu, e a superfície
+       volta ao fundo dela ao mesmo tempo (desktop/useSaida.web.ts tem o tempo
+       total, 420 ms). A página de baixo, ou a nova, já está lá por baixo. */
+    [data-dt~="np-a-sair"]{ animation: dt-np-sai 240ms var(--dt-curva) both; }
+    @keyframes dt-np-sai{ from{ opacity:1; transform:none } to{ opacity:0; transform: scale(.985) } }
+    [data-dt~="janela-cor"][data-dt~="a-apagar"]{ animation: dt-np-cor-sai 420ms ease both; }
+    @keyframes dt-np-cor-sai{ from{ opacity:1 } to{ opacity:0 } }
+    [data-dt~="main-a-voltar"]{ transition: background-color 420ms ease; }
     @keyframes dt-np-fundo{ from{ opacity:0 } to{ opacity:1 } }
     /* A troca de música no Now Playing (26/9): a capa nova entra por cima da
        que sai, e o título vem logo atrás. */
@@ -387,7 +397,10 @@ export function injectDesktopDocumentStyles() {
       [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]{ animation: none !important; }
       [data-dt~="premir"], [data-dt~="desliza"], [data-dt~="campo"], [data-dt~="fila"] [data-dt~="toca"],
       [data-dt~="fila"] [data-dt~="mais"], [data-dt~="fila"] [data-dt~="numero"],
-      [data-dt~="cartao"], [data-dt~="coracaoDoCartao"], [data-dt~="a-sair"]{ transition: none !important; }
+      [data-dt~="cartao"], [data-dt~="coracaoDoCartao"], [data-dt~="a-sair"], [data-dt~="main-a-voltar"]{ transition: none !important; }
+      /* A sair do Now Playing: some logo, como antes (o tempo da saída corre na
+         mesma, mas já invisível). */
+      [data-dt~="np-a-sair"], [data-dt~="janela-cor"][data-dt~="a-apagar"]{ animation: none !important; opacity: 0 !important; }
       [data-dt~="cartao"]:hover{ transform: none !important; }
       [data-dt~="amigo"]:hover [data-dt~="rola"]{ animation: none !important; overflow: hidden !important; text-overflow: ellipsis !important; }
       [data-dt~="amigo"]:hover [data-dt~="rola-caixa"]{ -webkit-mask-image: none; mask-image: none; }

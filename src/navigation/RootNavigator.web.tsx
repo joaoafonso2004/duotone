@@ -22,7 +22,7 @@ import { NotificationBanner } from '../components/NotificationBanner';
 import { HandoffBanner } from '../components/HandoffBanner';
 import { endSession, publishSession, publishSessionNow } from '../lib/sessionSync';
 import { useAutoplayRadio } from '../lib/radioSync';
-import { RotuloDoVoltar, Artwork, Button, Dialog, Empty, Field, Loading, Toast } from '../desktop/ui.web';
+import { RotuloDoVoltar, Artwork, Button, Dialog, Empty, Field, Loading, marcar, Toast } from '../desktop/ui.web';
 import { COR } from '../desktop/tokens.web';
 import { styles } from '../desktop/estilos.web';
 import { SpotifyImportPage } from '../desktop/SpotifyImportPage.web';
@@ -64,6 +64,7 @@ import { NowPlayingPage } from '../desktop/paginas/NowPlayingPage.web';
 
 import { injectDesktopDocumentStyles, PlayerBar, Sidebar, TitleBar } from '../desktop/casca.web';
 import { useDicas } from '../desktop/useDicas.web';
+import { SAIDA_DO_LEITOR_MS, useSaida } from '../desktop/useSaida.web';
 import { usePonteDoLeitor } from '../desktop/usePonteDoLeitor.web';
 import { useAtalhosDaJanela } from '../desktop/useAtalhosDaJanela.web';
 import { useBarraDeTarefas } from '../desktop/useBarraDeTarefas.web';
@@ -106,6 +107,9 @@ function DesktopShell() {
   useEffect(() => { anotarEcra(route.name); }, [route.name]);
   const [nowPlayingOpen, setNowPlayingOpen] = useState(false);
   const [jamOpen, setJamOpen] = useState(false);
+  // O Now Playing também SAI (20/10): fica montado a apagar-se enquanto a
+  // página de baixo (ou a nova) aparece, e a cor da capa apaga-se na janela.
+  const saidaDoLeitor = useSaida(nowPlayingOpen, SAIDA_DO_LEITOR_MS);
   // A app tem de parecer instantânea (27/9). A rota muda em duas velocidades:
   // a da LATERAL no próprio clique (o realce anda logo), e a da PÁGINA numa
   // transição do React -- a nova monta-se sem congelar a janela, e a antiga
@@ -669,7 +673,10 @@ function DesktopShell() {
   // Com a cor na janela, o painel fica transparente para ela passar por baixo
   // da lateral e da barra de título; a página deixa de pintar a sua.
   const leitorAberto = nowPlayingOpen || route.name === 'now-playing';
-  const corNaJanela = corDoLeitor === 'janela' && leitorAberto && !!currentTrack;
+  // A sair, a cor fica na janela a apagar-se (`a-apagar`), e a superfície
+  // volta ao fundo dela ao mesmo passo (`main-a-voltar`): sem salto no fim.
+  const corNaJanela = corDoLeitor === 'janela' && (leitorAberto || saidaDoLeitor.aSair) && !!currentTrack;
+  const aApagarACor = corNaJanela && saidaDoLeitor.aSair;
   const common = { play, tocarMusica, notify, more };
   let page: ReactNode;
   switch (route.name) {
@@ -693,7 +700,7 @@ function DesktopShell() {
   // O nome da página que está atrás (5/10, lib/voltarPara.ts). Com o Now
   // Playing por cima, o voltar fecha-o e mostra a página de baixo.
   const rotuloDoVoltar = nomeDaRota(nowPlayingOpen ? route : history.current[history.current.length - 1]);
-  return <DestinosProvider value={irPara}><RotuloDoVoltar.Provider value={rotuloDoVoltar}><View style={[styles.root, { backgroundColor: 'transparent' }]}>{corNaJanela && <FundoDaCapa onde="janela" uri={currentTrack?.artworkUrl ?? null} />}<ThemeCssSync panelOpacity={panelOpacity}/><TitleBar comPainel /><V style={[styles.main, corNaJanela ? { backgroundColor: 'transparent' } : bgStyle]}><View style={styles.sidebar}><Sidebar route={rotaDaLateral} navigate={navigate} notify={notify} /></View><PainelDoLeitor more={more} notify={notify}><View style={styles.content}>{/* Com a cor na janela o painel do leitor é transparente: a página de baixo esconde-se (continua montada, com o scroll onde estava). */}<View style={[{ flex: 1, minHeight: 0 }, nowPlayingOpen && corNaJanela && ({ visibility: 'hidden' } as any)]}><TransicaoDePagina chave={JSON.stringify(route)} aSair={aMudarDePagina}><BarreiraDeErros onde={`pagina:${route.name}`} chave={JSON.stringify(route)}>{page}</BarreiraDeErros></TransicaoDePagina></View>{nowPlayingOpen&&<View style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:corNaJanela?'transparent':COR.fundo}]}><BarreiraDeErros onde="pagina:now-playing-painel"><NowPlayingPage fundoNaJanela={corNaJanela} share={openShareDialog} play={play} tocarMusica={tocarMusica} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} /></BarreiraDeErros></View>}</View></PainelDoLeitor></V><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} onJam={() => void abrirJam()} discordLigado={discordLigado} onAviso={notify} /><HandoffBanner /><NotificationBanner onOpen={abrirSocial} /><ModoLimpo /><BoasVindasPc />{toast && <Toast message={toast} onDone={() => setToast('')} />}
+  return <DestinosProvider value={irPara}><RotuloDoVoltar.Provider value={rotuloDoVoltar}><View style={[styles.root, { backgroundColor: 'transparent' }]}>{corNaJanela && <FundoDaCapa onde="janela" aApagar={aApagarACor} uri={currentTrack?.artworkUrl ?? null} />}<ThemeCssSync panelOpacity={panelOpacity}/><TitleBar comPainel /><V style={[styles.main, corNaJanela && !aApagarACor ? { backgroundColor: 'transparent' } : bgStyle]} {...(aApagarACor ? marcar('main-a-voltar') : {})}><View style={styles.sidebar}><Sidebar route={rotaDaLateral} navigate={navigate} notify={notify} /></View><PainelDoLeitor more={more} notify={notify}><View style={styles.content}>{/* Com a cor na janela o painel do leitor é transparente: a página de baixo esconde-se (continua montada, com o scroll onde estava). */}<View style={[{ flex: 1, minHeight: 0 }, nowPlayingOpen && corNaJanela && ({ visibility: 'hidden' } as any)]}><TransicaoDePagina chave={JSON.stringify(route)} aSair={aMudarDePagina}><BarreiraDeErros onde={`pagina:${route.name}`} chave={JSON.stringify(route)}>{page}</BarreiraDeErros></TransicaoDePagina></View>{saidaDoLeitor.montado&&<View pointerEvents={saidaDoLeitor.aSair?'none':'auto'} {...(saidaDoLeitor.aSair?marcar('np-a-sair'):{})} style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:corNaJanela?'transparent':COR.fundo}]}><BarreiraDeErros onde="pagina:now-playing-painel"><NowPlayingPage fundoNaJanela={corNaJanela} share={openShareDialog} play={play} tocarMusica={tocarMusica} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} /></BarreiraDeErros></View>}</View></PainelDoLeitor></V><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} onJam={() => void abrirJam()} discordLigado={discordLigado} onAviso={notify} /><HandoffBanner /><NotificationBanner onOpen={abrirSocial} /><ModoLimpo /><BoasVindasPc />{toast && <Toast message={toast} onDone={() => setToast('')} />}
     <JanelaDoJam open={jamOpen} onClose={fecharJam} notify={notify} />
     
     {/* O menu de uma faixa abre no cursor (5/10, auditoria M1): era um

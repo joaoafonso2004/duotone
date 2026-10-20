@@ -22,7 +22,10 @@ import { marcar } from './ui.web';
  * do João) é a mesma cor a encher a janela inteira -- lateral, barra de título
  * e leitor --, com um véu que também escurece a lateral para ela se ler.
  */
-export function FundoDaCapa({ uri, onde = 'pagina' }: { uri: string | null; onde?: 'pagina' | 'janela' }) {
+export function FundoDaCapa({ uri, onde = 'pagina', aApagar = false }: { uri: string | null; onde?: 'pagina' | 'janela';
+  /** A sair do Now Playing (20/10): a cor apaga-se como acendeu, em vez de sumir. */
+  aApagar?: boolean;
+}) {
   const fonte = desfoqueLeve(uri, 64)?.uri ?? null;
   const [camadas, setCamadas] = useState<string[]>(() => (fonte ? [fonte] : []));
   useEffect(() => {
@@ -33,7 +36,7 @@ export function FundoDaCapa({ uri, onde = 'pagina' }: { uri: string | null; onde
   }, [fonte]);
   return (
     <View pointerEvents="none" style={onde === 'janela' ? styles.janelaCor : styles.npFundo}
-      {...(onde === 'janela' ? marcar('janela-cor') : {})}>
+      {...(onde === 'janela' ? marcar('janela-cor', ...(aApagar ? ['a-apagar'] : [])) : {})}>
       {camadas.map((c, i) => (
         <View key={c} style={[styles.npFundoCapa, { backgroundImage: `url("${c}")` } as any]}
           {...(i === camadas.length - 1 && camadas.length > 1 ? marcar('np-fundo') : {})} />
