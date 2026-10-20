@@ -16,6 +16,7 @@ import { isShowTrackDurationSync } from '../lib/prefs';
 import { capaComBarras, molduraSemBarras } from '../lib/modoLimpo';
 import { pertoDoFim } from '../lib/grelhaQueCresce';
 import { criarRoda, PROCURAR_DEPOIS_MS, proporcaoComARoda } from '../lib/rodaDoRato';
+import { criarPilhaDeCamadas, dentesDaTecla, focoAoTab } from '../lib/acessibilidadeDoPc';
 import { useDestinos } from '../navigation/destinos';
 
 /**
@@ -58,14 +59,25 @@ const EMPTY_KEYS: ReadonlySet<string> = new Set();
  */
 export const marcar = (...nomes: string[]) => ({ dataSet: { dt: nomes.join(' ') } } as any);
 
+/**
+ * A legenda de um botão de ícone (20/10, `desktop/useDicas.web.ts`): o nome que
+ * o leitor de ecrã já lia passa a aparecer ao passar o rato ou com o foco do
+ * teclado, com o atalho quando há. Vai pelo `dataSet` pela mesma razão do
+ * `marcar`, e leva as marcas dele.
+ */
+export const comDica = (rotulo: string, atalho: string | undefined, ...nomes: string[]) =>
+  ({ dataSet: { dt: nomes.join(' '), dica: rotulo, ...(atalho ? { atalho } : {}) } } as any);
+
 export const desktop = {
   bg: COR.fundo, panel: COR.painel, raised: COR.elevado, hover: COR.hover,
   border: COR.linha, text: COR.texto, muted: COR.textoMedio, dim: COR.textoFraco,
   accent: COR.metalClaro, accentSoft: 'rgba(233,234,238,.12)', danger: COR.erro,
 };
 
-export function IconButton({ name, label, onPress, onPressIn, onPressOut, desenho, active = false, danger = false, estrela = false, marca }: {
+export function IconButton({ name, label, onPress, onPressIn, onPressOut, desenho, active = false, danger = false, estrela = false, marca, atalho }: {
   name: keyof typeof Ionicons.glyphMap; label: string; onPress?: () => void; active?: boolean; danger?: boolean;
+  /** O atalho do teclado que faz o mesmo, para a legenda ("Space", "Ctrl+→"). */
+  atalho?: string;
   /** Para quem reage ao carregar (o coração, `useCoracaoAoCarregar`). */
   onPressIn?: () => void; onPressOut?: () => void;
   /** Um desenho em vez do ícone (o coração animado), com a cor do estado. */
@@ -84,7 +96,7 @@ export function IconButton({ name, label, onPress, onPressIn, onPressOut, desenh
   marca?: string;
 }) {
   const cor = danger ? desktop.danger : active ? desktop.accent : desktop.muted;
-  return <P {...marcar('premir')} accessibilityLabel={label} onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} style={({ hovered, pressed, focused }: any) => [
+  return <P {...comDica(label, atalho, 'premir')} accessibilityRole="button" accessibilityLabel={label} onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} style={({ hovered, pressed, focused }: any) => [
     ui.iconButton, (hovered || focused) && ui.iconButtonHover, pressed && ui.pressed, active && ui.active,
   ]}>
     {desenho ? desenho(cor) : <StateIcon name={name} size={19} color={cor} />}
@@ -120,7 +132,7 @@ export function Button({ children, onPress, icon, iconNode, secondary = false, d
    * de se pintar de primário e passava a competir com o `Play`. */
   marcado?: boolean;
 }) {
-  return <P {...marcar('premir')} disabled={disabled} onPress={onPress} style={({ hovered, pressed, focused }: any) => [
+  return <P {...marcar('premir')} accessibilityRole="button" disabled={disabled} onPress={onPress} style={({ hovered, pressed, focused }: any) => [
     ui.button, secondary && ui.buttonSecondary, marcado && ui.buttonMarcado, danger && ui.buttonDanger, (hovered || focused) && ui.buttonHover,
     pressed && ui.pressed, disabled && ui.disabled,
     brilho && { overflow: 'hidden' as const },
@@ -639,7 +651,7 @@ export function PrateleiraDeMisturas({ titulo, nota, misturas, aoAbrir }: {
  * diz a proporção debaixo do rato, para a barra e o tempo mostrarem onde vai
  * ficar; ao largar há um seek e um só. Serve a barra do leitor e o modo limpo.
  */
-export function useProcurarAoLargar(): { arrasto: number | null; comecar: (evento: any) => void; rodar: (evento: any) => void } {
+export function useProcurarAoLargar(): { arrasto: number | null; comecar: (evento: any) => void; rodar: (evento: any) => void; teclar: (evento: any) => void } {
   const [arrasto, setArrasto] = useState<number | null>(null);
   // A roda do rato (10/10, lib/rodaDoRato.ts): 5 s por dente. Mostra onde vai
   // ficar enquanto roda e procura UMA vez, quando a roda pára -- num Jam cada
@@ -647,14 +659,11 @@ export function useProcurarAoLargar(): { arrasto: number | null; comecar: (event
   const roda = useRef(criarRoda()).current;
   const daRoda = useRef<{ proporcao: number; relogio: ReturnType<typeof setTimeout> | null }>({ proporcao: 0, relogio: null });
   useEffect(() => () => { if (daRoda.current.relogio) clearTimeout(daRoda.current.relogio); }, []);
-  const rodar = (evento: any) => {
-    const dentes = roda(evento.deltaY ?? evento.nativeEvent?.deltaY, evento.deltaMode ?? evento.nativeEvent?.deltaMode);
-    const { durationMs, positionMs } = usePlayer.getState();
-    if (!dentes || !(durationMs > 0)) return;
+  /** Mostra onde vai ficar e procura UMA vez, quando se para de mexer. */
+  const procurarDepois = (proporcao: number) => {
     const r = daRoda.current;
-    const partida = r.relogio ? r.proporcao : Math.min(1, positionMs / durationMs);
-    r.proporcao = proporcaoComARoda(partida, dentes, durationMs);
-    setArrasto(r.proporcao);
+    r.proporcao = proporcao;
+    setArrasto(proporcao);
     if (r.relogio) clearTimeout(r.relogio);
     r.relogio = setTimeout(() => {
       r.relogio = null;
@@ -662,6 +671,27 @@ export function useProcurarAoLargar(): { arrasto: number | null; comecar: (event
       void seekTo(r.proporcao * d);
       setArrasto(null);
     }, PROCURAR_DEPOIS_MS);
+  };
+  const andar = (dentes: number) => {
+    const { durationMs, positionMs } = usePlayer.getState();
+    if (!dentes || !(durationMs > 0)) return;
+    const r = daRoda.current;
+    const partida = r.relogio ? r.proporcao : Math.min(1, positionMs / durationMs);
+    procurarDepois(proporcaoComARoda(partida, dentes, durationMs));
+  };
+  const rodar = (evento: any) => {
+    andar(roda(evento.deltaY ?? evento.nativeEvent?.deltaY, evento.deltaMode ?? evento.nativeEvent?.deltaMode));
+  };
+  // As setas na barra com o foco (20/10, lib/acessibilidadeDoPc.ts): os mesmos
+  // dentes da roda, e o mesmo seek único no fim -- carregar dez vezes na seta
+  // dentro de um Jam não podem ser dez pedidos ao servidor. O End não salta
+  // para o fim: isso acabava a música por engano.
+  const teclar = (evento: any) => {
+    const t = dentesDaTecla(evento.key, !!evento.shiftKey);
+    if (t === null || t === 'fim') return;
+    evento.preventDefault?.();
+    if (t === 'inicio') { if (usePlayer.getState().durationMs > 0) procurarDepois(0); return; }
+    andar(t);
   };
   const comecar = (evento: any) => {
     evento.preventDefault?.();
@@ -695,7 +725,7 @@ export function useProcurarAoLargar(): { arrasto: number | null; comecar: (event
     window.addEventListener('touchmove', mover);
     window.addEventListener('touchend', largar);
   };
-  return { arrasto, comecar, rodar };
+  return { arrasto, comecar, rodar, teclar };
 }
 
 /**
@@ -907,10 +937,80 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
  * `semVeu`: o que está por trás continua à vista, sem escurecer (16/10, o EQ:
  * ajusta-se a ouvir e a ver o leitor). Tocar fora continua a fechar.
  */
+/** Os diálogos abertos, por ordem: só o de cima ouve o Escape e o Tab. */
+const camadas = criarPilhaDeCamadas();
+
+/** O que o Tab visita dentro de um diálogo (o mesmo que o browser visitaria). */
+const FOCAVEIS = 'a[href], button, input, textarea, select, [tabindex]:not([tabindex="-1"])';
+function focaveisDentro(caixa: HTMLElement): HTMLElement[] {
+  return Array.from(caixa.querySelectorAll<HTMLElement>(FOCAVEIS))
+    .filter((el) => !el.hasAttribute('disabled') && el.getAttribute('aria-disabled') !== 'true' && el.getClientRects().length > 0);
+}
+
+/**
+ * `semVeu`: o que está por trás continua à vista, sem escurecer (16/10, o EQ:
+ * ajusta-se a ouvir e a ver o leitor). Tocar fora continua a fechar.
+ *
+ * O teclado (20/10, Q4 da revisão de qualidade, `lib/acessibilidadeDoPc.ts`):
+ * anuncia-se como diálogo pelo título, leva o foco para dentro ao abrir (para o
+ * primeiro campo, se houver), prende o Tab, e devolve o foco a quem o abriu ao
+ * fechar. O Escape fecha SÓ o de cima -- e nem esse, se um menu está aberto por
+ * cima dele (o `MenuDeContexto` fecha-se com a mesma tecla).
+ */
 export function Dialog({ open, title, children, onClose, width = 460, semVeu = false }: { open: boolean; title: string; children: ReactNode; onClose: () => void; width?: number; semVeu?: boolean }) {
-  useEffect(() => { if (!open) return; const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', fn); return () => window.removeEventListener('keydown', fn); }, [open, onClose]);
+  const caixa = useRef<any>(null);
+  // As páginas passam o `onClose` em linha; o ouvinte fica o mesmo enquanto
+  // o diálogo está aberto, e a camada não sai da pilha a cada render.
+  const fechar = useRef(onClose);
+  fechar.current = onClose;
+  useEffect(() => {
+    if (!open) return;
+    const camada = camadas.abrir();
+    const antes = document.activeElement as HTMLElement | null;
+    const focar = requestAnimationFrame(() => {
+      const el = caixa.current as HTMLElement | null;
+      if (!el || el.contains(document.activeElement)) return; // um autoFocus já tratou disto
+      (el.querySelector<HTMLElement>('input, textarea, select') ?? el).focus();
+    });
+    const tecla = (e: KeyboardEvent) => {
+      if (!camadas.noTopo(camada)) return;
+      if (e.key === 'Escape') {
+        // Um menu aberto por cima é a camada de cima: o Escape é dele.
+        if (e.defaultPrevented || document.querySelector('[role="menu"]')) return;
+        e.preventDefault();
+        fechar.current();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const el = caixa.current as HTMLElement | null;
+      if (!el) return;
+      const lista = focaveisDentro(el);
+      const destino = focoAoTab(lista.indexOf(document.activeElement as HTMLElement), lista.length, e.shiftKey);
+      if (lista.length === 0) { e.preventDefault(); return; }
+      if (destino === null) return;
+      e.preventDefault();
+      lista[destino].focus();
+    };
+    // Na CAPTURA: o TextInput do react-native-web pára a propagação de todas
+    // as teclas, e na bolha o Escape e o Tab de um campo nunca chegavam aqui
+    // (medido a 20/10: com o foco no nome de uma playlist, o Escape não fechava).
+    window.addEventListener('keydown', tecla, true);
+    return () => {
+      cancelAnimationFrame(focar);
+      window.removeEventListener('keydown', tecla, true);
+      camadas.fechar(camada);
+      if (antes?.isConnected && typeof antes.focus === 'function') antes.focus();
+    };
+  }, [open]);
   if (!open) return null;
-  return <View style={[ui.dialogLayer, semVeu && { backgroundColor: 'transparent' }]} {...marcar('veu')}><P style={StyleSheet.absoluteFill} onPress={onClose} /><View style={[ui.dialog, { width, maxWidth: 'calc(100vw - 48px)' as any }]} {...marcar('dialogo')}><View style={ui.dialogHeader}><Text style={ui.dialogTitle}>{title}</Text><IconButton name="close" label="Close dialog" onPress={onClose} /></View>{children}</View></View>;
+  return <View style={[ui.dialogLayer, semVeu && { backgroundColor: 'transparent' }]} {...marcar('veu')}>
+    <P style={StyleSheet.absoluteFill} onPress={onClose} focusable={false} aria-hidden />
+    <View ref={caixa} role="dialog" aria-modal aria-label={title} tabIndex={-1}
+      style={[ui.dialog, { width, maxWidth: 'calc(100vw - 48px)' as any }]} {...marcar('dialogo')}>
+      <View style={ui.dialogHeader}><Text style={ui.dialogTitle}>{title}</Text><IconButton name="close" label="Close dialog" atalho="Esc" onPress={onClose} /></View>
+      {children}
+    </View>
+  </View>;
 }
 
 export function Toast({ message, onDone }: { message: string; onDone: () => void }) {

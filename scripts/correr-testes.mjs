@@ -207,6 +207,7 @@ const TESTES = [
   'scripts/test-pares-de-plataforma.mjs',
   'scripts/test-titulos-limpos.mjs',
   `${TS} scripts/test-atalhos-da-janela.ts`,
+  `${TS} scripts/test-acessibilidade-do-pc.ts`,
   `${TS} scripts/test-leitor-do-pc.ts`,
   'scripts/test-duotone-connect-sql.mjs',
   'scripts/test-limpar-fantasmas-sql.mjs',

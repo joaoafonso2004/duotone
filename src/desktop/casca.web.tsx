@@ -28,8 +28,9 @@ import { useShallow } from 'zustand/react/shallow';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { useTheme } from '../state/theme';
 import { styles } from './estilos.web';
-import { COR, FONT, FONTES } from './tokens.web';
-import { Artwork, desktop, formatTime, IconButton, ui, marcar, useProcurarAoLargar } from './ui.web';
+import { COR, FONT, FONTES, RAIO } from './tokens.web';
+import { Artwork, comDica, desktop, formatTime, IconButton, ui, marcar, useProcurarAoLargar } from './ui.web';
+import { dentesDaTecla, valorDaProcura } from '../lib/acessibilidadeDoPc';
 import { PRIMARY, type Route } from './rotas';
 import { IndicadorDeVisibilidade } from './IndicadorDeVisibilidade.web';
 import { AmigosNaLateral } from './AmigosNaLateral.web';
@@ -90,7 +91,11 @@ export function injectDesktopDocumentStyles() {
     ::selection{background:rgba(233,234,238,.24)} ::-webkit-scrollbar{width:11px;height:11px}
     ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:#30303b;border:3px solid transparent;border-radius:8px;background-clip:padding-box}
     ::-webkit-scrollbar-thumb:hover{background:#494857;border:3px solid transparent;background-clip:padding-box}
-    [data-focusable="true"]:focus-visible{outline:2px solid var(--accent-color, #E9EAEE)!important;outline-offset:-2px}
+    /* O anel do foco do teclado, no metal. Era [data-focusable="true"], que o
+       react-native-web 0.21 ja nao escreve: a regra nao apanhava nada e via-se
+       o anel do browser (medido a 20/10 na pagina de ensaio). Os sliders tem o
+       seu, mais afastado (ver em baixo). */
+    [tabindex]:not([tabindex="-1"]):not([role="slider"]):focus-visible{outline:2px solid var(--accent-color, #E9EAEE)!important;outline-offset:-2px}
     [data-dt~="calha"] { position: relative; }
     [data-dt~="calha"]:hover [data-dt~="cheio"] { background: var(--accent-color, #E9EAEE)!important; }
     [data-dt~="pega"] {
@@ -108,6 +113,26 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="calha"]:hover [data-dt~="pega"] {
       transform: translate(-50%, -50%) scale(1);
     }
+    /* Os sliders com o foco do teclado (20/10): o anel, e a pega e o cheio
+       acesos como no hover -- sem eles nao se via o que as setas mexiam. O
+       arrasto nao foca (o mousedown faz preventDefault), por isso isto e so
+       do teclado. */
+    [role="slider"]:focus-visible{ outline: 2px solid var(--accent-color, #E9EAEE); outline-offset: 4px; border-radius: ${RAIO.ctrl}px; }
+    [role="slider"]:focus-visible [data-dt~="pega"]{ transform: translate(-50%, -50%) scale(1); }
+    [role="slider"]:focus-visible [data-dt~="cheio"]{ background: var(--accent-color, #E9EAEE)!important; }
+    /* O dialogo recebe o foco ao abrir (para o leitor de ecra ler o titulo);
+       o anel e dos controlos la dentro, nao da caixa. */
+    [data-dt~="dialogo"]:focus{ outline: none; }
+    /* A legenda dos botoes de icone (desktop/useDicas.web.ts). Uma so, no body. */
+    #duotone-dica{ position: fixed; left: 0; top: 0; z-index: 2147483000; pointer-events: none;
+      max-width: 280px; padding: 5px 8px; border-radius: ${RAIO.ctrl}px;
+      background: ${COR.elevado}; border: 1px solid ${COR.linha}; color: ${COR.texto};
+      font: 500 12px/16px ${FONT.body}; white-space: nowrap; box-shadow: 0 8px 24px rgba(0,0,0,.45);
+      visibility: hidden; opacity: 0; transform: translateY(2px);
+      transition: opacity 120ms var(--dt-curva), transform 120ms var(--dt-curva); }
+    #duotone-dica[data-lado="baixo"]{ transform: translateY(-2px); }
+    #duotone-dica[data-visivel]{ visibility: visible; opacity: 1; transform: none; }
+    #duotone-dica kbd{ font: 400 11px/16px ${FONT.mono}; color: ${COR.textoFraco}; margin-left: 8px; }
     /* Aqui vivia o "vidro": um backdrop-filter de 28px na superficie inteira.
        Nunca chegou a correr (vinha por className, que o RNW deita fora), e
        quando passou a correr, na 3.7.1, a app ficou pesada -- um
@@ -369,6 +394,7 @@ export function injectDesktopDocumentStyles() {
        final e o mesmo: aqui so morre o caminho ate la. */
     @media (prefers-reduced-motion: reduce){
       [data-dt~="painel-do-leitor"] { transition: none !important; }
+      #duotone-dica{ transition: none !important; transform: none !important; }
       [data-dt~="fila"], [data-dt~="dialogo"], [data-dt~="veu"], [data-dt~="aviso"],
       [data-dt~="menu-amigo"], [data-dt~="aviso-msg"],
       [data-dt~="pagina"], [data-dt~="pagina"] [data-dt~="cartao"], [data-dt~="carregar"],
@@ -530,12 +556,81 @@ function BolinhaDeAviso() {
 function BarraDeProgresso() {
   const positionMs = usePlayer((s) => s.positionMs);
   const durationMs = usePlayer((s) => s.durationMs);
-  const { arrasto, comecar, rodar } = useProcurarAoLargar();
+  const { arrasto, comecar, rodar, teclar } = useProcurarAoLargar();
   const ratio = arrasto ?? (durationMs ? Math.min(1, positionMs / durationMs) : 0);
+  const mostradoS = (arrasto !== null ? Math.round(arrasto * durationMs) : positionMs) / 1000;
+  // Um slider a sério (20/10, Q3): as setas andam 5 s (com Shift, 10), o Home
+  // volta ao início, e o leitor de ecrã diz onde se está. Era um botão sem
+  // nome: o rato e a roda chegavam lá, o teclado não. As setas fora da barra
+  // continuam a ser o atalho da janela (10 s): ele não mexe num `slider`.
   return <V style={styles.progressRow} onWheel={rodar}>
-    <Text style={styles.timeText}>{formatTime(arrasto !== null ? (arrasto * durationMs) / 1000 : positionMs / 1000)}</Text>
-    <P onMouseDown={comecar} onTouchStart={comecar} style={styles.progressHit} {...marcar('calha')}><V style={styles.progressTrack}><V style={[styles.progressFill, { width: `${ratio * 100}%` }]} {...marcar('cheio')} /></V><V {...marcar('pega')} style={{ left: `${ratio * 100}%` }} /></P>
+    <Text style={styles.timeText}>{formatTime(mostradoS)}</Text>
+    <V role="slider" aria-label="Seek" aria-valuemin={0} aria-valuemax={Math.round(durationMs / 1000)}
+      aria-valuenow={Math.round(mostradoS)} aria-valuetext={valorDaProcura(mostradoS, durationMs / 1000)} tabIndex={0}
+      onKeyDown={teclar} onMouseDown={comecar} onTouchStart={comecar} style={styles.progressHit} {...marcar('calha')}>
+      <V style={styles.progressTrack}><V style={[styles.progressFill, { width: `${ratio * 100}%` }]} {...marcar('cheio')} /></V><V {...marcar('pega')} style={{ left: `${ratio * 100}%` }} />
+    </V>
     <Text style={styles.timeText}>{formatTime(durationMs / 1000)}</Text>
+  </V>;
+}
+
+/**
+ * O volume (20/10, Q3): o mesmo slider da velocidade e do EQ, com as setas de
+ * 5 em 5 (Shift, 10), Page Up/Down de 30, Home a zero e End no máximo; o
+ * arrasto e a roda do rato ficam como estavam. Saiu da `PlayerBar` para ela não
+ * redesenhar a barra inteira a cada mudança de volume (como a posição).
+ */
+function BarraDoVolume() {
+  const volume = usePlayer((s) => s.volume);
+  const volumeAudivel = useRef(80);
+  if (volume > 0) volumeAudivel.current = volume;
+  // A roda do rato no volume (10/10): 5 por dente, para cima é mais.
+  const rodaDoVolume = useRef(criarRoda()).current;
+  const rodarVolume = (e: any) => {
+    const dentes = rodaDoVolume(e.deltaY ?? e.nativeEvent?.deltaY, e.deltaMode ?? e.nativeEvent?.deltaMode);
+    if (dentes) usePlayer.getState().setVolume(volumeComARoda(usePlayer.getState().volume, dentes));
+  };
+  const alternarSilencio = () => {
+    const p = usePlayer.getState();
+    p.setVolume(p.volume > 0 ? 0 : volumeAudivel.current || 80);
+  };
+  const teclar = (e: any) => {
+    const t = dentesDaTecla(e.key, !!e.shiftKey);
+    if (t === null) return;
+    e.preventDefault?.();
+    const p = usePlayer.getState();
+    p.setVolume(t === 'inicio' ? 0 : t === 'fim' ? 100 : volumeComARoda(p.volume, t));
+  };
+  const startDragVolume = (mouseDownEvent: any) => {
+    mouseDownEvent.preventDefault();
+    const target = mouseDownEvent.currentTarget;
+    const update = (moveEvent: any) => {
+      const rect = target.getBoundingClientRect();
+      const clientX = moveEvent.clientX ?? moveEvent.touches?.[0]?.clientX;
+      if (clientX === undefined) return;
+      const pct = Math.min(100, Math.max(0, Math.round(((clientX - rect.left) / rect.width) * 100)));
+      usePlayer.getState().setVolume(pct);
+    };
+    update(mouseDownEvent);
+    const stop = () => {
+      window.removeEventListener('mousemove', update);
+      window.removeEventListener('mouseup', stop);
+      window.removeEventListener('touchmove', update);
+      window.removeEventListener('touchend', stop);
+    };
+    window.addEventListener('mousemove', update);
+    window.addEventListener('mouseup', stop);
+    window.addEventListener('touchmove', update);
+    window.addEventListener('touchend', stop);
+  };
+  return <V style={styles.volumeRow} onWheel={rodarVolume} {...marcar('calha')}>
+    <IconButton name={volume === 0 ? 'volume-mute-outline' : volume < 35 ? 'volume-low-outline' : volume < 70 ? 'volume-medium-outline' : 'volume-high-outline'}
+      label={volume === 0 ? 'Unmute' : 'Mute'} onPress={alternarSilencio} />
+    <V role="slider" aria-label="Volume" aria-valuemin={0} aria-valuemax={100} aria-valuenow={volume}
+      aria-valuetext={volume === 0 ? 'Muted' : `${volume}%`} tabIndex={0} onKeyDown={teclar}
+      onMouseDown={startDragVolume} onTouchStart={startDragVolume} style={styles.volumeHit}>
+      <V style={styles.volumeTrack}><V style={[styles.volumeFill, { width: `${volume}%` }]} {...marcar('cheio')} /></V><V {...marcar('pega')} style={{ left: `${volume}%` }} />
+    </V>
   </V>;
 }
 
@@ -588,7 +683,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
   // redesenhava a barra inteira a cada `_setProgress` (auditoria de 17/9, §1.5).
   // A posição vive na `BarraDeProgresso`, que é a única que precisa dela.
   const p = usePlayer(useShallow((s) => ({
-    current: s.current, closeGain: s.closeGain, volume: s.volume, setVolume: s.setVolume,
+    current: s.current, closeGain: s.closeGain,
     shuffle: s.shuffle, shuffleInteligente: s.shuffleInteligente, toggleShuffle: s.toggleShuffle,
     prev: s.prev, next: s.next, showRewindButton: s.showRewindButton, isPlaying: s.isPlaying,
     buffering: s.buffering, togglePlay: s.togglePlay, repeatMode: s.repeatMode,
@@ -606,41 +701,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
     onPanResponderRelease: (_e,g)=>{if(confirmaSwipe(g.dx,g.dy,g.vx,swipeWidth.current))void closePlayerSmoothly().then(()=>setDragX(0));else setDragX(0);setTimeout(()=>{swiping.current=false;},200);},
     onPanResponderTerminate:()=>{setDragX(0);swiping.current=false;},
   })).current;
-  const volumeAudivel = useRef(80);
-  if (p.volume > 0) volumeAudivel.current = p.volume;
-  // A roda do rato no volume (10/10): 5 por dente, para cima é mais.
-  const rodaDoVolume = useRef(criarRoda()).current;
-  const rodarVolume = (e: any) => {
-    const dentes = rodaDoVolume(e.deltaY ?? e.nativeEvent?.deltaY, e.deltaMode ?? e.nativeEvent?.deltaMode);
-    if (dentes) usePlayer.getState().setVolume(volumeComARoda(usePlayer.getState().volume, dentes));
-  };
-  const alternarSilencio = () => {
-    p.setVolume(p.volume > 0 ? 0 : volumeAudivel.current || 80);
-  };
   if (!p.current) return null;
-
-  const startDragVolume = (mouseDownEvent: any) => {
-    mouseDownEvent.preventDefault();
-    const target = mouseDownEvent.currentTarget;
-    const update = (moveEvent: any) => {
-      const rect = target.getBoundingClientRect();
-      const clientX = moveEvent.clientX ?? moveEvent.touches?.[0]?.clientX;
-      if (clientX === undefined) return;
-      const pct = Math.min(100, Math.max(0, Math.round(((clientX - rect.left) / rect.width) * 100)));
-      p.setVolume(pct);
-    };
-    update(mouseDownEvent);
-    const stop = () => {
-      window.removeEventListener('mousemove', update);
-      window.removeEventListener('mouseup', stop);
-      window.removeEventListener('touchmove', update);
-      window.removeEventListener('touchend', stop);
-    };
-    window.addEventListener('mousemove', update);
-    window.addEventListener('mouseup', stop);
-    window.addEventListener('touchmove', update);
-    window.addEventListener('touchend', stop);
-  };
 
   return <V style={[styles.player,{opacity:p.closeGain*Math.max(0.2,1-dragX/swipeWidth.current),transform:[{translateX:reducedMotion?0:dragX+(1-p.closeGain)*180}]}]}>
     {/* O motor: se rebentar, volta a montar sozinho e retoma a faixa. */}
@@ -671,6 +732,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
         <IconButton
           name={coracao.mostrada ? 'heart' : 'heart-outline'}
           label={coracao.mostrada ? 'Remove from Liked Songs' : 'Add to Liked Songs'}
+          atalho="Ctrl+L"
           onPressIn={coracao.onPressIn}
           onPress={coracao.onPress}
           onPressOut={coracao.onPressOut}
@@ -682,10 +744,10 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
     <View style={styles.playerCenter}>
       <View style={styles.playerControls}>
         <IconButton name="shuffle" label={rotuloDoModo(modoDeShuffle(p.shuffle, p.shuffleInteligente))} active={p.shuffle} estrela={p.shuffleInteligente} onPress={p.toggleShuffle} />
-        <IconButton name="play-skip-back" label="Previous" onPress={p.prev} />
+        <IconButton name="play-skip-back" label="Previous" atalho="Ctrl+←" onPress={p.prev} />
         {p.showRewindButton && <IconButton name="play-back" label="Rewind 15 seconds" onPress={() => p.seekTo(Math.max(0, usePlayer.getState().positionMs - 15000))} />}
-        <Pressable accessibilityLabel={p.isPlaying ? 'Pause' : 'Play'} onPress={p.togglePlay} style={({ hovered, pressed }) => [styles.playButton, hovered && { transform: [{ scale: 1.05 }] }, pressed && { transform: [{ scale: .97 }] }]}><Ionicons name={p.buffering ? 'hourglass-outline' : p.isPlaying ? 'pause' : 'play'} size={19} color="#111117" /></Pressable>
-        <IconButton name="play-skip-forward" label="Next" onPress={p.next} />
+        <Pressable {...comDica(p.isPlaying ? 'Pause' : 'Play', 'Space')} accessibilityRole="button" accessibilityLabel={p.isPlaying ? 'Pause' : 'Play'} onPress={p.togglePlay} style={({ hovered, pressed }) => [styles.playButton, hovered && { transform: [{ scale: 1.05 }] }, pressed && { transform: [{ scale: .97 }] }]}><Ionicons name={p.buffering ? 'hourglass-outline' : p.isPlaying ? 'pause' : 'play'} size={19} color="#111117" /></Pressable>
+        <IconButton name="play-skip-forward" label="Next" atalho="Ctrl+→" onPress={p.next} />
         {/* O icone e o MESMO nos dois modos: o `repeat` e o `repeat-outline`
             do Ionicons sao praticamente iguais a este tamanho, e o botao
             ficava com dois estados a mostrar um. Quem os separa e o "1". */}
@@ -704,7 +766,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
       {/* Quem vê o que está a tocar, ao lado do botão que abre o Jam. */}
       <IndicadorDeVisibilidade discordLigado={discordLigado} onJam={onJam} onAviso={onAviso} />
       <IconButton name={jam ? ICONES.jam : `${ICONES.jam}-outline`} label={jam ? 'Manage Jam' : 'Start a Jam'} active={!!jam} onPress={onJam} />
-      <V style={styles.volumeRow} onWheel={rodarVolume} {...marcar('calha')}><Ionicons name={p.volume === 0 ? 'volume-mute-outline' : p.volume < 35 ? 'volume-low-outline' : p.volume < 70 ? 'volume-medium-outline' : 'volume-high-outline'} size={18} color={desktop.muted} onPress={alternarSilencio} accessibilityRole="button" accessibilityLabel={p.volume === 0 ? 'Unmute' : 'Mute'} style={{ cursor: 'pointer', transition: 'color 0.2s' } as any} /><P onMouseDown={startDragVolume} onTouchStart={startDragVolume} style={styles.volumeHit}><V style={styles.volumeTrack}><V style={[styles.volumeFill, { width: `${p.volume}%` }]} {...marcar('cheio')} /></V><V {...marcar('pega')} style={{ left: `${p.volume}%` }} /></P></V>
+      <BarraDoVolume />
       <IconButton name="close" label="Close player" onPress={()=>void closePlayerSmoothly()} />
     </View>
   </V>;

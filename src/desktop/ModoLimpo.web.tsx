@@ -12,6 +12,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { comCatalogo, useCatalogoDeFaixas } from '../state/catalogoDeFaixas';
 import { COR, ESP, FONT } from './tokens.web';
 import { formatTime, marcar, useProcurarAoLargar } from './ui.web';
+import { valorDaProcura } from '../lib/acessibilidadeDoPc';
 
 const P = Pressable as any;
 const V = View as any;
@@ -122,15 +123,19 @@ export function ModoLimpo() {
 function BarraDoModoLimpo({ lado }: { lado: number }) {
   const positionMs = usePlayer((s) => s.positionMs);
   const durationMs = usePlayer((s) => s.durationMs);
-  const { arrasto, comecar } = useProcurarAoLargar();
+  const { arrasto, comecar, teclar } = useProcurarAoLargar();
   const ratio = arrasto ?? progressoDaFaixa(positionMs, durationMs);
+  const mostradoS = (arrasto !== null ? Math.round(arrasto * durationMs) : positionMs) / 1000;
+  // O mesmo slider da barra do leitor (20/10): setas, Home e o valor lido.
   return (
     <View style={[estilos.barraLinha, { width: lado }]}>
-      <Text style={estilos.tempo}>{formatTime(arrasto !== null ? (arrasto * durationMs) / 1000 : positionMs / 1000)}</Text>
-      <P onMouseDown={comecar} style={estilos.barraAlvo} {...marcar('calha')}>
+      <Text style={estilos.tempo}>{formatTime(mostradoS)}</Text>
+      <V role="slider" aria-label="Seek" aria-valuemin={0} aria-valuemax={Math.round(durationMs / 1000)}
+        aria-valuenow={Math.round(mostradoS)} aria-valuetext={valorDaProcura(mostradoS, durationMs / 1000)} tabIndex={0}
+        onKeyDown={teclar} onMouseDown={comecar} style={estilos.barraAlvo} {...marcar('calha')}>
         <V style={estilos.barra}><V style={[estilos.barraCheia, { width: `${ratio * 100}%` }]} {...marcar('cheio')} /></V>
         <V {...marcar('pega')} style={{ left: `${ratio * 100}%` }} />
-      </P>
+      </V>
       <Text style={estilos.tempo}>{formatTime(durationMs / 1000)}</Text>
     </View>
   );

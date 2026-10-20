@@ -63,6 +63,7 @@ import { ImportPage } from '../desktop/paginas/ImportPage.web';
 import { NowPlayingPage } from '../desktop/paginas/NowPlayingPage.web';
 
 import { injectDesktopDocumentStyles, PlayerBar, Sidebar, TitleBar } from '../desktop/casca.web';
+import { useDicas } from '../desktop/useDicas.web';
 import { usePonteDoLeitor } from '../desktop/usePonteDoLeitor.web';
 import { useAtalhosDaJanela } from '../desktop/useAtalhosDaJanela.web';
 import { useBarraDeTarefas } from '../desktop/useBarraDeTarefas.web';
@@ -726,6 +727,8 @@ function DesktopShell() {
 export function RootNavigator() {
   const initialized = useAuth((s) => s.initialized); const session = useAuth((s) => s.session);
   useEffect(injectDesktopDocumentStyles, []);
+  // As legendas dos botões de ícone (20/10): uma só, para a janela toda.
+  useDicas();
   if (!initialized) return <View style={[styles.root, { alignItems: 'center', justifyContent: 'center' }]}><Loading /></View>;
   return <View style={styles.root}><Image source={require('../../assets/wallpaper.png')} style={styles.backgroundImage} />{session ? <DesktopShell /> : <View style={{ flex: 1, backgroundColor: 'transparent' }}><TitleBar /><AuthDesktop /></View>}</View>;
 }

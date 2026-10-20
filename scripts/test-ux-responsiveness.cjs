@@ -69,14 +69,28 @@ const uiAst=ts.createSourceFile('ui.tsx',uiSource,ts.ScriptTarget.Latest,true,ts
 const dialogNode=uiAst.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text==='Dialog');
 const code=ts.transpileModule(dialogNode.getText(uiAst),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.React}}).outputText;
 let keydown, remove, closes=0;
-const scope={exports:{},React,useEffect:fn=>{remove=fn();},window:{addEventListener:(_k,fn)=>keydown=fn,removeEventListener:()=>keydown=null},
-  View:'View',P:'Pressable',Text:'Text',IconButton:'IconButton',StyleSheet:{absoluteFill:{}},ui:{},marcar:()=>({})};
+// As camadas e o Tab (20/10, lib/acessibilidadeDoPc.ts): os mesmos do ui.web.tsx.
+const acessibilidade=load('src/lib/acessibilidadeDoPc.ts',{});
+const camadas=acessibilidade.criarPilhaDeCamadas();
+let menuAberto=null;
+const tecla=(key,extra={})=>({key,preventDefault(){this.defaultPrevented=true;},...extra});
+const scope={exports:{},React,useEffect:fn=>{remove=fn();},useRef:current=>({current}),window:{addEventListener:(_k,fn)=>keydown=fn,removeEventListener:()=>keydown=null},
+  View:'View',P:'Pressable',Text:'Text',IconButton:'IconButton',StyleSheet:{absoluteFill:{}},ui:{},marcar:()=>({}),
+  camadas,focoAoTab:acessibilidade.focoAoTab,focaveisDentro:()=>[],requestAnimationFrame:()=>1,cancelAnimationFrame(){},document:{activeElement:null,querySelector:()=>menuAberto}};
 vm.runInNewContext(code,scope);
 const dialog=scope.exports.Dialog({open:true,title:'Share track',children:'recipients',onClose:()=>closes++});
 all(dialog).find(n=>n.type==='Pressable').props.onPress();assert.equal(closes,1);
 all(dialog).find(n=>n.type==='IconButton').props.onPress();assert.equal(closes,2);
-keydown({key:'Enter'});assert.equal(closes,2);keydown({key:'Escape'});assert.equal(closes,3);
-remove();assert.equal(keydown,null);
+keydown(tecla('Enter'));assert.equal(closes,2);keydown(tecla('Escape'));assert.equal(closes,3);
+// Um menu por cima já usou o Escape (preventDefault): o diálogo fica.
+keydown(tecla('Escape',{defaultPrevented:true}));assert.equal(closes,3);
+// Um menu aberto por cima (o MenuDeContexto): o Escape é dele.
+menuAberto={};keydown(tecla('Escape'));assert.equal(closes,3);menuAberto=null;
+// Outro diálogo por cima: o Escape é dele, não deste.
+const deCima=camadas.abrir();keydown(tecla('Escape'));assert.equal(closes,3);camadas.fechar(deCima);
+keydown(tecla('Escape'));assert.equal(closes,4);
+assert.equal(all(dialog).find(n=>n.props&&n.props.role==='dialog').props['aria-label'],'Share track','anuncia-se pelo título');
+remove();assert.equal(keydown,null);assert.equal(camadas.quantas,0,'ao fechar sai da pilha');
 // No PC, todas as folhas partilhadas (Share, Add to playlist...) são este Dialog (5/10).
 const {BottomSheet}=load('src/components/BottomSheet.web.tsx',{
   react:React,'react-native':{View:'View',ScrollView:'ScrollView',FlatList:'FlatList'},'react-dom':{createPortal:(child,container)=>({child,container})},
