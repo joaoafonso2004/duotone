@@ -8,7 +8,8 @@ import { useTheme } from '../../state/theme';
 import type { DiscoveryContext } from '../../lib/contextoDaDescoberta';
 import type { Track } from '../../types';
 import { styles } from '../estilos.web';
-import { BotaoVoltar, Button, ContentScroll, desktop, Empty, Loading, Page } from '../ui.web';
+import { BotaoVoltar, Button, ContentScroll, Empty, Loading, Page } from '../ui.web';
+import { COR } from '../tokens.web';
 
 const V = View as any;
 
@@ -73,8 +74,8 @@ export function VocesOsDoisPage({ userId, nome, back, play }: {
 
           {(d.cheguei > 0 || d.chegaste > 0) && <View style={[styles.statsRow, { padding: 18 }]}>
             <Metade numero={d.cheguei} texto="you got there first" cor={tema.color} />
-            <View style={{ width: 1, alignSelf: 'stretch', backgroundColor: desktop.border }} />
-            <Metade numero={d.chegaste} texto={`${primeiro} did`} cor={desktop.muted} />
+            <View style={{ width: 1, alignSelf: 'stretch', backgroundColor: COR.linha }} />
+            <Metade numero={d.chegaste} texto={`${primeiro} did`} cor={COR.textoMedio} />
           </View>}
         </View>}
     </ContentScroll>
@@ -86,11 +87,11 @@ function Linha({ capa, icone, etiqueta, titulo, nota }: {
 }) {
   return <View style={[styles.statsRow, { padding: 12 }]}>
     {capa ? <Image source={{ uri: capa }} style={{ width: 56, height: 56, borderRadius: 8 }} />
-      : <View style={{ width: 56, height: 56, borderRadius: 8, backgroundColor: desktop.raised, alignItems: 'center', justifyContent: 'center' }}><Ionicons name={icone} size={20} color={desktop.dim} /></View>}
+      : <View style={{ width: 56, height: 56, borderRadius: 8, backgroundColor: COR.elevado, alignItems: 'center', justifyContent: 'center' }}><Ionicons name={icone} size={20} color={COR.textoFraco} /></View>}
     <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
       <Text style={styles.formLabel}>{etiqueta.toUpperCase()}</Text>
-      <Text numberOfLines={2} style={{ color: desktop.text, fontSize: 14, fontWeight: '600' }}>{titulo}</Text>
-      <Text numberOfLines={1} style={{ color: desktop.muted, fontSize: 12 }}>{nota}</Text>
+      <Text numberOfLines={2} style={{ color: COR.texto, fontSize: 14, fontWeight: '600' }}>{titulo}</Text>
+      <Text numberOfLines={1} style={{ color: COR.textoMedio, fontSize: 12 }}>{nota}</Text>
     </View>
   </View>;
 }
@@ -98,6 +99,6 @@ function Linha({ capa, icone, etiqueta, titulo, nota }: {
 function Metade({ numero, texto, cor }: { numero: number; texto: string; cor: string }) {
   return <View style={{ flex: 1, alignItems: 'center', gap: 2 }}>
     <Text style={{ color: cor, fontSize: 30, fontWeight: '800', letterSpacing: -0.5 }}>{numero}</Text>
-    <Text style={{ color: desktop.muted, fontSize: 12, textAlign: 'center' }}>{texto}</Text>
+    <Text style={{ color: COR.textoMedio, fontSize: 12, textAlign: 'center' }}>{texto}</Text>
   </View>;
 }

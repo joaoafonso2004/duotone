@@ -15,7 +15,8 @@ import {
 } from '../lib/spotifyImport';
 import type { Playlist, Track } from '../types';
 import { SpotifyReview } from './SpotifyReview.web';
-import { BotaoVoltar, Button, ContentScroll, desktop, Field, Page } from './ui.web';
+import { BotaoVoltar, Button, ContentScroll, Field, Page } from './ui.web';
+import { COR } from './tokens.web';
 
 /**
  * Importação de playlists do Spotify — só no desktop.
@@ -279,12 +280,12 @@ export function SpotifyImportPage({ back, notify }: { back: () => void; notify: 
           {/* Zona de largar */}
           <View
             ref={dropZone}
-            style={[s.drop, dragging && { borderColor: desktop.accent, backgroundColor: desktop.accentSoft }]}
+            style={[s.drop, dragging && { borderColor: COR.metalClaro, backgroundColor: COR.metalSuave }]}
           >
             <Ionicons
               name={dragging ? 'download-outline' : 'document-outline'}
               size={22}
-              color={dragging ? desktop.accent : desktop.dim}
+              color={dragging ? COR.metalClaro : COR.textoFraco}
             />
             <Text style={s.dropText}>
               {dragging
@@ -363,9 +364,9 @@ export function SpotifyImportPage({ back, notify }: { back: () => void; notify: 
           {phase === 'done' && (
             <View style={s.block}>
               <View style={s.summary}>
-                <Stat value={confidentTracks(results).length} label="ready" tone={desktop.accent} />
-                <Stat value={uncertain.length} label="to review" tone={desktop.muted} />
-                <Stat value={missing.length} label="not found" tone={desktop.danger} />
+                <Stat value={confidentTracks(results).length} label="ready" tone={COR.metalClaro} />
+                <Stat value={uncertain.length} label="to review" tone={COR.textoMedio} />
+                <Stat value={missing.length} label="not found" tone={COR.erro} />
               </View>
 
               {!!missing.length && (
@@ -402,12 +403,12 @@ export function SpotifyImportPage({ back, notify }: { back: () => void; notify: 
                     <Pressable
                       key={p.id}
                       onPress={() => setTarget(p.id)}
-                      style={[s.choice, s.indent, target === p.id && { borderColor: desktop.accent }]}
+                      style={[s.choice, s.indent, target === p.id && { borderColor: COR.metalClaro }]}
                     >
                       <Ionicons
                         name={target === p.id ? 'checkmark-circle' : 'ellipse-outline'}
                         size={16}
-                        color={target === p.id ? desktop.accent : desktop.dim}
+                        color={target === p.id ? COR.metalClaro : COR.textoFraco}
                       />
                       <Text style={s.choiceText}>{p.name}</Text>
                     </Pressable>
@@ -487,12 +488,12 @@ function Choice({
   return (
     <Pressable
       onPress={onPress}
-      style={[s.choice, selected && { backgroundColor: desktop.accentSoft, borderColor: desktop.accent }]}
+      style={[s.choice, selected && { backgroundColor: COR.metalSuave, borderColor: COR.metalClaro }]}
     >
       <Ionicons
         name={selected ? 'radio-button-on' : 'radio-button-off'}
         size={18}
-        color={selected ? desktop.accent : desktop.dim}
+        color={selected ? COR.metalClaro : COR.textoFraco}
       />
       <Text style={s.choiceText}>{label}</Text>
     </Pressable>
@@ -500,30 +501,30 @@ function Choice({
 }
 
 const s = StyleSheet.create({
-  panel: { padding: 24, gap: 14, backgroundColor: desktop.panel, borderRadius: 14, borderWidth: 1, borderColor: desktop.border },
-  hint: { flexDirection: 'row', gap: 10, padding: 14, borderRadius: 10, backgroundColor: desktop.accentSoft },
+  panel: { padding: 24, gap: 14, backgroundColor: COR.painel, borderRadius: 14, borderWidth: 1, borderColor: COR.linha },
+  hint: { flexDirection: 'row', gap: 10, padding: 14, borderRadius: 10, backgroundColor: COR.metalSuave },
   brand: { width: 18, height: 18, marginTop: 1 },
-  drop: { alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 26, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', borderColor: desktop.border, backgroundColor: desktop.bg },
-  dropText: { color: desktop.muted, fontSize: 13 },
-  hintText: { flex: 1, color: desktop.muted, fontSize: 13, lineHeight: 19 },
-  strong: { color: desktop.text, fontWeight: '600' },
-  label: { color: desktop.dim, fontSize: 11, fontWeight: '700', letterSpacing: 0.8, marginTop: 6 },
+  drop: { alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 26, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', borderColor: COR.linha, backgroundColor: COR.fundo },
+  dropText: { color: COR.textoMedio, fontSize: 13 },
+  hintText: { flex: 1, color: COR.textoMedio, fontSize: 13, lineHeight: 19 },
+  strong: { color: COR.texto, fontWeight: '600' },
+  label: { color: COR.textoFraco, fontSize: 11, fontWeight: '700', letterSpacing: 0.8, marginTop: 6 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  meta: { color: desktop.muted, fontSize: 12 },
-  current: { color: desktop.dim, fontSize: 12 },
-  error: { color: desktop.danger, fontSize: 13, lineHeight: 19 },
+  meta: { color: COR.textoMedio, fontSize: 12 },
+  current: { color: COR.textoFraco, fontSize: 12 },
+  error: { color: COR.erro, fontSize: 13, lineHeight: 19 },
   block: { gap: 10, marginTop: 6 },
   actions: { flexDirection: 'row', gap: 10, marginTop: 8 },
-  track: { height: 6, borderRadius: 3, backgroundColor: desktop.raised, overflow: 'hidden' },
-  fill: { height: '100%', backgroundColor: desktop.accent },
+  track: { height: 6, borderRadius: 3, backgroundColor: COR.elevado, overflow: 'hidden' },
+  fill: { height: '100%', backgroundColor: COR.metalClaro },
   summary: { flexDirection: 'row', gap: 28, paddingVertical: 8 },
   stat: { gap: 2 },
   statValue: { fontSize: 26, fontWeight: '800' },
-  statLabel: { color: desktop.dim, fontSize: 11, letterSpacing: 0.6 },
-  list: { gap: 4, padding: 12, borderRadius: 10, backgroundColor: desktop.raised },
-  listItem: { color: desktop.muted, fontSize: 12 },
+  statLabel: { color: COR.textoFraco, fontSize: 11, letterSpacing: 0.6 },
+  list: { gap: 4, padding: 12, borderRadius: 10, backgroundColor: COR.elevado },
+  listItem: { color: COR.textoMedio, fontSize: 12 },
   dest: { gap: 8 },
-  choice: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: desktop.border },
-  choiceText: { color: desktop.text, fontSize: 13 },
+  choice: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: COR.linha },
+  choiceText: { color: COR.texto, fontSize: 13 },
   indent: { marginLeft: 20, maxWidth: 420 },
 });

@@ -13,7 +13,7 @@ import { garantirCatalogo } from '../../state/catalogoDeFaixas';
 import { getLibrary } from '../../api/library';
 import type { ProfilePlayEntry } from '../../api/plays';
 import type { Track } from '../../types';
-import { desktop } from '../ui.web';
+import { COR } from '../tokens.web';
 import { styles } from '../estilos.web';
 import { faixasEmCache, lerFaixas, ouvirFaixas } from '../../lib/cacheDaBiblioteca';
 
@@ -113,7 +113,7 @@ export function PlaylistArtwork({ artworks, lado = 200 }: { artworks: string[]; 
   const moldura = [styles.playlistArt, { width: lado, height: lado }];
 
   if (!capas.length) {
-    return <View style={moldura}><Ionicons name="musical-notes" size={38} color={desktop.dim} /></View>;
+    return <View style={moldura}><Ionicons name="musical-notes" size={38} color={COR.textoFraco} /></View>;
   }
 
   if (capas.length === 1) {
@@ -137,7 +137,7 @@ export function PlaylistArtwork({ artworks, lado = 200 }: { artworks: string[]; 
       </View>
       <View style={styles.playlistArtRow}>
         {capas.slice(2, 4).map((capa) => <Image key={capa} source={{ uri: capa }} style={styles.playlistArtCell} resizeMode="cover" />)}
-        {capas.length === 3 ? <View style={styles.playlistArtCell}><Ionicons name="musical-note" size={26} color={desktop.dim} /></View> : null}
+        {capas.length === 3 ? <View style={styles.playlistArtCell}><Ionicons name="musical-note" size={26} color={COR.textoFraco} /></View> : null}
       </View>
     </View>
   );

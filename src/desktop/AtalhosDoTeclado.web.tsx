@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { styles } from './estilos.web';
-import { ESP } from './tokens.web';
-import { Button, desktop } from './ui.web';
+import { COR, ESP } from './tokens.web';
+import { Button } from './ui.web';
 import { pausarAtalhosDaJanela } from './useAtalhosDaJanela.web';
 
 /**
@@ -128,9 +128,9 @@ export function AtalhosDoTeclado() {
             <View style={{ flex: 1, paddingRight: ESP.lg }}>
               <Text style={styles.settingLabel}>{a.nome}</Text>
               {msg ? (
-                <Text style={[styles.settingDescription, msg.erro && { color: desktop.danger ?? '#f87171' }]}>{msg.texto}</Text>
+                <Text style={[styles.settingDescription, msg.erro && { color: COR.erro ?? '#f87171' }]}>{msg.texto}</Text>
               ) : presos.includes(a.id) ? (
-                <Text style={[styles.settingDescription, { color: desktop.danger ?? '#f87171' }]}>
+                <Text style={[styles.settingDescription, { color: COR.erro ?? '#f87171' }]}>
                   Another app took this shortcut. Set a different one.
                 </Text>
               ) : null}

@@ -7,7 +7,7 @@ import { useSocial } from '../state/social';
 import { usePessoasDaSessao } from '../hooks/usePessoasDaSessao';
 import { FriendAvatar } from '../components/FriendAvatar';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
-import { Button, Dialog, Artwork, desktop } from './ui.web';
+import { Button, Dialog, Artwork } from './ui.web';
 import { COR, ESP, FONT, RAIO, TIPO } from './tokens.web';
 import { efeitoDaAutoFila } from '../lib/jam';
 
@@ -163,6 +163,6 @@ const styles = StyleSheet.create({
   title: { ...TIPO.corpo, color: COR.texto, fontWeight: '550' as any },
   meta: { ...TIPO.legenda, color: COR.textoMedio, marginTop: 3 },
   setting: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: ESP.lg, paddingVertical: ESP.sm, borderBottomWidth: 1, borderBottomColor: COR.linhaSuave },
-  empty: { ...TIPO.legenda, color: desktop.dim, paddingVertical: ESP.lg },
+  empty: { ...TIPO.legenda, color: COR.textoFraco, paddingVertical: ESP.lg },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: ESP.sm, marginTop: ESP.xl },
 });

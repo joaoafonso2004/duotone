@@ -22,7 +22,7 @@ import { NotificationBanner } from '../components/NotificationBanner';
 import { HandoffBanner } from '../components/HandoffBanner';
 import { endSession, publishSession, publishSessionNow } from '../lib/sessionSync';
 import { useAutoplayRadio } from '../lib/radioSync';
-import { RotuloDoVoltar, Artwork, Button, desktop, Dialog, Empty, Field, Loading, Toast } from '../desktop/ui.web';
+import { RotuloDoVoltar, Artwork, Button, Dialog, Empty, Field, Loading, Toast } from '../desktop/ui.web';
 import { COR } from '../desktop/tokens.web';
 import { styles } from '../desktop/estilos.web';
 import { SpotifyImportPage } from '../desktop/SpotifyImportPage.web';
@@ -705,8 +705,8 @@ function DesktopShell() {
       cabecalho={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
         <Artwork track={trackMenu} size={40} />
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text numberOfLines={1} style={{ color: desktop.text, fontSize: 14, fontWeight: '700' }}>{tituloDaFaixa(trackMenu)}</Text>
-          <Text numberOfLines={1} style={{ color: desktop.muted, fontSize: 12, marginTop: 1 }}>{displayArtist(trackMenu)}</Text>
+          <Text numberOfLines={1} style={{ color: COR.texto, fontSize: 14, fontWeight: '700' }}>{tituloDaFaixa(trackMenu)}</Text>
+          <Text numberOfLines={1} style={{ color: COR.textoMedio, fontSize: 12, marginTop: 1 }}>{displayArtist(trackMenu)}</Text>
         </View>
       </View>}
       linhas={menuDoPc.map((a) => ({ id: a.id, rotulo: a.rotulo, icone: a.icone, perigo: a.destrutiva, motivo: a.indisponivel }))}

@@ -6,7 +6,7 @@ import { deviceLabel, resumoDaFila } from '../lib/handoff';
 import { mandarComando } from '../lib/connectSync';
 import { avisoDoPedido, estaAcordado, type TipoDePedido } from '../lib/duotoneConnect';
 import { useHandoffSession } from '../lib/sessionSync';
-import { desktop } from '../desktop/ui.web';
+import { COR } from '../desktop/tokens.web';
 import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
 
@@ -94,7 +94,7 @@ export function HandoffBanner() {
             </Text>
           ) : null}
           {aTocarAqui ? <Text numberOfLines={1} style={s.aSeguir}>Replaces what’s playing here</Text> : null}
-          {aviso ? <Text numberOfLines={2} style={[s.aSeguir, { color: desktop.muted }]}>{aviso}</Text> : null}
+          {aviso ? <Text numberOfLines={2} style={[s.aSeguir, { color: COR.textoMedio }]}>{aviso}</Text> : null}
         </View>
 
         {/* Comandar à distância. As ordens vão pela tabela de pedidos e o
@@ -105,17 +105,17 @@ export function HandoffBanner() {
             <P accessibilityLabel={`Previous on ${deviceLabel(session)}`} disabled={aMandar}
               onPress={() => comandar('anterior')}
               style={({ hovered }: any) => [s.botaoRemoto, hovered && s.closeHover]}>
-              <Ionicons name="play-skip-back" size={14} color={desktop.muted} />
+              <Ionicons name="play-skip-back" size={14} color={COR.textoMedio} />
             </P>
             <P accessibilityLabel={`${session.isPlaying ? 'Pause' : 'Play'} on ${deviceLabel(session)}`} disabled={aMandar}
               onPress={() => comandar('tocar-pausa')}
               style={({ hovered }: any) => [s.botaoRemoto, hovered && s.closeHover]}>
-              <Ionicons name={session.isPlaying ? 'pause' : 'play'} size={15} color={desktop.text} />
+              <Ionicons name={session.isPlaying ? 'pause' : 'play'} size={15} color={COR.texto} />
             </P>
             <P accessibilityLabel={`Next on ${deviceLabel(session)}`} disabled={aMandar}
               onPress={() => comandar('seguinte')}
               style={({ hovered }: any) => [s.botaoRemoto, hovered && s.closeHover]}>
-              <Ionicons name="play-skip-forward" size={14} color={desktop.muted} />
+              <Ionicons name="play-skip-forward" size={14} color={COR.textoMedio} />
             </P>
           </View>
         ) : null}
@@ -144,7 +144,7 @@ export function HandoffBanner() {
           accessibilityLabel="Dismiss"
           style={({ hovered }: any) => [s.close, hovered && s.closeHover]}
         >
-          <Ionicons name="close" size={15} color={desktop.dim} />
+          <Ionicons name="close" size={15} color={COR.textoFraco} />
         </P>
       </View>
 
@@ -165,20 +165,20 @@ const s = StyleSheet.create({
     borderRadius: 10,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: desktop.border,
+    borderColor: COR.linha,
     backgroundColor: '#1B1B24',
     boxShadow: '0 14px 40px rgba(0,0,0,.5)',
   } as any,
   card: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 10, paddingHorizontal: 12 },
   iconWrap: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  art: { width: 38, height: 38, borderRadius: 6, backgroundColor: desktop.raised },
+  art: { width: 38, height: 38, borderRadius: 6, backgroundColor: COR.elevado },
   texts: { minWidth: 170, maxWidth: 280 },
   eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   aoVivo: { width: 6, height: 6, borderRadius: 3 },
   eyebrow: { fontSize: 9, fontWeight: '800', letterSpacing: 1, flexShrink: 1 },
-  title: { color: desktop.text, fontSize: 13, fontWeight: '650' as any, marginTop: 3 },
-  artist: { color: desktop.muted, fontSize: 11, marginTop: 2 },
-  aSeguir: { color: desktop.dim, fontSize: 10.5, marginTop: 3 },
+  title: { color: COR.texto, fontSize: 13, fontWeight: '650' as any, marginTop: 3 },
+  artist: { color: COR.textoMedio, fontSize: 11, marginTop: 2 },
+  aSeguir: { color: COR.textoFraco, fontSize: 10.5, marginTop: 3 },
   cta: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingHorizontal: 13, borderRadius: 999, cursor: 'pointer' } as any,
   ctaHover: { opacity: 0.88 },
   pressed: { opacity: 0.72 },
@@ -187,7 +187,7 @@ const s = StyleSheet.create({
   remoto: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 2 },
   botaoRemoto: { width: 28, height: 28, borderRadius: 6, alignItems: 'center', justifyContent: 'center', cursor: 'pointer' } as any,
   close: { width: 26, height: 26, borderRadius: 6, alignItems: 'center', justifyContent: 'center', cursor: 'pointer' } as any,
-  closeHover: { backgroundColor: desktop.hover },
+  closeHover: { backgroundColor: COR.hover },
   trackLine: { height: 2, backgroundColor: 'rgba(255,255,255,.08)' },
   trackFill: { height: 2 },
 });

@@ -39,7 +39,7 @@ import { usePlayer } from '../../state/player';
 import { useTheme } from '../../state/theme';
 import { styles } from '../estilos.web';
 import { COR, ESP } from '../tokens.web';
-import { Button, ContentScroll, desktop, Dialog } from '../ui.web';
+import { Button, ContentScroll, Dialog } from '../ui.web';
 import { BarraVelocidade } from '../BarraVelocidade.web';
 import { AtalhosDoTeclado } from '../AtalhosDoTeclado.web';
 import { BandasDoEqualizador, ReporEqualizador } from '../PainelEqualizador.web';
@@ -365,7 +365,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
               {seccoes.map((s) => (
                 <Pressable key={s.id} onPress={() => escolher(s.id)} accessibilityRole="tab" accessibilityState={{ selected: aberta === s.id }}
                   style={({ hovered }: any) => [styles.definicoesItem, hovered && styles.definicoesItemHover, aberta === s.id && styles.definicoesItemAtivo]}>
-                  <Ionicons name={s.icone} size={17} color={aberta === s.id ? COR.texto : desktop.dim} />
+                  <Ionicons name={s.icone} size={17} color={aberta === s.id ? COR.texto : COR.textoFraco} />
                   <Text style={[styles.definicoesItemTexto, aberta === s.id && { color: COR.texto }]}>{s.nome}</Text>
                 </Pressable>
               ))}
@@ -551,7 +551,7 @@ export function SettingsCard({ title, children }: { icon?: keyof typeof Ionicons
 
 export function SettingLine({ label, value }: { label: string; value: string }) { return <View style={styles.settingLine}><Text style={[styles.settingLabel, { flex: 1 }]}>{label}</Text><Text numberOfLines={1} style={styles.settingValue}>{value}</Text></View>; }
 
-export function SettingAction({ label, description, onPress, danger = false, disabled = false }: { label: string; description?: string; onPress: () => void; danger?: boolean; disabled?: boolean }) { return <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityState={{ disabled }} style={({ hovered }) => [styles.settingLine, hovered && !disabled && styles.settingHover, disabled && { opacity: 0.45 }]}><View style={{ flex: 1 }}><Text style={[styles.settingLabel, danger && { color: desktop.danger }]}>{label}</Text>{description ? <Text style={styles.settingDescription}>{description}</Text> : null}</View><Ionicons name="chevron-forward" size={15} color={desktop.dim} /></Pressable>; }
+export function SettingAction({ label, description, onPress, danger = false, disabled = false }: { label: string; description?: string; onPress: () => void; danger?: boolean; disabled?: boolean }) { return <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityState={{ disabled }} style={({ hovered }) => [styles.settingLine, hovered && !disabled && styles.settingHover, disabled && { opacity: 0.45 }]}><View style={{ flex: 1 }}><Text style={[styles.settingLabel, danger && { color: COR.erro }]}>{label}</Text>{description ? <Text style={styles.settingDescription}>{description}</Text> : null}</View><Ionicons name="chevron-forward" size={15} color={COR.textoFraco} /></Pressable>; }
 
 /**
  * O que a opção está a fazer agora (lib/efeitoDasDefinicoes.ts), por baixo da
@@ -561,4 +561,4 @@ export function Efeito({ texto }: { texto?: string | null }) { if (!texto) retur
 
 export function ToggleLine({ label, description, value, onChange, efeito }: { label: string; description: string; value: boolean; onChange: (v: boolean) => void; efeito?: string | null }) { return <View style={styles.settingLine}><View style={{ flex: 1 }}><Text style={styles.settingLabel}>{label}</Text><Text style={styles.settingDescription}>{description}</Text><Efeito texto={efeito} /></View><Switch accessibilityLabel={label} value={value} onValueChange={onChange} trackColor={{ false: COR.elevado, true: COR.metalClaro }} thumbColor={COR.fundo} /></View>; }
 
-export function ChoiceLine({ label, description, value, choices, onChange, efeito }: { label: string; description?: string; value: string; choices: [string, string][]; onChange: (v: string) => void; efeito?: string | null }) { return <View style={[styles.settingLine, { alignItems: 'flex-start' }]}><View style={{ flex: 1, marginTop: 8, paddingRight: ESP.md }}><Text style={styles.settingLabel}>{label}</Text>{description ? <Text style={styles.settingDescription}>{description}</Text> : null}<Efeito texto={efeito} /></View><View style={styles.smallSegment}>{choices.map(([id, text]) => <Pressable key={id} onPress={() => onChange(id)} style={[styles.smallSegmentItem, value === id && styles.smallSegmentActive]}><Text style={[styles.smallSegmentText, value === id && { color: desktop.text }]}>{text}</Text></Pressable>)}</View></View>; }
+export function ChoiceLine({ label, description, value, choices, onChange, efeito }: { label: string; description?: string; value: string; choices: [string, string][]; onChange: (v: string) => void; efeito?: string | null }) { return <View style={[styles.settingLine, { alignItems: 'flex-start' }]}><View style={{ flex: 1, marginTop: 8, paddingRight: ESP.md }}><Text style={styles.settingLabel}>{label}</Text>{description ? <Text style={styles.settingDescription}>{description}</Text> : null}<Efeito texto={efeito} /></View><View style={styles.smallSegment}>{choices.map(([id, text]) => <Pressable key={id} onPress={() => onChange(id)} style={[styles.smallSegmentItem, value === id && styles.smallSegmentActive]}><Text style={[styles.smallSegmentText, value === id && { color: COR.texto }]}>{text}</Text></Pressable>)}</View></View>; }

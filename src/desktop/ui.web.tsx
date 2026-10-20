@@ -68,12 +68,6 @@ export const marcar = (...nomes: string[]) => ({ dataSet: { dt: nomes.join(' ') 
 export const comDica = (rotulo: string, atalho: string | undefined, ...nomes: string[]) =>
   ({ dataSet: { dt: nomes.join(' '), dica: rotulo, ...(atalho ? { atalho } : {}) } } as any);
 
-export const desktop = {
-  bg: COR.fundo, panel: COR.painel, raised: COR.elevado, hover: COR.hover,
-  border: COR.linha, text: COR.texto, muted: COR.textoMedio, dim: COR.textoFraco,
-  accent: COR.metalClaro, accentSoft: 'rgba(233,234,238,.12)', danger: COR.erro,
-};
-
 export function IconButton({ name, label, onPress, onPressIn, onPressOut, desenho, active = false, danger = false, estrela = false, marca, atalho }: {
   name: keyof typeof Ionicons.glyphMap; label: string; onPress?: () => void; active?: boolean; danger?: boolean;
   /** O atalho do teclado que faz o mesmo, para a legenda ("Space", "Ctrl+→"). */
@@ -95,7 +89,7 @@ export function IconButton({ name, label, onPress, onPressIn, onPressOut, desenh
    */
   marca?: string;
 }) {
-  const cor = danger ? desktop.danger : active ? desktop.accent : desktop.muted;
+  const cor = danger ? COR.erro : active ? COR.metalClaro : COR.textoMedio;
   return <P {...comDica(label, atalho, 'premir')} accessibilityRole="button" accessibilityLabel={label} onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} style={({ hovered, pressed, focused }: any) => [
     ui.iconButton, (hovered || focused) && ui.iconButtonHover, pressed && ui.pressed, active && ui.active,
   ]}>
@@ -155,12 +149,12 @@ export const Field = React.forwardRef<any, React.ComponentProps<typeof TextInput
   // So nas lupas: um X num campo de mensagem nao quer dizer nada, e este
   // componente serve os dois. Aparece so quando ha o que limpar.
   const limpavel = icon === 'search' && !!rest.value && !!(rest as any).onChangeText;
-  return <View style={ui.fieldWrap} {...marcar('campo')}>{icon && <Ionicons name={icon} size={18} color={desktop.dim} />}<TextInput
-    ref={ref} placeholderTextColor={desktop.dim} selectionColor={desktop.accent} onSubmitEditing={onSubmitEditing} {...(rest as any)} onKeyPress={handleKeyDown} style={[ui.field, style]} />
+  return <View style={ui.fieldWrap} {...marcar('campo')}>{icon && <Ionicons name={icon} size={18} color={COR.textoFraco} />}<TextInput
+    ref={ref} placeholderTextColor={COR.textoFraco} selectionColor={COR.metalClaro} onSubmitEditing={onSubmitEditing} {...(rest as any)} onKeyPress={handleKeyDown} style={[ui.field, style]} />
     {limpavel && <P accessibilityRole="button" accessibilityLabel="Clear search"
       onPress={() => { (rest as any).onChangeText?.(''); (ref as any)?.current?.focus?.(); }}
       style={({ hovered }: any) => [ui.fieldLimpar, hovered && { backgroundColor: COR.hover }]}>
-      <Ionicons name="close" size={14} color={desktop.dim} />
+      <Ionicons name="close" size={14} color={COR.textoFraco} />
     </P>}</View>;
 });
 
@@ -255,10 +249,10 @@ export function ContentScroll({ children, scrollKey, aoChegarAoFim }: {
 }
 
 export function Empty({ icon, title, body, action }: { icon: keyof typeof Ionicons.glyphMap; title: string; body: string; action?: ReactNode }) {
-  return <View style={ui.empty}><View style={ui.emptyIcon}><Ionicons name={icon} size={30} color={desktop.accent} /></View><Text style={ui.emptyTitle}>{title}</Text><Text style={ui.emptyBody}>{body}</Text>{action}</View>;
+  return <View style={ui.empty}><View style={ui.emptyIcon}><Ionicons name={icon} size={30} color={COR.metalClaro} /></View><Text style={ui.emptyTitle}>{title}</Text><Text style={ui.emptyBody}>{body}</Text>{action}</View>;
 }
 
-export function Loading() { return <View style={ui.loading} {...marcar('carregar')}><ActivityIndicator color={desktop.accent} /><Text style={ui.loadingText}>Loading…</Text></View>; }
+export function Loading() { return <View style={ui.loading} {...marcar('carregar')}><ActivityIndicator color={COR.metalClaro} /><Text style={ui.loadingText}>Loading…</Text></View>; }
 
 export function formatTime(seconds: number | null) {
   if (!seconds) return '—';
@@ -271,7 +265,7 @@ export function Artwork({ track, size = 44 }: { track: Track; size?: number }) {
   // miniatura no próprio id. O quadrado vazio ficava para quem não tem nenhuma.
   const capa = track.artworkUrl
     ?? (track.source === 'youtube' && track.sourceId ? `https://i.ytimg.com/vi/${track.sourceId}/mqdefault.jpg` : null);
-  if (!capa) return <View style={[ui.artFallback, { width: size, height: size }]}><Ionicons name="musical-note" size={Math.max(16, size * .35)} color={desktop.dim} /></View>;
+  if (!capa) return <View style={[ui.artFallback, { width: size, height: size }]}><Ionicons name="musical-note" size={Math.max(16, size * .35)} color={COR.textoFraco} /></View>;
   const quadro = { width: size, height: size, borderRadius: RAIO.ctrl, backgroundColor: COR.elevado };
   // As miniaturas 4:3 do YouTube (`hqdefault` e companhia) trazem o vídeo 16:9
   // lá dentro com duas faixas pretas, que num quadrado se viam por cima e por

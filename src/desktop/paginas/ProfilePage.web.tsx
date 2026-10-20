@@ -22,8 +22,9 @@ import type { Track } from '../../types';
 import { useDestinos } from '../../navigation/destinos';
 import { styles } from '../estilos.web';
 import { BotaoVoltar,
-  Button, ContentScroll, desktop, Empty, Loading, Page,
+  Button, ContentScroll, Empty, Loading, Page,
 } from '../ui.web';
+import { COR } from '../tokens.web';
 
 const P = Pressable as any;
 const V = View as any;
@@ -55,7 +56,7 @@ export function StatsPage({ back, play, userId }: { userId?:string; back: () => 
 
   const periodPicker = <View style={styles.smallSegment}>{STATS_PERIODS.map(([value, label]) => (
     <P key={value} onPress={() => setPeriod(value)} style={({ hovered }: any) => [styles.smallSegmentItem, period === value && styles.smallSegmentActive, hovered && styles.settingHover]}>
-      <Text style={[styles.smallSegmentText, period === value && { color: desktop.text }]}>{label}</Text>
+      <Text style={[styles.smallSegmentText, period === value && { color: COR.texto }]}>{label}</Text>
     </P>))}</View>;
 
   return <Page title={userId&&userId!==ownId?"Listening stats":"Your listening"} action={<View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>{periodPicker}{podeIrPara('retrospetiva') ? <Button secondary icon="sparkles-outline" onPress={() => irPara({ tipo: 'retrospetiva', userId })}>Year in review</Button> : null}<BotaoVoltar onPress={back} /></View>}>
@@ -86,12 +87,12 @@ export function StatsPage({ back, play, userId }: { userId?:string; back: () => 
               {stats.topTracks.map((t, i) => (
                 <P key={t.key} onPress={() => playTop(t)} style={({ hovered }: any) => [styles.statsRow, hovered && styles.settingHover]}>
                   <Text style={[styles.statsRank, { color: theme.color }]}>{i + 1}</Text>
-                  {t.artworkUrl ? <Image source={{ uri: t.artworkUrl }} style={{ width: 38, height: 38, borderRadius: 5 }} /> : <View style={{ width: 38, height: 38, borderRadius: 5, backgroundColor: desktop.raised }} />}
+                  {t.artworkUrl ? <Image source={{ uri: t.artworkUrl }} style={{ width: 38, height: 38, borderRadius: 5 }} /> : <View style={{ width: 38, height: 38, borderRadius: 5, backgroundColor: COR.elevado }} />}
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text numberOfLines={1} style={{ color: desktop.text, fontSize: 12, fontWeight: '600' }}>{tituloDaFaixa(t)}</Text>
-                    <Text numberOfLines={1} style={{ color: desktop.muted, fontSize: 10, marginTop: 2 }}>{displayArtist(t)}</Text>
+                    <Text numberOfLines={1} style={{ color: COR.texto, fontSize: 12, fontWeight: '600' }}>{tituloDaFaixa(t)}</Text>
+                    <Text numberOfLines={1} style={{ color: COR.textoMedio, fontSize: 10, marginTop: 2 }}>{displayArtist(t)}</Text>
                   </View>
-                  <Text style={{ color: desktop.muted, fontSize: 11, fontWeight: '700' }}>{t.plays}x</Text>
+                  <Text style={{ color: COR.textoMedio, fontSize: 11, fontWeight: '700' }}>{t.plays}x</Text>
                 </P>))}
             </View>}
 
@@ -100,21 +101,21 @@ export function StatsPage({ back, play, userId }: { userId?:string; back: () => 
               {stats.topArtists.map((a, i) => (
                 <View key={a.name} style={styles.statsRow}>
                   <Text style={[styles.statsRank, { color: theme.color }]}>{i + 1}</Text>
-                  {a.artworkUrl ? <Image source={{ uri: a.artworkUrl }} style={{ width: 34, height: 34, borderRadius: 17 }} /> : <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: desktop.raised }} />}
-                  <Text numberOfLines={1} style={{ flex: 1, color: desktop.text, fontSize: 12, fontWeight: '600' }}>{a.name}</Text>
-                  <Text style={{ color: desktop.muted, fontSize: 11, fontWeight: '700' }}>{a.plays}x</Text>
+                  {a.artworkUrl ? <Image source={{ uri: a.artworkUrl }} style={{ width: 34, height: 34, borderRadius: 17 }} /> : <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: COR.elevado }} />}
+                  <Text numberOfLines={1} style={{ flex: 1, color: COR.texto, fontSize: 12, fontWeight: '600' }}>{a.name}</Text>
+                  <Text style={{ color: COR.textoMedio, fontSize: 11, fontWeight: '700' }}>{a.plays}x</Text>
                 </View>))}
             </View>}
           </View>
 
-          {result?.truncated && <Text style={{ color: desktop.dim, fontSize: 11, marginTop: 24, textAlign: 'center' }}>History is long - these numbers cover the most recent plays, not everything.</Text>}
+          {result?.truncated && <Text style={{ color: COR.textoFraco, fontSize: 11, marginTop: 24, textAlign: 'center' }}>History is long - these numbers cover the most recent plays, not everything.</Text>}
         </>}
     </ContentScroll>
   </Page>;
 }
 
 export function StatCell({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return <View style={styles.statsCell}><Text numberOfLines={1} style={styles.statsCellValue}>{value}</Text><Text style={{ color: desktop.muted, fontSize: 11, marginTop: 3 }}>{label}</Text>{hint ? <Text style={{ color: desktop.dim, fontSize: 10, marginTop: 2 }}>{hint}</Text> : null}</View>;
+  return <View style={styles.statsCell}><Text numberOfLines={1} style={styles.statsCellValue}>{value}</Text><Text style={{ color: COR.textoMedio, fontSize: 11, marginTop: 3 }}>{label}</Text>{hint ? <Text style={{ color: COR.textoFraco, fontSize: 10, marginTop: 2 }}>{hint}</Text> : null}</View>;
 }
 
 /** Barras simples - Views com altura, sem biblioteca de graficos. */
@@ -124,7 +125,7 @@ export function StatsChart({ buckets, color }: { buckets: TimelineBucket[]; colo
   return <View style={styles.statsChart}>{shown.map((b, i) => (
     <View key={b.key} style={{ flex: 1, alignItems: 'center', justifyContent: 'flex-end' }}>
       <View style={{ width: '100%', minWidth: 3, borderRadius: 2, backgroundColor: color, height: Math.max(3, (b.plays / max) * 110) }} />
-      <Text style={{ color: desktop.dim, fontSize: 8, marginTop: 4 }}>{shown.length <= 10 || i % Math.ceil(shown.length / 8) === 0 ? b.label : ''}</Text>
+      <Text style={{ color: COR.textoFraco, fontSize: 8, marginTop: 4 }}>{shown.length <= 10 || i % Math.ceil(shown.length / 8) === 0 ? b.label : ''}</Text>
     </View>))}</View>;
 }
 

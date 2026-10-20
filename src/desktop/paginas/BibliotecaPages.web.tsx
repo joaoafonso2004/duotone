@@ -40,7 +40,7 @@ import type { Track } from '../../types';
 import { crescer, faltaMostrar, PRIMEIRO_LOTE, quantosMostrar } from '../../lib/grelhaQueCresce';
 import { styles } from '../estilos.web';
 import { BotaoVoltar,
-  Artwork, Button, ContentScroll, desktop, Dialog, Empty, Field, IconButton, Loading, marcar, Page,
+  Artwork, Button, ContentScroll, Dialog, Empty, Field, IconButton, Loading, marcar, Page,
   PrateleiraDeMisturas, Separadores, Shelf, ShelfDeLancamentos, TrackTable, type ColunaOrdenavel,
 } from '../ui.web';
 import { useMisturaDoDia } from '../../state/misturaDoDia';
@@ -169,7 +169,7 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
     action={<IconButton name="refresh" label="Refresh recommendations"
       onPress={() => { void recs.carregar(true); }} active={recs.estado === 'a-carregar'} />}>
     <View style={styles.searchBar}><Field ref={input} icon="search" placeholder="Search songs, artists, playlists" value={query} onChangeText={setQuery} onSubmitEditing={() => run()} onFocus={() => setComFoco(true)} onBlur={() => setComFoco(false)} /><Button onPress={() => run()}>Search</Button></View>
-    {comFoco && query.trim().length < 2 && !loading && history.length > 0 && <View style={styles.history} {...({ onMouseDown: (e: any) => e.preventDefault() } as any)}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recent searches</Text><Pressable onPress={async () => { await clearSearchHistory(); setHistory([]); }}><Text style={styles.textAction}>Clear</Text></Pressable></View><View style={styles.chips}>{history.map((item) => <Pressable key={item} onPress={() => run(item)} style={({ hovered }) => [styles.chip, hovered && styles.chipHover]}><Ionicons name="time-outline" size={14} color={desktop.dim} /><Text style={styles.chipText}>{item}</Text></Pressable>)}</View></View>}
+    {comFoco && query.trim().length < 2 && !loading && history.length > 0 && <View style={styles.history} {...({ onMouseDown: (e: any) => e.preventDefault() } as any)}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recent searches</Text><Pressable onPress={async () => { await clearSearchHistory(); setHistory([]); }}><Text style={styles.textAction}>Clear</Text></Pressable></View><View style={styles.chips}>{history.map((item) => <Pressable key={item} onPress={() => run(item)} style={({ hovered }) => [styles.chip, hovered && styles.chipHover]}><Ionicons name="time-outline" size={14} color={COR.textoFraco} /><Text style={styles.chipText}>{item}</Text></Pressable>)}</View></View>}
     {!semPesquisa ? <View style={styles.vistasDaPesquisa}><Separadores opcoes={[['musicas', 'Songs'], ['artistas', 'Artists'], ['albuns', 'Albums'], ['playlists', 'Playlists']] as const}
       valor={tipo} aoMudar={setTipo} /></View> : null}
     <ContentScroll>
@@ -198,8 +198,8 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
             {naBiblioteca.length ? <Text style={[styles.sectionTitle, { marginTop: 24 }]}>More results</Text> : null}
             {filtrosDaVersao.length > 2 ? <View style={[styles.chips, { marginBottom: 12 }]}>{FILTROS_DE_VERSAO.filter((f) => filtrosDaVersao.includes(f.id)).map((f) => (
               <Pressable key={f.id} onPress={() => setVersao(f.id)} accessibilityRole="button" accessibilityState={{ selected: versao === f.id }}
-                style={({ hovered }) => [styles.chip, hovered && styles.chipHover, versao === f.id && { backgroundColor: desktop.text }]}>
-                <Text style={[styles.chipText, versao === f.id && { color: desktop.bg }]}>{f.nome}</Text>
+                style={({ hovered }) => [styles.chip, hovered && styles.chipHover, versao === f.id && { backgroundColor: COR.texto }]}>
+                <Text style={[styles.chipText, versao === f.id && { color: COR.fundo }]}>{f.nome}</Text>
               </Pressable>))}</View> : null}
             {/* Só a faixa escolhida, NUNCA os resultados: são o que o YouTube
                 casou com o texto, não uma lista de ninguém. Procurar "6:30" e
@@ -360,7 +360,7 @@ function CapaSemReferer({ uri, lado, redonda, icone }: {
   const raio = redonda ? lado / 2 : RAIO.superficie;
   if (!uri || falhou) {
     return <View style={[{ width: lado, height: lado, borderRadius: raio, backgroundColor: COR.elevado }, artistStyles.albumFallback]}>
-      <Ionicons name={icone} size={redonda ? 40 : 34} color={desktop.dim} />
+      <Ionicons name={icone} size={redonda ? 40 : 34} color={COR.textoFraco} />
     </View>;
   }
   return <img src={uri} alt="" referrerPolicy="no-referrer" loading="lazy" decoding="async" draggable={false}
@@ -550,7 +550,7 @@ export function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) 
             {...(favorito ? marcar('coracaoDoCartao', 'fixo') : marcar('coracaoDoCartao'))}
             style={({ hovered: h }: any) => [styles.coracaoDoArtista, h && styles.coracaoDoArtistaHover]}>
             <Ionicons name={favorito ? 'heart' : 'heart-outline'} size={16}
-              color={favorito ? desktop.accent : COR.texto} />
+              color={favorito ? COR.metalClaro : COR.texto} />
           </Pressable>
         </View>
         <Text numberOfLines={1} style={styles.playlistTitle}>{nome}</Text>
@@ -765,7 +765,7 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
             : fotoDoCanal ? <CapaSemReferer uri={fotoDoCanal} lado={176} icone="person" />
             : tracks[0] ? <Artwork track={tracks[0]} size={176} />
             : outras[0] ? <Artwork track={outras[0]} size={176} />
-            : <Ionicons name="person" size={48} color={desktop.dim} />}</View>
+            : <Ionicons name="person" size={48} color={COR.textoFraco} />}</View>
           <View style={styles.detailHeroBody}>
             <Text style={styles.detailHeroEyebrow}>ARTIST</Text>
             <Text numberOfLines={2} style={styles.detailHeroTitle}>{name}</Text>
@@ -793,7 +793,7 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
             ['albums', 'Albums', 'albums-outline'],
           ] as const).map(([id, label, icon]) => <Pressable key={id} onPress={() => setSeparador(id)}
             style={({ hovered }) => [artistStyles.tab, separador === id && artistStyles.tabActive, hovered && artistStyles.tabHover]}>
-            <Ionicons name={icon} size={15} color={separador === id ? desktop.text : desktop.dim} />
+            <Ionicons name={icon} size={15} color={separador === id ? COR.texto : COR.textoFraco} />
             <Text style={[artistStyles.tabText, separador === id && artistStyles.tabTextActive]}>{label}</Text>
           </Pressable>)}
           {mostrarOrdem && <View style={artistStyles.ordem} accessibilityRole={'radiogroup' as any}>
@@ -816,7 +816,7 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
           <View style={artistStyles.albumGrid}>{albuns.map((album) => <Pressable key={album.id} onPress={() => void abrirAlbum(album)}
             style={({ hovered, focused }) => [artistStyles.albumCard, (hovered || focused) && artistStyles.albumCardHover]}>
             {album.artworkUrl ? <Image source={{ uri: album.artworkUrl }} style={artistStyles.albumArt} /> :
-              <View style={[artistStyles.albumArt, artistStyles.albumFallback]}><Ionicons name="albums-outline" size={34} color={desktop.dim} /></View>}
+              <View style={[artistStyles.albumArt, artistStyles.albumFallback]}><Ionicons name="albums-outline" size={34} color={COR.textoFraco} /></View>}
             <Text numberOfLines={2} style={artistStyles.albumTitle}>{album.title}</Text>
             <Text numberOfLines={1} style={artistStyles.albumMeta}>{album.channelTitle || 'Album'}</Text>
           </Pressable>)}</View> :
@@ -955,7 +955,7 @@ function UltimoLancamento({ album, onPress }: { album: AlbumDaPagina; onPress: (
   return <Pressable accessibilityRole="button" accessibilityLabel={`Latest release: ${album.title}`} onPress={onPress}
     style={({ hovered, focused }: any) => [artistStyles.ultimo, (hovered || focused) && artistStyles.ultimoHover]}>
     {album.artworkUrl ? <Image source={{ uri: album.artworkUrl }} style={artistStyles.ultimoCapa} />
-      : <View style={[artistStyles.ultimoCapa, artistStyles.albumFallback]}><Ionicons name="albums-outline" size={24} color={desktop.dim} /></View>}
+      : <View style={[artistStyles.ultimoCapa, artistStyles.albumFallback]}><Ionicons name="albums-outline" size={24} color={COR.textoFraco} /></View>}
     <View style={{ flex: 1, minWidth: 0 }}>
       <Text style={artistStyles.ultimoRotulo}>LATEST RELEASE</Text>
       <Text numberOfLines={1} style={artistStyles.ultimoTitulo}>{album.title}</Text>

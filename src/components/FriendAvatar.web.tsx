@@ -2,7 +2,7 @@ import { useProfileMedia } from '../lib/profileMedia';
 import React from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import { decodeAvatar } from '../lib/avatarPrefs';
-import { desktop } from '../desktop/ui.web';
+import { COR } from '../desktop/tokens.web';
 
 interface Props {
   /** `profiles.avatar_url`: um URL, ou `emoji:<emoji>:<gradiente>`. */
@@ -42,8 +42,8 @@ export function FriendAvatar({ avatarUrl, name, size = 36 }: Props) {
   }
 
   return (
-    <View style={[round, s.center, { backgroundColor: desktop.raised }]}>
-      <Text style={{ color: desktop.text, fontWeight: '700', fontSize: size * 0.4 }}>
+    <View style={[round, s.center, { backgroundColor: COR.elevado }]}>
+      <Text style={{ color: COR.texto, fontWeight: '700', fontSize: size * 0.4 }}>
         {avatar.letter}
       </Text>
     </View>

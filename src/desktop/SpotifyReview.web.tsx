@@ -3,7 +3,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ImportedTrack } from '../lib/spotifyImport';
 import type { Track } from '../types';
-import { Button, desktop, formatTime } from './ui.web';
+import { Button, formatTime } from './ui.web';
+import { COR } from './tokens.web';
 
 /**
  * Revisão das faixas que a correspondência não conseguiu decidir sozinha.
@@ -162,15 +163,15 @@ export function SpotifyReview({
               onPress={() => decide(chosen ? { kind: 'keep' } : { kind: 'replace', track })}
               style={({ hovered }: any) => [
                 s.option,
-                hovered && { borderColor: desktop.hover },
-                picked && { borderColor: desktop.accent, backgroundColor: desktop.accentSoft },
+                hovered && { borderColor: COR.hover },
+                picked && { borderColor: COR.metalClaro, backgroundColor: COR.metalSuave },
               ]}
             >
               {track.artworkUrl ? (
                 <Image source={{ uri: track.artworkUrl }} style={s.art} />
               ) : (
                 <View style={[s.art, s.artEmpty]}>
-                  <Ionicons name="musical-notes" size={16} color={desktop.dim} />
+                  <Ionicons name="musical-notes" size={16} color={COR.textoFraco} />
                 </View>
               )}
               <View style={{ flex: 1, minWidth: 0 }}>
@@ -241,24 +242,24 @@ export function SpotifyReview({
 }
 
 const s = StyleSheet.create({
-  wrap: { gap: 12, padding: 20, borderRadius: 12, backgroundColor: desktop.raised, borderWidth: 1, borderColor: desktop.border },
+  wrap: { gap: 12, padding: 20, borderRadius: 12, backgroundColor: COR.elevado, borderWidth: 1, borderColor: COR.linha },
   head: { flexDirection: 'row', alignItems: 'flex-start', gap: 16 },
-  title: { color: desktop.text, fontSize: 17, fontWeight: '700' },
-  meta: { color: desktop.muted, fontSize: 12, marginTop: 3 },
-  counter: { color: desktop.dim, fontSize: 12, fontVariant: ['tabular-nums'] },
-  track: { height: 4, borderRadius: 2, backgroundColor: desktop.panel, overflow: 'hidden' },
-  fill: { height: '100%', backgroundColor: desktop.accent },
-  label: { color: desktop.dim, fontSize: 11, fontWeight: '700', letterSpacing: 0.8, marginTop: 4 },
+  title: { color: COR.texto, fontSize: 17, fontWeight: '700' },
+  meta: { color: COR.textoMedio, fontSize: 12, marginTop: 3 },
+  counter: { color: COR.textoFraco, fontSize: 12, fontVariant: ['tabular-nums'] },
+  track: { height: 4, borderRadius: 2, backgroundColor: COR.painel, overflow: 'hidden' },
+  fill: { height: '100%', backgroundColor: COR.metalClaro },
+  label: { color: COR.textoFraco, fontSize: 11, fontWeight: '700', letterSpacing: 0.8, marginTop: 4 },
   options: { gap: 8 },
-  option: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: desktop.border },
-  art: { width: 40, height: 40, borderRadius: 6, backgroundColor: desktop.panel },
+  option: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: COR.linha },
+  art: { width: 40, height: 40, borderRadius: 6, backgroundColor: COR.painel },
   artEmpty: { alignItems: 'center', justifyContent: 'center' },
-  optionTitle: { color: desktop.text, fontSize: 13, fontWeight: '600' },
-  optionMeta: { color: desktop.muted, fontSize: 11, marginTop: 2 },
-  badge: { color: desktop.accent, fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
-  key: { width: 20, height: 20, borderRadius: 5, alignItems: 'center', justifyContent: 'center', backgroundColor: desktop.panel, borderWidth: 1, borderColor: desktop.border },
-  keyText: { color: desktop.dim, fontSize: 11, fontWeight: '700', fontVariant: ['tabular-nums'] },
-  hint: { color: desktop.dim, fontSize: 11, marginTop: 2 },
+  optionTitle: { color: COR.texto, fontSize: 13, fontWeight: '600' },
+  optionMeta: { color: COR.textoMedio, fontSize: 11, marginTop: 2 },
+  badge: { color: COR.metalClaro, fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
+  key: { width: 20, height: 20, borderRadius: 5, alignItems: 'center', justifyContent: 'center', backgroundColor: COR.painel, borderWidth: 1, borderColor: COR.linha },
+  keyText: { color: COR.textoFraco, fontSize: 11, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  hint: { color: COR.textoFraco, fontSize: 11, marginTop: 2 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
-  footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginTop: 8, paddingTop: 14, borderTopWidth: 1, borderTopColor: desktop.border },
+  footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginTop: 8, paddingTop: 14, borderTopWidth: 1, borderTopColor: COR.linha },
 });

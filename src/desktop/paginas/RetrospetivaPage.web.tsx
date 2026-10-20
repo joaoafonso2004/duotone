@@ -7,7 +7,8 @@ import { displayArtist, tituloDaFaixa } from '../../lib/artistName';
 import { useTheme } from '../../state/theme';
 import type { Track } from '../../types';
 import { styles } from '../estilos.web';
-import { BotaoVoltar, ContentScroll, desktop, Empty, Loading, Page } from '../ui.web';
+import { BotaoVoltar, ContentScroll, Empty, Loading, Page } from '../ui.web';
+import { COR } from '../tokens.web';
 import { StatCell, StatsChart } from './ProfilePage.web';
 
 const P = Pressable as any;
@@ -45,7 +46,7 @@ export function RetrospetivaPage({ back, play, userId, ano: anoInicial }: {
 
   const anos = (resultado?.anos.length ?? 0) > 1 ? <View style={styles.smallSegment}>{resultado!.anos.map((a) => (
     <P key={a} onPress={() => setAno(a)} style={({ hovered }: any) => [styles.smallSegmentItem, a === r?.ano && styles.smallSegmentActive, hovered && styles.settingHover]}>
-      <Text style={[styles.smallSegmentText, a === r?.ano && { color: desktop.text }]}>{a}</Text>
+      <Text style={[styles.smallSegmentText, a === r?.ano && { color: COR.texto }]}>{a}</Text>
     </P>))}</View> : null;
 
   return <Page title="Year in review" action={<View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>{anos}<BotaoVoltar onPress={back} /></View>}>
@@ -60,7 +61,7 @@ export function RetrospetivaPage({ back, play, userId, ano: anoInicial }: {
             <Text style={styles.statsHeroNote}>estimated from {r.base.totalPlays} plays</Text>
           </V>
 
-          {(r.mesMaior || r.horaPreferida) && <Text style={{ color: desktop.text, fontSize: 18, fontWeight: '600', lineHeight: 26, marginTop: 22 }}>
+          {(r.mesMaior || r.horaPreferida) && <Text style={{ color: COR.texto, fontSize: 18, fontWeight: '600', lineHeight: 26, marginTop: 22 }}>
             {fraseDoAno(r.mesMaior?.nome ?? null, r.horaPreferida?.hora ?? null)}
           </Text>}
 
@@ -73,19 +74,19 @@ export function RetrospetivaPage({ back, play, userId, ano: anoInicial }: {
 
           <View style={{ flexDirection: 'row', gap: 18, flexWrap: 'wrap', marginTop: 26 }}>
             {faixaDoAno && <P onPress={() => tocar(faixaDoAno)} style={({ hovered }: any) => [styles.statsRow, { flex: 1, minWidth: 300, padding: 12 }, hovered && styles.settingHover]}>
-              {faixaDoAno.artworkUrl ? <Image source={{ uri: faixaDoAno.artworkUrl }} style={{ width: 72, height: 72, borderRadius: 8 }} /> : <View style={{ width: 72, height: 72, borderRadius: 8, backgroundColor: desktop.raised }} />}
+              {faixaDoAno.artworkUrl ? <Image source={{ uri: faixaDoAno.artworkUrl }} style={{ width: 72, height: 72, borderRadius: 8 }} /> : <View style={{ width: 72, height: 72, borderRadius: 8, backgroundColor: COR.elevado }} />}
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.formLabel}>TRACK OF THE YEAR</Text>
-                <Text numberOfLines={1} style={{ color: desktop.text, fontSize: 16, fontWeight: '700' }}>{tituloDaFaixa(faixaDoAno)}</Text>
-                <Text numberOfLines={1} style={{ color: desktop.muted, fontSize: 12, marginTop: 2 }}>{displayArtist(faixaDoAno)} · {faixaDoAno.plays} {faixaDoAno.plays === 1 ? 'play' : 'plays'}</Text>
+                <Text numberOfLines={1} style={{ color: COR.texto, fontSize: 16, fontWeight: '700' }}>{tituloDaFaixa(faixaDoAno)}</Text>
+                <Text numberOfLines={1} style={{ color: COR.textoMedio, fontSize: 12, marginTop: 2 }}>{displayArtist(faixaDoAno)} · {faixaDoAno.plays} {faixaDoAno.plays === 1 ? 'play' : 'plays'}</Text>
               </View>
             </P>}
             {artistaDoAno && <View style={[styles.statsRow, { flex: 1, minWidth: 300, padding: 12 }]}>
-              {artistaDoAno.artworkUrl ? <Image source={{ uri: artistaDoAno.artworkUrl }} style={{ width: 72, height: 72, borderRadius: 36 }} /> : <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: desktop.raised }} />}
+              {artistaDoAno.artworkUrl ? <Image source={{ uri: artistaDoAno.artworkUrl }} style={{ width: 72, height: 72, borderRadius: 36 }} /> : <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: COR.elevado }} />}
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.formLabel}>ARTIST OF THE YEAR</Text>
-                <Text numberOfLines={1} style={{ color: desktop.text, fontSize: 16, fontWeight: '700' }}>{artistaDoAno.name}</Text>
-                <Text style={{ color: desktop.muted, fontSize: 12, marginTop: 2 }}>{artistaDoAno.plays} {artistaDoAno.plays === 1 ? 'play' : 'plays'}</Text>
+                <Text numberOfLines={1} style={{ color: COR.texto, fontSize: 16, fontWeight: '700' }}>{artistaDoAno.name}</Text>
+                <Text style={{ color: COR.textoMedio, fontSize: 12, marginTop: 2 }}>{artistaDoAno.plays} {artistaDoAno.plays === 1 ? 'play' : 'plays'}</Text>
               </View>
             </View>}
           </View>
@@ -97,16 +98,16 @@ export function RetrospetivaPage({ back, play, userId, ano: anoInicial }: {
             {r.base.topTracks.slice(0, 5).map((t, i) => (
               <P key={t.key} onPress={() => tocar(t)} style={({ hovered }: any) => [styles.statsRow, hovered && styles.settingHover]}>
                 <Text style={[styles.statsRank, { color: theme.color }]}>{i + 1}</Text>
-                {t.artworkUrl ? <Image source={{ uri: t.artworkUrl }} style={{ width: 38, height: 38, borderRadius: 5 }} /> : <View style={{ width: 38, height: 38, borderRadius: 5, backgroundColor: desktop.raised }} />}
+                {t.artworkUrl ? <Image source={{ uri: t.artworkUrl }} style={{ width: 38, height: 38, borderRadius: 5 }} /> : <View style={{ width: 38, height: 38, borderRadius: 5, backgroundColor: COR.elevado }} />}
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text numberOfLines={1} style={{ color: desktop.text, fontSize: 12, fontWeight: '600' }}>{tituloDaFaixa(t)}</Text>
-                  <Text numberOfLines={1} style={{ color: desktop.muted, fontSize: 10, marginTop: 2 }}>{displayArtist(t)}</Text>
+                  <Text numberOfLines={1} style={{ color: COR.texto, fontSize: 12, fontWeight: '600' }}>{tituloDaFaixa(t)}</Text>
+                  <Text numberOfLines={1} style={{ color: COR.textoMedio, fontSize: 10, marginTop: 2 }}>{displayArtist(t)}</Text>
                 </View>
-                <Text style={{ color: desktop.muted, fontSize: 11, fontWeight: '700' }}>{t.plays}x</Text>
+                <Text style={{ color: COR.textoMedio, fontSize: 11, fontWeight: '700' }}>{t.plays}x</Text>
               </P>))}
           </View>}
 
-          {resultado?.truncated && <Text style={{ color: desktop.dim, fontSize: 11, marginTop: 24, textAlign: 'center' }}>Your history is too long to read in full — these numbers are a minimum.</Text>}
+          {resultado?.truncated && <Text style={{ color: COR.textoFraco, fontSize: 11, marginTop: 24, textAlign: 'center' }}>Your history is too long to read in full — these numbers are a minimum.</Text>}
         </>}
     </ContentScroll>
   </Page>;

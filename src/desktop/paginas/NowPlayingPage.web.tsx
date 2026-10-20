@@ -20,7 +20,7 @@ import { extrapolatedPositionMs } from '../../lib/handoff';
 import { takeOverSession } from '../../lib/sessionSync';
 import { styles } from '../estilos.web';
 import { COR, ESP } from '../tokens.web';
-import { BotaoVoltar, Artwork, Button, desktop, Dialog, Empty, IconButton, marcar, Page, ui } from '../ui.web';
+import { BotaoVoltar, Artwork, Button, Dialog, Empty, IconButton, marcar, Page, ui } from '../ui.web';
 import { FundoDaCapa } from '../FundoDaCapa.web';
 import { preCarregarCapaGrande, useCapaGrande } from '../useCapaGrande.web';
 import { disposicaoDoLeitor } from '../../lib/leitorDoPc';
@@ -137,7 +137,7 @@ function AcaoDoLeitor({ rotulo, onPress, onPressIn, onPressOut, ativo = false, p
       style={({ pressed }: any) => [{ width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 17 }, pressed && ui.pressed]}>
       {({ hovered, focused }: any) => (
         <>
-          {children(ativo || ponto || hovered || focused ? COR.texto : desktop.muted)}
+          {children(ativo || ponto || hovered || focused ? COR.texto : COR.textoMedio)}
           {ponto ? <View style={{ position: 'absolute', bottom: 1, width: 4, height: 4, borderRadius: 2, backgroundColor: COR.texto }} /> : null}
         </>
       )}

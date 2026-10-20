@@ -4,7 +4,8 @@ import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useVisibilidade } from '../hooks/useVisibilidade';
 import { avisoDaTroca } from '../lib/visibilidade';
 import { definirPrivacidade, usePrivacidade } from '../state/privacidade';
-import { desktop, marcar, ui } from './ui.web';
+import { marcar, ui } from './ui.web';
+import { COR } from './tokens.web';
 
 const P = Pressable as any;
 
@@ -82,7 +83,7 @@ export function IndicadorDeVisibilidade({ discordLigado, onJam, onAviso }: {
     <svg
       width={TAMANHO} height={TAMANHO} viewBox="0 0 24 24" aria-hidden
       fill="none" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"
-      style={{ overflow: 'visible', stroke: fechado ? desktop.accent : desktop.muted, transition: transicao(['stroke', 200]) }}
+      style={{ overflow: 'visible', stroke: fechado ? COR.metalClaro : COR.textoMedio, transition: transicao(['stroke', 200]) }}
     >
       <title>{texto}</title>
       <g style={{

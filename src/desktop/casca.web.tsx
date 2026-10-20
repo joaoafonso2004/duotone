@@ -29,7 +29,7 @@ import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { useTheme } from '../state/theme';
 import { styles } from './estilos.web';
 import { COR, cssDasFontes, FONT, RAIO } from './tokens.web';
-import { Artwork, comDica, desktop, formatTime, IconButton, ui, marcar, useProcurarAoLargar } from './ui.web';
+import { Artwork, comDica, formatTime, IconButton, ui, marcar, useProcurarAoLargar } from './ui.web';
 import { dentesDaTecla, valorDaProcura } from '../lib/acessibilidadeDoPc';
 import { PRIMARY, type Route } from './rotas';
 import { IndicadorDeVisibilidade } from './IndicadorDeVisibilidade.web';
@@ -406,9 +406,9 @@ export function TitleBar({ comPainel = false }: { comPainel?: boolean }) {
     <View style={styles.dragRegion as any} />
     {comPainel ? <SetaDoPainel /> : null}
     <View style={styles.windowButtons as any}>
-      <Pressable accessibilityLabel="Minimize" onPress={() => window.duotoneDesktop?.minimize()} style={({ hovered }) => [styles.windowButton, hovered && styles.windowButtonHover]}><Ionicons name="remove-outline" size={17} color={desktop.muted} /></Pressable>
-      <Pressable accessibilityLabel={maximized ? 'Restore' : 'Maximize'} onPress={() => window.duotoneDesktop?.toggleMaximize()} style={({ hovered }) => [styles.windowButton, hovered && styles.windowButtonHover]}><Ionicons name={maximized ? 'copy-outline' : 'square-outline'} size={13} color={desktop.muted} /></Pressable>
-      <Pressable accessibilityLabel="Close" onPress={() => window.duotoneDesktop?.close()} style={({ hovered }) => [styles.windowButton, hovered && styles.closeHover]}><Ionicons name="close-outline" size={20} color={desktop.muted} /></Pressable>
+      <Pressable accessibilityLabel="Minimize" onPress={() => window.duotoneDesktop?.minimize()} style={({ hovered }) => [styles.windowButton, hovered && styles.windowButtonHover]}><Ionicons name="remove-outline" size={17} color={COR.textoMedio} /></Pressable>
+      <Pressable accessibilityLabel={maximized ? 'Restore' : 'Maximize'} onPress={() => window.duotoneDesktop?.toggleMaximize()} style={({ hovered }) => [styles.windowButton, hovered && styles.windowButtonHover]}><Ionicons name={maximized ? 'copy-outline' : 'square-outline'} size={13} color={COR.textoMedio} /></Pressable>
+      <Pressable accessibilityLabel="Close" onPress={() => window.duotoneDesktop?.close()} style={({ hovered }) => [styles.windowButton, hovered && styles.closeHover]}><Ionicons name="close-outline" size={20} color={COR.textoMedio} /></Pressable>
     </View>
   </View>;
 }
@@ -479,7 +479,7 @@ export function Sidebar({ route, navigate, notify }: { route: Route; navigate: (
         Definições são a roda dentada nela (26/9, decidido com o João). */}
     <View style={styles.accountRow}>
       <Pressable accessibilityLabel="Profile" onPress={() => navigate({ name: 'profile' })} style={({ hovered }) => [styles.account, styles.accountPerfil, (hovered || active === 'profile') && styles.navHover]}>{avatarDisplay}<View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={styles.accountName}>{name}</Text><Text numberOfLines={1} style={styles.accountEmail}>{session?.user.email}</Text></View></Pressable>
-      <Pressable accessibilityLabel="Settings" onPress={() => navigate({ name: 'settings' })} style={({ hovered }) => [styles.accountDefinicoes, (hovered || active === 'settings') && styles.navHover]}><Ionicons name="settings-outline" size={17} color={active === 'settings' ? desktop.text : desktop.muted} /></Pressable>
+      <Pressable accessibilityLabel="Settings" onPress={() => navigate({ name: 'settings' })} style={({ hovered }) => [styles.accountDefinicoes, (hovered || active === 'settings') && styles.navHover]}><Ionicons name="settings-outline" size={17} color={active === 'settings' ? COR.texto : COR.textoMedio} /></Pressable>
     </View>
     <ProgressoDaImportacao />
     <AmigosNaLateral navigate={navigate} notify={notify} />
@@ -507,7 +507,7 @@ export function NavItem({ label, icon, active, badge, onPress, aoMedir, semFundo
   }, [medicao]);
   return <P ref={ref} {...marcar('premir')} onPress={onPress}
     onLayout={(e: any) => aoMedir?.(e.nativeEvent.layout.y, e.nativeEvent.layout.height)}
-    style={({ hovered, focused, pressed }: any) => [styles.navItem, (hovered || focused) && styles.navHover, active && !semFundo && { backgroundColor: theme.soft }, pressed && ui.pressed]}><Ionicons name={icon} size={19} color={active ? theme.color : desktop.muted} /><Text style={[styles.navText, active && styles.navTextActive, active && { color: theme.color }]}>{label}</Text>{badge && <BolinhaDeAviso />}</P>;
+    style={({ hovered, focused, pressed }: any) => [styles.navItem, (hovered || focused) && styles.navHover, active && !semFundo && { backgroundColor: theme.soft }, pressed && ui.pressed]}><Ionicons name={icon} size={19} color={active ? theme.color : COR.textoMedio} /><Text style={[styles.navText, active && styles.navTextActive, active && { color: theme.color }]}>{label}</Text>{badge && <BolinhaDeAviso />}</P>;
 }
 
 /**
