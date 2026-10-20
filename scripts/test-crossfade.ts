@@ -159,3 +159,18 @@ console.log('Crossfade: condições, momento, curva de igual potência e interru
   assert.equal(decorridoDaPassagem({ ...base, posicaoSegundos: 190, fimMusicalSegundos: 196 }), 0, 'conta do fim da música quando é conhecido');
   console.log('Crossfade no PC: preparar a seguinte a tempo e o decorrido pela posição passaram.');
 }
+
+// O em espera nunca soa fora de uma passagem (20/10, João: "quando o crossfade
+// começa dá um segundo da próxima música, para, e depois o crossfade normal").
+// O mudo ia uma vez, antes do `loadVideoById`; o player do YouTube pode repô-lo
+// ao carregar, e a preparada ouvia-se até ser pausada no primeiro "a tocar".
+{
+  const { readFileSync } = await import('node:fs');
+  const motor = readFileSync(new URL('../src/components/YouTubePlayerView.web.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  assert.match(motor, /if \(!passagemRef\.current && !entregaRef\.current && s !== 0 && s !== 2\) \{[\s\S]{0,200}event\.target\.mute\?\.\(\); event\.target\.setVolume\?\.\(0\);/,
+    'cada evento do em espera, fora da passagem e da entrega, volta a calá-lo');
+  assert.match(motor, /crossfade prep was audible on load \(PC\), muted again/, 'e o relatório diz quando o apanhou com som');
+  // A passagem marca-se ANTES de tirar o mudo: senão o evento do "a tocar" dela calava-a.
+  assert.match(motor, /passagemRef\.current = \{ fade: c\.duracaoDoFade \};\n      try \{\n        const espera = esperaRef\.current;\n        espera\.setVolume\(0\);\n        espera\.unMute\(\);/);
+  console.log('Crossfade no PC: a preparada fica calada até a passagem começar.');
+}

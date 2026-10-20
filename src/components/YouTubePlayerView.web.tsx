@@ -503,6 +503,22 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     // Antes do `onReady` do primeiro ainda não há ativo: tudo o que chega é dele.
     if (ativoRef.current && event.target !== ativoRef.current) {
       const prep = seguinteRef.current;
+      // Fora de uma passagem, o em espera NUNCA soa (20/10, João: "quando o
+      // crossfade começa dá um segundo da próxima música, para, e depois começa
+      // o crossfade normal"). O mudo ia uma vez, antes do `loadVideoById`, e o
+      // player do YouTube -- que vem do servidor deles e muda sem uma versão
+      // nossa -- pode repor o som ao carregar outro vídeo: a preparada ouvia-se
+      // até ao primeiro "a tocar", em que a pausamos. Agora volta a calar-se a
+      // cada evento dela (sem arranque, a carregar, pronta, a tocar), que chegam
+      // antes do som. A passagem tira o mudo quando começa; e na entrega (a
+      // passagem acabou e a fila ainda não trocou os papéis) a que entrou já é
+      // a que se ouve -- não se lhe toca.
+      if (!passagemRef.current && !entregaRef.current && s !== 0 && s !== 2) {
+        let tinhaSom = false;
+        try { tinhaSom = s === 1 && event.target.isMuted?.() === false; } catch {}
+        try { event.target.mute?.(); event.target.setVolume?.(0); } catch {}
+        if (tinhaSom && prep) registarNaFila(`${prep.sourceId}: crossfade prep was audible on load (PC), muted again`);
+      }
       if (prep && !prep.pronta && s === 1 && estaNoVideo(event.target, prep.sourceId)) {
         try { event.target.pauseVideo(); event.target.seekTo(0, true); } catch {}
         prep.pronta = true;
