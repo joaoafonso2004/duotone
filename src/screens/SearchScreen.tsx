@@ -1046,8 +1046,11 @@ function ArtistaEmDestaque({ artista, aoAbrir, aoTocarMix, aAbrirMix }: {
           {artista.legenda ? <Text numberOfLines={1} style={[type.caption, { color: colors.textSecondary }]} maxFontSizeMultiplier={ESCALA_MAXIMA.lista}>{artista.legenda}</Text> : null}
         </View>
       </Pressable>
+      {/* 36 pt de desenho e 44 de alvo (20/10, revisão de qualidade Q7): o
+          `hitSlop` cabe no padding do cartão, que é o pai -- no Fabric um
+          alvo não sai dos limites do pai. */}
       <Pressable onPress={aoTocarMix} disabled={aAbrirMix} accessibilityRole="button" accessibilityLabel={`${artista.nome} Mix`}
-        accessibilityState={{ busy: aAbrirMix }} style={({ pressed }) => [styles.destaqueMix, (pressed || aAbrirMix) && { opacity: 0.6 }]}>
+        hitSlop={4} accessibilityState={{ busy: aAbrirMix }} style={({ pressed }) => [styles.destaqueMix, (pressed || aAbrirMix) && { opacity: 0.6 }]}>
         {aAbrirMix ? <ActivityIndicator size="small" color={colors.bg} /> : <Ionicons name="radio-outline" size={16} color={colors.bg} />}
         <Text style={styles.destaqueMixTexto} maxFontSizeMultiplier={ESCALA_MAXIMA.lista}>Mix</Text>
       </Pressable>
