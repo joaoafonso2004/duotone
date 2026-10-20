@@ -45,7 +45,11 @@ import { BotaoVoltar,
 } from '../ui.web';
 import { useMisturaDoDia } from '../../state/misturaDoDia';
 import { marcarArtistaAberto, useNovosLancamentos } from '../../state/novosLancamentos';
-import { legendaDoLancamento } from '../../lib/novosLancamentos';
+import { legendaDoLancamento, type Lancamento } from '../../lib/novosLancamentos';
+import { menuDoLancamento, type AcaoDoLancamento } from '../../lib/menuDoLancamento';
+import { mensagemDeErro } from '../../lib/mensagemDeErro';
+import { useConnectivity } from '../../state/connectivity';
+import { MenuDeContexto, pontoDoEvento, type PontoNoEcra } from '../MenuDeContexto.web';
 import { BotaoDeFixar } from '../AtalhosNaLateral.web';
 import type { CommonPageProps, NavegarFn, Route } from '../rotas';
 import { COR, ESP, FONT, RAIO, TIPO } from '../tokens.web';
@@ -55,6 +59,14 @@ import { registar } from '../../lib/eventos';
 
 export function SearchPage({ play, tocarMusica, notify, more, navigate }: CommonPageProps & { navigate: NavegarFn }) {
   const [query, setQuery] = useState(''); const [history, setHistory] = useState<string[]>([]); const input = useRef<any>(null);
+  // As pesquisas recentes só com a caixa em foco (20/10), como no iPhone: na
+  // Home, sempre à vista, eram uma fila de etiquetas por cima de tudo. Carregar
+  // na lista não tira o foco à caixa (o `mousedown` dela é cancelado), senão a
+  // lista desaparecia antes de o clique chegar à etiqueta.
+  const [comFoco, setComFoco] = useState(false);
+  // O menu de um lançamento novo, no clique direito (20/10).
+  const [menuDoLanc, setMenuDoLanc] = useState<{ l: Lancamento; ponto: PontoNoEcra } | null>(null);
+  const semRede = useConnectivity((s) => s.offline);
   // As músicas do dia saíram (7/10): já não existiam no iPhone (3/10), e a
   // Pesquisa sem texto é só a descoberta.
   // **As recomendacoes vivem fora desta pagina** (`state/recomendacoes.ts`).
@@ -129,7 +141,16 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
   // "drake playlist" abre as Playlists sozinho; "drake album", os Albums.
   useEffect(() => { const pedido = separadorPedidoPelaPergunta(query); if (pedido) setTipo(pedido); }, [query]);
   const porTipo = usePesquisaPorTipo(query, tipoAtivo);
-  const { abrirAlbum, dialogoDoAlbum } = useDialogoDoAlbum({ play, tocarMusica, notify, more });
+  const { abrirAlbum, dialogoDoAlbum, albumSemAbrir, guardarAlbumSemAbrir } = useDialogoDoAlbum({ play, tocarMusica, notify, more });
+  const albumDoLancamento = (l: Lancamento): YtRecommendedPlaylist =>
+    ({ id: l.id, title: l.titulo, artworkUrl: l.capa, channelTitle: legendaDoLancamento(l) });
+  const fazerNoLancamento = (l: Lancamento, acao: AcaoDoLancamento) => {
+    const album = albumDoLancamento(l);
+    if (acao === 'abrir') void abrirAlbum(album);
+    else if (acao === 'guardar') void guardarAlbumSemAbrir(album);
+    else if (acao === 'artista') navigate({ name: 'artist', value: l.artista });
+    else void albumSemAbrir(album, acao);
+  };
   const lancamentos = useNovosLancamentos((s) => s.itens);
   // O artista abre pelo CANAL escolhido, sem adivinhar pelo nome (homónimos).
   const abrirArtista = (a: ArtistaEncontrado) => { lembrarCanalDoArtista(a.nome, a.canal); navigate({ name: 'artist', value: a.nome }); };
@@ -147,8 +168,8 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
   return <><Page title="Home"
     action={<IconButton name="refresh" label="Refresh recommendations"
       onPress={() => { void recs.carregar(true); }} active={recs.estado === 'a-carregar'} />}>
-    <View style={styles.searchBar}><Field ref={input} icon="search" placeholder="Search songs, artists, playlists" value={query} onChangeText={setQuery} onSubmitEditing={() => run()} /><Button onPress={() => run()}>Search</Button></View>
-    {query.trim().length < 2 && !loading && history.length > 0 && <View style={styles.history}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recent searches</Text><Pressable onPress={async () => { await clearSearchHistory(); setHistory([]); }}><Text style={styles.textAction}>Clear</Text></Pressable></View><View style={styles.chips}>{history.map((item) => <Pressable key={item} onPress={() => run(item)} style={({ hovered }) => [styles.chip, hovered && styles.chipHover]}><Ionicons name="time-outline" size={14} color={desktop.dim} /><Text style={styles.chipText}>{item}</Text></Pressable>)}</View></View>}
+    <View style={styles.searchBar}><Field ref={input} icon="search" placeholder="Search songs, artists, playlists" value={query} onChangeText={setQuery} onSubmitEditing={() => run()} onFocus={() => setComFoco(true)} onBlur={() => setComFoco(false)} /><Button onPress={() => run()}>Search</Button></View>
+    {comFoco && query.trim().length < 2 && !loading && history.length > 0 && <View style={styles.history} {...({ onMouseDown: (e: any) => e.preventDefault() } as any)}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recent searches</Text><Pressable onPress={async () => { await clearSearchHistory(); setHistory([]); }}><Text style={styles.textAction}>Clear</Text></Pressable></View><View style={styles.chips}>{history.map((item) => <Pressable key={item} onPress={() => run(item)} style={({ hovered }) => [styles.chip, hovered && styles.chipHover]}><Ionicons name="time-outline" size={14} color={desktop.dim} /><Text style={styles.chipText}>{item}</Text></Pressable>)}</View></View>}
     {!semPesquisa ? <View style={styles.vistasDaPesquisa}><Separadores opcoes={[['musicas', 'Songs'], ['artistas', 'Artists'], ['albuns', 'Albums'], ['playlists', 'Playlists']] as const}
       valor={tipo} aoMudar={setTipo} /></View> : null}
     <ContentScroll>
@@ -207,7 +228,8 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
               abrem a pré-visualização do álbum, como na página do artista. */}
           <ShelfDeLancamentos titulo="New releases" nota="from the artists you listen to"
             itens={lancamentos.map(({ lancamento: l, novo }) => ({ id: l.id, titulo: l.titulo, legenda: legendaDoLancamento(l), capa: l.capa, novo }))}
-            onOpen={(id) => { const l = lancamentos.find((x) => x.lancamento.id === id)?.lancamento; if (l) void abrirAlbum({ id: l.id, title: l.titulo, artworkUrl: l.capa, channelTitle: legendaDoLancamento(l) }); }} />
+            onOpen={(id) => { const l = lancamentos.find((x) => x.lancamento.id === id)?.lancamento; if (l) void abrirAlbum(albumDoLancamento(l)); }}
+            onMenu={(id, e) => { const l = lancamentos.find((x) => x.lancamento.id === id)?.lancamento; if (l) setMenuDoLanc({ l, ponto: pontoDoEvento(e) }); }} />
           <Shelf titulo="Rare finds" nota={notaDaPrateleira('nuncaLancado')} selo="New to you" tracks={nuncaLancado} onPlay={tocarMusica} onMore={more} contexto={contextoPrateleira('nuncaLancado')} />
           {/* AS MISTURAS QUE A APP MONTA. Quatro familias, e a diferenca esta
               toda no titulo -- que e o que elas tem de diferente:
@@ -236,6 +258,20 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
             : 'One moment.'} />}
     </ContentScroll></Page>
     {dialogoDoAlbum}
+    {menuDoLanc ? <MenuDeContexto
+      rato={menuDoLanc.ponto}
+      rotulo={`Options for ${menuDoLanc.l.titulo}`}
+      cabecalho={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        {menuDoLanc.l.capa ? <Image source={{ uri: menuDoLanc.l.capa }} style={{ width: 40, height: 40, borderRadius: RAIO.ctrl }} /> : null}
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text numberOfLines={1} style={{ color: COR.texto, fontSize: 14, fontWeight: '700' }}>{menuDoLanc.l.titulo}</Text>
+          <Text numberOfLines={1} style={{ color: COR.textoMedio, fontSize: 12, marginTop: 1 }}>{legendaDoLancamento(menuDoLanc.l)}</Text>
+        </View>
+      </View>}
+      linhas={menuDoLancamento(menuDoLanc.l, { semRede }).map((a) => ({ id: a.id, rotulo: a.rotulo, icone: a.icone, inicioDeGrupo: a.inicioDeGrupo, motivo: a.motivo }))}
+      aoEscolher={(id) => fazerNoLancamento(menuDoLanc.l, id as AcaoDoLancamento)}
+      aoFechar={() => setMenuDoLanc(null)}
+    /> : null}
   </>;
 }
 
@@ -805,23 +841,29 @@ function useDialogoDoAlbum(props: CommonPageProps) {
   const pedidoDeAlbum = useRef(0);
   const fecharAlbum = useCallback(() => { pedidoDeAlbum.current++; setAlbumAberto(null); }, []);
 
+  /** As faixas de um álbum: uma ida ao YouTube Music, a mesma da pré-visualização. */
+  const faixasDe = async (album: YtRecommendedPlaylist): Promise<Track[]> => {
+    const resultado = await fetchYouTubePlaylistById(album.id);
+    return resultado.items.map((item) => ({
+      source: 'youtube' as const,
+      sourceId: item.videoId,
+      title: item.title,
+      artist: extractArtist(item.title, item.channel || null),
+      album: resultado.title,
+      artworkUrl: item.thumbnail,
+      durationSeconds: null,
+    }));
+  };
+
   const abrirAlbum = async (album: YtRecommendedPlaylist) => {
     const pedido = ++pedidoDeAlbum.current;
     setAlbumAberto(album);
     setFaixasDoAlbum([]);
     setACarregarAlbum(true);
     try {
-      const resultado = await fetchYouTubePlaylistById(album.id);
+      const faixas = await faixasDe(album);
       if (pedido !== pedidoDeAlbum.current) return;
-      setFaixasDoAlbum(resultado.items.map((item) => ({
-        source: 'youtube' as const,
-        sourceId: item.videoId,
-        title: item.title,
-        artist: extractArtist(item.title, item.channel || null),
-        album: resultado.title,
-        artworkUrl: item.thumbnail,
-        durationSeconds: null,
-      })));
+      setFaixasDoAlbum(faixas);
     } catch (e: any) {
       if (pedido !== pedidoDeAlbum.current) return;
       props.notify(e?.message || 'Could not load this album.');
@@ -869,7 +911,40 @@ function useDialogoDoAlbum(props: CommonPageProps) {
       </>}
     </Dialog>
   </>;
-  return { abrirAlbum, fecharAlbum, dialogoDoAlbum };
+  /**
+   * Tocar, baralhar ou pôr na fila sem abrir, e guardar como playlist: o menu
+   * de um lançamento novo (20/10), como o de uma playlist (`tocarSemAbrir`).
+   */
+  const albumSemAbrir = async (album: YtRecommendedPlaylist, modo: 'tocar' | 'baralhar' | 'fila') => {
+    try {
+      const faixas = await faixasDe(album);
+      if (!faixas.length) return;
+      const leitor = usePlayer.getState();
+      if (modo === 'fila') {
+        leitor.addManyToQueue(faixas);
+        props.notify(`Added ${faixas.length} ${faixas.length === 1 ? 'song' : 'songs'} to the queue.`);
+        return;
+      }
+      const origem = { tipo: 'album' as const, nome: album.title };
+      if (modo === 'baralhar') await leitor.playShuffled(faixas, leitor.shuffleInteligente, origem);
+      else props.play(faixas[0], faixas, undefined, origem);
+    } catch (e) {
+      props.notify(mensagemDeErro(e, "Couldn't load this album."));
+    }
+  };
+  const guardarAlbumSemAbrir = async (album: YtRecommendedPlaylist) => {
+    try {
+      const faixas = await faixasDe(album);
+      if (!faixas.length) { props.notify("Couldn't find the songs of this album."); return; }
+      const playlist = await createPlaylist(album.title);
+      await addTracksToPlaylist(playlist.id, faixas);
+      props.notify(`Saved “${album.title}” with ${faixas.length} tracks.`);
+      window.dispatchEvent(new CustomEvent('duotone:refresh-playlists'));
+    } catch (e) {
+      props.notify(mensagemDeErro(e, "Couldn't save this album."));
+    }
+  };
+  return { abrirAlbum, fecharAlbum, dialogoDoAlbum, albumSemAbrir, guardarAlbumSemAbrir };
 }
 
 /**

@@ -538,12 +538,14 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto, gr
 /**
  * "New releases" (10/10, `state/novosLancamentos.ts`): o mesmo carrossel da
  * `Shelf`, com capas de álbuns. O clique abre a pré-visualização do álbum (a
- * mesma da página do artista); os novos levam "New".
+ * mesma da página do artista); os novos levam "New". O clique direito abre
+ * o menu de um lançamento (20/10, `lib/menuDoLancamento.ts`): não fazia nada.
  */
-export function ShelfDeLancamentos({ titulo, nota, itens, onOpen }: {
+export function ShelfDeLancamentos({ titulo, nota, itens, onOpen, onMenu }: {
   titulo: string; nota?: string;
   itens: { id: string; titulo: string; legenda: string; capa: string | null; novo: boolean }[];
   onOpen: (id: string) => void;
+  onMenu?: (id: string, evento: any) => void;
 }) {
   const { ref, podeEsquerda, podeDireita, deslizar, arrastou } = useCarrossel();
   if (!itens.length) return null;
@@ -567,6 +569,7 @@ export function ShelfDeLancamentos({ titulo, nota, itens, onOpen }: {
           accessibilityRole="button"
           accessibilityLabel={`${it.novo ? 'New. ' : ''}${it.titulo}, ${it.legenda}`}
           onPress={() => { if (!arrastou.current) onOpen(it.id); }}
+          onContextMenu={((e: any) => { if (!onMenu) return; e.preventDefault(); onMenu(it.id, e); }) as any}
           style={({ hovered, pressed }: any) => [ui.shelfCard, hovered && ui.shelfCardHover, pressed && ui.pressed]}>
           <View>
             {it.capa
