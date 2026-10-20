@@ -18,6 +18,9 @@ import { primeiraNota } from '../lib/tocarEnquantoDescarrega';
 import { miniLeitorEstaAberto } from '../desktop/usePonteDoLeitor.web';
 import type { Track } from '../types';
 import { volumeParaOMotor } from '../lib/curvaDoVolume';
+import { acertoNoPrimeiroSom, posicaoDaSalaParaFaixa } from '../lib/arranqueDaSala';
+import { TOLERANCIA_MS } from '../lib/sincronizacao';
+import { registarNaFila } from '../lib/playbackDiagnostics';
 import {
   ANTECEDENCIA_DO_PC_S, decorridoDaPassagem, deveComecarCrossfade, devePrepararSeguinte, podeCrossfade,
   volumesDoCrossfade, type ContextoDoCrossfade,
@@ -167,6 +170,18 @@ let saltosSeguidos = 0;
  */
 const ESPERA_PELA_ENTREGA_MS = 3000;
 
+/** Uma faixa de um Jam fica calada no máximo isto à espera do primeiro som (rede lenta, erro). */
+const PRAZO_DO_ALINHAMENTO_MS = 10_000;
+/** Depois do salto do acerto, o som volta quando o vídeo já está no sítio novo. */
+const SOM_DEPOIS_DO_ACERTO_MS = 250;
+
+/** A posição da sala para esta faixa, só com a sala a tocar (fora de um Jam, `null`). */
+function posicaoNaSala(faixa: Pick<Track, 'source' | 'sourceId'>): number | null {
+  const j = useOuvirJuntos.getState();
+  if (!j.sessao?.aTocar) return null;
+  return posicaoDaSalaParaFaixa(faixa, j.sessao, j.posicaoAgora);
+}
+
 /**
  * O motor do PC: o IFrame oficial do YouTube -- DOIS, para o crossfade.
  *
@@ -221,6 +236,30 @@ export function YouTubePlayerView({ track }: { track: Track }) {
    * restaurada em pausa não mede: o som vem quando alguém carregar em play.
    */
   const notaRef = useRef<{ id: string; em: number } | null>(null);
+  /**
+   * Uma faixa de um Jam a carregar CALADA (15/10; reposto a 20/10, pedido do
+   * João: "o início das músicas na jam dá um estalo e avança um segundo").
+   * Começava sempre do 0:00 enquanto o relógio da sala já andava, e o corretor
+   * do desvio acertava-a aos 7-9 s com um salto a meio do som. Agora carrega já
+   * na posição da sala, sem som, e ao primeiro "a tocar" acerta o que a sala
+   * andou entretanto -- e só então se ouve. Saiu na volta ao motor da 5.0.1
+   * (16/10) com o resto da 5.1.x; o que deixava o PC sem som era o player em
+   * pausa, não isto. Nunca fica calada mais de `PRAZO_DO_ALINHAMENTO_MS`, e
+   * solta-se ao trocar de faixa, num erro e ao sair do Jam.
+   */
+  const alinharRef = useRef<{ sourceId: string; prazo: ReturnType<typeof setTimeout> | undefined; saltou: boolean } | null>(null);
+  const soltarAlinhamento = useCallback(() => {
+    const a = alinharRef.current;
+    if (!a) return;
+    clearTimeout(a.prazo);
+    alinharRef.current = null;
+    try { ativoRef.current?.unMute?.(); } catch {}
+  }, []);
+  const comecarAlinhamento = useCallback((p: any, sourceId: string) => {
+    if (alinharRef.current) clearTimeout(alinharRef.current.prazo);
+    try { p?.mute?.(); } catch {}
+    alinharRef.current = { sourceId, saltou: false, prazo: setTimeout(() => soltarAlinhamento(), PRAZO_DO_ALINHAMENTO_MS) };
+  }, [soltarAlinhamento]);
   useEffect(() => {
     notaRef.current = usePlayer.getState().autoplayOnLoad ? { id: track.sourceId, em: Date.now() } : null;
   }, [track.sourceId]);
@@ -480,6 +519,32 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       if (passagemRef.current) terminarPassagem();
       return;
     }
+    // O primeiro som de uma faixa de um Jam (ver `alinharRef`): acerta-se com a
+    // sala ainda calado, e o som volta logo a seguir.
+    const alinhar = alinharRef.current;
+    if (alinhar && alinhar.sourceId === faixaRef.current.sourceId && estaNoVideo(event.target, alinhar.sourceId)) {
+      if (s === 1 && !alinhar.saltou) {
+        let motorMs: number | null = null;
+        try { motorMs = Number(event.target.getCurrentTime?.()) * 1000; } catch { motorMs = null; }
+        const para = acertoNoPrimeiroSom(posicaoNaSala(faixaRef.current), motorMs, TOLERANCIA_MS);
+        if (para != null) {
+          alinhar.saltou = true;
+          try { event.target.seekTo(para / 1000, true); } catch {}
+          registarNaFila(`${alinhar.sourceId}: Jam aligned on first sound (PC, muted) ${((motorMs ?? 0) / 1000).toFixed(2)}s -> ${(para / 1000).toFixed(2)}s`);
+          clearTimeout(alinhar.prazo);
+          alinhar.prazo = setTimeout(() => soltarAlinhamento(), SOM_DEPOIS_DO_ACERTO_MS);
+        } else {
+          soltarAlinhamento();
+        }
+      } else if (s === 3 && alinhar.saltou) {
+        // O salto foi para onde ainda não havia vídeo: o som espera que toque
+        // (e nunca mais do que o prazo), em vez de voltar a meio do carregar.
+        clearTimeout(alinhar.prazo);
+        alinhar.prazo = setTimeout(() => soltarAlinhamento(), PRAZO_DO_ALINHAMENTO_MS);
+      } else if (s === 1) {
+        soltarAlinhamento();
+      }
+    }
     if (s === 1 || s === 2) arrancouRef.current = true;
     // A tocar, em pausa ou em espera (5): o vídeo desta faixa está
     // carregado. Sem isto o `activeBackend` ficava em 'resolving' para
@@ -520,6 +585,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       largarSeguinte();
       return;
     }
+    soltarAlinhamento();
     // Códigos da IFrame API: 2 id inválido, 5 erro do player HTML5,
     // 100 vídeo removido/privado, 101/150 embed proibido pelo dono.
     // São números e não texto, por isso classificam-se sem adivinhar.
@@ -591,7 +657,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
               event.target.setPlaybackRate?.(velocidadeDoMotor());
             } catch {}
             const initialPos = usePlayer.getState().positionMs;
-            if (initialPos > 1500) {
+            const naSala = posicaoNaSala(faixaRef.current);
+            if (naSala != null) {
+              comecarAlinhamento(event.target, faixaRef.current.sourceId);
+              event.target.seekTo(naSala / 1000, true);
+            } else if (initialPos > 1500) {
               event.target.seekTo(initialPos / 1000, true);
             }
             if (usePlayer.getState().isPlaying) {
@@ -755,14 +825,24 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     const p = ativoRef.current;
     if (!p?.loadVideoById) return;
     state._setBuffering(true);
+    soltarAlinhamento();
     try { p.unMute?.(); p.setVolume?.(volumeParaOMotor(state.volume)); } catch {}
+    // Num Jam a tocar: já na posição da sala, e calada até ao primeiro som.
+    const naSala = posicaoNaSala(track);
+    if (naSala != null) {
+      comecarAlinhamento(p, track.sourceId);
+      try { p.loadVideoById({ videoId: track.sourceId, startSeconds: naSala / 1000 }); } catch {}
+      return;
+    }
     try { p.loadVideoById(track.sourceId); } catch {}
-  }, [track.sourceId, estrangular, largarSeguinte]);
+  }, [track.sourceId, estrangular, largarSeguinte, soltarAlinhamento, comecarAlinhamento]);
 
   const velocidadeEscolhida = usePlayer((s) => s.playbackRate);
   // Entrar e sair de um Jam também muda a velocidade do motor: a 1x lá dentro,
   // e de volta à escolhida à saída.
   const emJam = useOuvirJuntos((s) => !!s.sessao);
+  // Sair do Jam a meio de um arranque calado devolve o som logo.
+  useEffect(() => { if (!emJam) soltarAlinhamento(); }, [emJam, soltarAlinhamento]);
   const ritmoSeguido = useSeguirAmigo((s) => s.ritmo);
   const playbackRate = ritmoSeguido ?? velocidadeNaSessao(velocidadeEscolhida, emJam);
   useEffect(() => {

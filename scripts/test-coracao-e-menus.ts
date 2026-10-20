@@ -152,7 +152,10 @@ caso('as listas do iPhone abrem o compacto, com a capa e o coração em cima', (
 // do iPhone. Os outros corações (PC, conversas, folha do amigo, menu) ficam.
 caso('o motor do PC e o leitor do iPhone são os da 5.0.1', () => {
   const motor = ler('src/components/YouTubePlayerView.web.tsx');
-  assert.doesNotMatch(motor, /falhaSemCopia|geracaoDoMotor|comecarAlinhamento/);
+  // O resto da 5.1.x continua fora. O arranque calado da Jam (`comecarAlinhamento`)
+  // voltou a 20/10 a pedido do João (o estalo no início das músicas): é o
+  // `test-jam-store.ts` que o prende.
+  assert.doesNotMatch(motor, /falhaSemCopia|geracaoDoMotor/);
   // Mais o salto rápido (16/10, pedido do João): 6 s sem arrancar, salta; nunca
   // num Jam nem a seguir um amigo, e pára ao fim de alguns seguidos.
   assert.match(motor, /export const SEM_ARRANQUE_MS = 6000;/);

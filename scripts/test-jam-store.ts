@@ -138,8 +138,21 @@ assert.equal(acertoNoPrimeiroSom(2500, 2100, 600), null, 'dentro da tolerância:
 assert.equal(acertoNoPrimeiroSom(1000, 2100, 600), 1000, 'adiantado também se acerta');
 assert.equal(acertoNoPrimeiroSom(null, 2100, 600), null, 'sem relógio da sala não se salta');
 assert.equal(acertoNoPrimeiroSom(3400, NaN, 600), null, 'sem leitura do motor não se salta');
-// O motor do PC voltou ao da 5.0.1 a 16/10 (pedido do João): o alinhamento
-// calado ao primeiro som saiu com ele. A conta continua testada acima.
+// O motor do PC voltou ao da 5.0.1 a 16/10 e o alinhamento calado saiu com
+// ele; a 20/10 voltou (o João: "o início das músicas na jam dá um estalo e
+// avança um segundo"), com o som a esperar pelo vídeo depois do salto e a
+// voltar ao sair do Jam.
+{
+  const pc = readFileSync(new URL('../src/components/YouTubePlayerView.web.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  assert.match(pc, /p\.loadVideoById\(\{ videoId: track\.sourceId, startSeconds: naSala \/ 1000 \}\)/, 'carrega já na posição da sala');
+  assert.match(pc, /comecarAlinhamento\(p, track\.sourceId\);/, 'e calado');
+  assert.match(pc, /acertoNoPrimeiroSom\(posicaoNaSala\(faixaRef\.current\), motorMs, TOLERANCIA_MS\)/, 'acerta no primeiro som');
+  assert.match(pc, /PRAZO_DO_ALINHAMENTO_MS = 10_000/, 'nunca fica calado para sempre');
+  assert.match(pc, /soltarAlinhamento\(\);\n    try \{ p\.unMute/, 'outra faixa solta o alinhamento da anterior');
+  assert.match(pc, /else if \(s === 3 && alinhar\.saltou\)/, 'depois do salto, o som espera que o vídeo toque');
+  assert.match(pc, /if \(!emJam\) soltarAlinhamento\(\);/, 'sair do Jam devolve o som');
+  assert.match(pc, /return;\n    \}\n    soltarAlinhamento\(\);\n    \/\/ Códigos da IFrame API/, 'um erro devolve o som');
+}
 let vigente = true;
 const porta = { player: usePlayer.getState, vigente: () => vigente,
   posicaoAgora: () => 42000, guardarRetoma: (ms: number) => usePlayer.setState({ resumePositionMs: ms }) };
