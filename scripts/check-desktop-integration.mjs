@@ -283,6 +283,9 @@ assert.equal(captura.retomasDaProcura, 2, 'Focar a janela principal antecipa a p
 assert.equal(await handlers.get('atualizacao:procurar')({ sender: {}, senderFrame: {} }), null);
 assert.equal(captura.pedidosDeAtualizacao, undefined, 'Um remetente inválido não pede o manifesto');
 assert.equal((await handlers.get('atualizacao:procurar')(evento())).estado, 'atual');
+// O About pergunta onde vai o download (20/10): só a janela principal, e sem download nada.
+assert.equal(await handlers.get('atualizacao:descarga')({ sender: {}, senderFrame: {} }), null);
+assert.equal(await handlers.get('atualizacao:descarga')(evento()), null);
 assert.equal(captura.pedidosDeAtualizacao, 1, 'O About continua ligado à mesma procura real');
 events.get('before-quit')();
 assert.equal(captura.procuraParada, true);

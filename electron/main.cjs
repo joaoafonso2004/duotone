@@ -1700,6 +1700,17 @@ async function instalarPendenteAoAbrir() {
 }
 
 let procuraEmCurso = null;
+/**
+ * O download em curso, para o About (20/10): { versao, fracao } enquanto
+ * descarrega, null quando acaba. A procura e o download são a mesma operação, e
+ * o About ficava em "Checking for updates…" o download inteiro (~116 MB).
+ */
+let estadoDaDescarga = null;
+function avisarDescarga() {
+  try {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('atualizacao:descarga', estadoDaDescarga);
+  } catch { /* a janela fechou a meio */ }
+}
 /** Em segundo plano: 'atual' | 'pronta' | 'desistiu' | 'erro', e a versão. */
 function procurarAtualizacao() {
   if (!app.isPackaged || process.platform !== 'win32') return Promise.resolve({ estado: 'atual' });
@@ -1724,7 +1735,12 @@ function procurarAtualizacao() {
         return { estado: pendente && pendente.desistiu && pendente.versao === alvo.versao ? 'desistiu' : 'pronta', versao: alvo.versao };
       }
       fs.mkdirSync(pastaDaAtualizacao(), { recursive: true });
-      await atualizacao.descarregar({ fetch: (u, opcoes) => net.fetch(u, opcoes), url: alvo.url, destino: instalador, tamanho: alvo.tamanho, fs });
+      estadoDaDescarga = { versao: alvo.versao, fracao: 0 };
+      avisarDescarga();
+      await atualizacao.descarregar({
+        fetch: (u, opcoes) => net.fetch(u, opcoes), url: alvo.url, destino: instalador, tamanho: alvo.tamanho, fs,
+        aoProgresso: (fracao) => { estadoDaDescarga = { versao: alvo.versao, fracao }; avisarDescarga(); },
+      });
       apagarInstaladores(instalador);
       gravarPendente({ versao: alvo.versao, caminho: instalador, tamanho: alvo.tamanho, tentativas: 0 });
       return { estado: 'pronta', versao: alvo.versao };
@@ -1732,6 +1748,7 @@ function procurarAtualizacao() {
       console.warn('[atualizacao] procura em segundo plano falhou', erro);
       return { estado: 'erro' };
     } finally {
+      if (estadoDaDescarga) { estadoDaDescarga = null; avisarDescarga(); }
       setTimeout(() => { procuraEmCurso = null; }, 0);
     }
   })();
@@ -1754,6 +1771,8 @@ function iniciarProcuraDeAtualizacoes() {
 }
 ipcMain.handle('atualizacao:procurar', (event) => (daJanelaPrincipal(event)
   ? (procuraAutomatica ? procuraAutomatica.verificar() : procurarAtualizacao()) : null));
+// O About aberto a meio de um download pergunta onde vai.
+ipcMain.handle('atualizacao:descarga', (event) => (daJanelaPrincipal(event) ? estadoDaDescarga : null));
 
 ipcMain.on('window:minimize', (event) => { if (daJanelaPrincipal(event)) mainWindow.minimize(); });
 ipcMain.on('window:toggle-maximize', (event) => {

@@ -186,6 +186,7 @@ const TESTES = [
   `${TS} scripts/test-letra-minima.ts`,
   `${TS} scripts/test-escalas.ts`,
   `${TS} scripts/test-estados-dos-controlos.ts`,
+  `${TS} scripts/test-rotulo-da-atualizacao.ts`,
   `${TS} scripts/test-separadores-a-montar.ts`,
   `${TS} scripts/test-processamento-do-audio.ts`,
   `${TS} scripts/test-aviso-de-remocao.ts`,

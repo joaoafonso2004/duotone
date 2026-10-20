@@ -131,6 +131,9 @@ declare global {
       procurarAtualizacao?: () => Promise<{ estado: 'atual' | 'pronta' | 'desistiu' | 'erro'; versao?: string } | null>;
       /** O progresso do download, de 0 a 1. Devolve o cancelamento. */
       onProgressoDaAtualizacao?: (listener: (progresso: number) => void) => () => void;
+      /** O download da procura automática (20/10): onde vai, ou null quando acaba. */
+      descargaDaAtualizacao?: () => Promise<{ versao: string; fracao: number } | null>;
+      onDescargaDaAtualizacao?: (listener: (descarga: { versao: string; fracao: number } | null) => void) => () => void;
       /** F11 e Esc, apanhados pelo processo principal (o iframe do YouTube
        *  engole as teclas quando tem o foco). Devolve o cancelamento. */
       onTeclaDoModoLimpo?(listener: (tecla: string) => void): () => void;

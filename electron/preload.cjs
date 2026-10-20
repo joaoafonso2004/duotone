@@ -110,6 +110,15 @@ contextBridge.exposeInMainWorld('duotoneDesktop', Object.freeze({
   atualizacaoAutomatica: true,
   /** Procura agora (o "Check for updates"): 'atual' | 'pronta' | 'desistiu' | 'erro'. */
   procurarAtualizacao: () => ipcRenderer.invoke('atualizacao:procurar'),
+  /** O download da procura automática, para o About: { versao, fracao } a
+   * descarregar, null quando acaba (20/10). */
+  descargaDaAtualizacao: () => ipcRenderer.invoke('atualizacao:descarga'),
+  onDescargaDaAtualizacao: (listener) => {
+    const handler = (_event, d) => listener(d && typeof d === 'object'
+      ? { versao: String(d.versao), fracao: Math.max(0, Math.min(1, Number(d.fracao) || 0)) } : null);
+    ipcRenderer.on('atualizacao:descarga', handler);
+    return () => ipcRenderer.removeListener('atualizacao:descarga', handler);
+  },
   /** O progresso do download, de 0 a 1. */
   onProgressoDaAtualizacao: (listener) => {
     const handler = (_event, progresso) => listener(Math.max(0, Math.min(1, Number(progresso) || 0)));

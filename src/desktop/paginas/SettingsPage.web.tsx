@@ -56,6 +56,7 @@ import { getLibrary } from '../../api/library';
 import { resumoDoVarrimento, varrerCatalogo } from '../../state/catalogoDeFaixas';
 import { useConnectivity } from '../../state/connectivity';
 import type { NavegarFn } from '../rotas';
+import { lerDescarga, rotuloDaProcuraDeAtualizacoes, type DescargaDaAtualizacao } from '../../lib/rotuloDaAtualizacao';
 
 export function SettingsPage({ notify, navigate }: { notify: (s: string) => void; navigate: NavegarFn }) {
   // O painel de saúde (7/10): a entrada só aparece na conta de quem gere a app.
@@ -147,6 +148,18 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   };
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [update, setUpdate] = useState<{ version: string } | null>(null);
+  // O download da versão nova, a andar (20/10): a procura e o download são a
+  // mesma operação, e sem isto a linha ficava em "Checking for updates…" os
+  // minutos todos do download. Pergunta-se ao abrir (pode já ir a meio).
+  const [descarga, setDescarga] = useState<DescargaDaAtualizacao | null>(null);
+  useEffect(() => {
+    const ponte = window.duotoneDesktop;
+    if (!ponte?.onDescargaDaAtualizacao) return;
+    let vivo = true;
+    void ponte.descargaDaAtualizacao?.().then((d) => { if (vivo) setDescarga(lerDescarga(d)); }).catch(() => {});
+    const largar = ponte.onDescargaDaAtualizacao((d) => setDescarga(lerDescarga(d)));
+    return () => { vivo = false; largar(); };
+  }, []);
 
   const [glitch, setGlitch] = useState<GlitchMode>('reactive');
   const [effectIntensity, setEffectIntensityState] = useState<EffectIntensity>('normal');
@@ -493,7 +506,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                 <SettingLine label={ROTULOS.versao} value={APP_VERSION} />
                 {window.duotoneDesktop?.atualizacaoAutomatica ? <Text style={[styles.settingDescription, { paddingHorizontal: 17, paddingBottom: 10, marginTop: 0 }]}>Updates download by themselves and install the next time Duotone opens.</Text> : null}
                 <SettingAction
-                  label={update ? `${instalaNaApp ? 'Update to' : 'Download'} Duotone ${update.version}` : checkingUpdate ? 'Checking for updates…' : 'Check for updates'}
+                  label={rotuloDaProcuraDeAtualizacoes({ descarga, versaoNova: update?.version ?? null, instalaNaApp, aProcurar: checkingUpdate })}
                   onPress={() => { if (!checkingUpdate) void checkForUpdates(); }}
                 />
                 <SettingAction label="Save playback report" description="If a song won't play, or Duotone feels heavy, send this so it can be fixed." onPress={() => { notify('Preparing the report…'); void exportarRelatorio(); }} />
