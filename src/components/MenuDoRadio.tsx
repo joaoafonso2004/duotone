@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.borderStrong,
   },
   linha: { height: ALTURA_DA_LINHA, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md },
-  capa: { width: 40, height: 40, borderRadius: 6, backgroundColor: colors.surfaceHigh, overflow: 'hidden' },
+  capa: { width: 40, height: 40, borderRadius: radii.sm, backgroundColor: colors.surfaceHigh, overflow: 'hidden' },
   quadrado: { flexDirection: 'row', flexWrap: 'wrap' },
   quarto: { width: 20, height: 20 },
   semCapas: { alignItems: 'center', justifyContent: 'center' },

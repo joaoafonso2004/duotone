@@ -9,7 +9,7 @@ import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { FilaDoLeitor } from './FilaDoLeitor.web';
 import { Artwork, Empty } from './ui.web';
-import { COR, ESP, FONT } from './tokens.web';
+import { COR, ESP, FONT, TIPO } from './tokens.web';
 import type { CommonPageProps } from './rotas';
 import { usePainelDoLeitor, type AbaDoPainel as Aba } from './estadoDoPainel.web';
 
@@ -213,5 +213,5 @@ const s = StyleSheet.create({
   rotulo: { fontFamily: FONT.body, color: COR.textoFraco, fontSize: 11, marginVertical: ESP.sm },
   faixaAtual: { flexDirection: 'row', gap: ESP.sm, alignItems: 'center', padding: ESP.sm, borderRadius: 8, backgroundColor: COR.elevado },
   titulo: { fontFamily: FONT.body, color: COR.texto, fontSize: 13, fontWeight: '600' },
-  artista: { fontFamily: FONT.body, color: COR.textoFraco, fontSize: 11.5, marginTop: 2 },
+  artista: { ...TIPO.legenda, color: COR.textoFraco, marginTop: 2 },
 });

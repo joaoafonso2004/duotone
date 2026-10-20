@@ -356,7 +356,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg, borderCurve: 'continuous', backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
   },
-  capa: { width: 52, height: 52, borderRadius: 6, backgroundColor: colors.surfacePressed, overflow: 'hidden' },
+  capa: { width: 52, height: 52, borderRadius: radii.sm, backgroundColor: colors.surfacePressed, overflow: 'hidden' },
   mosaico: { flexDirection: 'row', flexWrap: 'wrap' },
   semCapa: { alignItems: 'center', justifyContent: 'center' },
   tipo: { fontSize: 11, fontWeight: '700', letterSpacing: 1.2, color: colors.textTertiary },

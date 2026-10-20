@@ -15,7 +15,7 @@ import { haQuantoTempo } from '../lib/social';
 import { ordenarConversas, CONVERSAS_PARA_PESQUISAR } from '../lib/ordemDasConversas';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
-import { colors } from './socialTokens';
+import { colors, radii } from './socialTokens';
 import { ESCALA_MAXIMA } from '../theme';
 import { AvatarDeConversa, SocialIconButton } from './socialUI';
 import { GroupAvatar } from './GroupChat';
@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
   root: { gap: 24 }, section: { gap: 12 },
   sectionTitle: { fontSize: 13, fontWeight: '500', color: colors.textSecondary },
   shelf: { gap: 8, paddingBottom: 2 }, activityCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 8, gap: 4, minHeight: 140 },
-  artwork: { width: 44, height: 44, borderRadius: 7, marginBottom: 5 }, noArtwork: { backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
+  artwork: { width: 44, height: 44, borderRadius: radii.sm, marginBottom: 5 }, noArtwork: { backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
   cardName: { color: colors.text, fontSize: 12, fontWeight: '600' }, cardTitle: { color: colors.text, fontSize: 12 },
   cardArtist: { color: colors.textSecondary, fontSize: 11 }, activityStatus: { marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
   listeningDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.online },

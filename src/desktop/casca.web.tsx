@@ -173,13 +173,13 @@ export function injectDesktopDocumentStyles() {
     .np-fila-linha:hover { background-color: ${COR.hover}; }
     .np-fila-linha:active { cursor: grabbing; }
     /* A capa da linha mostra o ▶ ao passar o rato; a pega e o "…" aparecem. */
-    .np-fila-capa { position: relative; flex: none; border-radius: 5px; overflow: hidden; }
+    .np-fila-capa { position: relative; flex: none; border-radius: ${RAIO.ctrl}px; overflow: hidden; }
     .np-fila-tocar { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
       background: rgba(0,0,0,.5); opacity: 0; transition: opacity var(--dt-rapido) var(--dt-curva); }
     .np-fila-linha:hover .np-fila-tocar { opacity: 1; }
     .np-fila-pega, .np-fila-mais { opacity: 0; transition: opacity var(--dt-rapido) var(--dt-curva); display: flex; }
     .np-fila-linha:hover .np-fila-pega, .np-fila-linha:hover .np-fila-mais, .np-fila-pega-viva { opacity: 1; }
-    .np-fila-mais { background: none; border: 0; padding: 6px; border-radius: 6px; cursor: pointer; }
+    .np-fila-mais { background: none; border: 0; padding: 6px; border-radius: ${RAIO.cartao}px; cursor: pointer; }
     .np-fila-mais:hover { background: ${COR.hover}; }
     .np-fila-mais:focus-visible { opacity: 1; outline: 2px solid ${COR.texto}; }
     [data-dt~="painel-do-leitor"] { transition: transform 240ms cubic-bezier(.22,1,.36,1); will-change: transform; }

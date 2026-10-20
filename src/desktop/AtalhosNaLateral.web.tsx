@@ -15,7 +15,7 @@ import { usePlayer } from '../state/player';
 import { useSocial } from '../state/social';
 import type { Playlist, Track } from '../types';
 import type { Route } from './rotas';
-import { COR, ESP, FONT, TIPO } from './tokens.web';
+import { COR, ESP, FONT, RAIO, TIPO } from './tokens.web';
 import { Dialog, Field, IconButton, marcar } from './ui.web';
 
 // Sem tipos instalados para o react-dom; só se usa o portal.
@@ -59,16 +59,16 @@ export function AtalhosNaLateral({ navigate }: { navigate: (r: Route) => void })
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: ESP.sm, paddingBottom: ESP.sm }}>
         <Text style={{ ...TIPO.micro, color: COR.textoFraco }}>PINNED</Text>
         <Pressable accessibilityRole="button" accessibilityLabel="Pin something" onPress={() => setEscolher(true)}
-          style={({ hovered }: any) => ({ width: 22, height: 22, borderRadius: 6, alignItems: 'center', justifyContent: 'center', backgroundColor: hovered ? COR.hover : 'transparent' })}>
+          style={({ hovered }: any) => ({ width: 22, height: 22, borderRadius: RAIO.cartao, alignItems: 'center', justifyContent: 'center', backgroundColor: hovered ? COR.hover : 'transparent' })}>
           <Ionicons name="add" size={16} color={COR.textoMedio} />
         </Pressable>
       </View>
       {lista.length === 0 ? (
         carregados ? (
           <Pressable onPress={() => setEscolher(true)} {...marcar('amigo')}
-            style={{ marginHorizontal: ESP.xs, borderRadius: 10, borderWidth: 1, borderStyle: 'dashed', borderColor: COR.linha, paddingVertical: 16, paddingHorizontal: 14, alignItems: 'center', gap: 6 }}>
+            style={{ marginHorizontal: ESP.xs, borderRadius: RAIO.cartao, borderWidth: 1, borderStyle: 'dashed', borderColor: COR.linha, paddingVertical: 16, paddingHorizontal: 14, alignItems: 'center', gap: 6 }}>
             <Ionicons name="pin-outline" size={17} color={COR.textoFraco} />
-            <Text style={{ fontFamily: FONT.body, fontSize: 11.5, lineHeight: 16, color: COR.textoFraco, textAlign: 'center' }}>
+            <Text style={{ ...TIPO.legenda, lineHeight: 16, color: COR.textoFraco, textAlign: 'center' }}>
               Pin playlists, songs, artists and friends here
             </Text>
           </Pressable>
@@ -83,7 +83,7 @@ export function AtalhosNaLateral({ navigate }: { navigate: (r: Route) => void })
               <Miniatura a={a} online={a.tipo === 'amigo' && online.has(a.id)} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text numberOfLines={1} style={{ fontFamily: FONT.body, fontSize: 13, fontWeight: '600', color: COR.texto }}>{nomeDoAtalho(a)}</Text>
-                <Text numberOfLines={1} style={{ fontFamily: FONT.body, fontSize: 11.5, marginTop: 1, color: COR.textoFraco }}>{subtituloDoAtalho(a, online)}</Text>
+                <Text numberOfLines={1} style={{ ...TIPO.legenda, marginTop: 1, color: COR.textoFraco }}>{subtituloDoAtalho(a, online)}</Text>
               </View>
               <Pressable {...marcar('atalho-tirar')} accessibilityRole="button" accessibilityLabel={`Unpin ${nomeDoAtalho(a)}`}
                 onPress={(e: any) => { e?.stopPropagation?.(); useAtalhosDaLateral.getState().tirar(chaveDoAtalho(a)); }}
@@ -172,7 +172,7 @@ function Miniatura({ a, online }: { a: Atalho; online: boolean }) {
     </View>;
   }
   if (a.tipo === 'mistura-do-dia') {
-    return <View style={{ width: 32, height: 32, borderRadius: 6, alignItems: 'center', justifyContent: 'center', backgroundColor: COR.elevado }}>
+    return <View style={{ width: 32, height: 32, borderRadius: RAIO.ctrl, alignItems: 'center', justifyContent: 'center', backgroundColor: COR.elevado }}>
       <Ionicons name="sparkles" size={15} color={COR.texto} />
     </View>;
   }
@@ -276,8 +276,8 @@ function EscolherAtalho({ aberto, aoFechar }: { aberto: boolean; aoFechar: () =>
               style={({ hovered }: any) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 7, paddingHorizontal: ESP.sm, borderRadius: 8, backgroundColor: hovered ? COR.hover : 'transparent' })}>
               <Miniatura a={a} online={false} />
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text numberOfLines={1} style={{ fontFamily: FONT.body, fontSize: 13.5, fontWeight: '600', color: COR.texto }}>{nomeDoAtalho(a)}</Text>
-                <Text numberOfLines={1} style={{ fontFamily: FONT.body, fontSize: 11.5, marginTop: 1, color: COR.textoFraco }}>{subtituloDoAtalho(a, new Set())}</Text>
+                <Text numberOfLines={1} style={{ ...TIPO.corpo, fontWeight: '600', color: COR.texto }}>{nomeDoAtalho(a)}</Text>
+                <Text numberOfLines={1} style={{ ...TIPO.legenda, marginTop: 1, color: COR.textoFraco }}>{subtituloDoAtalho(a, new Set())}</Text>
               </View>
               <View style={{ width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: fixado ? COR.texto : 'transparent', borderWidth: fixado ? 0 : 1, borderColor: COR.linha }}>
                 <Ionicons name={fixado ? 'checkmark' : 'pin-outline'} size={14} color={fixado ? COR.fundo : COR.textoMedio} />

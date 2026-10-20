@@ -194,8 +194,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.bg,
   },
-  estado: { fontSize: 12.5, color: colors.textSecondary, marginTop: 1 },
-  aOuvir: { fontSize: 12.5, fontWeight: '600', marginTop: 1 },
+  estado: { fontSize: type.caption.fontSize, color: colors.textSecondary, marginTop: 1 },
+  aOuvir: { fontSize: type.caption.fontSize, fontWeight: '600', marginTop: 1 },
   anel: { borderRadius: 20, borderWidth: 2, borderColor: 'transparent', padding: 1 },
 
   marca: {
@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
     minWidth: 230,
   },
   faixaMinha: {},
-  capa: { width: 52, height: 52, borderRadius: 9, borderCurve: 'continuous' },
+  capa: { width: 52, height: 52, borderRadius: radii.sm, borderCurve: 'continuous' },
   semCapa: {
     alignItems: 'center',
     justifyContent: 'center',

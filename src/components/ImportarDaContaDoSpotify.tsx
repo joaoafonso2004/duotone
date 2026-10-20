@@ -131,6 +131,6 @@ const estilos = StyleSheet.create({
   },
   cabecalho: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.xs },
   linha: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.xs, borderRadius: radii.md, borderCurve: 'continuous' },
-  capa: { width: 44, height: 44, borderRadius: 6, borderCurve: 'continuous', backgroundColor: colors.surfaceHigh },
+  capa: { width: 44, height: 44, borderRadius: radii.sm, borderCurve: 'continuous', backgroundColor: colors.surfaceHigh },
   capaGostadas: { alignItems: 'center', justifyContent: 'center' },
 });

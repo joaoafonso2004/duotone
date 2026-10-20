@@ -3,7 +3,7 @@ import React, { useEffect } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { frasesDaImportacao } from '../lib/frasesDaImportacao';
 import { importacaoEmDestaque, useImportacoes } from '../state/importacoes';
-import { COR, ESP, FONT } from './tokens.web';
+import { COR, ESP, RAIO, TIPO } from './tokens.web';
 
 const FEITA_MS = 8000;
 
@@ -25,12 +25,12 @@ export function ProgressoDaImportacao() {
   const { titulo, linha, fracao } = frasesDaImportacao(imp, lista.filter((i) => i.estado === 'na-fila').length);
   return (
     <View accessibilityRole="progressbar" accessibilityLabel={`${titulo}. ${linha}`}
-      style={{ marginHorizontal: ESP.md, marginTop: ESP.sm, padding: ESP.md, borderRadius: 10, backgroundColor: 'rgba(233,234,238,0.04)', gap: 8 }}>
+      style={{ marginHorizontal: ESP.md, marginTop: ESP.sm, padding: ESP.md, borderRadius: RAIO.cartao, backgroundColor: 'rgba(233,234,238,0.04)', gap: 8 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
         <Ionicons name={imp.estado === 'falhou' ? 'alert-circle-outline' : acabou ? 'checkmark-circle' : 'cloud-download-outline'} size={16} color={COR.textoMedio} />
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text numberOfLines={1} style={{ fontFamily: FONT.body, fontSize: 12.5, fontWeight: '600', color: COR.texto }}>{titulo}</Text>
-          <Text numberOfLines={1} style={{ fontFamily: FONT.body, fontSize: 11.5, color: COR.textoFraco, marginTop: 1 }}>{linha}</Text>
+          <Text numberOfLines={1} style={{ ...TIPO.legenda, fontWeight: '600', color: COR.texto }}>{titulo}</Text>
+          <Text numberOfLines={1} style={{ ...TIPO.legenda, color: COR.textoFraco, marginTop: 1 }}>{linha}</Text>
         </View>
         {acabou ? (
           <Pressable accessibilityLabel="Dismiss" onPress={() => useImportacoes.getState().dispensar(imp.id)} hitSlop={8}>

@@ -1,7 +1,7 @@
 import React from 'react';
 import {Pressable,Text,View} from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import {colors,radii} from './socialTokens';
+import {colors,radii,type} from './socialTokens';
 import {socialStyles as s} from './socialUI';
 
 /**
@@ -25,7 +25,7 @@ export function CitacaoDaResposta({autor,excerto,accent,onPress}:{
       ?<Text style={[s.muted,{fontSize:12,fontStyle:'italic'}]}>Original message unavailable</Text>
       :<>
         <Text numberOfLines={1} style={{color:accent,fontSize:12,fontWeight:'600'}}>{autor}</Text>
-        <Text numberOfLines={2} style={[s.muted,{fontSize:12.5}]}>{excerto}</Text>
+        <Text numberOfLines={2} style={[s.muted,{fontSize:type.caption.fontSize}]}>{excerto}</Text>
       </>}
   </Pressable>;
 }
@@ -39,7 +39,7 @@ export function BarraDeResposta({titulo,excerto,accent,onCancelar}:{
     <Ionicons name="arrow-undo" size={16} color={accent}/>
     <View style={{flex:1,minWidth:0}}>
       <Text numberOfLines={1} style={{color:accent,fontSize:12,fontWeight:'600'}}>{titulo}</Text>
-      <Text numberOfLines={1} style={[s.muted,{fontSize:12.5}]}>{excerto}</Text>
+      <Text numberOfLines={1} style={[s.muted,{fontSize:type.caption.fontSize}]}>{excerto}</Text>
     </View>
     <Pressable accessibilityRole="button" accessibilityLabel="Cancel reply" hitSlop={10} onPress={onCancelar}
       style={({pressed}:any)=>({padding:4,opacity:pressed?0.6:1})}>

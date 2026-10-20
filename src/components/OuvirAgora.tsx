@@ -11,7 +11,7 @@ import { ESCALA } from '../lib/movimento';
 import { jamsDosAmigos } from '../state/jamsDosAmigos';
 import { ouvirComAmigo } from '../state/ouvirComAmigo';
 import { useTheme } from '../state/theme';
-import { colors, spacing } from '../theme';
+import { colors, radii, spacing } from '../theme';
 import { AmigosAOuvir } from './AmigosAOuvir';
 import { Toque } from './Toque';
 
@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md,
     borderRadius: 18, borderCurve: 'continuous', borderWidth: 1, borderColor: colors.border,
   },
-  jamCapa: { width: 48, height: 48, borderRadius: 10, backgroundColor: colors.surfaceHigh },
+  jamCapa: { width: 48, height: 48, borderRadius: radii.sm, backgroundColor: colors.surfaceHigh },
   jamQuem: { fontSize: 15, fontWeight: '700', color: colors.text },
   jamFaixa: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
   entrar: { height: 34, paddingHorizontal: spacing.lg, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },

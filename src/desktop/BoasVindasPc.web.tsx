@@ -4,7 +4,7 @@ import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { useBoasVindas } from '../state/boasVindas';
 import { usePassosDasBoasVindas } from '../state/passosDasBoasVindas';
-import { COR, ESP, FONT } from './tokens.web';
+import { COR, ESP, FONT, RAIO, TIPO } from './tokens.web';
 import { Artwork, Button, Field } from './ui.web';
 
 /**
@@ -176,9 +176,9 @@ const s = StyleSheet.create({
   fonteNome: { fontFamily: FONT.body, fontSize: 15, fontWeight: '600', color: COR.texto },
   fonteDica: { fontFamily: FONT.body, fontSize: 12, color: COR.textoMedio, marginTop: 2 },
   erro: { fontFamily: FONT.body, fontSize: 13, color: COR.erro },
-  achada: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: COR.linha },
+  achada: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: RAIO.cartao, borderWidth: 1, borderColor: COR.linha },
   achadaTexto: { fontFamily: FONT.body, fontSize: 13, color: COR.texto },
-  dica: { fontFamily: FONT.body, fontSize: 12.5, lineHeight: 19, color: COR.textoFraco },
+  dica: { ...TIPO.legenda, lineHeight: 19, color: COR.textoFraco },
   grelha: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 4 },
   artista: { width: 104, alignItems: 'center', gap: 7, cursor: 'pointer' } as any,
   cara: { width: 92, height: 92, borderRadius: 46, borderWidth: 2, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center', backgroundColor: COR.elevado },

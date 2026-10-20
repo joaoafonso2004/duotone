@@ -380,7 +380,7 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef}:{userId:
               <View style={{width:92,height:92,borderRadius:46,overflow:'hidden',backgroundColor:colors.surface,alignItems:'center',justifyContent:'center'}}>
                 {a.capa?<Image source={{uri:capaParaLista(a.capa)!}} style={{width:92,height:92}}/>:<Ionicons name="person" size={30} color={colors.textSecondary}/>}
               </View>
-              <Text numberOfLines={1} style={[s.text,{fontSize:13.5,fontWeight:'600',marginTop:8,textAlign:'center'}]}>{a.nome}</Text>
+              <Text numberOfLines={1} style={[s.text,{fontSize:14,fontWeight:'600',marginTop:8,textAlign:'center'}]}>{a.nome}</Text>
             </Pressable>),16)}
           </View>
           <View style={{gap:4}}>

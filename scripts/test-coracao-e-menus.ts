@@ -167,7 +167,8 @@ caso('o motor do PC e o leitor do iPhone são os da 5.0.1', () => {
 console.log('\nW3, W5, I5 e o EQ (16/10, docs/ui-seguinte.html)');
 caso('W3: as Definições do PC leem-se sem chegar a cabeça ao ecrã', () => {
   const e = ler('src/desktop/estilos.web.ts');
-  assert.match(e, /settingLabel: \{[^}]*fontSize: 13\.5/);
+  // Era 13,5 px; desde 20/10 (revisão de qualidade, B1) é o degrau do corpo, 14.
+  assert.match(e, /settingLabel: \{ \.\.\.TIPO\.corpo,/);
   assert.match(e, /settingDescription: \{[^}]*fontSize: 12/);
   assert.match(e, /smallSegmentText: \{[^}]*fontSize: 11/);
 });

@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useMemo, useRef, useState } from 'react';
 import { Animated, PanResponder, StyleSheet, Text, View } from 'react-native';
 import { hapticNotification } from '../lib/haptics';
-import { colors } from '../theme';
+import { colors, radii } from '../theme';
 import { pedirFluidez } from '../state/fluidez';
 
 /** Quanto é preciso puxar para a esquerda para tirar a linha. */
@@ -72,7 +72,7 @@ export function DeslizarParaTirar({ ativo, aoTirar, children }: {
 const styles = StyleSheet.create({
   fundo: {
     position: 'absolute', top: 0, left: 0, bottom: 0, backgroundColor: colors.danger, flexDirection: 'row',
-    alignItems: 'center', justifyContent: 'flex-start', gap: 6, paddingLeft: 18, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'flex-start', gap: 6, paddingLeft: 18, borderRadius: radii.md,
   },
   texto: { color: '#fff', fontSize: 13, fontWeight: '700' },
 });

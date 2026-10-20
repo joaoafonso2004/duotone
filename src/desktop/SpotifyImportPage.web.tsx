@@ -16,7 +16,7 @@ import {
 import type { Playlist, Track } from '../types';
 import { SpotifyReview } from './SpotifyReview.web';
 import { BotaoVoltar, Button, ContentScroll, Field, Page } from './ui.web';
-import { COR } from './tokens.web';
+import { COR, RAIO } from './tokens.web';
 
 /**
  * Importação de playlists do Spotify — só no desktop.
@@ -502,7 +502,7 @@ function Choice({
 
 const s = StyleSheet.create({
   panel: { padding: 24, gap: 14, backgroundColor: COR.painel, borderRadius: 14, borderWidth: 1, borderColor: COR.linha },
-  hint: { flexDirection: 'row', gap: 10, padding: 14, borderRadius: 10, backgroundColor: COR.metalSuave },
+  hint: { flexDirection: 'row', gap: 10, padding: 14, borderRadius: RAIO.cartao, backgroundColor: COR.metalSuave },
   brand: { width: 18, height: 18, marginTop: 1 },
   drop: { alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 26, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', borderColor: COR.linha, backgroundColor: COR.fundo },
   dropText: { color: COR.textoMedio, fontSize: 13 },
@@ -521,10 +521,10 @@ const s = StyleSheet.create({
   stat: { gap: 2 },
   statValue: { fontSize: 26, fontWeight: '800' },
   statLabel: { color: COR.textoFraco, fontSize: 11, letterSpacing: 0.6 },
-  list: { gap: 4, padding: 12, borderRadius: 10, backgroundColor: COR.elevado },
+  list: { gap: 4, padding: 12, borderRadius: RAIO.cartao, backgroundColor: COR.elevado },
   listItem: { color: COR.textoMedio, fontSize: 12 },
   dest: { gap: 8 },
-  choice: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: COR.linha },
+  choice: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: RAIO.cartao, borderWidth: 1, borderColor: COR.linha },
   choiceText: { color: COR.texto, fontSize: 13 },
   indent: { marginLeft: 20, maxWidth: 420 },
 });

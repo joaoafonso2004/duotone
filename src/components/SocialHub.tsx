@@ -21,7 +21,7 @@ import { ultimaAtividade } from '../lib/socialPresence';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { supabase } from '../lib/supabase';
 import { FriendAvatar } from './FriendAvatar';
-import { colors, SOCIAL_GUTTER } from './socialTokens';
+import { colors, SOCIAL_GUTTER, type } from './socialTokens';
 import { useSocialBottomPadding } from './useSocialBottomPadding';
 import { useTheme } from '../state/theme';
 import { SocialButton,SocialModal,SocialIconButton,socialStyles as s } from './socialUI';
@@ -339,7 +339,7 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
   // mensagem recebida. Numa conversa a dois so ha duas pessoas -- e o lado do
   // balao ja diz quem falou. Fica uma vez, com a cara e o estado.
   const estiloDoSeparador={alignSelf:'center' as const,fontSize:12,fontWeight:'600' as const,color:colors.textTertiary,marginBottom:8,marginTop:4};
-  const estiloDeSistema={fontSize:12.5,fontWeight:'600' as const,color:colors.textTertiary,textAlign:'center' as const};
+  const estiloDeSistema={fontSize:type.caption.fontSize,fontWeight:'600' as const,color:colors.textTertiary,textAlign:'center' as const};
   const amigoHeader=friend?<CabecalhoDoAmigo
     nome={friend.name} avatarUrl={friend.avatarUrl}
     estado={friend.online?'Online now':ultimaAtividade(friend.lastSeenAt,social.now)}

@@ -45,7 +45,7 @@ const { SocialOverview } = load('src/components/SocialOverview.web.tsx', {
   'expo-image': { Image: 'Image' }, '@expo/vector-icons/Ionicons': 'Icon', '../lib/socialActivity': core,
   '../lib/socialPresence': { ultimaAtividade: () => 'Last seen' }, '../lib/social': { haQuantoTempo: () => 'now' },
   '../lib/ordemDasConversas': load('src/lib/ordemDasConversas.ts'), '../lib/artistName': { tituloDaFaixa: t => t.title, displayArtist: t => t.artist },
-  '../lib/capaDoEcraBloqueado': { capaParaLista: x => x }, './socialTokens': { colors: {} }, '../theme': { ESCALA_MAXIMA: { lista: 1.4 } },
+  '../lib/capaDoEcraBloqueado': { capaParaLista: x => x }, './socialTokens': { colors: {}, radii: {} }, '../theme': { ESCALA_MAXIMA: { lista: 1.4 } },
   './socialUI': { AvatarDeConversa: 'Avatar', SocialIconButton: 'ChatButton' }, './GroupChat': { GroupAvatar: 'GroupAvatar' },
 });
 const opened = [], profiles = [], songs = [];

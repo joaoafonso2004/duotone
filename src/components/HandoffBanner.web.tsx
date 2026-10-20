@@ -6,7 +6,7 @@ import { deviceLabel, resumoDaFila } from '../lib/handoff';
 import { mandarComando } from '../lib/connectSync';
 import { avisoDoPedido, estaAcordado, type TipoDePedido } from '../lib/duotoneConnect';
 import { useHandoffSession } from '../lib/sessionSync';
-import { COR } from '../desktop/tokens.web';
+import { COR, RAIO } from '../desktop/tokens.web';
 import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
 
@@ -162,7 +162,7 @@ const s = StyleSheet.create({
     left: 24,
     bottom: 96,
     zIndex: 30,
-    borderRadius: 10,
+    borderRadius: RAIO.cartao,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: COR.linha,
@@ -171,7 +171,7 @@ const s = StyleSheet.create({
   } as any,
   card: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 10, paddingHorizontal: 12 },
   iconWrap: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  art: { width: 38, height: 38, borderRadius: 6, backgroundColor: COR.elevado },
+  art: { width: 38, height: 38, borderRadius: RAIO.ctrl, backgroundColor: COR.elevado },
   texts: { minWidth: 170, maxWidth: 280 },
   eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   aoVivo: { width: 6, height: 6, borderRadius: 3 },
@@ -185,8 +185,8 @@ const s = StyleSheet.create({
   // A cor vem do tema, no sítio de uso.
   ctaText: { fontSize: 12, fontWeight: '700' },
   remoto: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 2 },
-  botaoRemoto: { width: 28, height: 28, borderRadius: 6, alignItems: 'center', justifyContent: 'center', cursor: 'pointer' } as any,
-  close: { width: 26, height: 26, borderRadius: 6, alignItems: 'center', justifyContent: 'center', cursor: 'pointer' } as any,
+  botaoRemoto: { width: 28, height: 28, borderRadius: RAIO.cartao, alignItems: 'center', justifyContent: 'center', cursor: 'pointer' } as any,
+  close: { width: 26, height: 26, borderRadius: RAIO.cartao, alignItems: 'center', justifyContent: 'center', cursor: 'pointer' } as any,
   closeHover: { backgroundColor: COR.hover },
   trackLine: { height: 2, backgroundColor: 'rgba(255,255,255,.08)' },
   trackFill: { height: 2 },

@@ -232,7 +232,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  art: { width: 34, height: 34, borderRadius: 6, backgroundColor: colors.surfaceHigh },
+  art: { width: 34, height: 34, borderRadius: radii.sm, backgroundColor: colors.surfaceHigh },
   texts: { flex: 1, minWidth: 0 },
   eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   aoVivo: { width: 6, height: 6, borderRadius: 3 },

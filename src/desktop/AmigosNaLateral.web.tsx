@@ -100,10 +100,10 @@ export function AmigosNaLateral({ navigate, notify }: { navigate: (r: Route) => 
               {faixa ? (
                 <TextoQueRola
                   texto={`${tituloDaFaixa(faixa)} · ${displayArtist(faixa)}`}
-                  style={{ fontFamily: FONT.body, fontSize: 11.5, marginTop: 1, color: COR.textoMedio }}
+                  style={{ ...TIPO.legenda, marginTop: 1, color: COR.textoMedio }}
                 />
               ) : (
-                <Text numberOfLines={1} style={{ fontFamily: FONT.body, fontSize: 11.5, marginTop: 1, color: COR.textoFraco }}>Online</Text>
+                <Text numberOfLines={1} style={{ ...TIPO.legenda, marginTop: 1, color: COR.textoFraco }}>Online</Text>
               )}
               {/* Só o fio (27/9: o João experimentou com os tempos e preferiu
                   sem eles). Anda por `scaleX` e não por `width` (28/9): com

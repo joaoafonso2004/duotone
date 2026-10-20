@@ -208,7 +208,7 @@ export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{pr
 
   const linhaDePlaylist=(p:Playlist,direita:React.ReactNode,esquerda?:React.ReactNode)=><View key={p.id} style={e.linha}>
     {esquerda}
-    <View style={{borderRadius:6,overflow:'hidden'}}><ArtworkCollage artworks={p.artworks} size={40}/></View>
+    <View style={{borderRadius:radii.sm,overflow:'hidden'}}><ArtworkCollage artworks={p.artworks} size={40}/></View>
     <View style={{flex:1,minWidth:0}}><Text numberOfLines={1} style={e.nome}>{p.name}</Text><Text style={e.sub}>{p.trackCount} {p.trackCount===1?'track':'tracks'}</Text></View>
     {direita}
   </View>;
@@ -269,7 +269,7 @@ export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{pr
         <Grupo cabecalho="Song of the moment" rodape="A song for your friends to discover on your profile.">
           {featured.moment
             ? <Pressable accessibilityRole="button" accessibilityLabel="Change song" disabled={!!stage} onPress={()=>setAEscolher(!aEscolher)} style={e.linha}>
-                {featured.moment.artworkUrl?<Image source={{uri:capaParaLista(featured.moment.artworkUrl)!}} style={{width:40,height:40,borderRadius:6}}/>:<View style={{width:40,height:40,borderRadius:6,backgroundColor:colors.surfaceHigh}}/>}
+                {featured.moment.artworkUrl?<Image source={{uri:capaParaLista(featured.moment.artworkUrl)!}} style={{width:40,height:40,borderRadius:radii.sm}}/>:<View style={{width:40,height:40,borderRadius:radii.sm,backgroundColor:colors.surfaceHigh}}/>}
                 <View style={{flex:1,minWidth:0}}><Text numberOfLines={1} style={e.nome}>{tituloDaFaixa(featured.moment)}</Text><Text numberOfLines={1} style={e.sub}>{displayArtist(featured.moment)}</Text></View>
                 <Text style={e.valor}>{aEscolher?'Close':'Change'}</Text><Ionicons name={aEscolher?'chevron-up':'chevron-forward'} size={15} color={colors.textTertiary}/>
               </Pressable>

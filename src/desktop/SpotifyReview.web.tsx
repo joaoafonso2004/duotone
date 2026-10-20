@@ -4,7 +4,7 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ImportedTrack } from '../lib/spotifyImport';
 import type { Track } from '../types';
 import { Button, formatTime } from './ui.web';
-import { COR } from './tokens.web';
+import { COR, RAIO } from './tokens.web';
 
 /**
  * Revisão das faixas que a correspondência não conseguiu decidir sozinha.
@@ -251,13 +251,13 @@ const s = StyleSheet.create({
   fill: { height: '100%', backgroundColor: COR.metalClaro },
   label: { color: COR.textoFraco, fontSize: 11, fontWeight: '700', letterSpacing: 0.8, marginTop: 4 },
   options: { gap: 8 },
-  option: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: COR.linha },
-  art: { width: 40, height: 40, borderRadius: 6, backgroundColor: COR.painel },
+  option: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: RAIO.cartao, borderWidth: 1, borderColor: COR.linha },
+  art: { width: 40, height: 40, borderRadius: RAIO.ctrl, backgroundColor: COR.painel },
   artEmpty: { alignItems: 'center', justifyContent: 'center' },
   optionTitle: { color: COR.texto, fontSize: 13, fontWeight: '600' },
   optionMeta: { color: COR.textoMedio, fontSize: 11, marginTop: 2 },
   badge: { color: COR.metalClaro, fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
-  key: { width: 20, height: 20, borderRadius: 5, alignItems: 'center', justifyContent: 'center', backgroundColor: COR.painel, borderWidth: 1, borderColor: COR.linha },
+  key: { width: 20, height: 20, borderRadius: RAIO.ctrl, alignItems: 'center', justifyContent: 'center', backgroundColor: COR.painel, borderWidth: 1, borderColor: COR.linha },
   keyText: { color: COR.textoFraco, fontSize: 11, fontWeight: '700', fontVariant: ['tabular-nums'] },
   hint: { color: COR.textoFraco, fontSize: 11, marginTop: 2 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },

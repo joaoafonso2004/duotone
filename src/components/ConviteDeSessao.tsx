@@ -163,10 +163,10 @@ const styles = StyleSheet.create({
     maxWidth: '86%',
   },
   sistema: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6 },
-  sistemaTexto: { fontSize: 12.5, fontWeight: '600', color: colors.textTertiary },
+  sistemaTexto: { fontSize: type.caption.fontSize, fontWeight: '600', color: colors.textTertiary },
   linha: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   etiqueta: { ...type.micro, letterSpacing: 1.2, fontWeight: '700' },
-  capa: { width: 52, height: 52, borderRadius: 9 },
+  capa: { width: 52, height: 52, borderRadius: radii.sm },
   semCapa: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceHigh },
   titulo: { ...type.body, fontWeight: '600' },
   botao: {

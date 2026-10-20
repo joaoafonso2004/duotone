@@ -7,7 +7,7 @@ import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { usePlayer } from '../state/player';
 import { usePlaylists } from '../state/playlists';
-import { colors, spacing, type } from '../theme';
+import { colors, radii, spacing, type } from '../theme';
 import type { Playlist, Track } from '../types';
 import { BottomSheet, BottomSheetScrollView } from './BottomSheet';
 
@@ -104,9 +104,9 @@ const styles = StyleSheet.create({
     minHeight: 40, borderRadius: 12, borderCurve: 'continuous', backgroundColor: colors.surface,
     color: colors.text, paddingHorizontal: 14, fontSize: 15, marginBottom: spacing.sm,
   },
-  linha: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: 7, borderRadius: 10 },
+  linha: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: 7, borderRadius: radii.sm },
   premida: { backgroundColor: 'rgba(255,255,255,0.05)' },
-  capa: { width: 44, height: 44, borderRadius: 7, backgroundColor: colors.surfaceHigh },
+  capa: { width: 44, height: 44, borderRadius: radii.sm, backgroundColor: colors.surfaceHigh },
   semCapa: { alignItems: 'center', justifyContent: 'center' },
   rotulo: { fontSize: 11, fontWeight: '700', color: colors.textTertiary, marginBottom: 1 },
   titulo: { fontSize: 15, fontWeight: '600', color: colors.text },

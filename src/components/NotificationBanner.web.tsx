@@ -12,6 +12,7 @@ import { usePlayer } from '../state/player';
 import { useSocial } from '../state/social';
 import { useTheme } from '../state/theme';
 import { marcar } from '../desktop/ui.web';
+import { RAIO, TIPO } from '../desktop/tokens.web';
 import { FriendAvatar } from './FriendAvatar';
 
 /** Quanto o aviso fica, sem ninguém a mexer nele. */
@@ -166,10 +167,10 @@ const s = StyleSheet.create({
   linhaNome: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
   nome: { color: '#F5F5F7', fontSize: 14, fontWeight: '700', flexShrink: 1 },
   hora: { color: '#84868F', fontSize: 11, fontFamily: 'JetBrains Mono, ui-monospace, monospace' },
-  mensagem: { color: '#CDCDD4', fontSize: 13.5, lineHeight: 19, marginTop: 3 },
+  mensagem: { color: '#CDCDD4', fontSize: TIPO.corpo.fontSize, lineHeight: 19, marginTop: 3 },
   fecharB: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   musica: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 14, marginBottom: 10, padding: 8, borderRadius: 12, backgroundColor: 'rgba(233,234,238,0.05)' },
-  capa: { width: 40, height: 40, borderRadius: 6 },
+  capa: { width: 40, height: 40, borderRadius: RAIO.ctrl },
   tituloM: { color: '#F5F5F7', fontSize: 13, fontWeight: '600' },
   artistaM: { color: '#9DA0AA', fontSize: 12, marginTop: 1 },
   tocar: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#E9EAEE', alignItems: 'center', justifyContent: 'center' },

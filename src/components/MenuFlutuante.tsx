@@ -323,7 +323,7 @@ const styles = StyleSheet.create({
     paddingLeft: spacing.md, paddingRight: spacing.sm, paddingTop: 4, paddingBottom: spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.borderStrong,
   },
-  capa: { width: 40, height: 40, borderRadius: 6, backgroundColor: colors.surfaceHigh },
+  capa: { width: 40, height: 40, borderRadius: radii.sm, backgroundColor: colors.surfaceHigh },
   coracao: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   aviso: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
   atalhos: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.md, paddingTop: spacing.sm + 2, paddingBottom: spacing.xs },

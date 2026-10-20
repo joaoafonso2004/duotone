@@ -338,7 +338,7 @@ const styles = StyleSheet.create({
   thumb: {
     width: 71,
     height: 40,
-    borderRadius: 6,
+    borderRadius: radii.sm,
     borderCurve: 'continuous',
     backgroundColor: colors.surfaceHigh,
   },

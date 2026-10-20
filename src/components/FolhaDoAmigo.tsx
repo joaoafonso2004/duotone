@@ -24,7 +24,7 @@ import { usePlayer } from '../state/player';
 import { savedKey, useSaved } from '../state/saved';
 import { agoraNoServidor, ouvirPresencas, presencaDe, useSocial } from '../state/social';
 import { useTheme } from '../state/theme';
-import { colors, spacing, type } from '../theme';
+import { colors, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
 import { BottomSheet, BottomSheetScrollView } from './BottomSheet';
 import { FriendAvatar } from './FriendAvatar';
@@ -283,7 +283,7 @@ const styles = StyleSheet.create({
   emoji: { fontSize: 26 },
   seccao: { ...type.caption, color: colors.textTertiary, fontWeight: '600', marginBottom: 2 },
   proxima: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: 5 },
-  miniCapa: { width: 36, height: 36, borderRadius: 6, backgroundColor: colors.surfaceHigh },
+  miniCapa: { width: 36, height: 36, borderRadius: radii.sm, backgroundColor: colors.surfaceHigh },
   mensagem: {
     marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingHorizontal: 12,
     borderRadius: 16, borderCurve: 'continuous', backgroundColor: 'rgba(255,255,255,0.1)',

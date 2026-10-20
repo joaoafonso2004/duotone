@@ -9,7 +9,7 @@ import { hapticSelection } from '../lib/haptics';
 import { useBoasVindas } from '../state/boasVindas';
 import { usePassosDasBoasVindas } from '../state/passosDasBoasVindas';
 import { useTheme } from '../state/theme';
-import { colors } from '../theme';
+import { colors, radii } from '../theme';
 import { Input } from './Input';
 import { PillButton } from './PillButton';
 import { DentroDeUmModal, useModalDoRNAberto } from './dentroDeUmModal';
@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
   visto: { position: 'absolute', right: -2, bottom: -2, width: 26, height: 26, borderRadius: 13, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center' },
   artistaNome: { color: colors.text, fontSize: 13, fontWeight: '600', maxWidth: '100%' },
   musica: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 58 },
-  capa: { width: 44, height: 44, borderRadius: 6, backgroundColor: colors.surface },
+  capa: { width: 44, height: 44, borderRadius: radii.sm, backgroundColor: colors.surface },
   musicaTitulo: { color: colors.text, fontSize: 15, fontWeight: '600' },
   musicaArtista: { color: colors.textSecondary, fontSize: 13, marginTop: 2 },
   caixa: { width: 24, height: 24, borderRadius: 12, borderWidth: 1.5, borderColor: colors.textTertiary, alignItems: 'center', justifyContent: 'center' },

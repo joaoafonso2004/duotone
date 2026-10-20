@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { posicaoDoMenu } from '../lib/menuDoAmigo';
-import { COR, FONT } from './tokens.web';
+import { COR, FONT, RAIO, TIPO } from './tokens.web';
 import { marcar } from './ui.web';
 import { pausarAtalhosDaJanela } from './useAtalhosDaJanela.web';
 
@@ -136,11 +136,11 @@ export function MenuDeContexto({ rato, rotulo, cabecalho, linhas, aoEscolher, ao
               disabled={apagada}
               {...(apagada ? {} : marcar('menu-linha'))}
               onPress={() => { fechar.current(); aoEscolher(l.id); }}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: apagada ? 7 : 9, paddingHorizontal: 10, borderRadius: 9, cursor: apagada ? 'default' : undefined } as any}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: apagada ? 7 : 9, paddingHorizontal: 10, borderRadius: RAIO.cartao, cursor: apagada ? 'default' : undefined } as any}
             >
               <Ionicons name={l.icone as any} size={17} color={l.perigo ? COR.erro : COR.textoMedio} style={{ opacity: apagada ? 0.4 : 1 }} />
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text numberOfLines={1} style={{ fontFamily: FONT.body, fontSize: 13.5, color: l.perigo ? COR.erro : COR.texto, opacity: apagada ? 0.4 : 1 }}>{l.rotulo}</Text>
+                <Text numberOfLines={1} style={{ ...TIPO.corpo, color: l.perigo ? COR.erro : COR.texto, opacity: apagada ? 0.4 : 1 }}>{l.rotulo}</Text>
                 {l.motivo ? <Text numberOfLines={2} style={{ fontFamily: FONT.body, fontSize: 11, color: COR.textoFraco, marginTop: 2 }}>{l.motivo}</Text> : null}
               </View>
             </Pressable>

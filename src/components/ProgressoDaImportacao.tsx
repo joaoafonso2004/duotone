@@ -7,7 +7,7 @@ import { frasesDaImportacao } from '../lib/frasesDaImportacao';
 import { importacaoEmDestaque, useImportacoes } from '../state/importacoes';
 import { useNotifications } from '../state/notifications';
 import { useTheme } from '../state/theme';
-import { colors } from '../theme';
+import { colors, type } from '../theme';
 
 /** Quanto tempo o "já está" fica à vista antes de sair sozinho. */
 const FEITA_MS = 8000;
@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
   linha: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   textos: { flex: 1, minWidth: 0, gap: 2 },
   titulo: { color: colors.text, fontSize: 14, fontWeight: '700' },
-  corpo: { color: colors.textSecondary, fontSize: 12.5 },
+  corpo: { color: colors.textSecondary, fontSize: type.caption.fontSize },
   fechar: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   calha: { height: 4, borderRadius: 2, backgroundColor: colors.surfacePressed, overflow: 'hidden' },
   cheio: { height: 4, borderRadius: 2 },

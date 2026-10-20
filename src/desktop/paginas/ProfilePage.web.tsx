@@ -24,7 +24,7 @@ import { styles } from '../estilos.web';
 import { BotaoVoltar,
   Button, ContentScroll, Empty, Loading, Page,
 } from '../ui.web';
-import { COR } from '../tokens.web';
+import { COR, RAIO } from '../tokens.web';
 
 const P = Pressable as any;
 const V = View as any;
@@ -87,7 +87,7 @@ export function StatsPage({ back, play, userId }: { userId?:string; back: () => 
               {stats.topTracks.map((t, i) => (
                 <P key={t.key} onPress={() => playTop(t)} style={({ hovered }: any) => [styles.statsRow, hovered && styles.settingHover]}>
                   <Text style={[styles.statsRank, { color: theme.color }]}>{i + 1}</Text>
-                  {t.artworkUrl ? <Image source={{ uri: t.artworkUrl }} style={{ width: 38, height: 38, borderRadius: 5 }} /> : <View style={{ width: 38, height: 38, borderRadius: 5, backgroundColor: COR.elevado }} />}
+                  {t.artworkUrl ? <Image source={{ uri: t.artworkUrl }} style={{ width: 38, height: 38, borderRadius: RAIO.ctrl }} /> : <View style={{ width: 38, height: 38, borderRadius: RAIO.ctrl, backgroundColor: COR.elevado }} />}
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text numberOfLines={1} style={{ color: COR.texto, fontSize: 12, fontWeight: '600' }}>{tituloDaFaixa(t)}</Text>
                     <Text numberOfLines={1} style={{ color: COR.textoMedio, fontSize: 10, marginTop: 2 }}>{displayArtist(t)}</Text>

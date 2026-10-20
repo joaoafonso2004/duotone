@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
 import { MENU_DO_RADIO } from '../lib/menuDoRadio';
-import { COR, FONT } from '../desktop/tokens.web';
+import { COR, FONT, RAIO, TIPO } from '../desktop/tokens.web';
 import { marcar } from '../desktop/ui.web';
 import { pausarAtalhosDaJanela } from '../desktop/useAtalhosDaJanela.web';
 import type { TipoDeRadio } from '../state/player';
@@ -141,11 +141,11 @@ export function MenuDoRadio({ ancora, visivel, capa, capasDoMix, aoEscolher, aoF
           <View key={o.tipo} ref={parte(i + 1)}>
             <Pressable accessibilityRole={'menuitem' as any} accessibilityLabel={o.rotulo} {...marcar('menu-linha')}
               onPress={() => { if (!mostrar) return; escolha.current = o.tipo; fechar.current(); }}
-              style={{ height: ALTURA_DA_LINHA - 4, marginBottom: 4, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 8, borderRadius: 9 } as any}>
+              style={{ height: ALTURA_DA_LINHA - 4, marginBottom: 4, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 8, borderRadius: RAIO.cartao } as any}>
               {o.tipo === 'musica'
-                ? <Image source={capa ? { uri: capa } : undefined} style={{ width: 36, height: 36, borderRadius: 6, backgroundColor: COR.elevado }} />
+                ? <Image source={capa ? { uri: capa } : undefined} style={{ width: 36, height: 36, borderRadius: RAIO.ctrl, backgroundColor: COR.elevado }} />
                 : <QuadradoDoMix capas={capasDoMix} />}
-              <Text numberOfLines={1} style={{ flex: 1, fontFamily: FONT.body, fontSize: 13.5, fontWeight: '600', color: COR.texto }}>{o.rotulo}</Text>
+              <Text numberOfLines={1} style={{ flex: 1, ...TIPO.corpo, fontWeight: '600', color: COR.texto }}>{o.rotulo}</Text>
             </Pressable>
           </View>
         ))}
@@ -157,11 +157,11 @@ export function MenuDoRadio({ ancora, visivel, capa, capasDoMix, aoEscolher, aoF
 
 function QuadradoDoMix({ capas }: { capas: readonly string[] }) {
   if (!capas.length) {
-    return <View style={{ width: 36, height: 36, borderRadius: 6, backgroundColor: COR.elevado, alignItems: 'center', justifyContent: 'center' }}>
+    return <View style={{ width: 36, height: 36, borderRadius: RAIO.ctrl, backgroundColor: COR.elevado, alignItems: 'center', justifyContent: 'center' }}>
       <Ionicons name="shuffle" size={18} color={COR.texto} />
     </View>;
   }
-  return <View style={{ width: 36, height: 36, borderRadius: 6, overflow: 'hidden', flexDirection: 'row', flexWrap: 'wrap', backgroundColor: COR.elevado }}>
+  return <View style={{ width: 36, height: 36, borderRadius: RAIO.ctrl, overflow: 'hidden', flexDirection: 'row', flexWrap: 'wrap', backgroundColor: COR.elevado }}>
     {[0, 1, 2, 3].map((i) => <Image key={i} source={{ uri: capas[i % capas.length] }} style={{ width: 18, height: 18 }} />)}
   </View>;
 }
