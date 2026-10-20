@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, type ComponentType } from 'react';
 import { CoracaoAnimado } from './components/CoracaoAnimado';
 import { useCoracaoAoCarregar } from './hooks/useCoracaoAoCarregar';
+import { COR, cssDasFontes, FONT, RAIO } from './desktop/tokens.web';
 
 /**
  * A janela do mini leitor do PC (entrega 2b do
@@ -19,7 +20,16 @@ import { useCoracaoAoCarregar } from './hooks/useCoracaoAoCarregar';
  * É DOM à mão e não React Native: precisa do `-webkit-app-region` para se
  * arrastar pela capa, e o `hovered` do RNW cai ao entrar num botão filho (ver
  * o CLAUDE.md) -- aqui o hover é CSS.
+ *
+ * **Fala a língua da janela principal** (20/10, revisão de qualidade Q6): as
+ * cores, as letras e o metal saem de `desktop/tokens.web.ts`. Vinha com a
+ * paleta do iPhone, na letra do sistema, e com a linha de progresso e o anel
+ * do foco a roxo -- a única superfície do PC que ainda o tinha. As
+ * formas, os tamanhos e as animações ficam como estavam.
  */
+
+/** A borda com o rato por cima e do cartão aberto: a linha do PC, acesa. */
+const BORDA_ACESA = 'rgba(233,234,238,0.16)';
 
 const CSS = `
 /* A barra (25/9): recolhida é uma barra fina; com o rato por cima abre para o
@@ -33,10 +43,10 @@ const CSS = `
   transition: height 260ms cubic-bezier(.22,1,.36,1), padding 260ms cubic-bezier(.22,1,.36,1), gap 260ms cubic-bezier(.22,1,.36,1),
     background-color .2s, border-color .2s; }
 .cartao.baixo { bottom: 0; } .cartao.cima { top: 0; }
-.mini.cartao.aberto { height: 88px; padding: 12px; gap: 12px; background: #1b1b25; border-color: rgba(255,255,255,0.14); }
-.cartao .capa { width: 32px; height: 32px; border-radius: 6px;
+.mini.cartao.aberto { height: 88px; padding: 12px; gap: 12px; background: ${COR.hover}; border-color: ${BORDA_ACESA}; }
+.cartao .capa { width: 32px; height: 32px; border-radius: ${RAIO.ctrl}px;
   transition: width 260ms cubic-bezier(.22,1,.36,1), height 260ms cubic-bezier(.22,1,.36,1), border-radius 260ms; }
-.cartao.aberto .capa { width: 64px; height: 64px; border-radius: 8px; }
+.cartao.aberto .capa { width: 64px; height: 64px; border-radius: ${RAIO.cartao}px; }
 .cartao .detalhe { max-height: 0; opacity: 0; overflow: hidden; transition: max-height 260ms cubic-bezier(.22,1,.36,1), opacity 160ms; }
 .cartao.aberto .detalhe { max-height: 40px; opacity: 1; transition-delay: 0s, 80ms; }
 .cartao .extra { width: 0; opacity: 0; overflow: hidden; pointer-events: none;
@@ -53,77 +63,80 @@ const CSS = `
 /* A lista das próximas (12/10): abre a partir do cartão (por baixo dele, ou
    por cima quando está encostado em baixo). A janela já cresceu de uma vez; o
    que anima é o recorte, como se a lista se desenrolasse do cartão. */
-.lista { position: absolute; left: 0; right: 0; height: 280px; border-radius: 14px; background: #1b1b25;
-  border: 1px solid rgba(255,255,255,0.14); color: #F5F5F7; overflow: hidden; display: flex; flex-direction: column;
-  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif; user-select: none;
+.lista { position: absolute; left: 0; right: 0; height: 280px; border-radius: ${RAIO.superficie}px; background: ${COR.hover};
+  border: 1px solid ${BORDA_ACESA}; color: ${COR.texto}; overflow: hidden; display: flex; flex-direction: column;
+  font-family: ${FONT.body}; user-select: none;
   opacity: 0; pointer-events: none;
   transition: clip-path 260ms cubic-bezier(.22,1,.36,1), opacity 160ms; }
 .lista.cima { clip-path: inset(0 0 100% 0 round 14px); }
 .lista.baixo { clip-path: inset(100% 0 0 0 round 14px); }
 .lista.aberta { clip-path: inset(0 0 0 0 round 14px); opacity: 1; pointer-events: auto; }
-.lista-titulo { font-size: 11.5px; font-weight: 600; letter-spacing: .04em; color: rgba(245,245,247,0.55); padding: 10px 12px 6px; }
+/* A etiqueta de uma secção, como no PC: mono, pequena, espaçada. */
+.lista-titulo { font: 400 10px/14px ${FONT.mono}; letter-spacing: 1.5px; color: ${COR.textoFraco}; padding: 12px 12px 6px; }
 .lista-linhas { flex: 1; overflow-y: auto; padding: 0 6px 6px; }
 .lista-linhas::-webkit-scrollbar { width: 8px; }
-.lista-linhas::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.16); border-radius: 4px; border: 2px solid #1b1b25; }
+.lista-linhas::-webkit-scrollbar-thumb { background: rgba(233,234,238,0.16); border-radius: 4px; border: 2px solid ${COR.hover}; }
 .lista-linhas::-webkit-scrollbar-track { background: transparent; }
 button.da-fila { width: 100%; justify-content: flex-start; gap: 10px; padding: 6px; border-radius: 8px; text-align: left; }
 button.da-fila:disabled { cursor: default; }
 button.da-fila:disabled:hover { background: none; }
-.da-fila .capa { width: 32px; height: 32px; border-radius: 5px; object-fit: cover; }
+.da-fila .capa { width: 32px; height: 32px; border-radius: ${RAIO.ctrl}px; object-fit: cover; }
 .da-fila .textos { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .da-fila .titulo { font-size: 13px; font-weight: 500; }
-.da-fila .artista { font-size: 11.5px; }
-.lista-vazia { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 12.5px; color: rgba(245,245,247,0.55); }
-.canto button.ligado { color: #F5F5F7; background: rgba(255,255,255,0.12); }
+.da-fila .artista { font-size: 12px; }
+.lista-vazia { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 12px; color: ${COR.textoMedio}; }
+.canto button.ligado { color: ${COR.texto}; background: ${COR.metalSuave}; }
 .com-lista .pega { display: none; }
 @media (prefers-reduced-motion: reduce) { .cartao, .cartao *, .lista { transition: none !important; } }
 /* A pega do tamanho: no canto que MEXE (o oposto ao que está encostado ao
    ecrã). Arrastá-la amplia o mini todo na mesma proporção. */
 .pega { position: absolute; width: 16px; height: 16px; z-index: 3; -webkit-app-region: no-drag;
-  display: flex; align-items: center; justify-content: center; color: rgba(245,245,247,0.45); opacity: 0;
+  display: flex; align-items: center; justify-content: center; color: ${COR.textoFraco}; opacity: 0;
   transition: opacity 160ms; }
-.pega:hover { color: rgba(245,245,247,0.9); }
+.pega:hover { color: ${COR.texto}; }
 .cartao.aberto .pega, .mini.grande .pega { opacity: 1; transition-delay: 100ms; }
 html, body, #root { margin: 0; height: 100%; background: transparent; overflow: hidden; }
 * { box-sizing: border-box; }
 #root > div { width: 100%; height: 100%; }
-.mini { width: 100%; height: 100%; border-radius: 14px; background: #14141C; border: 1px solid rgba(255,255,255,0.08);
-  color: #F5F5F7; font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif; position: relative;
+.mini { width: 100%; height: 100%; border-radius: ${RAIO.superficie}px; background: ${COR.elevado}; border: 1px solid ${COR.linha};
+  color: ${COR.texto}; font-family: ${FONT.body}; position: relative;
   overflow: hidden; user-select: none; }
-.mini:hover { background: #1b1b25; border-color: rgba(255,255,255,0.14); }
-button { -webkit-app-region: no-drag; background: none; border: none; color: inherit; padding: 0; cursor: pointer;
+.mini:hover { background: ${COR.hover}; border-color: ${BORDA_ACESA}; }
+button { -webkit-app-region: no-drag; background: none; border: none; color: inherit; font: inherit; padding: 0; cursor: pointer;
   display: flex; align-items: center; justify-content: center; border-radius: 16px; }
-button:hover { background: rgba(255,255,255,0.08); }
-button:focus-visible { outline: 2px solid #8B5CF6; outline-offset: 1px; }
-.play { background: #F5F5F7; color: #0A0A0F; }
+button:hover { background: rgba(233,234,238,0.08); }
+/* O anel do foco é o da janela principal: o metal, não o roxo. */
+button:focus-visible { outline: 2px solid ${COR.metalClaro}; outline-offset: 1px; }
+.play { background: ${COR.metalClaro}; color: ${COR.fundo}; }
 .play:hover { background: #ffffff; }
-.capa { border-radius: 8px; background: #2a2a36 center / cover no-repeat; flex-shrink: 0; }
+.capa { border-radius: ${RAIO.cartao}px; background: ${COR.metalEscuro} center / cover no-repeat; flex-shrink: 0; }
 /* Arrasta-se pela BARRINHA do topo (João, 24/9), e só por ela: no Windows uma
    zona de arrasto não recebe eventos do rato. Os botões do canto ficam por cima
    (são no-drag), e a pega fica ao centro da janela. */
 .arrasto { position: absolute; top: 0; left: 0; right: 0; height: 14px; -webkit-app-region: drag;
   display: flex; align-items: center; justify-content: center; cursor: grab; z-index: 1; }
-.arrasto::after { content: ''; width: 32px; height: 4px; border-radius: 2px; background: rgba(245,245,247,0.16); }
-.mini:hover .arrasto::after { background: rgba(245,245,247,0.32); }
+.arrasto::after { content: ''; width: 32px; height: 4px; border-radius: 2px; background: rgba(233,234,238,0.16); }
+.mini:hover .arrasto::after { background: rgba(233,234,238,0.32); }
 .titulo { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.artista { font-size: 12.5px; color: rgba(245,245,247,0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.artista { font-size: 12px; color: ${COR.textoMedio}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .so-hover { display: none; }
 .mini:hover .so-hover { display: flex; }
 .mini:hover .sem-hover { display: none; }
-.linha { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: rgba(255,255,255,0.1); }
-.linha > div { height: 2px; background: #8B5CF6; }
+.linha { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: ${COR.linha}; }
+.linha > div { height: 2px; background: ${COR.metalClaro}; }
 .barra { -webkit-app-region: no-drag; height: 12px; display: flex; align-items: center; cursor: pointer; }
-.barra > div { position: relative; height: 4px; width: 100%; border-radius: 2px; background: rgba(255,255,255,0.14); }
-.barra > div > div { height: 4px; border-radius: 2px; background: #F5F5F7; }
-.tempo { font-size: 11px; color: rgba(245,245,247,0.55); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.barra > div { position: relative; height: 4px; width: 100%; border-radius: 2px; background: #353540; }
+.barra > div > div { height: 4px; border-radius: 2px; background: ${COR.texto}; }
+/* Os números em mono, como os tempos da barra do leitor. */
+.tempo { font: 400 11px/14px ${FONT.mono}; color: ${COR.textoFraco}; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .controlos { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
 .canto { position: absolute; top: 4px; right: 6px; gap: 2px; z-index: 2; }
-.canto button { width: 22px; height: 22px; border-radius: 11px; color: rgba(245,245,247,0.7); }
-.canto button:hover { color: #F5F5F7; }
+.canto button { width: 22px; height: 22px; border-radius: 11px; color: ${COR.textoMedio}; }
+.canto button:hover { color: ${COR.texto}; }
 .moldura { position: relative; flex-shrink: 0; }
 .moldura .so-hover { position: absolute; inset: 0; align-items: center; justify-content: center; }
-.sobre-a-capa { width: 30px; height: 30px; border-radius: 15px; background: rgba(10,10,15,0.65); }
-.sobre-a-capa:hover { background: rgba(10,10,15,0.85); }
+.sobre-a-capa { width: 30px; height: 30px; border-radius: 15px; background: rgba(6,6,8,0.66); }
+.sobre-a-capa:hover { background: rgba(6,6,8,0.88); }
 `;
 
 type Resumo = ResumoDoMiniLeitor;
@@ -470,7 +483,7 @@ function MiniLeitor() {
 function RaizDoMini() {
   return (
     <>
-      <style>{CSS}</style>
+      <style>{cssDasFontes() + CSS}</style>
       <MiniLeitor />
     </>
   );

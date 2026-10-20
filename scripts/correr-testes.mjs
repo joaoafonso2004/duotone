@@ -144,6 +144,7 @@ const TESTES = [
   `${TS} scripts/test-misturas.ts`,
   `${TS} scripts/test-estilos.ts`,
   `${TS} scripts/test-contraste.ts`,
+  `${TS} scripts/test-identidade-do-pc.ts`,
   `${TS} scripts/test-aquecer-imagens.ts`,
   `${TS} scripts/test-cache-da-biblioteca.ts`,
   `${TS} scripts/test-cache-do-perfil.ts`,

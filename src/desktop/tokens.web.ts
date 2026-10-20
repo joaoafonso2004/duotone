@@ -32,6 +32,35 @@ export const FONTES = {
   },
 };
 
+/**
+ * As `@font-face` das três famílias, para quem desenha um documento: a janela
+ * principal (`injectDesktopDocumentStyles`) e a do mini leitor
+ * (`janelaMini.web.tsx`), que é outro documento e não herda as fontes. Estavam
+ * só na casca, e o mini leitor desenhava-se em Segoe UI ao lado da app em
+ * Public Sans (20/10, revisão de qualidade Q6).
+ *
+ * O `require` de um asset devolve formas diferentes conforme a plataforma e a
+ * versão do Metro -- string, objeto com `uri`, ou módulo com `default` -- por
+ * isso normaliza-se em vez de assumir.
+ */
+export function cssDasFontes(): string {
+  const uri = (m: any): string =>
+    typeof m === 'string' ? m : m?.uri || m?.default?.uri || m?.default || '';
+  const face = (familia: string, mod: any, alcance: string) =>
+    `@font-face{font-family:'${familia}';font-style:normal;font-weight:100 900;` +
+    `font-display:swap;src:url(${uri(mod)}) format('woff2');unicode-range:${alcance};}`;
+  const LATIN = 'U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD';
+  const LATIN_EXT = 'U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF';
+  return [
+    face('Archivo', FONTES.archivo.latin, LATIN),
+    face('Archivo', FONTES.archivo.latinExt, LATIN_EXT),
+    face('Public Sans', FONTES.publicSans.latin, LATIN),
+    face('Public Sans', FONTES.publicSans.latinExt, LATIN_EXT),
+    face('JetBrains Mono', FONTES.jetbrainsMono.latin, LATIN),
+    face('JetBrains Mono', FONTES.jetbrainsMono.latinExt, LATIN_EXT),
+  ].join('');
+}
+
 /** As famílias, já com a pilha de recurso. Usar SEMPRE estas constantes:
  * o react-native-web impõe a stack dele a cada `<Text>`, por isso a família
  * tem de ir explícita no estilo — declarar no `body` não chega. */

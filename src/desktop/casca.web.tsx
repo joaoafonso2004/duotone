@@ -28,7 +28,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { useTheme } from '../state/theme';
 import { styles } from './estilos.web';
-import { COR, FONT, FONTES, RAIO } from './tokens.web';
+import { COR, cssDasFontes, FONT, RAIO } from './tokens.web';
 import { Artwork, comDica, desktop, formatTime, IconButton, ui, marcar, useProcurarAoLargar } from './ui.web';
 import { dentesDaTecla, valorDaProcura } from '../lib/acessibilidadeDoPc';
 import { PRIMARY, type Route } from './rotas';
@@ -47,30 +47,11 @@ const V = View as any;
 export function injectDesktopDocumentStyles() {
   if (document.getElementById('duotone-desktop-css')) return;
 
-  // As fontes sao embutidas (assets/fonts) e registadas aqui. O `require` de
-  // um asset devolve formas diferentes conforme a plataforma e a versao do
-  // Metro — string, objeto com `uri`, ou modulo com `default` — por isso
-  // normaliza-se em vez de assumir.
-  const uri = (m: any): string =>
-    typeof m === 'string' ? m : m?.uri || m?.default?.uri || m?.default || '';
-
-  const face = (familia: string, mod: any, alcance: string) =>
-    `@font-face{font-family:'${familia}';font-style:normal;font-weight:100 900;` +
-    `font-display:swap;src:url(${uri(mod)}) format('woff2');unicode-range:${alcance};}`;
-
-  const LATIN = 'U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD';
-  const LATIN_EXT = 'U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF';
-
+  // As fontes sao embutidas (assets/fonts); as @font-face vivem nos tokens,
+  // porque a janela do mini leitor tambem precisa delas (20/10).
   const fontes = document.createElement('style');
   fontes.id = 'duotone-fonts';
-  fontes.textContent = [
-    face('Archivo', FONTES.archivo.latin, LATIN),
-    face('Archivo', FONTES.archivo.latinExt, LATIN_EXT),
-    face('Public Sans', FONTES.publicSans.latin, LATIN),
-    face('Public Sans', FONTES.publicSans.latinExt, LATIN_EXT),
-    face('JetBrains Mono', FONTES.jetbrainsMono.latin, LATIN),
-    face('JetBrains Mono', FONTES.jetbrainsMono.latinExt, LATIN_EXT),
-  ].join('');
+  fontes.textContent = cssDasFontes();
   document.head.appendChild(fontes);
 
   const style = document.createElement('style');
