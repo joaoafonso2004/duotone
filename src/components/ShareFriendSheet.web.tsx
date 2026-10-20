@@ -14,7 +14,7 @@ import { usePlaylists } from '../state/playlists';
 import { useSocial } from '../state/social';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { Field, marcar } from '../desktop/ui.web';
-import { COR, ESP, FONT, RAIO, TIPO } from '../desktop/tokens.web';
+import { COR, ESP, ESTADO, FONT, RAIO, TIPO } from '../desktop/tokens.web';
 import { BottomSheet } from './BottomSheet';
 import { FriendAvatar } from './FriendAvatar';
 import { GroupAvatar } from './GroupChat';
@@ -283,7 +283,7 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
               onPress={() => void ouvirJuntos()}
               disabled={sessaoActual ? sugerida : (!amigosEscolhidos.length || aAbrir)}
               accessibilityRole="button"
-              style={({ hovered }: any) => [s.secundario, hovered && { backgroundColor: COR.hover },
+              style={({ hovered }: any) => [s.secundario, hovered && { backgroundColor: ESTADO.hover },
                 (!sessaoActual && !amigosEscolhidos.length) && { opacity: 0.5 }]}
             >
               {aAbrir ? <ActivityIndicator size="small" color={COR.texto} /> : (

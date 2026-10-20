@@ -6,7 +6,7 @@ import { deviceLabel, resumoDaFila } from '../lib/handoff';
 import { mandarComando } from '../lib/connectSync';
 import { avisoDoPedido, estaAcordado, type TipoDePedido } from '../lib/duotoneConnect';
 import { useHandoffSession } from '../lib/sessionSync';
-import { COR, RAIO } from '../desktop/tokens.web';
+import { COR, ESTADO, RAIO } from '../desktop/tokens.web';
 import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
 
@@ -187,7 +187,7 @@ const s = StyleSheet.create({
   remoto: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 2 },
   botaoRemoto: { width: 28, height: 28, borderRadius: RAIO.cartao, alignItems: 'center', justifyContent: 'center', cursor: 'pointer' } as any,
   close: { width: 26, height: 26, borderRadius: RAIO.cartao, alignItems: 'center', justifyContent: 'center', cursor: 'pointer' } as any,
-  closeHover: { backgroundColor: COR.hover },
+  closeHover: { backgroundColor: ESTADO.hover },
   trackLine: { height: 2, backgroundColor: 'rgba(255,255,255,.08)' },
   trackFill: { height: 2 },
 });

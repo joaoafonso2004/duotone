@@ -8,7 +8,7 @@ import { useTheme } from '../../state/theme';
 import type { Track } from '../../types';
 import { styles } from '../estilos.web';
 import { BotaoVoltar, ContentScroll, Empty, Loading, Page } from '../ui.web';
-import { COR, RAIO } from '../tokens.web';
+import { COR, ESTADO, RAIO } from '../tokens.web';
 import { StatCell, StatsChart } from './ProfilePage.web';
 
 const P = Pressable as any;
@@ -45,7 +45,7 @@ export function RetrospetivaPage({ back, play, userId, ano: anoInicial }: {
   const artistaDoAno = r?.base.topArtists[0] ?? null;
 
   const anos = (resultado?.anos.length ?? 0) > 1 ? <View style={styles.smallSegment}>{resultado!.anos.map((a) => (
-    <P key={a} onPress={() => setAno(a)} style={({ hovered }: any) => [styles.smallSegmentItem, a === r?.ano && styles.smallSegmentActive, hovered && styles.settingHover]}>
+    <P key={a} onPress={() => setAno(a)} style={({ hovered }: any) => [styles.smallSegmentItem, a === r?.ano && styles.smallSegmentActive, hovered && a !== r?.ano && { backgroundColor: ESTADO.hover }]}>
       <Text style={[styles.smallSegmentText, a === r?.ano && { color: COR.texto }]}>{a}</Text>
     </P>))}</View> : null;
 

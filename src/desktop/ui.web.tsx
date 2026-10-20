@@ -11,7 +11,7 @@ import { usePlayer } from '../state/player';
 import { useSaved } from '../state/saved';
 import type { DiscoveryContext } from '../lib/contextoDaDescoberta';
 import type { OrigemDaFila } from '../lib/origemDaFila';
-import { COR, ESP, FONT, LINHA_LISTA, RAIO, TIPO } from './tokens.web';
+import { COR, ESP, ESTADO, FONT, LINHA_LISTA, RAIO, TIPO } from './tokens.web';
 import { isShowTrackDurationSync } from '../lib/prefs';
 import { capaComBarras, molduraSemBarras } from '../lib/modoLimpo';
 import { pertoDoFim } from '../lib/grelhaQueCresce';
@@ -113,11 +113,17 @@ export function BotaoVoltar({ onPress }: { onPress: () => void }) {
   return <Button secondary icon="arrow-back" onPress={onPress}>{rotulo}</Button>;
 }
 
-export function Button({ children, onPress, icon, iconNode, secondary = false, danger = false, disabled = false, brilho = false, marcado = false }: {
+export function Button({ children, onPress, icon, iconNode, secondary = false, danger = false, disabled = false, ocupado = false, brilho = false, marcado = false }: {
   children: ReactNode; onPress?: () => void; icon?: keyof typeof Ionicons.glyphMap;
   /** Ícone à medida, para marcas que o Ionicons não tem — como o Spotify. */
   iconNode?: ReactNode;
   secondary?: boolean; danger?: boolean; disabled?: boolean;
+  /**
+   * A operação já começou (guardar, enviar, abrir o Mix): fica a 100 %, com a
+   * roda no lugar do ícone e sem segundo clique. Não é o `disabled`, que diz
+   * "agora não" -- a 42 % um "Saving…" parecia um clique recusado (20/10, B3).
+   */
+  ocupado?: boolean;
   /** O gradiente com pontos a cintilar por trás do texto. Só o shuffle
    * inteligente o usa: é o que o distingue do shuffle normal ao lado. */
   brilho?: boolean;
@@ -126,11 +132,13 @@ export function Button({ children, onPress, icon, iconNode, secondary = false, d
    * de se pintar de primário e passava a competir com o `Play`. */
   marcado?: boolean;
 }) {
-  return <P {...marcar('premir')} accessibilityRole="button" disabled={disabled} onPress={onPress} style={({ hovered, pressed, focused }: any) => [
-    ui.button, secondary && ui.buttonSecondary, marcado && ui.buttonMarcado, danger && ui.buttonDanger, (hovered || focused) && ui.buttonHover,
-    pressed && ui.pressed, disabled && ui.disabled,
+  const corDoTexto = danger ? COR.erro : secondary ? COR.texto : COR.fundo;
+  return <P {...marcar('premir')} accessibilityRole="button" accessibilityState={{ disabled: disabled || ocupado, busy: ocupado }}
+    disabled={disabled || ocupado} onPress={onPress} style={({ hovered, pressed, focused }: any) => [
+    ui.button, secondary && ui.buttonSecondary, marcado && ui.buttonMarcado, danger && ui.buttonDanger, (hovered || focused) && !ocupado && ui.buttonHover,
+    pressed && ui.pressed, disabled && !ocupado && ui.disabled, ocupado && ui.ocupado,
     brilho && { overflow: 'hidden' as const },
-  ]}>{brilho ? <BrilhoInteligente /> : null}{iconNode ?? (icon && <Ionicons name={icon} size={16} color={danger ? COR.erro : secondary ? COR.texto : COR.fundo} />)}<Text style={[ui.buttonText, secondary && ui.buttonTextSec, danger && ui.buttonTextDanger]}>{children}</Text></P>;
+  ]}>{brilho ? <BrilhoInteligente /> : null}{ocupado ? <ActivityIndicator size={16} color={corDoTexto} /> : iconNode ?? (icon && <Ionicons name={icon} size={16} color={corDoTexto} />)}<Text style={[ui.buttonText, secondary && ui.buttonTextSec, danger && ui.buttonTextDanger]}>{children}</Text></P>;
 }
 
 export const Field = React.forwardRef<any, React.ComponentProps<typeof TextInput> & { icon?: keyof typeof Ionicons.glyphMap }>(function Field(props, ref) {
@@ -1058,10 +1066,12 @@ export const ui = StyleSheet.create({
   scrollContent: { paddingHorizontal: ESP.xxxl, paddingBottom: ESP.xxxl },
 
   iconButton: { width: 34, height: 34, borderRadius: RAIO.cartao, alignItems: 'center', justifyContent: 'center' },
-  iconButtonHover: { backgroundColor: COR.hover },
-  active: { backgroundColor: COR.metalSuave },
+  // Hover e escolhido pela regra dos estados (ESTADO, tokens.web.ts).
+  iconButtonHover: { backgroundColor: ESTADO.hover },
+  active: ESTADO.escolhido,
   pressed: { opacity: .72, transform: [{ scale: .985 }] },
-  disabled: { opacity: .42 },
+  disabled: { opacity: ESTADO.apagado },
+  ocupado: { cursor: 'progress' } as any,
 
   // O botao primario e LUZ, nao cor: e a tese da identidade aplicada ao
   // controlo mais visivel da interface.
@@ -1069,7 +1079,7 @@ export const ui = StyleSheet.create({
   // este botao: ele estica-se pelo pai e nao tem forma propria.
   button: { minHeight: 38, overflow: 'hidden', paddingHorizontal: ESP.lg, borderRadius: RAIO.cartao, backgroundColor: COR.metalClaro, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: ESP.sm, borderWidth: 1, borderColor: 'transparent' },
   buttonSecondary: { backgroundColor: 'transparent', borderColor: COR.linha },
-  buttonMarcado: { backgroundColor: COR.metalSuave, borderColor: 'rgba(233,234,238,0.28)' },
+  buttonMarcado: { backgroundColor: COR.metalSuave, borderColor: ESTADO.aresta },
   buttonDanger: { backgroundColor: 'rgba(190,95,98,.14)', borderColor: 'rgba(190,95,98,.45)' },
   buttonHover: { opacity: .88 },
   buttonText: { ...TIPO.corpo, fontWeight: '600' as any, color: COR.fundo },
@@ -1152,11 +1162,10 @@ export const ui = StyleSheet.create({
     borderRadius: RAIO.pilula, backgroundColor: COR.elevado, borderWidth: 1, borderColor: COR.linhaSuave,
   },
   separador: { minHeight: 30, justifyContent: 'center', paddingHorizontal: ESP.md, borderRadius: RAIO.pilula },
-  separadorHover: { backgroundColor: COR.linhaSuave },
-  separadorActivo: { backgroundColor: COR.hover },
+  separadorHover: { backgroundColor: ESTADO.hover },
   /** A pílula que anda por baixo dos separadores. Absoluta, para o texto não
    * se mexer enquanto ela atravessa. */
-  separadorPilula: { position: 'absolute', top: 0, bottom: 0, left: 0, borderRadius: RAIO.pilula, backgroundColor: COR.hover } as any,
+  separadorPilula: { position: 'absolute', top: 0, bottom: 0, left: 0, borderRadius: RAIO.pilula, ...ESTADO.escolhido } as any,
   separadorTexto: { ...TIPO.legenda, color: COR.textoMedio },
   separadorTextoActivo: { color: COR.texto, fontWeight: '600' as any },
   shelfSeta: {

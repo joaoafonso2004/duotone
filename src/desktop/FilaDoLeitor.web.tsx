@@ -9,7 +9,7 @@ import { FilaArrastavel } from './FilaArrastavel.web';
 import { useFilaDoLeitor } from './useFilaDoLeitor.web';
 import { styles } from './estilos.web';
 import { Button, Dialog, Field } from './ui.web';
-import { COR, ESP } from './tokens.web';
+import { COR, ESP, ESTADO } from './tokens.web';
 import type { CommonPageProps } from './rotas';
 
 type Fila = ReturnType<typeof useFilaDoLeitor>;
@@ -62,12 +62,12 @@ export function CabecaDaFila({ fila, compacta = false }: { fila: Fila; compacta?
       <View style={{ flex: 1 }} />
       <RadioNaFila />
       {fila.current || fila.upNext.length ? <Pressable accessibilityRole="button" accessibilityLabel="Save queue as playlist"
-        onPress={fila.pedirNome} style={({ hovered }: any) => [styles.npFilaLimpar, hovered && { backgroundColor: COR.hover }]}>
+        onPress={fila.pedirNome} style={({ hovered }: any) => [styles.npFilaLimpar, hovered && { backgroundColor: ESTADO.hover }]}>
         <Text style={styles.npFilaLimparTexto}>Save</Text>
       </Pressable> : null}
       {fila.podeEditar && fila.upNext.length > 0 ? <Pressable accessibilityRole="button"
         accessibilityLabel={fila.aConfirmarLimpar ? `Confirm: clear ${fila.upNext.length} tracks from the queue` : 'Clear the queue'}
-        onPress={fila.limpar} style={({ hovered }: any) => [styles.npFilaLimpar, hovered && { backgroundColor: COR.hover }]}>
+        onPress={fila.limpar} style={({ hovered }: any) => [styles.npFilaLimpar, hovered && { backgroundColor: ESTADO.hover }]}>
         <Text style={[styles.npFilaLimparTexto, fila.aConfirmarLimpar && { color: COR.aviso }]}>
           {fila.aConfirmarLimpar ? `Clear ${fila.upNext.length}?` : 'Clear'}
         </Text>

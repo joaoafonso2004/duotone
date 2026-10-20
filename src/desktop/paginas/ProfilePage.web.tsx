@@ -24,7 +24,7 @@ import { styles } from '../estilos.web';
 import { BotaoVoltar,
   Button, ContentScroll, Empty, Loading, Page,
 } from '../ui.web';
-import { COR, RAIO } from '../tokens.web';
+import { COR, ESTADO, RAIO } from '../tokens.web';
 
 const P = Pressable as any;
 const V = View as any;
@@ -55,7 +55,7 @@ export function StatsPage({ back, play, userId }: { userId?:string; back: () => 
   };
 
   const periodPicker = <View style={styles.smallSegment}>{STATS_PERIODS.map(([value, label]) => (
-    <P key={value} onPress={() => setPeriod(value)} style={({ hovered }: any) => [styles.smallSegmentItem, period === value && styles.smallSegmentActive, hovered && styles.settingHover]}>
+    <P key={value} onPress={() => setPeriod(value)} style={({ hovered }: any) => [styles.smallSegmentItem, period === value && styles.smallSegmentActive, hovered && period !== value && { backgroundColor: ESTADO.hover }]}>
       <Text style={[styles.smallSegmentText, period === value && { color: COR.texto }]}>{label}</Text>
     </P>))}</View>;
 

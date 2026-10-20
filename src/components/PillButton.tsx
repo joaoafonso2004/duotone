@@ -8,7 +8,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import { hapticImpact, ImpactFeedbackStyle } from '../lib/haptics';
-import { colors, gradients, radii } from '../theme';
+import { colors, gradients, radii, spacing } from '../theme';
 import { useTheme } from '../state/theme';
 
 interface Props {
@@ -54,11 +54,11 @@ export function PillButton({
         end={{ x: 1, y: 1 }}
         style={[styles.base, small && styles.small]}
       >
-        {loading ? <ActivityIndicator color={theme.textColorOnGradient} /> : inner}
+        {loading ? <><ActivityIndicator color={theme.textColorOnGradient} />{inner}</> : inner}
       </LinearGradient>
     ) : (
       <React.Fragment>
-        {loading ? <ActivityIndicator color={colors.text} /> : inner}
+        {loading ? <><ActivityIndicator color={variant === 'danger' ? colors.danger : colors.text} />{inner}</> : inner}
       </React.Fragment>
     );
 
@@ -69,11 +69,14 @@ export function PillButton({
         onPress();
       }}
       disabled={disabled || loading}
+      accessibilityState={{ disabled: !!(disabled || loading), busy: !!loading }}
       style={({ pressed }) => [
         variant === 'ghost' && [styles.base, styles.ghost, small && styles.small],
         variant === 'danger' && [styles.base, styles.danger, small && styles.small],
         pressed && { opacity: 0.75 },
-        (disabled || loading) && { opacity: 0.45 },
+        // A carregar NÃO apaga (20/10, B3): a roda ao lado do texto, a 100 %. A
+        // 45 % parecia o botão indisponível ao lado -- um toque recusado.
+        disabled && !loading && { opacity: 0.45 },
         style,
       ]}
     >
@@ -84,6 +87,8 @@ export function PillButton({
 
 const styles = StyleSheet.create({
   base: {
+    flexDirection: 'row',
+    gap: spacing.sm,
     borderRadius: radii.pill,
     paddingVertical: 14,
     paddingHorizontal: 24,

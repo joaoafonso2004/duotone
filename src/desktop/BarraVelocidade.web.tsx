@@ -4,7 +4,7 @@ import {
   arredondar, daFraccao, eNormal, formatar, paraFraccao, passo,
   PASSO_FINO, PASSO_LARGO, RATE_MAXIMO, RATE_MINIMO,
 } from '../lib/playbackRate';
-import { COR, ESP, RAIO, TIPO } from './tokens.web';
+import { COR, ESP, ESTADO, RAIO, TIPO } from './tokens.web';
 import { marcar } from './ui.web';
 
 /** O react-native-web renderiza uma View como <div>, mas os tipos do RN nao
@@ -129,7 +129,7 @@ export function BarraVelocidade({
               onPress={() => aoMudar(1)}
               style={({ hovered }: any) => [
                 { minHeight: 24, paddingHorizontal: ESP.sm, borderRadius: RAIO.pilula, justifyContent: 'center' },
-                hovered && { backgroundColor: COR.hover },
+                hovered && { backgroundColor: ESTADO.hover },
               ]}
             >
               <Text style={[TIPO.micro, { color: COR.textoFraco }]}>RESET</Text>

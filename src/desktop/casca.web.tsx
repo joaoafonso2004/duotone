@@ -28,7 +28,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { useTheme } from '../state/theme';
 import { styles } from './estilos.web';
-import { COR, cssDasFontes, FONT, RAIO } from './tokens.web';
+import { COR, cssDasFontes, ESTADO, FONT, RAIO } from './tokens.web';
 import { Artwork, comDica, formatTime, IconButton, ui, marcar, useProcurarAoLargar } from './ui.web';
 import { dentesDaTecla, valorDaProcura } from '../lib/acessibilidadeDoPc';
 import { PRIMARY, type Route } from './rotas';
@@ -75,8 +75,13 @@ export function injectDesktopDocumentStyles() {
     /* O anel do foco do teclado, no metal. Era [data-focusable="true"], que o
        react-native-web 0.21 ja nao escreve: a regra nao apanhava nada e via-se
        o anel do browser (medido a 20/10 na pagina de ensaio). Os sliders tem o
-       seu, mais afastado (ver em baixo). */
-    [tabindex]:not([tabindex="-1"]):not([role="slider"]):focus-visible{outline:2px solid var(--accent-color, #E9EAEE)!important;outline-offset:-2px}
+       seu, mais afastado (ver em baixo).
+       POR FORA, com 2 px de folga (20/10, B3): por dentro e na cor do tema, no
+       botao principal (que e de metal) o anel era da cor do proprio botao e nao
+       se via. As linhas das listas ficam por dentro: encostam aos lados do
+       scroll, que cortava o anel. */
+    [tabindex]:not([tabindex="-1"]):not([role="slider"]):focus-visible{outline:2px solid var(--accent-color, #E9EAEE)!important;outline-offset:2px}
+    [data-dt~="fila"][tabindex]:not([tabindex="-1"]):focus-visible{outline-offset:-2px}
     [data-dt~="calha"] { position: relative; }
     [data-dt~="calha"]:hover [data-dt~="cheio"] { background: var(--accent-color, #E9EAEE)!important; }
     [data-dt~="pega"] {
@@ -180,7 +185,7 @@ export function injectDesktopDocumentStyles() {
     .np-fila-pega, .np-fila-mais { opacity: 0; transition: opacity var(--dt-rapido) var(--dt-curva); display: flex; }
     .np-fila-linha:hover .np-fila-pega, .np-fila-linha:hover .np-fila-mais, .np-fila-pega-viva { opacity: 1; }
     .np-fila-mais { background: none; border: 0; padding: 6px; border-radius: ${RAIO.cartao}px; cursor: pointer; }
-    .np-fila-mais:hover { background: ${COR.hover}; }
+    .np-fila-mais:hover { background: ${ESTADO.hover}; }
     .np-fila-mais:focus-visible { opacity: 1; outline: 2px solid ${COR.texto}; }
     [data-dt~="painel-do-leitor"] { transition: transform 240ms cubic-bezier(.22,1,.36,1); will-change: transform; }
     /* O fundo do Now Playing: a capa nova entra por cima da anterior. */

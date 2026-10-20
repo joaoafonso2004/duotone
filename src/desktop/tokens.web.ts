@@ -103,6 +103,28 @@ export const COR = {
   ok: '#7FB069',
 };
 
+// -------------------------------------------------------------- estados --
+/**
+ * Os estados de um controlo (20/10, revisão de qualidade B3; escolhidos pelo
+ * João na maquete `docs/estados-dos-controlos.html`). UMA regra para todos os
+ * controlos: o hover do botão de ícone era o mesmo cinzento do separador
+ * escolhido, e o ícone ligado (o shuffle) quase não se distinguia de um com o
+ * rato por cima. As linhas das listas ficam com o `hover` delas: não têm
+ * estado escolhido com que se confundir.
+ */
+export const ESTADO = {
+  /** O rato por cima, ou o foco do teclado: luz a 5,5 %. */
+  hover: COR.linhaSuave,
+  /** Escolhido ou ligado: metal a 12 % com uma aresta a 28 %. A aresta vai
+   * por sombra de dentro, para o controlo não mudar de tamanho. */
+  escolhido: { backgroundColor: COR.metalSuave, boxShadow: 'inset 0 0 0 1px rgba(233,234,238,0.28)' } as any,
+  /** A mesma aresta, para quem já tem borda (o `Button` marcado). */
+  aresta: 'rgba(233,234,238,0.28)',
+  /** Indisponível: "agora não". Em progresso NÃO é isto -- fica a 100 %,
+   * com a roda antes do texto (o `ocupado` do `Button`). */
+  apagado: 0.42,
+};
+
 // ------------------------------------------------------------- tipografia --
 //
 // Sete degraus. O nome diz o papel, não o tamanho — assim ninguém escolhe

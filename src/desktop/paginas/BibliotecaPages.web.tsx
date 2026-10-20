@@ -52,7 +52,7 @@ import { useConnectivity } from '../../state/connectivity';
 import { MenuDeContexto, pontoDoEvento, type PontoNoEcra } from '../MenuDeContexto.web';
 import { BotaoDeFixar } from '../AtalhosNaLateral.web';
 import type { CommonPageProps, NavegarFn, Route } from '../rotas';
-import { COR, ESP, FONT, RAIO, TIPO } from '../tokens.web';
+import { COR, ESP, ESTADO, FONT, RAIO, TIPO } from '../tokens.web';
 import { useLibraryData } from './comum.web';
 import { contextoDaMistura, contextoDaPrateleira, contextoParaAnalytics, notaDaPrateleira } from '../../lib/contextoDaDescoberta';
 import { registar } from '../../lib/eventos';
@@ -297,7 +297,7 @@ function ArtistaEmDestaque({ artista, aoAbrir, aoTocarMix, aAbrirMix }: {
       </View>
     </Pressable>
     <View style={{ flexDirection: 'row', gap: ESP.sm }}>
-      <Button icon="radio-outline" onPress={aoTocarMix} disabled={aAbrirMix}>{aAbrirMix ? 'Loading…' : 'Mix'}</Button>
+      <Button icon="radio-outline" onPress={aoTocarMix} ocupado={aAbrirMix}>{aAbrirMix ? 'Loading…' : 'Mix'}</Button>
       <Button secondary icon="person-outline" onPress={aoAbrir}>Open</Button>
     </View>
   </View>;
@@ -773,7 +773,7 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
             <View style={styles.detailHeroActions}>
               <Button icon="play" onPress={playAll} disabled={!podeTocarAba}>Play</Button>
               <Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle} disabled={!podeTocarAba}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button>
-              {pagina?.mix ? <Button secondary icon="radio-outline" onPress={() => void tocarMix()} disabled={aAbrirMix}>{aAbrirMix ? 'Loading…' : 'Mix'}</Button> : null}
+              {pagina?.mix ? <Button secondary icon="radio-outline" onPress={() => void tocarMix()} ocupado={aAbrirMix}>{aAbrirMix ? 'Loading…' : 'Mix'}</Button> : null}
               {/* O mesmo coração dos cartões da página Artists (29/9): só lá se
                   favoritava, e quem estava dentro do artista tinha de voltar atrás. */}
               <IconButton name={favorito ? 'heart' : 'heart-outline'} active={favorito}
@@ -792,7 +792,7 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
             ['tracks', 'More tracks', 'musical-notes-outline'],
             ['albums', 'Albums', 'albums-outline'],
           ] as const).map(([id, label, icon]) => <Pressable key={id} onPress={() => setSeparador(id)}
-            style={({ hovered }) => [artistStyles.tab, separador === id && artistStyles.tabActive, hovered && artistStyles.tabHover]}>
+            style={({ hovered }) => [artistStyles.tab, separador === id && artistStyles.tabActive, hovered && separador !== id && artistStyles.tabHover]}>
             <Ionicons name={icon} size={15} color={separador === id ? COR.texto : COR.textoFraco} />
             <Text style={[artistStyles.tabText, separador === id && artistStyles.tabTextActive]}>{label}</Text>
           </Pressable>)}
@@ -900,7 +900,7 @@ function useDialogoDoAlbum(props: CommonPageProps) {
       {aCarregarAlbum ? <View style={{ height: 260 }}><Loading /></View> : <>
         <View style={artistStyles.albumDialogActions}>
           <Button icon="play" onPress={tocarAlbum} disabled={!faixasDoAlbum.length}>Play</Button>
-          <Button secondary icon="download-outline" onPress={() => void guardarAlbum()} disabled={!faixasDoAlbum.length || aGuardarAlbum}>
+          <Button secondary icon="download-outline" onPress={() => void guardarAlbum()} disabled={!faixasDoAlbum.length} ocupado={aGuardarAlbum}>
             {aGuardarAlbum ? 'Saving…' : 'Save as playlist'}
           </Button>
           <Text style={artistStyles.albumDialogMeta}>{faixasDoAlbum.length} {faixasDoAlbum.length === 1 ? 'track' : 'tracks'}</Text>
@@ -990,14 +990,14 @@ const artistStyles = StyleSheet.create({
     minHeight: 38, paddingHorizontal: ESP.lg, borderRadius: RAIO.pilula,
     borderWidth: 1, borderColor: COR.linha, flexDirection: 'row', alignItems: 'center', gap: ESP.sm,
   },
-  tabActive: { backgroundColor: COR.metalSuave, borderColor: 'rgba(233,234,238,0.24)' },
-  tabHover: { backgroundColor: COR.hover },
+  tabActive: { backgroundColor: COR.metalSuave, borderColor: ESTADO.aresta },
+  tabHover: { backgroundColor: ESTADO.hover },
   tabText: { ...TIPO.corpo, color: COR.textoFraco, fontWeight: '600' as any },
   tabTextActive: { color: COR.texto },
   // "Most played" / "Newest" (10/10), à direita dos separadores.
   ordem: { flexDirection: 'row', marginLeft: 'auto', gap: 2, padding: 2, borderRadius: 999, borderWidth: 1, borderColor: COR.linhaSuave } as any,
   ordemOpcao: { paddingHorizontal: ESP.md, paddingVertical: 5, borderRadius: 999 },
-  ordemOpcaoAtiva: { backgroundColor: 'rgba(255,255,255,0.08)' },
+  ordemOpcaoAtiva: ESTADO.escolhido,
   ordemTexto: { ...TIPO.legenda, color: COR.textoFraco, fontWeight: '600' as any },
   detalhe: { ...TIPO.legenda, color: COR.textoFraco, marginRight: ESP.md, fontVariant: ['tabular-nums'] as any },
   albumGrid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: ESP.xxl, rowGap: ESP.xxl },

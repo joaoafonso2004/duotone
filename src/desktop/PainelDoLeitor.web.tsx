@@ -9,7 +9,7 @@ import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { FilaDoLeitor } from './FilaDoLeitor.web';
 import { Artwork, Empty } from './ui.web';
-import { COR, ESP, FONT, TIPO } from './tokens.web';
+import { COR, ESP, ESTADO, FONT, TIPO } from './tokens.web';
 import type { CommonPageProps } from './rotas';
 import { usePainelDoLeitor, type AbaDoPainel as Aba } from './estadoDoPainel.web';
 
@@ -28,7 +28,7 @@ export function SetaDoPainel() {
   if (aberto) return null;
   return <Pressable nativeID={ID_DA_SETA} accessibilityRole="button" accessibilityLabel="Open queue and lyrics panel"
     {...({ 'aria-expanded': false, 'aria-controls': 'painel-do-leitor' } as any)}
-    onPress={abrir} style={({ hovered, focused }: any) => [s.setaDaBarra, (hovered || focused) && { backgroundColor: COR.hover }]}>
+    onPress={abrir} style={({ hovered, focused }: any) => [s.setaDaBarra, (hovered || focused) && { backgroundColor: ESTADO.hover }]}>
     <Ionicons name="chevron-back" size={18} color={COR.textoMedio} />
   </Pressable>;
 }
@@ -171,12 +171,12 @@ export function PainelDoLeitor({ children, more, notify }: Pick<CommonPageProps,
             accessibilityState={{ selected: estado.aba === aba }}
             {...({ 'aria-controls': 'conteudo-do-painel', 'aria-selected': estado.aba === aba, tabIndex: estado.aba === aba ? 0 : -1 } as any)}
             onPress={() => setEstado((antes) => ({ ...antes, aba }))}
-            style={({ hovered, focused }: any) => [s.aba, (hovered || focused || estado.aba === aba) && { backgroundColor: COR.hover }]}>
+            style={({ hovered, focused }: any) => [s.aba, estado.aba === aba ? ESTADO.escolhido : (hovered || focused) && { backgroundColor: ESTADO.hover }]}>
             <Text style={[s.abaTexto, estado.aba === aba && { color: COR.texto }]}>{aba === 'fila' ? 'Queue' : 'Lyrics'}</Text>
           </Pressable>)}
         </View>
         <Pressable ref={fecharRef} accessibilityRole="button" accessibilityLabel="Close queue and lyrics panel" onPress={fechar}
-          style={({ hovered, focused }: any) => [s.seta, (hovered || focused) && { backgroundColor: COR.hover }]}>
+          style={({ hovered, focused }: any) => [s.seta, (hovered || focused) && { backgroundColor: ESTADO.hover }]}>
           <Ionicons name="chevron-forward" size={21} color={COR.textoMedio} />
         </Pressable>
       </View>

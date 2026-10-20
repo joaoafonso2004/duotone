@@ -145,7 +145,7 @@ export function JanelaDoJam({ open, onClose, notify }: {
 
     <View style={styles.actions}>
       <Button secondary onPress={onClose}>Keep listening</Button>
-      <Button danger disabled={busy} onPress={() => void sair()}>{busy ? 'Please wait…' : acabaComigo ? 'End Jam' : 'Leave Jam'}</Button>
+      <Button danger ocupado={busy} onPress={() => void sair()}>{busy ? 'Please wait…' : acabaComigo ? 'End Jam' : 'Leave Jam'}</Button>
     </View>
   </Dialog>;
 }

@@ -4,7 +4,7 @@ import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { useBoasVindas } from '../state/boasVindas';
 import { usePassosDasBoasVindas } from '../state/passosDasBoasVindas';
-import { COR, ESP, FONT, RAIO, TIPO } from './tokens.web';
+import { COR, ESP, ESTADO, FONT, RAIO, TIPO } from './tokens.web';
 import { Artwork, Button, Field } from './ui.web';
 
 /**
@@ -133,7 +133,7 @@ export function Conteudo({ aoFechar }: { aoFechar: () => void }) {
   const acao =
     p.passo === 'colar' ? <Button onPress={p.acabarImportacao} disabled={!p.links.length}>Import and continue</Button>
     : p.passo === 'artistas' ? <Button onPress={p.seguirParaMusicas} disabled={!p.podeSeguirArtistas}>Next</Button>
-    : p.passo === 'musicas' ? <Button onPress={() => void p.terminar()} disabled={!p.podeTerminar || p.aGuardar}>{p.aGuardar ? 'Saving…' : 'Done'}</Button>
+    : p.passo === 'musicas' ? <Button onPress={() => void p.terminar()} disabled={!p.podeTerminar} ocupado={p.aGuardar}>{p.aGuardar ? 'Saving…' : 'Done'}</Button>
     : p.passo === 'fim' ? <Button onPress={p.fechar}>Start listening</Button>
     : null;
 
@@ -145,7 +145,7 @@ export function Conteudo({ aoFechar }: { aoFechar: () => void }) {
             {[0, 1, 2].map((i) => <View key={i} style={[s.passo, i <= p.etapa && { backgroundColor: COR.texto }]} />)}
           </View>
           {p.passo !== 'fim' ? (
-            <Pressable onPress={p.saltar} style={({ hovered }: any) => [s.saltar, hovered && { backgroundColor: COR.hover }]}>
+            <Pressable onPress={p.saltar} style={({ hovered }: any) => [s.saltar, hovered && { backgroundColor: ESTADO.hover }]}>
               <Text style={s.saltarTexto}>Skip</Text>
             </Pressable>
           ) : null}

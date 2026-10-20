@@ -11,7 +11,7 @@ import {
 import { mudarPresets, usePresets } from '../state/presets';
 import { BarraVelocidade } from './BarraVelocidade.web';
 import { useVelocidadePresa } from '../hooks/useVelocidadePresa';
-import { COR, ESP, RAIO, TIPO } from './tokens.web';
+import { COR, ESP, ESTADO, RAIO, TIPO } from './tokens.web';
 import { Button, Field, ui } from './ui.web';
 
 /**
@@ -193,7 +193,7 @@ function AccaoPequena({ rotulo, aoPremir }: { rotulo: string; aoPremir: () => vo
       onPress={aoPremir}
       style={({ hovered }: any) => [
         { minHeight: 24, paddingHorizontal: ESP.sm, borderRadius: RAIO.pilula, justifyContent: 'center' },
-        hovered && { backgroundColor: COR.hover },
+        hovered && { backgroundColor: ESTADO.hover },
       ]}
     >
       <Text style={[TIPO.micro, { color: COR.texto }]}>{rotulo}</Text>
@@ -208,7 +208,7 @@ export function ReporEqualizador({ aoRepor }: { aoRepor: () => void }) {
       onPress={aoRepor}
       style={({ hovered }: any) => [
         { minHeight: 24, paddingHorizontal: ESP.sm, borderRadius: RAIO.pilula, justifyContent: 'center' },
-        hovered && { backgroundColor: COR.hover },
+        hovered && { backgroundColor: ESTADO.hover },
       ]}
     >
       <Text style={[TIPO.micro, { color: COR.textoFraco }]}>RESET</Text>

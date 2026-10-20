@@ -130,7 +130,8 @@ caso('o Dialog anuncia-se, prende o Tab, fecha só por cima e devolve o foco', (
 });
 caso('os botões do PC são botões, e os de ícone têm legenda', () => {
   assert.match(ui, /<P \{\.\.\.comDica\(label, atalho, 'premir'\)\} accessibilityRole="button" accessibilityLabel=\{label\}/);
-  assert.match(ui, /<P \{\.\.\.marcar\('premir'\)\} accessibilityRole="button" disabled=\{disabled\}/);
+  // Desde o B3 (20/10) o Button também diz quando está ocupado (`aria-busy`).
+  assert.match(ui, /<P \{\.\.\.marcar\('premir'\)\} accessibilityRole="button" accessibilityState=\{\{ disabled: disabled \|\| ocupado, busy: ocupado \}\}\s+disabled=\{disabled \|\| ocupado\}/);
   assert.match(ler('src/navigation/RootNavigator.web.tsx'), /useDicas\(\);/);
   assert.match(casca, /#duotone-dica\{ position: fixed;/);
   assert.match(casca, /#duotone-dica\{ transition: none !important; transform: none !important; \}/, 'menos movimento');

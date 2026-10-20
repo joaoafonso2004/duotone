@@ -15,7 +15,7 @@ import { usePlayer } from '../state/player';
 import { useSocial } from '../state/social';
 import type { Playlist, Track } from '../types';
 import type { Route } from './rotas';
-import { COR, ESP, FONT, RAIO, TIPO } from './tokens.web';
+import { COR, ESP, ESTADO, FONT, RAIO, TIPO } from './tokens.web';
 import { Dialog, Field, IconButton, marcar } from './ui.web';
 
 // Sem tipos instalados para o react-dom; só se usa o portal.
@@ -59,7 +59,7 @@ export function AtalhosNaLateral({ navigate }: { navigate: (r: Route) => void })
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: ESP.sm, paddingBottom: ESP.sm }}>
         <Text style={{ ...TIPO.micro, color: COR.textoFraco }}>PINNED</Text>
         <Pressable accessibilityRole="button" accessibilityLabel="Pin something" onPress={() => setEscolher(true)}
-          style={({ hovered }: any) => ({ width: 22, height: 22, borderRadius: RAIO.cartao, alignItems: 'center', justifyContent: 'center', backgroundColor: hovered ? COR.hover : 'transparent' })}>
+          style={({ hovered }: any) => ({ width: 22, height: 22, borderRadius: RAIO.cartao, alignItems: 'center', justifyContent: 'center', backgroundColor: hovered ? ESTADO.hover : 'transparent' })}>
           <Ionicons name="add" size={16} color={COR.textoMedio} />
         </Pressable>
       </View>
@@ -258,8 +258,8 @@ function EscolherAtalho({ aberto, aoFechar }: { aberto: boolean; aoFechar: () =>
           {FILTROS.map(([id, nome]) => (
             <Pressable key={id} onPress={() => setFiltro(id)}
               style={({ hovered }: any) => ({ height: 30, paddingHorizontal: 12, borderRadius: 15, justifyContent: 'center', borderWidth: 1,
-                borderColor: filtro === id ? COR.texto : COR.linha, backgroundColor: filtro === id ? COR.texto : hovered ? COR.hover : 'transparent' })}>
-              <Text style={{ fontFamily: FONT.body, fontSize: 12, fontWeight: '600', color: filtro === id ? COR.fundo : COR.textoMedio }}>{nome}</Text>
+                borderColor: filtro === id ? ESTADO.aresta : COR.linha, backgroundColor: filtro === id ? ESTADO.escolhido.backgroundColor : hovered ? ESTADO.hover : 'transparent' })}>
+              <Text style={{ fontFamily: FONT.body, fontSize: 12, fontWeight: '600', color: filtro === id ? COR.texto : COR.textoMedio }}>{nome}</Text>
             </Pressable>
           ))}
         </View>

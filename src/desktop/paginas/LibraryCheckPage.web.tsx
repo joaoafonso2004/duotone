@@ -89,7 +89,8 @@ export function LibraryCheckPage({ back, play }: { back: () => void; play: (trac
                 <Button
                   secondary
                   icon="trash-outline"
-                  disabled={offline || !!v.aTratar}
+                  disabled={offline || (!!v.aTratar && v.aTratar !== CHAVE_DE_REMOVER_TODAS)}
+                  ocupado={v.aTratar === CHAVE_DE_REMOVER_TODAS}
                   onPress={() => void removerTodasAsIndisponiveis()}
                 >
                   {v.aTratar === CHAVE_DE_REMOVER_TODAS ? 'Removing…'
