@@ -44,6 +44,22 @@ const MARCA_DOS_QUINZE_MINUTOS='txt:publish_social_presence~900 seconds';
  * já para lá da validade do servidor.
  */
 const VER_O_BATIMENTO_MS=60_000;
+/**
+ * Quanto se espera por uma publicação antes de a dar por perdida (20/10). As
+ * publicações saem em fila, uma de cada vez: um pedido pendurado numa ligação
+ * morta (o PC a acordar, a rede a mudar) prendia os que vinham atrás até o
+ * sistema desistir dele -- 60 s no iPhone, 120 no PC.
+ */
+export const ESPERA_DA_PUBLICACAO_MS = 15_000;
+/**
+ * Depois de uma publicação falhada, quando se tenta outra vez (20/10). Uma
+ * falha deixava a música por anunciar até ao batimento seguinte -- com a
+ * presença de 15 min, 10 min a dizer só "Online" a quem tem a pessoa na lista
+ * (queixa do João: o amigo estava a ouvir e "até lá só dizia online"). Duas
+ * tentativas no máximo, e só quando falha: o custo em logs do Supabase é zero
+ * com a rede a funcionar, e no pior caso duas linhas por falha.
+ */
+export const NOVAS_TENTATIVAS_MS = [15_000, 60_000] as const;
 let batimentoDoServidor: Promise<number> | null = null;
 /** Que validade dá o servidor, e portanto de quanto em quanto bater? Uma pergunta por arranque. */
 function batimentoPeloServidor(): Promise<number> {
@@ -79,6 +95,8 @@ export function iniciarPresenca(userId: string): () => void {
   /** De quanto em quanto tempo se bate: 75 s até se saber que o servidor dá 300 s de validade. */
   let batimentoMs=PRESENCE_PUBLISH_MS;
   let ultimoEnviado: { chave: string; em: number } | null = null;
+  /** Quantas publicações seguidas falharam (para as novas tentativas). */
+  let falhasSeguidas = 0;
   const sessao = Crypto.randomUUID();
   const dispositivo = getDeviceId();
   const publicar = (encerrar = false) => {
@@ -120,6 +138,9 @@ export function iniciarPresenca(userId: string): () => void {
         faixa?.source, faixa?.sourceId, s.playbackRate, Math.round(posicaoAgoraParaAPresenca()/1000),
         faixa?.durationSeconds ?? usePlayer.getState().durationMs, aSeguir.map(t => `${t.source}:${t.sourceId}`)]);
       if (!encerrar && ultimoEnviado?.chave === chave && agora - ultimoEnviado.em < 1500) return;
+      // Um pedido pendurado não prende a fila: ver `ESPERA_DA_PUBLICACAO_MS`.
+      const controlador = new AbortController();
+      const relogio = setTimeout(() => controlador.abort(), ESPERA_DA_PUBLICACAO_MS);
       const { error } = await supabase.rpc('publish_social_presence', {
         p_device_id: await dispositivo, p_session_id: sessao, p_sequence: seq,
         p_active: ativo && !encerrar, p_end: encerrar,
@@ -144,9 +165,21 @@ export function iniciarPresenca(userId: string): () => void {
           // supabase/presenca-com-fila.sql). Num Jam, as da fila partilhada.
           aSeguir,
         },
-      });
-      if (error) console.warn('Não foi possível publicar a presença:', error.message);
-      else ultimoEnviado = { chave, em: agora };
+      }).abortSignal(controlador.signal);
+      clearTimeout(relogio);
+      if (error) {
+        console.warn('Não foi possível publicar a presença:', error.message);
+        // Tenta outra vez, até duas (ver `NOVAS_TENTATIVAS_MS`). Só a mais nova:
+        // se entretanto houve outra publicação, é ela que conta.
+        if (!encerrar && !terminado && seq === sequencia && falhasSeguidas < NOVAS_TENTATIVAS_MS.length) {
+          const espera = NOVAS_TENTATIVAS_MS[falhasSeguidas++];
+          clearTimeout(timer);
+          timer = setTimeout(() => void publicar(), espera);
+        }
+      } else {
+        falhasSeguidas = 0;
+        ultimoEnviado = { chave, em: agora };
+      }
     });
     return fila;
   };

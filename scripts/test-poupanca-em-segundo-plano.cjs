@@ -17,7 +17,7 @@ function ambiente(os = 'ios', estado = 'active') {
     removeEventListener: (_, fn) => web.delete(fn),
   };
   const globals = {
-    Date: class extends Date { static now() { return agora; } }, document, console,
+    Date: class extends Date { static now() { return agora; } }, document, console, AbortController,
     setInterval: (fn, ms) => { const id = ++proximo; intervalos.set(id, { fn, ms }); return id; },
     clearInterval: id => intervalos.delete(id),
     setTimeout: (fn, ms) => { const id = ++proximo; prazos.set(id, { fn, ms }); return id; },
@@ -82,7 +82,7 @@ async function main() {
 
   // Ciclo de vida real do publicador: CC, bloqueio e dois relógios de batimento.
   {
-    const a = ambiente(), publicados = [];
+    const a = ambiente(), publicados = [], falhar = [];
     const player = store({ current: { sourceId: 'song' }, isPlaying: true, playbackConfirmed: true,
       buffering: false, error: null, positionMs: 0, positionAt: 10_000, playbackRate: 1,
       durationMs: 180_000, upcomingQueue: () => [] });
@@ -93,7 +93,16 @@ async function main() {
       'expo-crypto': { randomUUID: () => 'session' }, './deviceIdentity': { getDeviceId: async () => 'phone' },
       './supabase': { supabase: { auth: { getSession: async () => ({ data: { session: { user: { id: 'me' } } } }) },
         // A pergunta pela validade longa (marcas_em_falta) não é uma publicação.
-        rpc: async (nome, dados) => { if (nome === 'publish_social_presence') publicados.push(dados); return {}; } } },
+        // O `.abortSignal` é o limite de tempo de cada publicação (20/10).
+        rpc: (nome, dados) => {
+          const resposta = (async () => {
+            if (nome !== 'publish_social_presence') return {};
+            publicados.push(dados);
+            return falhar.length ? { error: { message: falhar.shift() } } : {};
+          })();
+          resposta.abortSignal = () => resposta;
+          return resposta;
+        } } },
       '../state/player': { usePlayer: player },
       '../state/privacidade': { garantirPrivacidade: async () => {}, usePrivacidade: store({ privada: false }) },
       '../state/ouvirJuntos': { useOuvirJuntos: store({ sessao: null }) },
@@ -110,6 +119,19 @@ async function main() {
     assert.ok(publicados.at(-1).p_track, 'continua a anunciar música com o ecrã bloqueado');
     a.estado('active'); await flush(); assert.equal(publicados.length, 4);
     assert.equal(publicados.at(-1).p_active, true);
+    // Uma publicação que falha tenta outra vez aos 15 s e aos 60 s, e pára aí
+    // (20/10): antes ficava por anunciar até ao batimento seguinte, 10 min.
+    falhar.push('Network request failed', 'Network request failed', 'Network request failed');
+    player.mudar({ current: { sourceId: 'outra' } }); a.vencer(1500); await flush();
+    assert.equal(publicados.length, 5); assert.equal(publicados.at(-1).p_track.sourceId, 'outra');
+    a.vencer(15_000); await flush(); assert.equal(publicados.length, 6, 'primeira nova tentativa');
+    a.vencer(60_000); await flush(); assert.equal(publicados.length, 7, 'segunda nova tentativa');
+    a.vencer(15_000); a.vencer(60_000); await flush(); assert.equal(publicados.length, 7, 'e não mais do que duas');
+    // Um sucesso repõe a conta: a falha seguinte volta a ter as duas.
+    player.mudar({ current: { sourceId: 'mais-uma' } }); a.vencer(1500); await flush();
+    assert.equal(publicados.length, 8);
+    falhar.push('timeout'); player.mudar({ current: { sourceId: 'e-outra' } }); a.vencer(1500); await flush();
+    a.vencer(15_000); await flush(); assert.equal(publicados.length, 10, 'depois de um sucesso, volta a tentar');
     parar(); await flush(); assert.equal(publicados.at(-1).p_end, true);
     assert.equal(a.intervalos.size + a.ouvintes.size + player.ouvintes.size, 0);
   }
