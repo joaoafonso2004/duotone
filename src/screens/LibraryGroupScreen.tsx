@@ -1,4 +1,5 @@
-import { CabecalhoDaPlaylist } from '../components/CabecalhoDaPlaylist';
+import { CabecalhoDaSeccao, CapaDoArtista, DiscosDoArtista, ParecidosDoArtista } from '../components/SeccoesDoArtista';
+import { useVizinhancaDoArtista } from '../hooks/useVizinhancaDoArtista';
 import { gruposDaBiblioteca } from '../state/gruposDaBiblioteca';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -17,7 +18,7 @@ import { useArtistasFavoritos } from '../state/artistasFavoritos';
 import { pesquisarMusica, type DetalheDaPesquisa } from '../api/search';
 import { BrilhoDoEcra } from '../components/BrilhoDoEcra';
 import { EmptyState } from '../components/EmptyState';
-import { SkeletonDeFaixas } from '../components/Skeleton';
+import { SkeletonDeFaixas, SkeletonDePrateleira } from '../components/Skeleton';
 import { PillButton } from '../components/PillButton';
 import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
@@ -32,18 +33,17 @@ import { marcarArtistaAberto } from '../state/novosLancamentos';
 import { hapticSelection } from '../lib/haptics';
 import { chaveDeArtista, displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { detalheDaLinha, infoDaPesquisa, infoDe, modosComDados, ordenarMusicasDoArtista } from '../lib/ordemDoArtista';
-import { metaDoAlbum, metaDoArtista, musicasDoArtista } from '../lib/musicasDoArtista';
+import { discografia, legendaDoDisco, metaDoAlbum, metaDoArtista, musicasAVista, musicasDoArtista, MUSICAS_A_VISTA } from '../lib/musicasDoArtista';
 import { chaveDoTitulo } from '../lib/albunsDoArtista';
 import { getOrdemDoArtista, setOrdemDoArtista, type OrdemDoArtista } from '../lib/prefs';
 import { useAuth } from '../state/auth';
 import type { Track } from '../types';
-import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { useAlturaDosSeparadores } from '../state/doca';
 import { avisarErro } from '../lib/avisoDeRemocao';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'LibraryGroup'>;
 
-/** O lançamento mais recente do artista, por cima dos separadores (29/9). */
+/** O lançamento mais recente do artista, por cima das músicas (29/9). */
 function UltimoLancamento({ album, onPress }: { album: AlbumDaPagina; onPress: () => void }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={`Latest release: ${album.title}`} onPress={onPress}
     style={({ pressed }) => [styles.ultimo, pressed && { backgroundColor: colors.surfacePressed }]}>
@@ -52,7 +52,7 @@ function UltimoLancamento({ album, onPress }: { album: AlbumDaPagina; onPress: (
     <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
       <Text style={styles.ultimoRotulo}>LATEST RELEASE</Text>
       <Text numberOfLines={1} style={[typography.body, { fontWeight: '700' }]}>{album.title}</Text>
-      <Text numberOfLines={1} style={typography.caption}>{album.channelTitle}</Text>
+      <Text numberOfLines={1} style={typography.caption}>{legendaDoDisco(album)}</Text>
     </View>
     <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
   </Pressable>;
@@ -74,10 +74,12 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   const theme = useTheme((s) => s.theme);
   const [actionTrack, setActionTrack] = useState<Track | null>(null);
 
-  // "Songs" e "Albums" (20/10, lib/musicasDoArtista.ts): eram três, com as
-  // tuas num separador e as outras dele noutro.
-  const [activeTab, setActiveTab] = useState<'songs' | 'albums'>('songs');
-  useEffect(() => { setActiveTab('songs'); }, [type, name]);
+  // A página de um artista é uma página só, por secções (20/10, variante A de
+  // docs/artista-maquete.html): a foto e o nome, as ações, o último
+  // lançamento, as músicas (cinco, ou todas com "See all songs"), a
+  // discografia e os parecidos. Eram separadores.
+  const [todas, setTodas] = useState(false);
+  useEffect(() => { setTodas(false); }, [type, name]);
   const [ytTracks, setYtTracks] = useState<Track[]>([]);
   // As visualizações e a idade de cada vídeo da pesquisa (15/10): a ordem de
   // um artista sem página musical.
@@ -201,7 +203,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   const musicas = useMemo(() => musicasDoArtista(tracksDaAba, aCarregarOutras ? [] : otherTracks),
     [tracksDaAba, otherTracks, aCarregarOutras]);
   // O botão só aparece quando muda alguma coisa na lista (ou ainda a chegar).
-  const mostrarOrdem = type === 'artist' && activeTab === 'songs' && (aCarregarOutras
+  const mostrarOrdem = type === 'artist' && (aCarregarOutras
     || modosComDados(musicas, infoDaFaixa).length > 0);
   const favoritos = useArtistasFavoritos((s) => s.chaves);
   const alternarFavorito = useArtistasFavoritos((s) => s.alternar);
@@ -217,7 +219,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   const origemDaPagina = useMemo(() => ({ tipo: type === 'artist' ? 'artista' : 'album', nome: name } as const), [type, name]);
   // Cada aba é uma lista nova, que começa no topo: o cabeçalho volta a abrir.
   const rolagem = cab.rolagem;
-  useEffect(() => { rolagem.setValue(0); }, [activeTab, rolagem]);
+  useEffect(() => { rolagem.setValue(0); }, [type, name, rolagem]);
 
   /**
    * A fila de acções do artista é a MESMA da playlist, e de propósito.
@@ -228,12 +230,12 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
    * era isso que fazia um "Play" desligar o shuffle para sempre.
    */
   const tocarLista = usePlayer((s) => s.tocarLista);
-  // O Play usa a mesma lista que está à vista. Em Albums abre-se primeiro um
-  // álbum; não há uma lista de músicas para o Play do topo tocar.
-  const faixasDaAba = activeTab === 'songs' ? musicas : [];
+  // O Play toca as músicas da página toda (as tuas e as dele), e não só as
+  // cinco que se veem.
+  const faixasDaAba = musicas;
   // Só se espera sem nada para mostrar: as tuas aparecem logo, e as outras dele
   // entram por baixo quando chegarem (com o esqueleto no rodapé até lá).
-  const waiting = loading || (activeTab === 'songs' ? musicas.length === 0 && aCarregarOutras : loadingYtAlbums);
+  const waiting = loading || (musicas.length === 0 && aCarregarOutras);
   const shuffleLigado = usePlayer((s) => s.shuffle);
   const shuffleInteligente = usePlayer((s) => s.shuffleInteligente);
   const alternarShuffle = usePlayer((s) => s.toggleShuffle);
@@ -250,7 +252,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   };
   const accoesDoArtista = (
     <>
-      {faixasDaAba.length || (activeTab === 'songs' && waiting) ? <>
+      {faixasDaAba.length || waiting ? <>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Play ${name}`}
@@ -318,33 +320,47 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
     ?? tracks.find((t) => t.artworkUrl)?.artworkUrl
     ?? ytTracks.find((t) => t.artworkUrl)?.artworkUrl
     ?? null;
-  const header = <>
-    {/* Por baixo do nome, quantas são tuas, e só quando são (20/10): a
-        contagem da lista aberta dizia "0 songs" ao abrir, e parecia avariado. */}
-    {type === 'artist' ? <CabecalhoDaPlaylist artista aoMedirNome={setFimDoNome} nome={name} artworks={capaDoArtista ? [capaDoArtista] : []}
-      faixas={tracks.length} duracaoSegundos={null} meta={metaDoArtista(tracks.length, loading)}
-      accoes={accoesDoArtista} /> : tracks.length > 0 ? <View style={{ paddingHorizontal: spacing.xl, marginBottom: spacing.md }}>
-        <PillButton label="Play all" small onPress={() => playTrack(tracks[0], tracks, true, false, undefined, origemDaPagina)} />
-      </View> : null}
-    {type === 'artist' && pagina?.maisRecente ? <UltimoLancamento album={pagina.maisRecente}
-      onPress={() => { const a = pagina.maisRecente!; setSelectedYtPlaylistId(a.id); setSelectedYtPlaylistTitle(a.title); setSelectedYtPlaylistArtwork(a.artworkUrl); }} /> : null}
-    {type === 'artist' && <View style={styles.tabsContainer}>
-      {([
-        ['songs', 'Songs'], ['albums', 'Albums'],
-      ] as const).map(([tab, label]) => <Pressable key={tab} accessibilityRole="tab" accessibilityState={{ selected: activeTab === tab }}
-        style={[styles.tabChip, activeTab === tab && styles.tabChipActive]} onPress={() => setActiveTab(tab)}>
-        <Text style={[styles.tabLabel, activeTab === tab && { color: colors.text }]}>{label}</Text>
-      </Pressable>)}
-    </View>}
-    {mostrarOrdem && <View style={styles.ordem} accessibilityRole="radiogroup">
-      {([['ouvidas', 'Most played'], ['recentes', 'Newest']] as const).map(([o, rotulo]) => <Pressable key={o}
-        accessibilityRole="radio" accessibilityState={{ selected: ordem === o }} hitSlop={6}
-        style={[styles.ordemOpcao, ordem === o && styles.ordemOpcaoAtiva]} onPress={() => escolherOrdem(o)}>
-        <Text style={[styles.ordemTexto, ordem === o && { color: colors.text }]}>{rotulo}</Text>
-      </Pressable>)}
-    </View>}
-  </>;
-  const rows = activeTab === 'albums' ? ytAlbums : musicas;
+  // Os fãs e os parecidos (o catálogo, com as tuas como prova de quem ele é), e
+  // a discografia partida em álbuns e em singles e EPs.
+  const vizinhanca = useVizinhancaDoArtista(name, tracks, type === 'artist' && !loading);
+  const discos = useMemo(() => discografia(ytAlbums as AlbumDaPagina[]), [ytAlbums]);
+  const abrirDisco = (d: { id: string; title: string; artworkUrl: string | null }) => {
+    setSelectedYtPlaylistId(d.id); setSelectedYtPlaylistTitle(d.title); setSelectedYtPlaylistArtwork(d.artworkUrl);
+  };
+  const ordemDasMusicas = mostrarOrdem ? <View style={styles.ordem} accessibilityRole="radiogroup">
+    {([['ouvidas', 'Most played'], ['recentes', 'Newest']] as const).map(([o, rotulo]) => <Pressable key={o}
+      accessibilityRole="radio" accessibilityState={{ selected: ordem === o }} hitSlop={6}
+      style={[styles.ordemOpcao, ordem === o && styles.ordemOpcaoAtiva]} onPress={() => escolherOrdem(o)}>
+      <Text style={[styles.ordemTexto, ordem === o && { color: colors.text }]}>{rotulo}</Text>
+    </Pressable>)}
+  </View> : null;
+  const header = type === 'artist' ? <>
+    {/* Por baixo do nome, os fãs e quantas são tuas -- só quando são (o
+        "0 songs" ao abrir parecia uma página avariada). */}
+    <CapaDoArtista nome={name} foto={capaDoArtista} meta={metaDoArtista(tracks.length, loading, vizinhanca.fas)} aoMedirNome={setFimDoNome} />
+    <View style={styles.accoes}>{accoesDoArtista}</View>
+    {pagina?.maisRecente ? <UltimoLancamento album={pagina.maisRecente} onPress={() => abrirDisco(pagina.maisRecente!)} /> : null}
+    <CabecalhoDaSeccao titulo="Songs" direita={ordemDasMusicas} />
+  </> : tracks.length > 0 ? <View style={{ paddingHorizontal: spacing.xl, marginBottom: spacing.md }}>
+    <PillButton label="Play all" small onPress={() => playTrack(tracks[0], tracks, true, false, undefined, origemDaPagina)} />
+  </View> : null;
+  // Por baixo das músicas: as que ainda chegam, o "See all songs", a
+  // discografia e os parecidos.
+  const footer = type === 'artist' ? <>
+    {!waiting && aCarregarOutras ? <SkeletonDeFaixas linhas={3} /> : null}
+    {musicas.length > MUSICAS_A_VISTA ? <Pressable accessibilityRole="button"
+      accessibilityLabel={todas ? 'Show fewer songs' : `See all ${musicas.length} songs`}
+      onPress={() => { hapticSelection(); setTodas((t) => !t); }}
+      style={({ pressed }) => [styles.verTodas, pressed && { backgroundColor: colors.surfacePressed }]}>
+      <Text style={styles.verTodasTexto}>{todas ? 'Show fewer' : 'See all songs'}</Text>
+    </Pressable> : null}
+    {loadingYtAlbums ? <SkeletonDePrateleira /> : <>
+      <DiscosDoArtista titulo="Albums" discos={discos.albuns} aoAbrir={abrirDisco} />
+      <DiscosDoArtista titulo="Singles & EPs" discos={discos.singles} aoAbrir={abrirDisco} />
+    </>}
+    <ParecidosDoArtista nomes={vizinhanca.parecidos} aoAbrir={(n) => navigation.push('LibraryGroup', { type: 'artist', name: n })} />
+  </> : null;
+  const rows = type === 'artist' ? musicasAVista(musicas, todas) : musicas;
   return (
     // O título encolhe ao rolar (3/10): no álbum, o título do cabeçalho; no
     // artista, o nome grande da capa dá lugar ao pequeno na barra de cima.
@@ -353,29 +369,19 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
       subtitle={type === 'album' ? metaDoAlbum(tracks.length, loading) : undefined}
       onBack={() => navigation.goBack()}
       topLeft={type === 'artist' ? <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => navigation.goBack()}
-        style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginLeft: spacing.lg }}>
+        style={styles.voltarSobreAFoto}>
         <Ionicons name="chevron-back" size={26} color={colors.text} /></Pressable> : undefined}>
-      <Animated.FlatList key={activeTab} data={waiting ? [] : rows}
-        onScroll={cab.onScroll} scrollEventThrottle={cab.scrollEventThrottle} scrollIndicatorInsets={{ top: cab.espaco }} keyExtractor={(item) => item.id ?? `${item.source}:${item.sourceId}`}
+      <Animated.FlatList data={waiting ? [] : rows}
+        onScroll={cab.onScroll} scrollEventThrottle={cab.scrollEventThrottle} scrollIndicatorInsets={{ top: cab.espaco }} keyExtractor={(item) => `${item.source}:${item.sourceId}`}
         ListHeaderComponent={header} initialNumToRender={12} windowSize={7}
-        contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: bottomPad }}
-        ListEmptyComponent={waiting ? <SkeletonDeFaixas linhas={6} /> : type === 'album'
+        // O artista começa na foto, por baixo da barra (que flutua sobre ela).
+        contentContainerStyle={{ paddingTop: type === 'artist' ? 0 : cab.espaco, paddingBottom: bottomPad }}
+        ListEmptyComponent={waiting ? <SkeletonDeFaixas linhas={type === 'artist' ? 5 : 6} /> : type === 'album'
           ? <EmptyState icon="albums-outline" title="Nothing here"
               subtitle="None of this album's songs are in your library." />
-          : <EmptyState icon={activeTab === 'albums' ? 'albums-outline' : 'musical-notes-outline'}
-              title={activeTab === 'albums' ? 'No albums found' : 'No songs found'}
-              subtitle={activeTab === 'albums' ? 'No albums by this artist were found.' : 'No songs by this artist were found.'} />}
-        // As outras dele ainda a chegar, por baixo das tuas.
-        ListFooterComponent={type === 'artist' && activeTab === 'songs' && !waiting && aCarregarOutras ? <SkeletonDeFaixas linhas={3} /> : null}
-        renderItem={({ item }) => activeTab === 'albums' && type === 'artist' ? <Pressable accessibilityRole="button"
-          onPress={() => { setSelectedYtPlaylistId(item.id); setSelectedYtPlaylistTitle(item.title); setSelectedYtPlaylistArtwork(item.artworkUrl); }}
-          style={({ pressed }) => [styles.albumRow, pressed && { backgroundColor: colors.surfacePressed }]}>
-          {item.artworkUrl ? <Image source={{ uri: capaParaLista(item.artworkUrl)! }} style={styles.albumArt} /> :
-            <View style={[styles.albumArt, styles.albumArtFallback]}><Ionicons name="albums-outline" size={20} color={colors.textTertiary} /></View>}
-          <View style={{ flex: 1, gap: 2 }}><Text numberOfLines={1} style={[typography.body, { fontWeight: '600' }]}>{item.title}</Text>
-            <Text numberOfLines={1} style={typography.caption}>{item.channelTitle || 'Album'}</Text></View>
-          <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
-        </Pressable> : <TrackRow track={item} showSavedBadge={type === 'artist'}
+          : <EmptyState icon="musical-notes-outline" title="No songs found" subtitle="No songs by this artist were found." />}
+        ListFooterComponent={footer}
+        renderItem={({ item }) => <TrackRow track={item} showSavedBadge={type === 'artist'}
           acompanharATocar
           contextLabel={type === 'artist' ? detalheDaLinha(ordem, infoDaFaixa(item)) ?? undefined : undefined}
           onPress={() => tocarMusica(item, type === 'artist' ? musicas : tracksDaAba, true, undefined, origemDaPagina)} onAction={() => setActionTrack(item)} />}
@@ -457,17 +463,26 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.textSecondary,
   },
-  // "Most played" / "Newest" (10/10): mais pequeno do que os separadores, à direita.
+  // "Most played" / "Newest" (10/10), à direita do título "Songs".
   ordem: {
     flexDirection: 'row',
-    alignSelf: 'flex-end',
     gap: 2,
     padding: 2,
-    marginRight: spacing.xl,
-    marginBottom: spacing.sm,
     borderRadius: radii.pill,
     backgroundColor: colors.surface,
   },
+  // As ações por baixo do nome, encostadas à esquerda como ele.
+  accoes: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.xl, paddingTop: spacing.lg },
+  // O voltar fica sobre a foto: um disco escuro, para se ver em qualquer foto.
+  voltarSobreAFoto: {
+    width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginLeft: spacing.lg,
+    backgroundColor: 'rgba(10,10,15,0.5)',
+  },
+  verTodas: {
+    marginHorizontal: spacing.xl, marginTop: spacing.sm, minHeight: 44, borderRadius: radii.md, borderCurve: 'continuous',
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderStrong, alignItems: 'center', justifyContent: 'center',
+  },
+  verTodasTexto: { fontSize: 15, fontWeight: '600', color: colors.textSecondary },
   ordemOpcao: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: radii.pill },
   ordemOpcaoAtiva: { backgroundColor: colors.surfacePressed },
   ordemTexto: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },

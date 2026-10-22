@@ -171,8 +171,9 @@ const pc = ler_('src/desktop/paginas/BibliotecaPages.web.tsx');
 const iphone = ler_('src/screens/LibraryGroupScreen.tsx');
 assert.match(pc, /const fotoDoCanal = foto \? null : pagina\?\.foto \?\? null;/);
 assert.match(iphone, /const capaDoArtista = foto\n\s+\?\? pagina\?\.foto/);
-assert.match(pc, /const faixasDaAba = separador === 'songs' \? musicas : \[\];/,
-  'PC: o Play segue a aba e não toca a biblioteca em Albums');
+// Uma página só (20/10, variante A): o Play toca as músicas da página toda.
+assert.match(pc, /const faixasDaAba = musicas;/, 'PC: o Play toca a página toda');
+assert.match(iphone, /const faixasDaAba = musicas;/, 'iPhone: o Play toca a página toda');
 assert.match(pc, /tocarLista\(faixasDaAba, ligado, inteligente, \{ tipo: 'artista', nome: name \}\)/);
 assert.match(iphone, /tocarLista\(faixasDaAba, shuffleLigado, shuffleInteligente, \{ tipo: 'artista', nome: name \}\)/);
 

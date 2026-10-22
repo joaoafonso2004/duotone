@@ -52,7 +52,7 @@ caso('o hover nunca pinta por cima do escolhido', () => {
   assert.doesNotMatch(painel, /hovered \|\| focused \|\| estado\.aba === aba/, 'as abas Queue/Lyrics: hover e escolhida eram o mesmo cinzento');
   assert.match(painel, /estado\.aba === aba \? ESTADO\.escolhido : \(hovered \|\| focused\) && \{ backgroundColor: ESTADO\.hover \}/);
   const biblioteca = ler('src/desktop/paginas/BibliotecaPages.web.tsx');
-  assert.match(biblioteca, /hovered && separador !== id && artistStyles\.tabHover/);
+  assert.match(biblioteca, /hovered && ordem !== o && artistStyles\.ordemHover/);
   for (const f of ['src/desktop/paginas/ProfilePage.web.tsx', 'src/desktop/paginas/RetrospetivaPage.web.tsx']) {
     assert.doesNotMatch(ler(f), /smallSegmentActive, hovered && styles\.settingHover/, f);
   }
