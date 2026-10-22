@@ -4,7 +4,7 @@ import {
   PanGestureHandler, State,
   type PanGestureHandlerGestureEvent, type PanGestureHandlerStateChangeEvent,
 } from 'react-native-gesture-handler';
-import { limiarDaLinha } from '../lib/arrastarFila';
+import { desvioAnimado } from '../lib/arrastarFila';
 import { colors } from '../theme';
 
 /** Quanto tempo de dedo parado numa linha abre o arrasto. */
@@ -124,25 +124,42 @@ export function LinhaArrastavel({
     </PanGestureHandler>
   ), [aoMexer, aoMudarNaPega]);
 
-  const estilo = React.useMemo(() => {
-    if (activo) return { transform: [{ translateY: dy }, { scale: 1.03 }] };
-    if (arrastarIndex == null || altura <= 0) return { transform: [{ translateY: 0 }] };
-    // A linha cede o lugar a meio caminho, e não quando é alcançada: é onde o
-    // olho diz que já trocaram. A banda estreita faz disso um deslizar em vez
-    // de um salto -- ver `limiarDaLinha` para o meio pixel que separa os dois
-    // lados.
-    const limiar = limiarDaLinha(index, arrastarIndex, altura);
-    const banda = 8;
-    return {
-      transform: [{
-        translateY: dy.interpolate({
-          inputRange: [limiar - banda, limiar + banda],
-          outputRange: index > arrastarIndex ? [0, -altura] : [altura, 0],
-          extrapolate: 'clamp' as const,
-        }),
-      }],
+  /**
+   * O deslocamento desta linha, SEMPRE ligado à vista (20/10).
+   *
+   * Era a interpolação do `dy` durante o arrasto e um `translateY: 0` fixo
+   * fora dele. No Fabric, o Animated sem driver nativo escreve na vista nativa
+   * e só acerta o React 48 ms depois (`createAnimatedPropsHook` do RN): uma
+   * vizinha que começava a ceder o lugar nesses 48 ms antes de largar ficava
+   * deslocada para sempre, porque o React a julgava a 0 e o 0 do fim não lhe
+   * mudava nada. Eram as linhas umas por cima das outras, com um buraco, na
+   * fila do iPhone. Com o valor sempre ligado, o 0 do fim chega pelo mesmo
+   * caminho que o resto. E só escreve quem muda: as linhas paradas já não se
+   * redesenham a cada movimento do dedo.
+   */
+  const desvio = React.useRef(new Animated.Value(0)).current;
+  const ultimoDesvio = React.useRef(0);
+  // Antes de pintar: com o `useEffect`, a lista reordenada aparecia um frame
+  // com os deslocamentos do arrasto ainda postos.
+  React.useLayoutEffect(() => {
+    const por = (v: number) => {
+      if (v === ultimoDesvio.current) return;
+      ultimoDesvio.current = v;
+      desvio.setValue(v);
     };
-  }, [activo, arrastarIndex, altura, dy, index]);
+    if (arrastarIndex == null || altura <= 0) { por(0); return; }
+    // A pegada segue o dedo; as outras cedem o lugar a meio caminho, a
+    // deslizar numa banda estreita (`desvioAnimado`).
+    const calcular = (d: number) => (activo ? d : desvioAnimado(index, arrastarIndex, d, altura));
+    por(calcular((dy as unknown as { __getValue: () => number }).__getValue()));
+    const id = dy.addListener(({ value }) => por(calcular(value)));
+    return () => dy.removeListener(id);
+  }, [activo, arrastarIndex, altura, desvio, dy, index]);
+  // O estilo só muda quando a linha é pegada ou largada: um objeto novo a
+  // cada render refazia a ligação do Animated.
+  const estilo = React.useMemo(() => (activo
+    ? { transform: [{ translateY: desvio }, { scale: 1.03 }] }
+    : { transform: [{ translateY: desvio }] }), [activo, desvio]);
 
   return (
     <PanGestureHandler
