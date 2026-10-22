@@ -49,6 +49,7 @@ export function CabecalhoDaPlaylist({
   accoes,
   artista = false,
   aoMedirNome,
+  meta,
 }: {
   /** Onde acaba o nome (pt desde o topo do cabeçalho): a barra de cima mostra
    *  o nome pequeno quando ele passa por baixo dela (3/10, `tituloCompacto`). */
@@ -60,6 +61,12 @@ export function CabecalhoDaPlaylist({
   faixas: number;
   /** A soma das durações, ou null quando não se sabem todas. */
   duracaoSegundos: number | null;
+  /**
+   * Outra linha por baixo do nome, em vez da contagem e da duração; `null`
+   * não mostra nenhuma. O artista (20/10): a contagem da lista aberta dizia
+   * "0 songs" ao abrir (`lib/musicasDoArtista.ts`).
+   */
+  meta?: string | null;
   /** A fila de botões -- play, shuffle, o resto. Vem de fora porque o que se
    *  pode fazer a uma playlist não é assunto de um cabeçalho. */
   accoes?: React.ReactNode;
@@ -79,7 +86,7 @@ export function CabecalhoDaPlaylist({
       {/* Duas linhas, e o nome é a maior coisa da página. */}
       <Text numberOfLines={2} style={styles.nome}
         onLayout={aoMedirNome ? (e) => aoMedirNome(e.nativeEvent.layout.y + e.nativeEvent.layout.height) : undefined}>{nome}</Text>
-      <Text style={styles.meta}>{linhaDeMeta(faixas, duracaoSegundos)}</Text>
+      {meta === null ? null : <Text style={styles.meta}>{meta ?? linhaDeMeta(faixas, duracaoSegundos)}</Text>}
 
       {accoes ? <View style={styles.accoes}>{accoes}</View> : null}
     </View>

@@ -32,6 +32,7 @@ import { marcarArtistaAberto } from '../state/novosLancamentos';
 import { hapticSelection } from '../lib/haptics';
 import { chaveDeArtista, displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { detalheDaLinha, infoDaPesquisa, infoDe, modosComDados, ordenarMusicasDoArtista } from '../lib/ordemDoArtista';
+import { metaDoAlbum, metaDoArtista, musicasDoArtista } from '../lib/musicasDoArtista';
 import { chaveDoTitulo } from '../lib/albunsDoArtista';
 import { getOrdemDoArtista, setOrdemDoArtista, type OrdemDoArtista } from '../lib/prefs';
 import { useAuth } from '../state/auth';
@@ -73,9 +74,10 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   const theme = useTheme((s) => s.theme);
   const [actionTrack, setActionTrack] = useState<Track | null>(null);
 
-  // Artist additional content states
-  const [activeTab, setActiveTab] = useState<'library' | 'youtube_tracks' | 'youtube_albums'>('library');
-  useEffect(() => { setActiveTab('library'); }, [type, name]);
+  // "Songs" e "Albums" (20/10, lib/musicasDoArtista.ts): eram três, com as
+  // tuas num separador e as outras dele noutro.
+  const [activeTab, setActiveTab] = useState<'songs' | 'albums'>('songs');
+  useEffect(() => { setActiveTab('songs'); }, [type, name]);
   const [ytTracks, setYtTracks] = useState<Track[]>([]);
   // As visualizações e a idade de cada vídeo da pesquisa (15/10): a ordem de
   // um artista sem página musical.
@@ -191,9 +193,16 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
     return ordenar((doCanal ?? ytTracks).filter(t => !ids.has(`${t.source}:${t.sourceId}`)));
   }, [doCanal, ytTracks, tracks, ordenar]);
   const tracksDaAba = useMemo(() => ordenar(tracks), [tracks, ordenar]);
-  // O botão só aparece quando muda alguma coisa nesta aba (ou ainda a chegar).
-  const mostrarOrdem = type === 'artist' && activeTab !== 'youtube_albums' && (loadingYtAlbums || (!doCanal && loadingYtTracks)
-    || modosComDados(activeTab === 'library' ? tracks : otherTracks, infoDaFaixa).length > 0);
+  // As do canal chegam com os álbuns; a pesquisa pelo nome é o recurso.
+  const aCarregarOutras = loadingYtAlbums || (!doCanal && loadingYtTracks);
+  // As tuas primeiro (o coração da linha marca-as), depois as outras dele --
+  // só quando a fonte certa responder: a pesquisa pelo nome chega antes do
+  // canal, e mostrá-la para a trocar a seguir mudava a lista debaixo do dedo.
+  const musicas = useMemo(() => musicasDoArtista(tracksDaAba, aCarregarOutras ? [] : otherTracks),
+    [tracksDaAba, otherTracks, aCarregarOutras]);
+  // O botão só aparece quando muda alguma coisa na lista (ou ainda a chegar).
+  const mostrarOrdem = type === 'artist' && activeTab === 'songs' && (aCarregarOutras
+    || modosComDados(musicas, infoDaFaixa).length > 0);
   const favoritos = useArtistasFavoritos((s) => s.chaves);
   const alternarFavorito = useArtistasFavoritos((s) => s.alternar);
   useEffect(() => { void useArtistasFavoritos.getState().carregar(); }, []);
@@ -221,10 +230,10 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   const tocarLista = usePlayer((s) => s.tocarLista);
   // O Play usa a mesma lista que está à vista. Em Albums abre-se primeiro um
   // álbum; não há uma lista de músicas para o Play do topo tocar.
-  const faixasDaAba = activeTab === 'library' ? tracksDaAba : activeTab === 'youtube_tracks' ? otherTracks : [];
-  // As músicas do canal chegam com os álbuns; a pesquisa pelo nome é o recurso.
-  const waiting = loading || (activeTab === 'youtube_tracks' && (loadingYtAlbums || (!doCanal && loadingYtTracks)))
-    || (activeTab === 'youtube_albums' && loadingYtAlbums);
+  const faixasDaAba = activeTab === 'songs' ? musicas : [];
+  // Só se espera sem nada para mostrar: as tuas aparecem logo, e as outras dele
+  // entram por baixo quando chegarem (com o esqueleto no rodapé até lá).
+  const waiting = loading || (activeTab === 'songs' ? musicas.length === 0 && aCarregarOutras : loadingYtAlbums);
   const shuffleLigado = usePlayer((s) => s.shuffle);
   const shuffleInteligente = usePlayer((s) => s.shuffleInteligente);
   const alternarShuffle = usePlayer((s) => s.toggleShuffle);
@@ -241,7 +250,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   };
   const accoesDoArtista = (
     <>
-      {faixasDaAba.length || (activeTab !== 'youtube_albums' && waiting) ? <>
+      {faixasDaAba.length || (activeTab === 'songs' && waiting) ? <>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Play ${name}`}
@@ -309,12 +318,11 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
     ?? tracks.find((t) => t.artworkUrl)?.artworkUrl
     ?? ytTracks.find((t) => t.artworkUrl)?.artworkUrl
     ?? null;
-  const faixasDoCabecalho = activeTab === 'youtube_albums' ? tracks : faixasDaAba;
-  const total = faixasDoCabecalho.length && faixasDoCabecalho.every(t => (t.durationSeconds ?? 0) > 0)
-    ? faixasDoCabecalho.reduce((sum, t) => sum + t.durationSeconds!, 0) : null;
   const header = <>
+    {/* Por baixo do nome, quantas são tuas, e só quando são (20/10): a
+        contagem da lista aberta dizia "0 songs" ao abrir, e parecia avariado. */}
     {type === 'artist' ? <CabecalhoDaPlaylist artista aoMedirNome={setFimDoNome} nome={name} artworks={capaDoArtista ? [capaDoArtista] : []}
-      faixas={faixasDoCabecalho.length} duracaoSegundos={total}
+      faixas={tracks.length} duracaoSegundos={null} meta={metaDoArtista(tracks.length, loading)}
       accoes={accoesDoArtista} /> : tracks.length > 0 ? <View style={{ paddingHorizontal: spacing.xl, marginBottom: spacing.md }}>
         <PillButton label="Play all" small onPress={() => playTrack(tracks[0], tracks, true, false, undefined, origemDaPagina)} />
       </View> : null}
@@ -322,7 +330,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
       onPress={() => { const a = pagina.maisRecente!; setSelectedYtPlaylistId(a.id); setSelectedYtPlaylistTitle(a.title); setSelectedYtPlaylistArtwork(a.artworkUrl); }} /> : null}
     {type === 'artist' && <View style={styles.tabsContainer}>
       {([
-        ['library', 'In your library'], ['youtube_tracks', 'More songs'], ['youtube_albums', 'Albums'],
+        ['songs', 'Songs'], ['albums', 'Albums'],
       ] as const).map(([tab, label]) => <Pressable key={tab} accessibilityRole="tab" accessibilityState={{ selected: activeTab === tab }}
         style={[styles.tabChip, activeTab === tab && styles.tabChipActive]} onPress={() => setActiveTab(tab)}>
         <Text style={[styles.tabLabel, activeTab === tab && { color: colors.text }]}>{label}</Text>
@@ -336,13 +344,13 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
       </Pressable>)}
     </View>}
   </>;
-  const rows = activeTab === 'youtube_albums' ? ytAlbums : activeTab === 'youtube_tracks' ? otherTracks : tracksDaAba;
+  const rows = activeTab === 'albums' ? ytAlbums : musicas;
   return (
     // O título encolhe ao rolar (3/10): no álbum, o título do cabeçalho; no
     // artista, o nome grande da capa dá lugar ao pequeno na barra de cima.
     <Screen encolhe={cab} tituloCompacto={type === 'artist' ? { texto: name, aparecerEm: fimDoNome } : undefined}
       title={type === 'album' ? name : undefined}
-      subtitle={type === 'album' ? `Album · ${tracks.length} songs` : undefined}
+      subtitle={type === 'album' ? metaDoAlbum(tracks.length, loading) : undefined}
       onBack={() => navigation.goBack()}
       topLeft={type === 'artist' ? <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => navigation.goBack()}
         style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginLeft: spacing.lg }}>
@@ -351,11 +359,15 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
         onScroll={cab.onScroll} scrollEventThrottle={cab.scrollEventThrottle} scrollIndicatorInsets={{ top: cab.espaco }} keyExtractor={(item) => item.id ?? `${item.source}:${item.sourceId}`}
         ListHeaderComponent={header} initialNumToRender={12} windowSize={7}
         contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: bottomPad }}
-        ListEmptyComponent={waiting ? <SkeletonDeFaixas linhas={6} /> :
-          <EmptyState icon={activeTab === 'youtube_albums' ? 'albums-outline' : 'musical-notes-outline'}
-            title={activeTab === 'library' ? 'Nothing here' : activeTab === 'youtube_albums' ? 'No albums found' : 'No tracks found'}
-            subtitle={activeTab === 'library' ? 'These songs may have been removed from your library.' : 'No other songs found for this artist.'} />}
-        renderItem={({ item }) => activeTab === 'youtube_albums' ? <Pressable accessibilityRole="button"
+        ListEmptyComponent={waiting ? <SkeletonDeFaixas linhas={6} /> : type === 'album'
+          ? <EmptyState icon="albums-outline" title="Nothing here"
+              subtitle="None of this album's songs are in your library." />
+          : <EmptyState icon={activeTab === 'albums' ? 'albums-outline' : 'musical-notes-outline'}
+              title={activeTab === 'albums' ? 'No albums found' : 'No songs found'}
+              subtitle={activeTab === 'albums' ? 'No albums by this artist were found.' : 'No songs by this artist were found.'} />}
+        // As outras dele ainda a chegar, por baixo das tuas.
+        ListFooterComponent={type === 'artist' && activeTab === 'songs' && !waiting && aCarregarOutras ? <SkeletonDeFaixas linhas={3} /> : null}
+        renderItem={({ item }) => activeTab === 'albums' && type === 'artist' ? <Pressable accessibilityRole="button"
           onPress={() => { setSelectedYtPlaylistId(item.id); setSelectedYtPlaylistTitle(item.title); setSelectedYtPlaylistArtwork(item.artworkUrl); }}
           style={({ pressed }) => [styles.albumRow, pressed && { backgroundColor: colors.surfacePressed }]}>
           {item.artworkUrl ? <Image source={{ uri: capaParaLista(item.artworkUrl)! }} style={styles.albumArt} /> :
@@ -363,10 +375,10 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
           <View style={{ flex: 1, gap: 2 }}><Text numberOfLines={1} style={[typography.body, { fontWeight: '600' }]}>{item.title}</Text>
             <Text numberOfLines={1} style={typography.caption}>{item.channelTitle || 'Album'}</Text></View>
           <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
-        </Pressable> : <TrackRow track={item} showSavedBadge={activeTab === 'youtube_tracks'}
+        </Pressable> : <TrackRow track={item} showSavedBadge={type === 'artist'}
           acompanharATocar
           contextLabel={type === 'artist' ? detalheDaLinha(ordem, infoDaFaixa(item)) ?? undefined : undefined}
-          onPress={() => tocarMusica(item, activeTab === 'library' ? tracksDaAba : otherTracks, true, undefined, origemDaPagina)} onAction={() => setActionTrack(item)} />}
+          onPress={() => tocarMusica(item, type === 'artist' ? musicas : tracksDaAba, true, undefined, origemDaPagina)} onAction={() => setActionTrack(item)} />}
       />
 
       <TrackActionsSheet

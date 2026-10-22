@@ -134,6 +134,7 @@ const TESTES = [
   `${TS} scripts/test-importar-playlist-youtube.ts`,
   `${TS} scripts/test-mix-do-youtube.ts`,
   `${TS} scripts/test-albuns-do-artista.ts`,
+  `${TS} scripts/test-musicas-do-artista.ts`,
   `${RESOLVER} scripts/test-filtro-de-versao.ts`,
   'scripts/test-presenca-com-posicao-sql.mjs',
   `${TS} scripts/test-abertura.ts`,

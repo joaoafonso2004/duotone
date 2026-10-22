@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Página do artista</title>
+<style>
+@font-face{font-family:'Archivo';font-weight:100 900;src:url(../assets/fonts/archivo-latin.woff2) format('woff2')}
+@font-face{font-family:'Public Sans';font-weight:100 900;src:url(../assets/fonts/publicsans-latin.woff2) format('woff2')}
+@font-face{font-family:'JetBrains Mono';font-weight:100 900;src:url(../assets/fonts/jetbrainsmono-latin.woff2) format('woff2')}
+:root{
+  --fundo:#060608;--sup:#14141C;--supAlta:#1D1D28;--linha:rgba(255,255,255,.14);--linhaSuave:rgba(255,255,255,.07);
+  --texto:#F5F5F7;--medio:rgba(245,245,247,.58);--fraco:rgba(245,245,247,.48);--metal:#E9EAEE;--metalEscuro:#34363E;
+  --pcFundo:#060608;--pcPainel:#0C0C10;--pcElevado:#14141A;--pcHover:#1C1C24;--pcTexto:#E9EAEE;--pcMedio:#9DA0AA;--pcFraco:#84868F;
+  --display:"Archivo",system-ui,sans-serif;--body:"Public Sans",system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,monospace;
+  --ios:-apple-system,"SF Pro Text","SF Pro Display","Segoe UI",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:#101014;color:var(--texto);font-family:var(--body)}
+.pagina{max-width:1240px;margin:0 auto;padding:36px 16px 90px}
+h1{font-family:var(--display);font-size:30px;letter-spacing:-.5px;margin:0 0 8px}
+h2{font-family:var(--display);font-size:21px;margin:52px 0 6px;display:flex;gap:10px;align-items:center}
+h2 .tag{font:11px var(--mono);letter-spacing:1px;color:var(--fraco);border:1px solid var(--linha);border-radius:4px;padding:2px 6px}
+.intro,.nota{color:var(--medio);font-size:14.5px;line-height:1.6;max-width:860px;margin:0 0 16px}
+.intro b,.nota b{color:var(--texto);font-weight:600}
+.feito{border:1px solid var(--linha);border-radius:12px;padding:14px 16px;max-width:860px;margin:0 0 18px;background:rgba(255,255,255,.03)}
+.feito h3{font:600 14px var(--display);margin:0 0 6px}
+.feito ul{margin:0;padding-left:18px;color:var(--medio);font-size:13.5px;line-height:1.6}
+.controlos{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 22px;align-items:center}
+.controlos .rot{font:11px var(--mono);letter-spacing:1px;color:var(--fraco);text-transform:uppercase}
+.grupoC{display:flex;gap:4px;padding:3px;border:1px solid var(--linha);border-radius:999px}
+.grupoC button{height:30px;padding:0 12px;border-radius:999px;border:0;background:transparent;color:var(--medio);font:600 13px var(--body);cursor:pointer}
+.grupoC button.on{background:var(--texto);color:#0b0b0d}
+.palco{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start}
+.coluna{width:312px}
+.coluna h3{font:600 15px var(--display);margin:0 0 4px;display:flex;gap:8px;align-items:center}
+.coluna h3 .rec{font:10px var(--mono);letter-spacing:1px;background:var(--texto);color:#0b0b0d;border-radius:4px;padding:2px 6px}
+.coluna p{color:var(--medio);font-size:13px;line-height:1.5;margin:0 0 12px;min-height:96px}
+
+/* o iPhone 15 em pontos reais, desenhado a 80% */
+.moldura{width:312px;height:675px;border-radius:40px;overflow:hidden;border:1px solid rgba(255,255,255,.1);box-shadow:0 30px 70px rgba(0,0,0,.55);position:relative;background:var(--fundo)}
+.iphone{width:390px;height:844px;transform:scale(.8);transform-origin:0 0;position:absolute;inset:0 auto auto 0;background:var(--fundo);overflow:hidden;font-family:var(--ios)}
+.rolar{position:absolute;inset:0;overflow-y:auto;scrollbar-width:none;padding-bottom:190px}
+.rolar::-webkit-scrollbar{display:none}
+.ilha{position:absolute;top:11px;left:50%;width:124px;height:36px;margin-left:-62px;border-radius:20px;background:#000;z-index:30}
+.estado{position:absolute;top:0;left:0;right:0;height:54px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 32px 6px;font:600 16px var(--ios);z-index:25;pointer-events:none}
+.topo{position:absolute;top:54px;left:0;right:0;height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;z-index:24}
+.botaoVidro{width:38px;height:38px;border-radius:19px;background:rgba(20,20,28,.55);display:grid;place-items:center;color:var(--texto)}
+.botaoVidro svg{width:20px;height:20px}
+
+/* as "fotos": gradientes, para a maquete não depender de imagens */
+.foto{background:radial-gradient(120% 90% at 50% 25%,#f7c6dc 0%,#e58fb5 32%,#7b2f57 66%,#24101b 100%)}
+.foto.ini{display:grid;place-items:center;font:800 64px var(--ios);color:rgba(255,255,255,.85)}
+.c1{background:linear-gradient(135deg,#f3b6c9,#8e3a5d)}.c2{background:linear-gradient(135deg,#c9d6ff,#4a5a9c)}
+.c3{background:linear-gradient(135deg,#ffd9a8,#b4623a)}.c4{background:linear-gradient(135deg,#d9f7d0,#3f7f52)}
+.c5{background:linear-gradient(135deg,#e7d0ff,#6b3ca3)}.c6{background:linear-gradient(135deg,#ffe3f1,#c24d86)}
+.c7{background:linear-gradient(135deg,#bde9f2,#2c6f86)}.c8{background:linear-gradient(135deg,#f1f1f1,#5b5b66)}
+
+/* comum */
+.nomeGrande{font-size:44px;font-weight:800;letter-spacing:-.8px;line-height:1.02}
+.metaA{font-size:14px;color:rgba(245,245,247,.75);margin-top:6px}
+.acoes{display:flex;align-items:center;gap:12px;padding:16px 20px 6px}
+.play{width:56px;height:56px;border-radius:28px;background:linear-gradient(135deg,var(--metal),var(--metalEscuro));display:grid;place-items:center;color:#0b0b0e}
+.play svg{width:24px;height:24px;margin-left:3px}
+.redondo{width:44px;height:44px;border-radius:22px;background:var(--sup);border:.5px solid var(--linha);display:grid;place-items:center;color:var(--texto)}
+.redondo svg{width:20px;height:20px}
+.redondo.on{color:var(--metal);background:rgba(233,234,238,.12);border-color:rgba(233,234,238,.35)}
+.seguir{height:34px;padding:0 14px;border-radius:17px;border:1px solid var(--linha);display:flex;align-items:center;font:600 13px var(--ios);color:var(--texto)}
+.seguir.on{background:rgba(233,234,238,.12);border-color:rgba(233,234,238,.35)}
+.esp{flex:1}
+.secao{padding:22px 20px 8px;display:flex;align-items:baseline;justify-content:space-between}
+.secao .t{font-size:21px;font-weight:700;letter-spacing:-.2px}
+.secao .l{font-size:14px;color:var(--medio)}
+.ordem{display:flex;gap:2px;padding:2px;border-radius:999px;background:var(--sup)}
+.ordem span{padding:5px 11px;border-radius:999px;font-size:12px;font-weight:600;color:var(--medio)}
+.ordem span.on{background:var(--supAlta);color:var(--texto)}
+.faixa{display:flex;align-items:center;gap:12px;min-height:62px;padding:0 20px}
+.faixa .n{width:18px;text-align:center;font-size:15px;color:var(--fraco);font-variant-numeric:tabular-nums}
+.faixa .c{width:46px;height:46px;border-radius:8px;flex:none}
+.faixa .info{flex:1;min-width:0}
+.faixa .tt{font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.faixa .aa{font-size:13px;color:var(--medio);margin-top:2px;display:flex;gap:6px;align-items:center;white-space:nowrap;overflow:hidden}
+.faixa .aa svg{width:13px;height:13px;flex:none;color:var(--metal)}
+.faixa .mais{color:var(--fraco);font-size:20px;letter-spacing:1px}
+.verTodas{margin:4px 20px 0;height:40px;border-radius:12px;border:.5px solid var(--linha);display:grid;place-items:center;font-size:14px;font-weight:600;color:var(--medio)}
+.carrossel{display:flex;gap:12px;padding:6px 20px 4px;overflow:hidden}
+.disco{width:140px;flex:none}
+.disco .capa{width:140px;height:140px;border-radius:12px}
+.disco .t{font-size:14px;font-weight:600;margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.disco .s{font-size:12.5px;color:var(--medio);margin-top:2px}
+.parecido{width:96px;flex:none;text-align:center}
+.parecido .f{width:96px;height:96px;border-radius:48px}
+.parecido .t{font-size:13px;font-weight:600;margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ultimo{margin:14px 20px 0;padding:8px 14px 8px 8px;border-radius:16px;background:var(--sup);display:flex;align-items:center;gap:12px}
+.ultimo .c{width:56px;height:56px;border-radius:12px;flex:none}
+.ultimo .r{font-size:11px;font-weight:700;letter-spacing:1.1px;color:var(--fraco)}
+.ultimo .t{font-size:16px;font-weight:600}
+.ultimo .s{font-size:13px;color:var(--medio)}
+.tu{margin:16px 20px 0;padding:14px 16px;border-radius:16px;background:linear-gradient(135deg,rgba(233,234,238,.08),rgba(233,234,238,.02));border:.5px solid var(--linha);display:flex;gap:18px}
+.tu div{flex:1}
+.tu b{display:block;font-size:22px;font-weight:700}
+.tu span{font-size:12px;color:var(--medio)}
+.esqueleto{height:14px;border-radius:7px;background:linear-gradient(90deg,rgba(255,255,255,.06),rgba(255,255,255,.12),rgba(255,255,255,.06));background-size:200% 100%;animation:brilho 1.4s linear infinite}
+@keyframes brilho{to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.esqueleto{animation:none}}
+
+/* A */
+.heroA{position:relative;height:430px}
+.heroA .foto{position:absolute;inset:0}
+.heroA:after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(6,6,8,0) 38%,rgba(6,6,8,.55) 70%,var(--fundo) 100%)}
+.heroA .baixo{position:absolute;left:20px;right:20px;bottom:6px;z-index:2}
+
+/* B */
+.heroB{position:relative;padding:112px 20px 4px;text-align:center;overflow:hidden}
+.heroB .borrao{position:absolute;inset:-40px;filter:blur(40px) brightness(.45);transform:scale(1.2)}
+.heroB .f{position:relative;width:200px;height:200px;border-radius:100px;margin:0 auto;box-shadow:0 20px 50px rgba(0,0,0,.5)}
+.heroB .nome{position:relative;font-size:32px;font-weight:800;margin-top:16px;letter-spacing:-.4px}
+.heroB .metaA{position:relative}
+.heroB .acoes{position:relative;justify-content:center}
+.seg{display:flex;margin:14px 20px 4px;padding:3px;border-radius:999px;background:var(--sup)}
+.seg span{flex:1;text-align:center;padding:8px 0;border-radius:999px;font-size:14px;font-weight:600;color:var(--medio)}
+.seg span.on{background:var(--supAlta);color:var(--texto)}
+
+/* C */
+.heroC{position:relative;height:300px;overflow:hidden}
+.heroC .borrao{position:absolute;inset:-40px;filter:blur(30px) brightness(.5);transform:scale(1.2)}
+.heroC .linha{position:absolute;left:20px;right:20px;bottom:18px;display:flex;gap:16px;align-items:flex-end}
+.heroC .f{width:120px;height:120px;border-radius:60px;flex:none;box-shadow:0 14px 40px rgba(0,0,0,.5)}
+.heroC .nome{font-size:30px;font-weight:800;letter-spacing:-.4px;line-height:1.05}
+.chips{display:flex;gap:8px;padding:14px 20px 0;flex-wrap:wrap}
+.chip{padding:8px 12px;border-radius:12px;background:var(--sup);font-size:12px;color:var(--medio)}
+.chip b{display:block;font-size:16px;color:var(--texto);font-weight:700}
+.grelha{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:6px 20px}
+.grelha .capa{aspect-ratio:1;border-radius:12px}
+.grelha .t{font-size:14px;font-weight:600;margin-top:6px}
+.grelha .s{font-size:12px;color:var(--medio)}
+
+/* a base de baixo (mini leitor e separadores), como na app */
+.base{position:absolute;left:0;right:0;bottom:0;z-index:20;background:linear-gradient(transparent,rgba(6,6,8,.92) 22%);padding:22px 10px 26px}
+.mini{height:58px;border-radius:16px;background:rgba(30,26,22,.92);display:flex;align-items:center;gap:10px;padding:0 12px}
+.mini .c{width:40px;height:40px;border-radius:8px}
+.mini .t{font-size:14px;font-weight:600}.mini .a{font-size:12px;color:var(--medio)}
+.separadores{display:flex;justify-content:space-around;margin-top:10px;font-size:10px;color:var(--fraco)}
+.separadores div{display:flex;flex-direction:column;align-items:center;gap:3px;width:62px}
+.separadores svg{width:24px;height:24px}
+.separadores .on{color:#d8b28c}
+
+/* PC */
+.pc{border:1px solid var(--linha);border-radius:14px;overflow:hidden;background:var(--pcFundo);font-family:var(--body);color:var(--pcTexto);max-width:1180px}
+.pc .janela{display:flex;min-height:640px}
+.pc .lateral{width:200px;border-right:1px solid rgba(233,234,238,.055);padding:18px 10px;font-size:13.5px;color:var(--pcMedio)}
+.pc .lateral .sec{font:10px var(--mono);letter-spacing:1.5px;color:var(--pcFraco);padding:8px 12px}
+.pc .lateral .it{padding:9px 12px;border-radius:8px}
+.pc .lateral .it.on{background:rgba(233,234,238,.07);color:var(--pcTexto);font-weight:600}
+.pc .conteudo{flex:1;min-width:0}
+.pc .banner{position:relative;height:300px;overflow:hidden}
+.pc .banner .borrao{position:absolute;inset:-60px;filter:blur(50px) brightness(.42);transform:scale(1.2)}
+.pc .banner:after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(6,6,8,0) 40%,var(--pcFundo) 100%)}
+.pc .banner .linha{position:absolute;left:40px;right:40px;bottom:26px;display:flex;gap:26px;align-items:flex-end;z-index:2}
+.pc .banner .f{width:190px;height:190px;border-radius:95px;flex:none;box-shadow:0 18px 50px rgba(0,0,0,.5)}
+.pc .eyebrow{font:10px var(--mono);letter-spacing:1.5px;color:var(--pcFraco)}
+.pc .nome{font:700 52px var(--display);letter-spacing:-1px;line-height:1.05;margin-top:6px}
+.pc .meta{font-size:14px;color:var(--pcMedio);margin-top:8px}
+.pc .barraAcoes{display:flex;gap:10px;align-items:center;padding:4px 40px 18px}
+.pc .bt{height:38px;padding:0 16px;border-radius:8px;display:flex;align-items:center;gap:8px;font:600 14px var(--body);border:1px solid rgba(233,234,238,.1);color:var(--pcTexto)}
+.pc .bt.pri{background:var(--metal);color:#060608;border-color:transparent}
+.pc .bt svg{width:16px;height:16px}
+.pc .ico{width:38px;height:38px;border-radius:8px;display:grid;place-items:center;color:var(--pcMedio)}
+.pc .ico svg{width:18px;height:18px}
+.pc .duas{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:36px;padding:0 40px}
+.pc .tit{display:flex;align-items:center;gap:12px;margin:14px 0 10px}
+.pc .tit .t{font:600 22px var(--display)}
+.pc .tit .s{margin-left:auto;font-size:12px;color:var(--pcFraco)}
+.pc .linhaF{display:flex;align-items:center;gap:12px;height:52px;padding:0 8px;border-radius:8px}
+.pc .linhaF:hover{background:var(--pcHover)}
+.pc .linhaF .n{width:22px;text-align:center;font:12px var(--mono);color:var(--pcFraco)}
+.pc .linhaF .c{width:40px;height:40px;border-radius:4px;flex:none}
+.pc .linhaF .tt{font-size:14px;font-weight:500}
+.pc .linhaF .aa{font-size:12px;color:var(--pcMedio);display:flex;gap:6px;align-items:center}
+.pc .linhaF .aa svg{width:12px;height:12px;color:var(--metal)}
+.pc .linhaF .d{margin-left:auto;font:12px var(--mono);color:var(--pcFraco)}
+.pc .cartao{padding:10px;border-radius:14px;background:var(--pcElevado);display:flex;gap:12px;align-items:center}
+.pc .cartao .c{width:64px;height:64px;border-radius:8px;flex:none}
+.pc .grelhaPc{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:22px;padding:4px 40px 40px}
+.pc .grelhaPc .capa{aspect-ratio:1;border-radius:8px}
+.pc .grelhaPc .t{font:600 14px var(--display);margin-top:10px}
+.pc .grelhaPc .s{font:12px var(--mono);color:var(--pcFraco);margin-top:4px}
+.pc .parecidos{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.pc .parecidos .f{aspect-ratio:1;border-radius:50%}
+.pc .parecidos .t{font-size:12.5px;text-align:center;margin-top:6px;color:var(--pcMedio)}
+.custo{font:12px var(--mono);color:var(--fraco);margin-top:6px}
+table.dados{border-collapse:collapse;font-size:13px;color:var(--medio);margin:10px 0 0;max-width:900px}
+table.dados td,table.dados th{border-bottom:1px solid var(--linhaSuave);padding:7px 10px;text-align:left;vertical-align:top}
+table.dados th{color:var(--texto);font-weight:600}
+</style>
+</head>
+<body>
+<div class="pagina">
+  <h1>Página do artista</h1>
+  <p class="intro">Hoje a página do artista é a de uma playlist com uma foto redonda: cumpre, mas não tem a presença do resto da app. Abaixo estão <b>três propostas para o iPhone</b>, com dados que a app já tem, e a recomendada também no PC. Os nomes e os números das músicas são de exemplo, e as fotos e capas são gradientes.</p>
+
+  <div class="feito">
+    <h3>Já feito no código (20/10, nas duas plataformas, sem esperar por esta escolha)</h3>
+    <ul>
+      <li>Um separador <b>Songs</b> em vez de "In your library" e "More songs": as tuas primeiro, marcadas com o coração, depois as outras dele.</li>
+      <li>O cabeçalho já não diz <b>"0 songs"</b>: diz quantas são tuas, só quando são ("3 songs in your library"), e nada enquanto carrega.</li>
+      <li>O álbum da biblioteca já não diz "Album · 0 songs" ao abrir.</li>
+    </ul>
+  </div>
+
+  <div class="controlos">
+    <span class="rot">Estado</span>
+    <div class="grupoC" id="estados">
+      <button data-e="tuas" class="on">Com músicas tuas</button>
+      <button data-e="nenhuma">Nenhuma tua (Ice Spice hoje)</button>
+      <button data-e="carregar">A carregar</button>
+    </div>
+  </div>
+
+  <div class="palco" id="palco"></div>
+
+  <h2>A no PC <span class="tag">RECOMENDADA</span></h2>
+  <p class="nota">A mesma ordem de leitura: a foto e o nome por cima, as ações, as músicas (as tuas primeiro, com o coração) ao lado do último lançamento e dos parecidos, e a discografia em grelha por baixo.</p>
+  <div class="pc" id="pc"></div>
+
+  <h2>De onde vem cada coisa, e quanto custa</h2>
+  <p class="nota">O pedido do João: avaliar o que mexe com os logs do Supabase. <b>Nenhuma das três acrescenta pedidos ao Supabase.</b></p>
+  <table class="dados">
+    <tr><th>Bloco</th><th>De onde vem</th><th>Pedidos novos</th></tr>
+    <tr><td>Foto grande</td><td>Catálogo (a mesma de hoje); sem ela, a do canal</td><td>Nenhum</td></tr>
+    <tr><td>"5.1M fans"</td><td>Catálogo (<code>vizinhancaDe</code>, já pedida para as recomendações)</td><td>Nenhum ao Supabase; a vizinhança já está em memória quase sempre</td></tr>
+    <tr><td>Songs, Most played / Newest, plays</td><td>Biblioteca + canal do artista (<code>paginaDoArtista</code>), como hoje</td><td>Nenhum</td></tr>
+    <tr><td>Albums / Singles & EPs</td><td>O mesmo canal, separados pelo <code>tipo</code> que já vem</td><td>Nenhum</td></tr>
+    <tr><td>Fans also like</td><td>Os semelhantes da vizinhança + uma foto do catálogo por artista à vista</td><td>Até 6 pedidos ao catálogo por página (não ao Supabase), guardados em memória</td></tr>
+    <tr><td>"You &amp; Ice Spice"</td><td>As estatísticas de escuta, se já estiverem em memória (perfil, "A tua escuta")</td><td>Nenhum: sem elas em memória o cartão não aparece</td></tr>
+  </table>
+</div>
+
+<script>
+const I = {
+  voltar:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
+  mais:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>',
+  play:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>',
+  shuffle:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>',
+  radio:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19 5a10 10 0 0 1 0 14M5 19A10 10 0 0 1 5 5"/></svg>',
+  coracao:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 20s-7-4.4-9.3-8.6C1 8 3 4.5 6.6 4.5c2.1 0 3.6 1.2 4.4 2.6.8-1.4 2.3-2.6 4.4-2.6 3.6 0 5.6 3.5 3.9 6.9C19 15.6 12 20 12 20z"/></svg>',
+  coracaoCheio:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 20s-7-4.4-9.3-8.6C1 8 3 4.5 6.6 4.5c2.1 0 3.6 1.2 4.4 2.6.8-1.4 2.3-2.6 4.4-2.6 3.6 0 5.6 3.5 3.9 6.9C19 15.6 12 20 12 20z"/></svg>',
+  casa:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3 3 10v11h6v-6h6v6h6V10z"/></svg>',
+  notas:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>',
+  mic:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg>',
+  albuns:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M6 4h12M8 1.5h8"/></svg>',
+  perfil:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
+  pausa:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg>',
+  seguinte:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg>',
+};
+const TUAS = [['Think U The Shit (Fart)','c1','214M plays'],['Out My Face (My Baby)','c6','12M plays'],['Deli','c3','98M plays']];
+const DELE = [['Munch (Feelin’ U)','c5','402M plays'],['In Ha Mood','c2','287M plays'],['Princess Diana','c7','190M plays'],['Gangsta Boo','c4','151M plays'],['Phat Butt','c8','40M plays']];
+const ALBUNS = [['Y2K!','c6','2024 · Album'],['Like..?','c1','2023 · EP'],['Like..? (Deluxe)','c5','2023 · EP']];
+const SINGLES = [['Out My Face (My Baby)','c6','2026 · Single'],['Did It First','c2','2025 · Single'],['Phat Butt','c8','2024 · Single']];
+const PARECIDOS = [['PinkPantheress','c6'],['Lil Uzi Vert','c5'],['Doechii','c3'],['Sexyy Red','c1'],['GloRilla','c7'],['Latto','c4']];
+let estado = 'tuas';
+
+function musicas(n){
+  if (estado==='carregar') return Array.from({length:5},()=>`<div class="faixa"><div class="c" style="background:rgba(255,255,255,.07)"></div><div class="info"><div class="esqueleto" style="width:70%"></div><div class="esqueleto" style="width:40%;margin-top:8px;height:11px"></div></div></div>`).join('');
+  const tuas = estado==='tuas' ? TUAS : [];
+  return [...tuas.map(t=>[...t,true]), ...DELE.map(t=>[...t,false])].slice(0,n).map(([t,c,p,tua],i)=>
+    `<div class="faixa"><div class="n">${i+1}</div><div class="c ${c}"></div><div class="info"><div class="tt">${t}</div><div class="aa">${tua?I.coracaoCheio:''}<span>${p}</span></div></div><div class="mais">···</div></div>`).join('');
+}
+function meta(base){
+  if (estado==='carregar') return base;
+  return estado==='tuas' ? `${base} · 3 songs in your library` : base;
+}
+const discos = (lista)=>`<div class="carrossel">${lista.map(([t,c,s])=>`<div class="disco"><div class="capa ${c}"></div><div class="t">${t}</div><div class="s">${s}</div></div>`).join('')}</div>`;
+const parecidos = ()=>`<div class="carrossel">${PARECIDOS.map(([t,c])=>`<div class="parecido"><div class="f ${c}"></div><div class="t">${t}</div></div>`).join('')}</div>`;
+const topo = ()=>`<div class="topo"><div class="botaoVidro">${I.voltar}</div><div class="botaoVidro">${I.mais}</div></div>`;
+const base = ()=>`<div class="base"><div class="mini"><div class="c c6"></div><div style="flex:1"><div class="t">Out My Face (My Baby)</div><div class="a">Ice Spice</div></div><div style="width:22px;color:var(--texto)">${I.pausa}</div><div style="width:22px;color:var(--texto)">${I.seguinte}</div></div>
+  <div class="separadores"><div>${I.casa}Home</div><div>${I.notas}Songs</div><div class="on">${I.mic}Artists</div><div>${I.albuns}Playlists</div><div>${I.perfil}Profile</div></div></div>`;
+const acoes = (centro)=>`<div class="acoes" style="${centro?'justify-content:center':''}"><div class="play">${I.play}</div><div class="redondo">${I.shuffle}</div><div class="redondo">${I.radio}</div><div class="redondo ${estado==='tuas'?'on':''}">${estado==='tuas'?I.coracaoCheio:I.coracao}</div></div>`;
+const ultimo = ()=>`<div class="ultimo"><div class="c c6"></div><div style="flex:1;min-width:0"><div class="r">LATEST RELEASE</div><div class="t">Out My Face (My Baby)</div><div class="s">Single · 2026</div></div><div style="color:var(--fraco)">›</div></div>`;
+const tu = ()=> estado==='tuas' ? `<div class="tu"><div><b>214</b><span>plays by you</span></div><div><b>#6</b><span>in your top artists</span></div><div><b>Mar</b><span>listening since</span></div></div>` : '';
+
+const VARIANTES = [
+  { id:'A', nome:'A · A foto a toda a largura', rec:true,
+    texto:'A foto ocupa o topo e desvanece para o fundo, como no Apple Music. O nome grande pousa nela, e por baixo vêm as ações, o último lançamento, as músicas (cinco, as tuas primeiro) e a discografia em carrosséis. É a mais "perfil": o artista vê-se antes de qualquer lista.',
+    html:()=>`<div class="heroA"><div class="foto"></div><div class="baixo"><div class="nomeGrande">Ice Spice</div><div class="metaA">${meta('5.1M fans')}</div></div></div>
+      ${acoes(false)}${ultimo()}
+      <div class="secao"><span class="t">Songs</span><div class="ordem"><span class="on">Most played</span><span>Newest</span></div></div>${musicas(5)}
+      <div class="verTodas">See all songs</div>
+      ${tu()}
+      <div class="secao"><span class="t">Albums</span><span class="l">See all</span></div>${discos(ALBUNS)}
+      <div class="secao"><span class="t">Singles & EPs</span><span class="l">See all</span></div>${discos(SINGLES)}
+      <div class="secao"><span class="t">Fans also like</span></div>${parecidos()}` },
+  { id:'B', nome:'B · A de hoje, arrumada',
+    texto:'Fica a foto redonda ao centro, agora sobre um fundo feito da própria foto desfocada, e os dois separadores Songs e Albums que já entraram. É a mudança mais pequena: mais cor e menos "playlist", mas continua a ser uma lista.',
+    html:()=>`<div class="heroB"><div class="borrao foto"></div><div class="f foto"></div><div class="nome">Ice Spice</div><div class="metaA">${meta('5.1M fans')}</div>${acoes(true)}</div>
+      ${ultimo()}
+      <div class="seg"><span class="on">Songs</span><span>Albums</span></div>
+      <div class="secao" style="padding-top:12px"><span></span><div class="ordem"><span class="on">Most played</span><span>Newest</span></div></div>${musicas(8)}` },
+  { id:'C', nome:'C · Editorial, com números',
+    texto:'Uma faixa de capa curta com a foto e o nome lado a lado, e logo a seguir os números que já se sabem (fãs, as tuas escutas, as tuas músicas). As músicas são um top numerado com as reproduções, e a discografia é uma grelha. Lê-se como uma ficha.',
+    html:()=>`<div class="heroC"><div class="borrao foto"></div><div class="linha"><div class="f foto"></div><div><div class="nome">Ice Spice</div><div class="metaA" style="margin-top:4px">Artist</div></div></div></div>
+      <div class="chips"><div class="chip"><b>5.1M</b>fans</div>${estado==='tuas'?'<div class="chip"><b>214</b>plays by you</div><div class="chip"><b>3</b>in your library</div>':''}</div>
+      ${acoes(false)}
+      <div class="secao"><span class="t">Popular</span><div class="ordem"><span class="on">Most played</span><span>Newest</span></div></div>${musicas(5)}
+      <div class="secao"><span class="t">Discography</span><span class="l">Albums · Singles</span></div>
+      <div class="grelha">${[...ALBUNS.slice(0,2),...SINGLES.slice(0,2)].map(([t,c,s])=>`<div><div class="capa ${c}"></div><div class="t">${t}</div><div class="s">${s}</div></div>`).join('')}</div>` },
+];
+
+function desenhar(){
+  document.getElementById('palco').innerHTML = VARIANTES.map(v=>`<div class="coluna"><h3>${v.nome}${v.rec?' <span class="rec">RECOMENDADA</span>':''}</h3><p>${v.texto}</p>
+    <div class="moldura"><div class="iphone"><div class="ilha"></div><div class="estado"><span>9:41</span><span>●●● 5G</span></div>${topo()}<div class="rolar">${v.html()}</div>${base()}</div></div></div>`).join('');
+  const linhasPc = estado==='carregar'
+    ? Array.from({length:6},()=>`<div class="linhaF"><div class="n"></div><div class="c" style="background:rgba(255,255,255,.06)"></div><div style="flex:1"><div class="esqueleto" style="width:50%"></div></div></div>`).join('')
+    : [...(estado==='tuas'?TUAS.map(t=>[...t,true]):[]),...DELE.map(t=>[...t,false])].slice(0,7).map(([t,c,p,tua],i)=>`<div class="linhaF"><div class="n">${i+1}</div><div class="c ${c}"></div><div style="min-width:0"><div class="tt">${t}</div><div class="aa">${tua?I.coracaoCheio:''}Ice Spice</div></div><div class="d">${p}</div></div>`).join('');
+  document.getElementById('pc').innerHTML = `<div class="janela"><div class="lateral"><div class="sec">LIBRARY</div><div class="it">Home</div><div class="it">Liked Songs</div><div class="it on">Artists</div><div class="it">Playlists</div><div class="it">Social</div></div>
+    <div class="conteudo"><div class="banner"><div class="borrao foto"></div><div class="linha"><div class="f foto"></div><div><div class="eyebrow">ARTIST</div><div class="nome">Ice Spice</div><div class="meta">${meta('5.1M fans')}</div></div></div></div>
+    <div class="barraAcoes"><div class="bt pri">${I.play}Play</div><div class="bt">${I.shuffle}Shuffle</div><div class="bt">${I.radio}Mix</div><div class="ico" style="color:${estado==='tuas'?'var(--metal)':'var(--pcMedio)'}">${estado==='tuas'?I.coracaoCheio:I.coracao}</div></div>
+    <div class="duas"><div><div class="tit"><span class="t">Songs</span><span class="s">MOST PLAYED · NEWEST</span></div>${linhasPc}<div class="bt" style="margin-top:10px;width:max-content">See all songs</div></div>
+      <div><div class="tit"><span class="t">Latest release</span></div><div class="cartao"><div class="c c6"></div><div><div class="eyebrow">SINGLE · 2026</div><div style="font:600 15px var(--display);margin-top:4px">Out My Face (My Baby)</div></div></div>
+      <div class="tit" style="margin-top:22px"><span class="t">Fans also like</span></div><div class="parecidos">${PARECIDOS.map(([t,c])=>`<div><div class="f ${c}"></div><div class="t">${t}</div></div>`).join('')}</div></div></div>
+    <div class="tit" style="padding:18px 40px 0"><span class="t">Albums</span></div>
+    <div class="grelhaPc">${[...ALBUNS,...SINGLES].map(([t,c,s])=>`<div><div class="capa ${c}"></div><div class="t">${t}</div><div class="s">${s.toUpperCase()}</div></div>`).join('')}</div></div></div>`;
+}
+document.querySelectorAll('#estados button').forEach(b=>b.onclick=()=>{estado=b.dataset.e;document.querySelectorAll('#estados button').forEach(x=>x.classList.toggle('on',x===b));desenhar();});
+desenhar();
+</script>
+</body>
+</html>

@@ -79,6 +79,14 @@ const mocks = {
     agruparPorArtista: tracks => [{ chave: 'isak', faixas: tracks }] },
   '../lib/capaDoEcraBloqueado': { capaParaLista: x => x },
 };
+// As regras da lista e do cabeçalho (20/10) são as verdadeiras, e não um duplo.
+{
+  const fonte = fs.readFileSync(path.join(__dirname, '..', 'src/lib/musicasDoArtista.ts'), 'utf8');
+  const js = ts.transpileModule(fonte, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  const m = { exports: {} };
+  vm.runInNewContext(js, { module: m, exports: m.exports });
+  mocks['../lib/musicasDoArtista'] = m.exports;
+}
 const file = path.join(__dirname, '..', 'src/screens/LibraryGroupScreen.tsx');
 const code = ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: {
   module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React, esModuleInterop: true,
@@ -108,31 +116,32 @@ async function main() {
   assert.ok(find(n=>n.props?.accessibilityLabel==='Isak Mix'),'Mix está presente antes de qualquer resposta remota');
   assert.equal(list().props.ListEmptyComponent.type,'Skeleton','a primeira imagem já contém o carregamento da lista');
   await flush();
+  // Dois separadores (20/10): "Songs" e "Albums".
+  const separadores = nodes(tree).filter(n => n.props?.accessibilityRole === 'tab').map(text);
+  assert.deepEqual(separadores, ['Songs', 'Albums']);
+  // As tuas aparecem logo, sem esperar pelas do canal (que entram por baixo).
+  assert.deepEqual(ids(list().props.data), ['saved-a', 'saved-b'], 'as tuas não esperam pela rede');
+  assert.equal(list().props.ListFooterComponent?.type, 'Skeleton', 'as outras dele a chegar, por baixo');
   play().props.onPress();
-  assert.deepEqual(ids(calls.at(-1)[1]), ['saved-a', 'saved-b'], 'Library Play só toca a biblioteca');
-  tab('More songs');
-  assert.equal(play().props.disabled, true, 'aguarda as mesmas músicas que a lista vai mostrar');
-  const antes = calls.length; play().props.onPress(); assert.equal(calls.length, antes, 'não começa uma lista provisória');
-  resolverPagina(page); await flush();
-  assert.deepEqual(ids(list().props.data), ['more-a', 'more-b'], 'a aba exclui as já guardadas');
-  play().props.onPress();
-  assert.deepEqual(ids(calls.at(-1)[1]), ['more-a', 'more-b'], 'More songs Play começa na sua lista, sem músicas guardadas');
+  assert.deepEqual(ids(calls.at(-1)[1]), ['saved-a', 'saved-b'], 'o Play toca o que está à vista');
+  // O cabeçalho diz quantas são tuas, e não "0 songs" nem a contagem da lista.
   const header = find(n => n.type === 'Header');
-  assert.equal(header.props.faixas, 2); assert.equal(header.props.duracaoSegundos, 380, 'duração da lista escolhida');
+  assert.equal(header.props.meta, '2 songs in your library');
+  resolverPagina(page); await flush();
+  assert.deepEqual(ids(list().props.data), ['saved-a', 'saved-b', 'more-a', 'more-b'], 'as tuas primeiro, depois as dele, sem repetir');
+  assert.equal(list().props.ListFooterComponent, null, 'chegaram: sem esqueleto');
+  assert.equal(list().props.renderItem({ item: library[0] }).props.showSavedBadge, true, 'as tuas vêm marcadas');
   for (const [shuffle, smart] of [[true, false], [true, true], [false, false]]) {
     player.shuffle = shuffle; player.shuffleInteligente = smart; render(); play().props.onPress();
-    assert.deepEqual(ids(calls.at(-1)[1]), ['more-a', 'more-b']);
+    assert.deepEqual(ids(calls.at(-1)[1]), ['saved-a', 'saved-b', 'more-a', 'more-b']);
     assert.equal(calls.at(-1)[2], shuffle); assert.equal(calls.at(-1)[3], smart, 'respeita o modo do leitor');
   }
   list().props.renderItem({ item: more[1] }).props.onPress();
-  assert.deepEqual(ids(calls.at(-1)[2]), ['more-a', 'more-b'], 'tocar uma linha usa a mesma fila');
+  assert.deepEqual(ids(calls.at(-1)[2]), ['saved-a', 'saved-b', 'more-a', 'more-b'], 'tocar uma linha usa a mesma fila');
   find(n => n.props?.accessibilityLabel === 'Isak Mix').props.onPress(); await flush();
   const mix = calls.find(c => c[0] === 'mix'); assert.equal(mix[1], 'Isak'); assert.equal(mix[2].mix.playlistId, 'radio');
   tab('Albums'); assert.equal(play(), undefined, 'Albums não toca silenciosamente a biblioteca');
-  tab('In your library'); play().props.onPress(); assert.deepEqual(ids(calls.at(-1)[1]), ['saved-a', 'saved-b']);
-  // Não há fallback para a biblioteca quando a aba More songs está vazia.
-  page.musicas = [...library];
-  tab('More songs'); assert.equal(play(), undefined, 'sem músicas nesta aba não toca outra lista');
-  console.log('Play da aba do artista: biblioteca, More songs, fila das linhas, shuffle, Mix, Albums e lista vazia passaram.');
+  tab('Songs'); play().props.onPress(); assert.deepEqual(ids(calls.at(-1)[1]), ['saved-a', 'saved-b', 'more-a', 'more-b']);
+  console.log('Play do artista: Songs (as tuas primeiro e marcadas), o cabeçalho sem "0 songs", fila das linhas, shuffle, Mix e Albums passaram.');
 }
 main().catch(e => { console.error(e); process.exitCode = 1; });

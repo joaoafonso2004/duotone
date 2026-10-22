@@ -21,6 +21,7 @@ import { addTracksToPlaylist, createPlaylist } from '../../api/playlists';
 import { getTopArtists } from '../../api/plays';
 import { addSearchHistoryEntry, clearSearchHistory, getOrdemDasGostadas, getOrdemDoArtista, getSearchHistory, setOrdemDasGostadas, setOrdemDoArtista, type OrdemDoArtista } from '../../lib/prefs';
 import { detalheDaLinha, infoDaPesquisa, infoDe, modosComDados, ordenarMusicasDoArtista } from '../../lib/ordemDoArtista';
+import { metaDoArtista, musicasDoArtista } from '../../lib/musicasDoArtista';
 import { chaveDoTitulo } from '../../lib/albunsDoArtista';
 import { agruparPorArtista, chaveDeArtista, displayArtist, extractArtist, tituloDaFaixa } from '../../lib/artistName';
 import { useArtistasFavoritos } from '../../state/artistasFavoritos';
@@ -620,7 +621,8 @@ export function MisturaPage({ id, titulo, back, ...props }: {
 
 export function ArtistPage({ name, back, ...props }: { name: string; back: () => void } & CommonPageProps) {
   const data = useLibraryData();
-  const [separador, setSeparador] = useState<'library' | 'tracks' | 'albums'>('library');
+  // "Songs" e "Albums" (20/10, lib/musicasDoArtista.ts), como no iPhone.
+  const [separador, setSeparador] = useState<'songs' | 'albums'>('songs');
   const [outras, setOutras] = useState<Track[]>([]);
   // As visualizações e a idade de cada vídeo da pesquisa (15/10): a ordem de
   // um artista sem página musical.
@@ -656,7 +658,7 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
     setOutras([]);
     setDetalhesDaPesquisa({});
     setPagina(null);
-    setSeparador('library');
+    setSeparador('songs');
     fecharAlbum();
     useSaved.getState().refresh();
 
@@ -721,9 +723,13 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
     ?? (infoDaBusca ? infoDe(infoDaBusca, t.sourceId, tituloDaFaixa(t), chaveDoTitulo) : null), [pagina, infoDaBusca]);
   const guardadasPorOrdem = useMemo(() => ordenarMusicasDoArtista(tracks, ordem, infoDaFaixa), [tracks, ordem, infoDaFaixa]);
   const outrasPorOrdem = useMemo(() => ordenarMusicasDoArtista(outrasSemRepetir, ordem, infoDaFaixa), [outrasSemRepetir, ordem, infoDaFaixa]);
-  // O botão só aparece quando muda alguma coisa nesta aba (ou ainda a chegar).
-  const mostrarOrdem = separador !== 'albums' && (aProcurarMusicas
-    || modosComDados(separador === 'library' ? tracks : outrasSemRepetir, infoDaFaixa).length > 0);
+  // As tuas primeiro (o coração da linha marca-as), depois as outras dele --
+  // só quando a fonte certa responder (a pesquisa pelo nome chega antes do
+  // canal, e trocar uma pela outra mudava a lista debaixo do rato).
+  const musicas = useMemo(() => musicasDoArtista(guardadasPorOrdem, aProcurarMusicas ? [] : outrasPorOrdem),
+    [guardadasPorOrdem, outrasPorOrdem, aProcurarMusicas]);
+  // O botão só aparece quando muda alguma coisa na lista (ou ainda a chegar).
+  const mostrarOrdem = separador === 'songs' && (aProcurarMusicas || modosComDados(musicas, infoDaFaixa).length > 0);
   const detalheDaFaixa = useCallback((t: Track) => {
     const d = detalheDaLinha(ordem, infoDaFaixa(t));
     return d ? <Text numberOfLines={1} style={artistStyles.detalhe}>{d}</Text> : null;
@@ -744,8 +750,8 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
     if (!ok) props.notify('Could not load the mix.');
   };
   // O Play do topo usa a lista da aba aberta, como o clique numa música dela.
-  const faixasDaAba = separador === 'library' ? guardadasPorOrdem : separador === 'tracks' ? outrasPorOrdem : [];
-  const podeTocarAba = faixasDaAba.length > 0 && !(separador === 'tracks' && aProcurarMusicas);
+  const faixasDaAba = separador === 'songs' ? musicas : [];
+  const podeTocarAba = faixasDaAba.length > 0;
   const playAll = () => {
     if (!podeTocarAba) return;
     void usePlayer.getState().tocarLista(faixasDaAba, ligado, inteligente, { tipo: 'artista', nome: name });
@@ -769,7 +775,9 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
           <View style={styles.detailHeroBody}>
             <Text style={styles.detailHeroEyebrow}>ARTIST</Text>
             <Text numberOfLines={2} style={styles.detailHeroTitle}>{name}</Text>
-            <Text style={styles.detailHeroMeta}>{tracks.length} saved {tracks.length === 1 ? 'track' : 'tracks'}</Text>
+            {/* Quantas são tuas, e só quando são (20/10): "0 saved tracks"
+                parecia uma página que não carregou. */}
+            {metaDoArtista(tracks.length, data.loading) ? <Text style={styles.detailHeroMeta}>{metaDoArtista(tracks.length, data.loading)}</Text> : null}
             <View style={styles.detailHeroActions}>
               <Button icon="play" onPress={playAll} disabled={!podeTocarAba}>Play</Button>
               <Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle} disabled={!podeTocarAba}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button>
@@ -788,8 +796,7 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
 
         <View style={artistStyles.tabs}>
           {([
-            ['library', 'In your library', 'heart-outline'],
-            ['tracks', 'More tracks', 'musical-notes-outline'],
+            ['songs', 'Songs', 'musical-notes-outline'],
             ['albums', 'Albums', 'albums-outline'],
           ] as const).map(([id, label, icon]) => <Pressable key={id} onPress={() => setSeparador(id)}
             style={({ hovered }) => [artistStyles.tab, separador === id && artistStyles.tabActive, hovered && separador !== id && artistStyles.tabHover]}>
@@ -805,12 +812,12 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
           </View>}
         </View>
 
-        {separador === 'library' && <TrackTable plain colunaDoArtista={false} tracks={guardadasPorOrdem} caraDaLinha={detalheDaFaixa} larguraDaCara={96} onPlay={(t) => props.tocarMusica(t, guardadasPorOrdem, undefined, { tipo: 'artista', nome: name })} onMore={props.more}
-          empty={<Empty icon="heart-outline" title="Nothing saved" body="Save a track by this artist and it will appear here." />} />}
-
-        {separador === 'tracks' && (aProcurarMusicas ? <View style={{ height: 280 }}><Loading /></View> :
-          <TrackTable plain colunaDoArtista={false} showSavedBadge tracks={outrasPorOrdem} caraDaLinha={detalheDaFaixa} larguraDaCara={96} onPlay={(t) => props.tocarMusica(t, outrasPorOrdem, undefined, { tipo: 'artista', nome: name })} onMore={props.more}
-            empty={<Empty icon="search-outline" title="No other tracks found" body="No other songs by this artist were found." />} />)}
+        {/* As tuas aparecem logo; as outras dele entram por baixo quando chegarem. */}
+        {separador === 'songs' && (aProcurarMusicas && !musicas.length ? <View style={{ height: 280 }}><Loading /></View> : <>
+          <TrackTable plain colunaDoArtista={false} showSavedBadge tracks={musicas} caraDaLinha={detalheDaFaixa} larguraDaCara={96} onPlay={(t) => props.tocarMusica(t, musicas, undefined, { tipo: 'artista', nome: name })} onMore={props.more}
+            empty={<Empty icon="musical-notes-outline" title="No songs found" body="No songs by this artist were found." />} />
+          {aProcurarMusicas ? <View style={{ height: 120 }}><Loading /></View> : null}
+        </>)}
 
         {separador === 'albums' && (aProcurarAlbuns ? <View style={{ height: 280 }}><Loading /></View> : albuns.length ?
           <View style={artistStyles.albumGrid}>{albuns.map((album) => <Pressable key={album.id} onPress={() => void abrirAlbum(album)}
