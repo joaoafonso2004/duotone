@@ -62,6 +62,12 @@ export function metaDoArtista(tuas: number, aLer: boolean, fas?: number | null):
 /** Quantas músicas a página mostra antes de "See all songs" (20/10, variante A). */
 export const MUSICAS_A_VISTA = 5;
 
+/**
+ * Quantas cabem nas Top Songs do iPhone (23/10): três colunas de quatro, que se
+ * folheiam de lado. As outras estão no "›" do título.
+ */
+export const MUSICAS_NA_GRELHA = 12;
+
 /** As que se veem: as primeiras, ou todas depois de "See all songs". */
 export function musicasAVista<T>(musicas: readonly T[], todas: boolean, quantas = MUSICAS_A_VISTA): T[] {
   return todas ? [...musicas] : musicas.slice(0, quantas);

@@ -122,11 +122,15 @@ assert.deepEqual(modosComDados(lista, () => null), [], 'sem nada que ordenar, ne
 assert.deepEqual(modosComDados(lista, de), ['ouvidas', 'recentes']);
 assert.deepEqual(modosComDados([lista[3]], (t) => ({ reproducoes: 5, ano: null })), ['ouvidas']);
 
-// Ligado nas duas páginas de artista, com o botão das duas ordens.
-for (const ficheiro of ['../src/screens/LibraryGroupScreen.tsx', '../src/desktop/paginas/BibliotecaPages.web.tsx']) {
-  const fonte = readFileSync(new URL(ficheiro, import.meta.url), 'utf8');
-  assert.match(fonte, /\[\['ouvidas', 'Most played'\], \['recentes', 'Newest'\]\]/, `${ficheiro}: o botão`);
-  assert.match(fonte, /setOrdemDoArtista\(o\)/, `${ficheiro}: a escolha fica guardada`);
+// Ligado nas duas páginas de artista, com o botão das duas ordens. No iPhone
+// o botão vive na folha com a lista inteira (23/10, MusicasDoArtistaSheet).
+for (const [pagina, botao] of [
+  ['../src/screens/LibraryGroupScreen.tsx', '../src/components/MusicasDoArtistaSheet.tsx'],
+  ['../src/desktop/paginas/BibliotecaPages.web.tsx', '../src/desktop/paginas/BibliotecaPages.web.tsx'],
+]) {
+  const fonte = readFileSync(new URL(pagina, import.meta.url), 'utf8');
+  assert.match(readFileSync(new URL(botao, import.meta.url), 'utf8'), /\[\['ouvidas', 'Most played'\], \['recentes', 'Newest'\]\]/, `${botao}: o botão`);
+  assert.match(fonte, /setOrdemDoArtista\(o\)/, `${pagina}: a escolha fica guardada`);
   assert.match(fonte, /ordenarMusicasDoArtista\(/);
 }
 console.log('Ordem das músicas do artista: reproduções, ano, desconhecidas no fim e o botão nas duas páginas.');

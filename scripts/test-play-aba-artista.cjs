@@ -46,12 +46,18 @@ const usePlayer = Object.assign(selector => selector(player), { getState: () => 
 const mocks = {
   react: React,
   'react-native': { ActivityIndicator: 'Spinner', Alert: { alert: (...args) => calls.push(['alert', ...args]) },
-    FlatList: 'FlatList', Animated: { FlatList: 'FlatList' }, Pressable: 'Pressable', Text: 'Text', View: 'View', StyleSheet: { create: x => x, hairlineWidth: 1 } },
+    FlatList: 'FlatList', Animated: { FlatList: 'FlatList', ScrollView: 'ScrollView', View: 'AnimatedView' }, Pressable: 'Pressable', Text: 'Text', View: 'View',
+    StyleSheet: { create: x => x, hairlineWidth: 1 }, useWindowDimensions: () => ({ width: 390, height: 844 }) },
   '@react-navigation/native': { useFocusEffect: fn => React.useEffect(fn, [fn]) },
   'react-native-safe-area-context': { useSafeAreaInsets: () => ({ bottom: 34 }) },
   'expo-image': { Image: 'Image' }, 'expo-linear-gradient': { LinearGradient: 'Gradient' }, '@expo/vector-icons/Ionicons': 'Icon',
-  // As peças da página (20/10, variante A) e a vizinhança do catálogo, sem rede.
-  '../components/SeccoesDoArtista': { CabecalhoDaSeccao: 'SectionHeader', CapaDoArtista: 'ArtistHero', DiscosDoArtista: 'Discs', ParecidosDoArtista: 'Similar' },
+  // As peças da página (23/10, docs/artista-ios-maquete.html) e a vizinhança do catálogo, sem rede.
+  '../components/SeccoesDoArtista': {
+    alturaDaCapaDoArtista: () => 540, BolaDeVidro: 'GlassBall', BotaoDeTocar: 'PlayButton', CabecalhoDaSeccao: 'SectionHeader',
+    CapaDoArtista: 'ArtistHero', DiscosDoArtista: 'Discs', FundoDaCorDoArtista: 'Tint', GrelhaDeMusicas: 'SongsGrid',
+    LancamentoEmDestaque: 'Latest', ParecidosDoArtista: 'Similar', PilulaDeVidro: 'GlassPill', SobreOArtista: 'About',
+  },
+  '../components/MusicasDoArtistaSheet': { MusicasDoArtistaSheet: 'SongsSheet' },
   '../hooks/useVizinhancaDoArtista': { useVizinhancaDoArtista: () => ({ fas: 5_100_000, parecidos: ['Bon Iver'] }) },
   '../components/BrilhoDoEcra': { BrilhoDoEcra: 'Glow' }, '../components/EmptyState': { EmptyState: 'Empty' },
   '../components/Skeleton': { SkeletonDeFaixas: 'Skeleton', SkeletonDePrateleira: 'ShelfSkeleton' },
@@ -59,7 +65,7 @@ const mocks = {
   '../state/doca': { useAlturaDosSeparadores: () => 54 },
   '../lib/avisoDeRemocao': { avisarErro() {} },
   '../components/PillButton': { PillButton: 'Pill' }, '../components/Screen': { Screen: 'Screen', useCabecalhoQueEncolhe: () => ({
-    rolagem: { setValue() {} }, onScroll: undefined, scrollEventThrottle: 16, espaco: 0, definirEspaco() {}, repor() {},
+    rolagem: { setValue() {}, interpolate: () => 0 }, onScroll: undefined, scrollEventThrottle: 16, espaco: 0, definirEspaco() {}, repor() {},
   }) },
   '../components/TrackActionsSheet': { TrackActionsSheet: 'Actions' }, '../components/TrackRow': { TrackRow: 'TrackRow' },
   '../components/YtPlaylistRecommendationSheet': { YtPlaylistRecommendationSheet: 'AlbumSheet' },
@@ -109,67 +115,77 @@ function render() { cursor = 0; tree = Screen({ route: { params: { type: 'artist
   effects.splice(0).forEach(fn => fn()); return tree; }
 const nodes = node => !node || typeof node !== 'object' ? [] : [node,
   ...(node.props?.children ?? []).flat(Infinity).flatMap(nodes),
-  ...nodes(node.props?.ListHeaderComponent)];
+  ...nodes(node.props?.accoes), ...nodes(node.props?.topLeft)];
 const text = node => typeof node === 'string' ? node : (node?.props?.children ?? []).flat(Infinity).map(text).join('');
 const find = predicate => nodes(tree).find(predicate);
-const play = () => find(n => n.props?.accessibilityLabel === 'Play Isak');
-const list = () => find(n => n.type === 'FlatList');
-const footer = () => nodes(list().props.ListFooterComponent);
-const verTodas = () => footer().find(n => n.type === 'Pressable' && /songs$/.test(n.props.accessibilityLabel ?? ''));
+// O Play grande (nas ações do cabeçalho); o pequeno da barra de cima vem depois.
+const play = () => nodes(find(n => n.type === 'ArtistHero')).find(n => n.type === 'PlayButton' && n.props.label === 'Play Isak');
+const grelha = () => find(n => n.type === 'SongsGrid');
+const folha = () => find(n => n.type === 'SongsSheet');
 const flush = async () => { for (let i = 0; i < 4; i++) { await new Promise(r => setTimeout(r, 0)); render(); } };
 const ids = tracks => Array.from(tracks, t => t.sourceId);
 
 async function main() {
   render();
-  assert.ok(find(n=>n.props?.accessibilityLabel==='Isak Mix'),'Mix está presente antes de qualquer resposta remota');
-  assert.equal(list().props.ListEmptyComponent.type,'Skeleton','a primeira imagem já contém o carregamento da lista');
+  assert.ok(find(n => n.type === 'GlassPill' && n.props.label === 'Isak Mix'), 'Mix está presente antes de qualquer resposta remota');
+  assert.ok(find(n => n.type === 'Skeleton' && n.props.linhas === 4), 'a primeira imagem já contém o carregamento das Top Songs');
   await flush();
-  // Uma página só, por secções (20/10, variante A): nada de separadores.
+  // Uma página só (23/10): nada de separadores, e as Top Songs com o "›".
   assert.equal(nodes(tree).filter(n => n.props?.accessibilityRole === 'tab').length, 0, 'sem separadores');
-  assert.ok(find(n => n.type === 'SectionHeader' && n.props.titulo === 'Songs'), 'o título "Songs"');
+  const topo = find(n => n.type === 'SectionHeader' && n.props.titulo === 'Top Songs');
+  assert.ok(topo, 'o título "Top Songs"');
   // As tuas aparecem logo, sem esperar pelas do canal (que entram por baixo).
-  assert.deepEqual(ids(list().props.data), ['saved-a', 'saved-b'], 'as tuas não esperam pela rede');
-  assert.ok(footer().some(n => n.type === 'Skeleton'), 'as outras dele a chegar, por baixo');
-  assert.ok(footer().some(n => n.type === 'ShelfSkeleton'), 'a discografia a chegar');
+  assert.deepEqual(ids(grelha().props.musicas), ['saved-a', 'saved-b'], 'as tuas não esperam pela rede');
+  assert.ok(find(n => n.type === 'Skeleton' && n.props.linhas === 2), 'as outras dele a chegar, por baixo');
+  assert.ok(find(n => n.type === 'ShelfSkeleton'), 'a discografia a chegar');
   play().props.onPress();
   assert.deepEqual(ids(calls.at(-1)[1]), ['saved-a', 'saved-b'], 'o Play toca o que já há');
   // Por baixo do nome, os fãs e quantas são tuas; nunca "0 songs".
-  assert.equal(find(n => n.type === 'ArtistHero').props.meta, '5.1M fans · 2 songs in your library');
+  const heroi = find(n => n.type === 'ArtistHero');
+  assert.equal(heroi.props.fas, '5.1M fans'); assert.equal(heroi.props.tuas, '2 in your library');
   resolverPagina(page); await flush();
   const todas = ['saved-a', 'saved-b', 'more-a', 'more-b', 'more-c', 'more-d', 'more-e'];
-  assert.deepEqual(ids(list().props.data), todas.slice(0, 5), 'as tuas primeiro, depois as dele, e só cinco à vista');
-  assert.ok(!footer().some(n => n.type === 'Skeleton' || n.type === 'ShelfSkeleton'), 'chegaram: sem esqueletos');
-  assert.equal(list().props.renderItem({ item: library[0] }).props.showSavedBadge, true, 'as tuas vêm marcadas');
-  // "See all songs" mostra-as todas, e "Show fewer" volta às cinco.
-  assert.equal(verTodas().props.accessibilityLabel, 'See all 7 songs');
-  verTodas().props.onPress(); render();
-  assert.deepEqual(ids(list().props.data), todas);
-  assert.equal(verTodas().props.accessibilityLabel, 'Show fewer songs');
-  verTodas().props.onPress(); render();
-  assert.deepEqual(ids(list().props.data), todas.slice(0, 5));
-  // O Play e as linhas tocam a página toda, e não só as cinco que se veem.
+  assert.deepEqual(ids(grelha().props.musicas), todas, 'as tuas primeiro, depois as dele, na grelha (até 12)');
+  assert.ok(!find(n => n.type === 'Skeleton' || n.type === 'ShelfSkeleton'), 'chegaram: sem esqueletos');
+  const linha = t => grelha().props.renderLinha(t);
+  assert.equal(linha(library[0]).props.showSavedBadge, true, 'as tuas vêm marcadas');
+  // O Play e as linhas tocam a página toda.
   for (const [shuffle, smart] of [[true, false], [true, true], [false, false]]) {
     player.shuffle = shuffle; player.shuffleInteligente = smart; render(); play().props.onPress();
     assert.deepEqual(ids(calls.at(-1)[1]), todas);
     assert.equal(calls.at(-1)[2], shuffle); assert.equal(calls.at(-1)[3], smart, 'respeita o modo do leitor');
   }
-  list().props.renderItem({ item: more[1] }).props.onPress();
+  linha(more[1]).props.onPress();
   assert.deepEqual(ids(calls.at(-1)[2]), todas, 'tocar uma linha usa a mesma fila');
+  // O "›" das Top Songs abre a folha com todas: tocar uma, ou todas baralhadas.
+  assert.equal(folha().props.visible, false);
+  find(n => n.type === 'SectionHeader' && n.props.titulo === 'Top Songs').props.aoCarregar(); render();
+  assert.equal(folha().props.visible, true, 'a folha abriu');
+  assert.deepEqual(ids(folha().props.musicas), todas);
+  assert.equal(folha().props.chavesTuas.size, 2, 'sabe quais são as tuas');
+  folha().props.aoTocar(more[2]); assert.deepEqual(ids(calls.at(-1)[2]), todas, 'da folha, a fila é a página toda');
+  player.shuffle = false; render(); folha().props.aoTocarTudo(true);
+  assert.equal(calls.at(-1)[0], 'list'); assert.equal(calls.at(-1)[2], true, 'o Shuffle da folha baralha');
+  folha().props.onClose(); render(); assert.equal(folha().props.visible, false);
   // A discografia em dois carrosséis; um disco abre a folha dele.
-  const discos = footer().filter(n => n.type === 'Discs');
+  const discos = nodes(tree).filter(n => n.type === 'Discs');
   assert.deepEqual(discos.map(d => [d.props.titulo, d.props.discos.map(x => x.id)]), [['Albums', ['album']], ['Singles & EPs', ['single']]]);
   discos[1].props.aoAbrir(single); render();
   assert.equal(find(n => n.type === 'AlbumSheet').props.playlistId, 'single');
-  // "Fans also like" abre a página do outro artista.
-  const parecidos = footer().find(n => n.type === 'Similar');
+  // "Fans Also Like" abre a página do outro artista.
+  const parecidos = find(n => n.type === 'Similar');
   assert.deepEqual(parecidos.props.nomes, ['Bon Iver']);
   parecidos.props.aoAbrir('Bon Iver');
   assert.equal(JSON.stringify(pushes.at(-1)), JSON.stringify(['LibraryGroup', { type: 'artist', name: 'Bon Iver' }]));
-  find(n => n.props?.accessibilityLabel === 'Isak Mix').props.onPress(); await flush();
+  // O About fecha a página com os números que ela já tem.
+  const sobre = find(n => n.type === 'About');
+  assert.equal(sobre.props.fas, '5.1M fans');
+  assert.equal(sobre.props.numeros.map(x => `${x.valor} ${x.rotulo}`).join(' | '), '2 in your library | 7 songs | 1 album');
+  find(n => n.type === 'GlassPill' && n.props.label === 'Isak Mix').props.onPress(); await flush();
   const mix = calls.find(c => c[0] === 'mix'); assert.equal(mix[1], 'Isak'); assert.equal(mix[2].mix.playlistId, 'radio');
   // A imagem do topo: a capa que se tocou, e depois a do catálogo, uma vez e sem passar pela do canal.
   const trocas = herois.filter((f, i) => i === 0 || f !== herois[i - 1]);
   assert.deepEqual(trocas, ['capa-tocada.jpg', 'catalogo.jpg'], 'a imagem do topo muda uma vez: ' + trocas.join(' -> '));
-  console.log('Página do artista: as tuas primeiro e marcadas, cinco à vista e "See all songs", o cabeçalho sem "0 songs", a fila da página toda, shuffle, discografia, parecidos e Mix passaram.');
+  console.log('Página do artista: as tuas primeiro e marcadas na grelha, a folha com todas, o cabeçalho sem "0 songs", a fila da página toda, shuffle, discografia, parecidos, About, Mix e a imagem que muda uma vez passaram.');
 }
 main().catch(e => { console.error(e); process.exitCode = 1; });

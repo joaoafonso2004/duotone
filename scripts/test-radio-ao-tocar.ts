@@ -123,7 +123,8 @@ await repor(false);
     // `filaTocavel`: as visíveis, e sem rede só as que estão no iPhone (16/10).
     ['src/screens/PlaylistDetailScreen.tsx', /tocarMusica\(item, filaTocavel/],
     ['src/screens/SearchScreen.tsx', /tocarMusica\(track, data, true, contextoDe\(track\)\)/],
-    ['src/screens/LibraryGroupScreen.tsx', /tocarMusica\(item, type === 'artist' \? musicas : tracksDaAba/],
+    // O artista (a grelha e a folha com todas) e o álbum (23/10).
+    ['src/screens/LibraryGroupScreen.tsx', /tocarMusica\(t, musicas, true, undefined, origemDaPagina\)[\s\S]*tocarMusica\(item, tracksDaAba, true/],
     ['src/screens/PrateleiraScreen.tsx', /tocarMusica\(item, faixas/],
     ['src/components/TrackActionsSheet.tsx', /case 'tocar-agora': void player\.tocarMusica\(/],
     ['src/desktop/paginas/BibliotecaPages.web.tsx', /props\.tocarMusica\(t, filteredTracks/],

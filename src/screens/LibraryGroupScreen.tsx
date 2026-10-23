@@ -1,13 +1,14 @@
-import { CabecalhoDaSeccao, CapaDoArtista, DiscosDoArtista, ParecidosDoArtista } from '../components/SeccoesDoArtista';
+import {
+  alturaDaCapaDoArtista, BolaDeVidro, BotaoDeTocar, CabecalhoDaSeccao, CapaDoArtista, DiscosDoArtista, FundoDaCorDoArtista,
+  GrelhaDeMusicas, LancamentoEmDestaque, ParecidosDoArtista, PilulaDeVidro, SobreOArtista,
+} from '../components/SeccoesDoArtista';
+import { MusicasDoArtistaSheet } from '../components/MusicasDoArtistaSheet';
 import { useVizinhancaDoArtista } from '../hooks/useVizinhancaDoArtista';
 import { gruposDaBiblioteca } from '../state/gruposDaBiblioteca';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useCallback, useState, useEffect, useMemo, useRef } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View, Animated } from 'react-native';
+import { StyleSheet, View, Animated, useWindowDimensions } from 'react-native';
 import { tocarMixDoArtista } from '../state/mixDoArtista';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLibrary } from '../api/library';
@@ -16,7 +17,6 @@ import { fotoDoArtista } from '../api/catalogo';
 import { paginaDoArtista, type AlbumDaPagina, type PaginaDoArtista } from '../api/albunsDoArtista';
 import { useArtistasFavoritos } from '../state/artistasFavoritos';
 import { pesquisarMusica, type DetalheDaPesquisa } from '../api/search';
-import { BrilhoDoEcra } from '../components/BrilhoDoEcra';
 import { EmptyState } from '../components/EmptyState';
 import { SkeletonDeFaixas, SkeletonDePrateleira } from '../components/Skeleton';
 import { PillButton } from '../components/PillButton';
@@ -27,13 +27,12 @@ import { YtPlaylistRecommendationSheet } from '../components/YtPlaylistRecommend
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useSaved } from '../state/saved';
 import { usePlayer } from '../state/player';
-import { colors, MINI_PLAYER_HEIGHT, spacing, radii, type as typography } from '../theme';
-import { useTheme } from '../state/theme';
+import { MINI_PLAYER_HEIGHT, spacing } from '../theme';
 import { marcarArtistaAberto } from '../state/novosLancamentos';
 import { hapticSelection } from '../lib/haptics';
 import { chaveDeArtista, displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { detalheDaLinha, infoDaPesquisa, infoDe, modosComDados, ordenarMusicasDoArtista } from '../lib/ordemDoArtista';
-import { discografia, legendaDoDisco, metaDoAlbum, metaDoArtista, musicasAVista, musicasDoArtista, MUSICAS_A_VISTA } from '../lib/musicasDoArtista';
+import { discografia, fasDoArtista, metaDoAlbum, musicasAVista, musicasDoArtista, MUSICAS_NA_GRELHA } from '../lib/musicasDoArtista';
 import { chaveDoTitulo } from '../lib/albunsDoArtista';
 import { getOrdemDoArtista, setOrdemDoArtista, type OrdemDoArtista } from '../lib/prefs';
 import { useAuth } from '../state/auth';
@@ -42,21 +41,6 @@ import { useAlturaDosSeparadores } from '../state/doca';
 import { avisarErro } from '../lib/avisoDeRemocao';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'LibraryGroup'>;
-
-/** O lançamento mais recente do artista, por cima das músicas (29/9). */
-function UltimoLancamento({ album, onPress }: { album: AlbumDaPagina; onPress: () => void }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={`Latest release: ${album.title}`} onPress={onPress}
-    style={({ pressed }) => [styles.ultimo, pressed && { backgroundColor: colors.surfacePressed }]}>
-    {album.artworkUrl ? <Image source={{ uri: album.artworkUrl }} style={styles.ultimoCapa} contentFit="cover" />
-      : <View style={[styles.ultimoCapa, styles.albumArtFallback]}><Ionicons name="albums-outline" size={22} color={colors.textTertiary} /></View>}
-    <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-      <Text style={styles.ultimoRotulo}>LATEST RELEASE</Text>
-      <Text numberOfLines={1} style={[typography.body, { fontWeight: '700' }]}>{album.title}</Text>
-      <Text numberOfLines={1} style={typography.caption}>{legendaDoDisco(album)}</Text>
-    </View>
-    <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
-  </Pressable>;
-}
 
 /** Detalhe de um álbum ou artista (vista sobre as faixas guardadas). */
 export function LibraryGroupScreen({ route, navigation }: Props) {
@@ -71,15 +55,16 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
   const leitura = useRef(0);
-  const theme = useTheme((s) => s.theme);
   const [actionTrack, setActionTrack] = useState<Track | null>(null);
+  const { width } = useWindowDimensions();
 
-  // A página de um artista é uma página só, por secções (20/10, variante A de
-  // docs/artista-maquete.html): a foto e o nome, as ações, o último
-  // lançamento, as músicas (cinco, ou todas com "See all songs"), a
-  // discografia e os parecidos. Eram separadores.
-  const [todas, setTodas] = useState(false);
-  useEffect(() => { setTodas(false); }, [type, name]);
+  // A página de um artista (23/10, docs/artista-ios-maquete.html, escolhida
+  // pelo João): a foto com o nome e as ações por cima, a cor dela a descer pela
+  // página, as Top Songs numa grelha que se folheia de lado, o último
+  // lançamento em destaque, a discografia, os parecidos e o About. Todas as
+  // músicas estão no "›" das Top Songs, numa folha (`MusicasDoArtistaSheet`).
+  const [verTodas, setVerTodas] = useState(false);
+  useEffect(() => { setVerTodas(false); }, [type, name]);
   const [ytTracks, setYtTracks] = useState<Track[]>([]);
   // As visualizações e a idade de cada vídeo da pesquisa (15/10): a ordem de
   // um artista sem página musical.
@@ -251,68 +236,6 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
     setAAbrirMix(false);
     if (!ok) avisarErro('Could not load the mix.', 'Check your connection and try again.');
   };
-  const accoesDoArtista = (
-    <>
-      {faixasDaAba.length || waiting ? <>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Play ${name}`}
-        accessibilityState={{ disabled: waiting }}
-        disabled={waiting}
-        style={[styles.playButton, waiting && { opacity: 0.5 }]}
-        onPress={() => { if (!waiting) void tocarLista(faixasDaAba, shuffleLigado, shuffleInteligente, { tipo: 'artista', nome: name }); }}
-      >
-        <LinearGradient
-          colors={theme.gradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.buttonGradient}
-        >
-          {/* O `marginLeft` acerta o centro optico: um triangulo centrado a
-              matematica parece sempre encostado a esquerda. */}
-          <Ionicons name="play" size={26} color={theme.textColorOnGradient} style={{ marginLeft: 3 }} />
-        </LinearGradient>
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ selected: shuffleLigado, disabled: waiting }}
-        disabled={waiting}
-        accessibilityLabel={shuffleInteligente ? 'Smart shuffle on' : shuffleLigado ? 'Shuffle on' : 'Shuffle off'}
-        onPress={() => { hapticSelection(); alternarShuffle(); }}
-        style={[
-          styles.shuffleButton,
-          waiting && { opacity: 0.5 },
-          shuffleLigado && !shuffleInteligente && { borderColor: theme.color, backgroundColor: theme.soft },
-        ]}
-      >
-        {shuffleInteligente && <BrilhoDoEcra />}
-        <Ionicons name="shuffle" size={20} color={shuffleLigado && !shuffleInteligente ? theme.color : colors.text} />
-      </Pressable>
-      </> : null}
-      {(
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${name} Mix`}
-          accessibilityState={{ busy: aAbrirMix }}
-          disabled={aAbrirMix}
-          onPress={() => void tocarMix()}
-          style={[styles.shuffleButton, aAbrirMix && { opacity: 0.5 }]}
-        >
-          {aAbrirMix ? <ActivityIndicator size="small" color={colors.text} /> : <Ionicons name="radio-outline" size={20} color={colors.text} />}
-        </Pressable>
-      )}
-      {/* Favoritar dentro da página (29/9): só se podia na lista dos artistas. */}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ selected: favorito }}
-        accessibilityLabel={favorito ? `Unfavourite ${name}` : `Favourite ${name}`}
-        onPress={() => { hapticSelection(); alternarFavorito(chaveDeArtista(name)); }}
-        style={[styles.shuffleButton, favorito && { borderColor: theme.color, backgroundColor: theme.soft }]}
-      >
-        <Ionicons name={favorito ? 'heart' : 'heart-outline'} size={20} color={favorito ? theme.color : colors.text} />
-      </Pressable>
-    </>
-  );
   // A imagem do topo muda no máximo uma vez, num fundido (23/10, João: "a foto
   // de fora do artista não é a mesma de dentro ... faz uma transição clean
   // quando muda de foto"). Abre com a que se tocou (a capa do cartão dos
@@ -333,206 +256,142 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   const abrirDisco = (d: { id: string; title: string; artworkUrl: string | null }) => {
     setSelectedYtPlaylistId(d.id); setSelectedYtPlaylistTitle(d.title); setSelectedYtPlaylistArtwork(d.artworkUrl);
   };
-  const ordemDasMusicas = mostrarOrdem ? <View style={styles.ordem} accessibilityRole="radiogroup">
-    {([['ouvidas', 'Most played'], ['recentes', 'Newest']] as const).map(([o, rotulo]) => <Pressable key={o}
-      accessibilityRole="radio" accessibilityState={{ selected: ordem === o }} hitSlop={6}
-      style={[styles.ordemOpcao, ordem === o && styles.ordemOpcaoAtiva]} onPress={() => escolherOrdem(o)}>
-      <Text style={[styles.ordemTexto, ordem === o && { color: colors.text }]}>{rotulo}</Text>
-    </Pressable>)}
-  </View> : null;
-  const header = type === 'artist' ? <>
-    {/* Por baixo do nome, os fãs e quantas são tuas -- só quando são (o
-        "0 songs" ao abrir parecia uma página avariada). */}
-    <CapaDoArtista nome={name} foto={capaDoArtista} meta={metaDoArtista(tracks.length, loading, vizinhanca.fas)} aoMedirNome={setFimDoNome} />
-    <View style={styles.accoes}>{accoesDoArtista}</View>
-    {pagina?.maisRecente ? <UltimoLancamento album={pagina.maisRecente} onPress={() => abrirDisco(pagina.maisRecente!)} /> : null}
-    <CabecalhoDaSeccao titulo="Songs" direita={ordemDasMusicas} />
-  </> : tracks.length > 0 ? <View style={{ paddingHorizontal: spacing.xl, marginBottom: spacing.md }}>
-    <PillButton label="Play all" small onPress={() => playTrack(tracks[0], tracks, true, false, undefined, origemDaPagina)} />
-  </View> : null;
-  // Por baixo das músicas: as que ainda chegam, o "See all songs", a
-  // discografia e os parecidos.
-  const footer = type === 'artist' ? <>
-    {!waiting && aCarregarOutras ? <SkeletonDeFaixas linhas={3} /> : null}
-    {musicas.length > MUSICAS_A_VISTA ? <Pressable accessibilityRole="button"
-      accessibilityLabel={todas ? 'Show fewer songs' : `See all ${musicas.length} songs`}
-      onPress={() => { hapticSelection(); setTodas((t) => !t); }}
-      style={({ pressed }) => [styles.verTodas, pressed && { backgroundColor: colors.surfacePressed }]}>
-      <Text style={styles.verTodasTexto}>{todas ? 'Show fewer' : 'See all songs'}</Text>
-    </Pressable> : null}
-    {loadingYtAlbums ? <SkeletonDePrateleira /> : <>
-      <DiscosDoArtista titulo="Albums" discos={discos.albuns} aoAbrir={abrirDisco} />
-      <DiscosDoArtista titulo="Singles & EPs" discos={discos.singles} aoAbrir={abrirDisco} />
-    </>}
-    <ParecidosDoArtista nomes={vizinhanca.parecidos} aoAbrir={(n, f) => navigation.push('LibraryGroup', { type: 'artist', name: n, capa: f })} />
-  </> : null;
-  const rows = type === 'artist' ? musicasAVista(musicas, todas) : musicas;
+  const tocarTudo = () => { if (!waiting) void tocarLista(faixasDaAba, shuffleLigado, shuffleInteligente, { tipo: 'artista', nome: name }); };
+  const chavesTuas = useMemo(() => new Set(tracks.map((t) => `${t.source}:${t.sourceId}`)), [tracks]);
+  const detalheDe = useCallback((t: Track) => detalheDaLinha(ordem, infoDaFaixa(t)) ?? undefined, [ordem, infoDaFaixa]);
+  const tocarDaPagina = useCallback((t: Track) => tocarMusica(t, musicas, true, undefined, origemDaPagina),
+    [tocarMusica, musicas, origemDaPagina]);
+  const linhaDaGrelha = useCallback((t: Track) => <TrackRow track={t} showSavedBadge acompanharATocar mostrarDuracao={false}
+    contextLabel={detalheDe(t)} onPress={() => tocarDaPagina(t)} onAction={() => setActionTrack(t)} />, [detalheDe, tocarDaPagina]);
+
+  // Ao rolar, a barra de cima ganha o nome (o `Screen`) e um Play pequeno, que
+  // só se pode tocar depois de o nome grande passar por baixo dela.
+  const [passouONome, setPassouONome] = useState(false);
+  const verSeOPassou = (e: { nativeEvent: { contentOffset: { y: number } } }) => setPassouONome(e.nativeEvent.contentOffset.y > fimDoNome);
+  const playPequeno = useMemo(() => rolagem.interpolate({
+    inputRange: [fimDoNome - 6, fimDoNome + 10], outputRange: [0, 1], extrapolate: 'clamp',
+  }), [rolagem, fimDoNome]);
+
+  const accoes = <>
+    <PilulaDeVidro icone="radio-outline" texto="Mix" label={`${name} Mix`} ocupado={aAbrirMix} onPress={() => void tocarMix()} />
+    <View style={{ flex: 1 }} />
+    {faixasDaAba.length || waiting ? <>
+      <BolaDeVidro icone="shuffle" lado={46} ativo={shuffleLigado} desligado={waiting}
+        label={shuffleInteligente ? 'Smart shuffle on' : shuffleLigado ? 'Shuffle on' : 'Shuffle off'}
+        onPress={() => { hapticSelection(); alternarShuffle(); }} />
+      <BotaoDeTocar label={`Play ${name}`} desligado={waiting} onPress={tocarTudo} />
+    </> : null}
+  </>;
+  const barraDoArtista = <View style={styles.barra} pointerEvents="box-none">
+    <BolaDeVidro icone="chevron-back" label="Back" onPress={() => navigation.goBack()} />
+    <View style={{ flex: 1 }} pointerEvents="none" />
+    {faixasDaAba.length ? <Animated.View style={{ opacity: playPequeno }} pointerEvents={passouONome ? 'auto' : 'none'}
+      accessibilityElementsHidden={!passouONome} importantForAccessibility={passouONome ? 'auto' : 'no-hide-descendants'}>
+      <BotaoDeTocar label={`Play ${name}`} lado={36} desligado={waiting} onPress={tocarTudo} />
+    </Animated.View> : null}
+    {/* Favoritar dentro da página (29/9): só se podia na lista dos artistas. */}
+    <BolaDeVidro icone={favorito ? 'heart' : 'heart-outline'} ativo={favorito}
+      label={favorito ? `Unfavourite ${name}` : `Favourite ${name}`}
+      onPress={() => { hapticSelection(); alternarFavorito(chaveDeArtista(name)); }} />
+  </View>;
+
+  const fas = fasDoArtista(vizinhanca.fas);
+  // Quantas são tuas, só quando se sabe e são (o "0 songs" parecia uma página avariada).
+  const tuas = !loading && tracks.length > 0 ? `${tracks.length} in your library` : null;
+  const numerosDoArtista = [
+    ...(tracks.length ? [{ valor: tracks.length, rotulo: 'in your library' }] : []),
+    ...(!aCarregarOutras && musicas.length ? [{ valor: musicas.length, rotulo: musicas.length === 1 ? 'song' : 'songs' }] : []),
+    ...(discos.albuns.length ? [{ valor: discos.albuns.length, rotulo: discos.albuns.length === 1 ? 'album' : 'albums' }] : []),
+  ];
+
+  const folhas = <>
+    <TrackActionsSheet
+      visible={!!actionTrack}
+      track={actionTrack}
+      onClose={() => setActionTrack(null)}
+      aoMudarBiblioteca={load}
+    />
+
+    <YtPlaylistRecommendationSheet
+      visible={!!selectedYtPlaylistId}
+      playlistId={selectedYtPlaylistId}
+      playlistTitle={selectedYtPlaylistTitle}
+      playlistArtwork={selectedYtPlaylistArtwork}
+      onClose={() => {
+        setSelectedYtPlaylistId(null);
+        setSelectedYtPlaylistTitle(null);
+        setSelectedYtPlaylistArtwork(null);
+      }}
+    />
+  </>;
+
+  if (type === 'artist') {
+    return (
+      // O nome grande da capa dá lugar ao pequeno na barra de cima (3/10).
+      <Screen encolhe={cab} tituloCompacto={{ texto: name, aparecerEm: fimDoNome }} onBack={() => navigation.goBack()} topLeft={barraDoArtista}>
+        <Animated.ScrollView onScroll={cab.onScroll} scrollEventThrottle={cab.scrollEventThrottle} showsVerticalScrollIndicator={false}
+          onScrollEndDrag={verSeOPassou} onMomentumScrollEnd={verSeOPassou}
+          // A página começa na foto, por baixo da barra (que flutua sobre ela).
+          contentContainerStyle={{ paddingBottom: bottomPad }}>
+          <FundoDaCorDoArtista foto={capaDoArtista} altura={alturaDaCapaDoArtista(width)} />
+          <CapaDoArtista nome={name} foto={capaDoArtista} fas={fas} tuas={tuas} accoes={accoes} aoMedirNome={setFimDoNome} />
+
+          <CabecalhoDaSeccao titulo="Top Songs" aoCarregar={!waiting && musicas.length ? () => { hapticSelection(); setVerTodas(true); } : undefined} />
+          {waiting ? <SkeletonDeFaixas linhas={4} />
+            : musicas.length ? <GrelhaDeMusicas musicas={musicasAVista(musicas, false, MUSICAS_NA_GRELHA)} renderLinha={linhaDaGrelha} />
+            : <EmptyState icon="musical-notes-outline" title="No songs found" subtitle="No songs by this artist were found." />}
+          {/* As outras dele ainda a chegar (as tuas já estão à vista). */}
+          {!waiting && aCarregarOutras ? <SkeletonDeFaixas linhas={2} /> : null}
+
+          {pagina?.maisRecente ? <LancamentoEmDestaque album={pagina.maisRecente} aoAbrir={abrirDisco} /> : null}
+          {loadingYtAlbums ? <SkeletonDePrateleira /> : <>
+            <DiscosDoArtista titulo="Albums" discos={discos.albuns} aoAbrir={abrirDisco} />
+            <DiscosDoArtista titulo="Singles & EPs" discos={discos.singles} aoAbrir={abrirDisco} lado={136} />
+          </>}
+          <ParecidosDoArtista nomes={vizinhanca.parecidos} aoAbrir={(n, f) => navigation.push('LibraryGroup', { type: 'artist', name: n, capa: f })} />
+          {fas ? <SobreOArtista foto={capaDoArtista} fas={fas} numeros={numerosDoArtista} /> : null}
+        </Animated.ScrollView>
+
+        {folhas}
+        <MusicasDoArtistaSheet
+          visible={verTodas}
+          onClose={() => setVerTodas(false)}
+          nome={name}
+          musicas={musicas}
+          chavesTuas={chavesTuas}
+          ordem={ordem}
+          mostrarOrdem={mostrarOrdem}
+          aoMudarOrdem={escolherOrdem}
+          detalhe={detalheDe}
+          aoTocar={tocarDaPagina}
+          aoTocarTudo={(baralhar) => void tocarLista(musicas, baralhar || shuffleLigado, shuffleInteligente, { tipo: 'artista', nome: name })}
+          aoMudarBiblioteca={load}
+        />
+      </Screen>
+    );
+  }
+
+  // O álbum da biblioteca: o título encolhe ao rolar (3/10), e a lista das tuas.
   return (
-    // O título encolhe ao rolar (3/10): no álbum, o título do cabeçalho; no
-    // artista, o nome grande da capa dá lugar ao pequeno na barra de cima.
-    <Screen encolhe={cab} tituloCompacto={type === 'artist' ? { texto: name, aparecerEm: fimDoNome } : undefined}
-      title={type === 'album' ? name : undefined}
-      subtitle={type === 'album' ? metaDoAlbum(tracks.length, loading) : undefined}
-      onBack={() => navigation.goBack()}
-      topLeft={type === 'artist' ? <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => navigation.goBack()}
-        style={styles.voltarSobreAFoto}>
-        <Ionicons name="chevron-back" size={26} color={colors.text} /></Pressable> : undefined}>
-      <Animated.FlatList data={waiting ? [] : rows}
+    <Screen encolhe={cab} title={name} subtitle={metaDoAlbum(tracks.length, loading)} onBack={() => navigation.goBack()}>
+      <Animated.FlatList data={waiting ? [] : tracksDaAba}
         onScroll={cab.onScroll} scrollEventThrottle={cab.scrollEventThrottle} scrollIndicatorInsets={{ top: cab.espaco }} keyExtractor={(item) => `${item.source}:${item.sourceId}`}
-        ListHeaderComponent={header} initialNumToRender={12} windowSize={7}
-        // O artista começa na foto, por baixo da barra (que flutua sobre ela).
-        contentContainerStyle={{ paddingTop: type === 'artist' ? 0 : cab.espaco, paddingBottom: bottomPad }}
-        ListEmptyComponent={waiting ? <SkeletonDeFaixas linhas={type === 'artist' ? 5 : 6} /> : type === 'album'
-          ? <EmptyState icon="albums-outline" title="Nothing here"
-              subtitle="None of this album's songs are in your library." />
-          : <EmptyState icon="musical-notes-outline" title="No songs found" subtitle="No songs by this artist were found." />}
-        ListFooterComponent={footer}
-        renderItem={({ item }) => <TrackRow track={item} showSavedBadge={type === 'artist'}
-          acompanharATocar
-          contextLabel={type === 'artist' ? detalheDaLinha(ordem, infoDaFaixa(item)) ?? undefined : undefined}
-          onPress={() => tocarMusica(item, type === 'artist' ? musicas : tracksDaAba, true, undefined, origemDaPagina)} onAction={() => setActionTrack(item)} />}
+        ListHeaderComponent={tracks.length > 0 ? <View style={{ paddingHorizontal: spacing.xl, marginBottom: spacing.md }}>
+          <PillButton label="Play all" small onPress={() => playTrack(tracks[0], tracks, true, false, undefined, origemDaPagina)} />
+        </View> : null}
+        initialNumToRender={12} windowSize={7}
+        contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: bottomPad }}
+        ListEmptyComponent={waiting ? <SkeletonDeFaixas linhas={6} />
+          : <EmptyState icon="albums-outline" title="Nothing here" subtitle="None of this album's songs are in your library." />}
+        renderItem={({ item }) => <TrackRow track={item} acompanharATocar
+          onPress={() => tocarMusica(item, tracksDaAba, true, undefined, origemDaPagina)} onAction={() => setActionTrack(item)} />}
       />
-
-      <TrackActionsSheet
-        visible={!!actionTrack}
-        track={actionTrack}
-        onClose={() => setActionTrack(null)}
-        aoMudarBiblioteca={load}
-      />
-
-      <YtPlaylistRecommendationSheet
-        visible={!!selectedYtPlaylistId}
-        playlistId={selectedYtPlaylistId}
-        playlistTitle={selectedYtPlaylistTitle}
-        playlistArtwork={selectedYtPlaylistArtwork}
-        onClose={() => {
-          setSelectedYtPlaylistId(null);
-          setSelectedYtPlaylistTitle(null);
-          setSelectedYtPlaylistArtwork(null);
-        }}
-      />
+      {folhas}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  // Os mesmos numeros do `PlaylistDetailScreen`: e o que faz esta pagina
-  // parecer a de uma playlist em vez de parecida com ela.
-  playButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    overflow: 'hidden',
-  },
-  buttonGradient: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  shuffleButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    // O brilho estica-se por este botao; e o raio daqui que lhe da a forma.
-    overflow: 'hidden',
-    backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderStrong,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  tabsContainer: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    flexWrap: 'wrap',
-    paddingHorizontal: spacing.xl,
-    marginBottom: spacing.md,
-  },
-  tabChip: {
-    minHeight: 44,
-    justifyContent: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: radii.pill,
-    backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-  tabChipActive: {
-    backgroundColor: colors.surfacePressed,
-    borderColor: colors.borderStrong,
-  },
-  tabLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.textSecondary,
-  },
-  // "Most played" / "Newest" (10/10), à direita do título "Songs".
-  ordem: {
-    flexDirection: 'row',
-    gap: 2,
-    padding: 2,
-    borderRadius: radii.pill,
-    backgroundColor: colors.surface,
-  },
-  // As ações por baixo do nome, encostadas à esquerda como ele.
-  accoes: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.xl, paddingTop: spacing.lg },
-  // O voltar fica sobre a foto: um disco escuro, para se ver em qualquer foto.
-  voltarSobreAFoto: {
-    width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginLeft: spacing.lg,
-    backgroundColor: 'rgba(10,10,15,0.5)',
-  },
-  verTodas: {
-    marginHorizontal: spacing.xl, marginTop: spacing.sm, minHeight: 44, borderRadius: radii.md, borderCurve: 'continuous',
-    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderStrong, alignItems: 'center', justifyContent: 'center',
-  },
-  verTodasTexto: { fontSize: 15, fontWeight: '600', color: colors.textSecondary },
-  ordemOpcao: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: radii.pill },
-  ordemOpcaoAtiva: { backgroundColor: colors.surfacePressed },
-  ordemTexto: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
-  ultimo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    marginHorizontal: spacing.xl,
-    marginBottom: spacing.lg,
-    padding: spacing.sm,
-    paddingRight: spacing.md,
-    borderRadius: radii.lg,
-    borderCurve: 'continuous',
-    backgroundColor: colors.surface,
-  },
-  ultimoCapa: {
-    width: 56,
-    height: 56,
-    borderRadius: radii.md,
-    borderCurve: 'continuous',
-    backgroundColor: colors.surfaceHigh,
-  },
-  ultimoRotulo: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.1,
-    color: colors.textTertiary,
-  },
-  albumRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.xl,
-  },
-  albumArt: {
-    width: 48,
-    height: 48,
-    borderRadius: radii.md,
-    borderCurve: 'continuous',
-    backgroundColor: colors.surfaceHigh,
-  },
-  albumArtFallback: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  // A barra de cima do artista: voltar à esquerda; o Play pequeno (ao rolar) e o coração à direita.
+  barra: { flexDirection: 'row', alignItems: 'center', gap: 10 },
 });
