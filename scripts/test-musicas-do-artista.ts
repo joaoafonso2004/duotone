@@ -110,7 +110,7 @@ caso('os fãs e os parecidos pela vizinhança confirmada, e os parecidos abrem a
   assert.match(hook, /if \(!pronta \|\| !nome\) return;/, 'espera pela biblioteca');
   assert.match(iphone, /useVizinhancaDoArtista\(name, tracks, type === 'artist' && !loading\)/);
   assert.match(pc, /useVizinhancaDoArtista\(name, tracks, !data\.loading\)/);
-  assert.match(iphone, /navigation\.push\('LibraryGroup', \{ type: 'artist', name: n \}\)/);
+  assert.match(iphone, /navigation\.push\('LibraryGroup', \{ type: 'artist', name: n, capa: f \}\)/, 'com a foto que se tocou');
   assert.match(pc, /irPara\(\{ tipo: 'artista', nome: n \}\)/);
 });
 caso('a lista é a das tuas mais as dele, e as dele só quando a fonte certa responde', () => {

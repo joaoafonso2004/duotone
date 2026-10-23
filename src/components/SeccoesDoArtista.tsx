@@ -37,7 +37,10 @@ export function CapaDoArtista({ nome, foto, meta, aoMedirNome }: {
     <View style={{ height: altura }}>
       <DissolverEmBaixo desde={0.55}>
         {foto ? (
-          <Image source={{ uri: foto }} style={StyleSheet.absoluteFill} contentFit="cover" transition={250} />
+          // Uma troca de imagem é um fundido lento (23/10): a página abre com a
+          // capa que se tocou e passa para a foto quando ela se souber.
+          <Image source={{ uri: foto }} style={StyleSheet.absoluteFill} contentFit="cover"
+            transition={{ duration: 450, effect: 'cross-dissolve', timing: 'ease-in-out' }} />
         ) : (
           <View style={[StyleSheet.absoluteFill, styles.semFoto]}>
             <Ionicons name="person" size={96} color={colors.textTertiary} />
@@ -101,8 +104,11 @@ export function DiscosDoArtista({ titulo, discos, aoAbrir }: { titulo: string; d
   );
 }
 
-/** "Fans also like": os parecidos do catálogo, redondos, e cada um abre a página dele. */
-export function ParecidosDoArtista({ nomes, aoAbrir }: { nomes: readonly string[]; aoAbrir: (nome: string) => void }) {
+/**
+ * "Fans also like": os parecidos do catálogo, redondos, e cada um abre a página
+ * dele, com a foto que se tocou (a página abre com ela, sem trocar de imagem).
+ */
+export function ParecidosDoArtista({ nomes, aoAbrir }: { nomes: readonly string[]; aoAbrir: (nome: string, foto: string | null) => void }) {
   if (!nomes.length) return null;
   return (
     <View>
@@ -114,10 +120,10 @@ export function ParecidosDoArtista({ nomes, aoAbrir }: { nomes: readonly string[
   );
 }
 
-function Parecido({ nome, aoAbrir }: { nome: string; aoAbrir: (nome: string) => void }) {
+function Parecido({ nome, aoAbrir }: { nome: string; aoAbrir: (nome: string, foto: string | null) => void }) {
   const foto = useFotoDoArtista(nome);
   return (
-    <Pressable onPress={() => aoAbrir(nome)} accessibilityRole="button" accessibilityLabel={nome}
+    <Pressable onPress={() => aoAbrir(nome, foto)} accessibilityRole="button" accessibilityLabel={nome}
       style={({ pressed }) => [styles.parecido, pressed && { opacity: 0.8 }]}>
       {foto ? <Image source={{ uri: foto }} style={styles.fotoRedonda} contentFit="cover" transition={200} />
         : <View style={[styles.fotoRedonda, styles.semCapa]}><Ionicons name="person" size={34} color={colors.textTertiary} /></View>}

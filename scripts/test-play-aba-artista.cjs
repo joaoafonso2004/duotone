@@ -30,7 +30,7 @@ const library = [track('saved-a', 100), track('saved-b', 120)];
 const more = ['a', 'b', 'c', 'd', 'e'].map((x, i) => track(`more-${x}`, 180 + i));
 const album = { id: 'album', title: 'Jon', artworkUrl: null, channelTitle: 'Album · 2026', tipo: 'Album', ano: '2026' };
 const single = { id: 'single', title: 'Tia', artworkUrl: null, channelTitle: 'Single · 2025', tipo: 'Single', ano: '2025' };
-const page = { musicas: [library[0], ...more], albuns: [album, single], mix: { playlistId: 'radio', videoId: 'radio-a' }, maisRecente: null };
+const page = { musicas: [library[0], ...more], albuns: [album, single], mix: { playlistId: 'radio', videoId: 'radio-a' }, maisRecente: null, foto: 'canal.jpg' };
 let resolverPagina;
 const paginaPromise = new Promise(resolve => { resolverPagina = resolve; });
 const calls = [], pushes = [];
@@ -64,7 +64,7 @@ const mocks = {
   '../components/TrackActionsSheet': { TrackActionsSheet: 'Actions' }, '../components/TrackRow': { TrackRow: 'TrackRow' },
   '../components/YtPlaylistRecommendationSheet': { YtPlaylistRecommendationSheet: 'AlbumSheet' },
   '../state/catalogoDeFaixas': { comCatalogo: x => x }, '../api/library': { getLibrary: async () => library },
-  '../lib/cacheDaBiblioteca': { lerFaixas: async read => read() }, '../api/catalogo': { fotoDoArtista: async () => null },
+  '../lib/cacheDaBiblioteca': { lerFaixas: async read => read() }, '../api/catalogo': { fotoDoArtista: async () => 'catalogo.jpg' },
   '../api/albunsDoArtista': { paginaDoArtista: () => paginaPromise }, '../api/search': { pesquisarMusica: async () => ({ faixas: more, continuacao: null, detalhes: {} }) },
   '../state/artistasFavoritos': { useArtistasFavoritos: Object.assign(selector => selector({ chaves: new Set(), alternar() {} }), { getState: () => ({ carregar: async () => {} }) }) },
   '../state/novosLancamentos': { marcarArtistaAberto() {} },
@@ -102,7 +102,10 @@ vm.runInNewContext(code, { setTimeout, clearTimeout, requestAnimationFrame: fn =
 } });
 const Screen = moduleUnderTest.exports.LibraryGroupScreen;
 let tree;
-function render() { cursor = 0; tree = Screen({ route: { params: { type: 'artist', name: 'Isak' } }, navigation: { goBack() {}, push: (...args) => pushes.push(args) } });
+// A imagem do topo a cada desenho (23/10): abre com a que se tocou e muda no máximo uma vez.
+const herois = [];
+function render() { cursor = 0; tree = Screen({ route: { params: { type: 'artist', name: 'Isak', capa: 'capa-tocada.jpg' } }, navigation: { goBack() {}, push: (...args) => pushes.push(args) } });
+  const heroi = find(n => n.type === 'ArtistHero'); if (heroi) herois.push(heroi.props.foto);
   effects.splice(0).forEach(fn => fn()); return tree; }
 const nodes = node => !node || typeof node !== 'object' ? [] : [node,
   ...(node.props?.children ?? []).flat(Infinity).flatMap(nodes),
@@ -164,6 +167,9 @@ async function main() {
   assert.equal(JSON.stringify(pushes.at(-1)), JSON.stringify(['LibraryGroup', { type: 'artist', name: 'Bon Iver' }]));
   find(n => n.props?.accessibilityLabel === 'Isak Mix').props.onPress(); await flush();
   const mix = calls.find(c => c[0] === 'mix'); assert.equal(mix[1], 'Isak'); assert.equal(mix[2].mix.playlistId, 'radio');
+  // A imagem do topo: a capa que se tocou, e depois a do catálogo, uma vez e sem passar pela do canal.
+  const trocas = herois.filter((f, i) => i === 0 || f !== herois[i - 1]);
+  assert.deepEqual(trocas, ['capa-tocada.jpg', 'catalogo.jpg'], 'a imagem do topo muda uma vez: ' + trocas.join(' -> '));
   console.log('Página do artista: as tuas primeiro e marcadas, cinco à vista e "See all songs", o cabeçalho sem "0 songs", a fila da página toda, shuffle, discografia, parecidos e Mix passaram.');
 }
 main().catch(e => { console.error(e); process.exitCode = 1; });

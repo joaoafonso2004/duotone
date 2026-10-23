@@ -111,7 +111,8 @@ export type PilhaParamList = {
   PlaylistDetail: { id: string; name: string; editar?: boolean; pessoas?: boolean };
   ImportYouTube: undefined;
   Artists: undefined;
-  LibraryGroup: { type: 'album' | 'artist'; name: string };
+  /** `capa`: a imagem que se tocou para abrir o artista; a página abre com ela (23/10). */
+  LibraryGroup: { type: 'album' | 'artist'; name: string; capa?: string | null };
   /**
    * A lista completa de uma prateleira de recomendações ou de uma mistura.
    *

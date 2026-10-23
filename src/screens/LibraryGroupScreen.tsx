@@ -166,11 +166,12 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   }, [type, name, loading, provas]);
   // A FOTO do artista vem do catálogo (27/9, `fotoDoArtista`). Era a capa da
   // primeira música dele na biblioteca, e quem não tinha nenhuma via uma nota.
-  const [foto, setFoto] = useState<string | null>(null);
+  // `undefined`: ainda a caminho; `null`: o catálogo não a tem.
+  const [foto, setFoto] = useState<string | null | undefined>(undefined);
   useEffect(() => {
     if (type !== 'artist' || !name) return;
     let vivo = true;
-    setFoto(null);
+    setFoto(undefined);
     void fotoDoArtista(name).then((url) => { if (vivo) setFoto(url); });
     return () => { vivo = false; };
   }, [type, name]);
@@ -312,14 +313,19 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
       </Pressable>
     </>
   );
-  // A foto do catálogo; sem ela, a do canal dele no YouTube Music (30/9); sem
-  // as duas, a capa de uma música dele -- da biblioteca e, se lá não houver
-  // nenhuma, das que se encontraram fora dela.
-  const capaDoArtista = foto
-    ?? pagina?.foto
+  // A imagem do topo muda no máximo uma vez, num fundido (23/10, João: "a foto
+  // de fora do artista não é a mesma de dentro ... faz uma transição clean
+  // quando muda de foto"). Abre com a que se tocou (a capa do cartão dos
+  // Artists, a foto de um parecido) e passa para a definitiva quando se souber
+  // qual é: a do catálogo; se o catálogo não a tiver, a do canal dele no
+  // YouTube Music (30/9); sem as duas, fica a capa de uma música dele. Antes
+  // passava por três, conforme cada uma chegava: a capa, a do canal e a do
+  // catálogo.
+  const capaDeEntrada = route.params.capa
     ?? tracks.find((t) => t.artworkUrl)?.artworkUrl
     ?? ytTracks.find((t) => t.artworkUrl)?.artworkUrl
     ?? null;
+  const capaDoArtista = foto ?? (foto === null ? pagina?.foto : null) ?? capaDeEntrada;
   // Os fãs e os parecidos (o catálogo, com as tuas como prova de quem ele é), e
   // a discografia partida em álbuns e em singles e EPs.
   const vizinhanca = useVizinhancaDoArtista(name, tracks, type === 'artist' && !loading);
@@ -358,7 +364,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
       <DiscosDoArtista titulo="Albums" discos={discos.albuns} aoAbrir={abrirDisco} />
       <DiscosDoArtista titulo="Singles & EPs" discos={discos.singles} aoAbrir={abrirDisco} />
     </>}
-    <ParecidosDoArtista nomes={vizinhanca.parecidos} aoAbrir={(n) => navigation.push('LibraryGroup', { type: 'artist', name: n })} />
+    <ParecidosDoArtista nomes={vizinhanca.parecidos} aoAbrir={(n, f) => navigation.push('LibraryGroup', { type: 'artist', name: n, capa: f })} />
   </> : null;
   const rows = type === 'artist' ? musicasAVista(musicas, todas) : musicas;
   return (

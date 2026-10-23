@@ -123,7 +123,7 @@ export function ArtistsScreen() {
     const side = shelf ? 86 : Math.min(120, cardWidth);
     const novidade = comNovidade.has(artist.chave);
     return <Pressable accessibilityRole="button" accessibilityLabel={`${artist.name}, ${artist.count} songs${novidade ? ', new release' : ''}`}
-      onPress={() => navigation.navigate('LibraryGroup', { type: 'artist', name: artist.name })}
+      onPress={() => navigation.navigate('LibraryGroup', { type: 'artist', name: artist.name, capa: artist.artworkUrl })}
       style={({ pressed }) => [styles.card, { width: shelf ? 94 : cardWidth, opacity: pressed ? 0.6 : 1 }]}>
       {artist.artworkUrl ? <Image source={{ uri: capaParaLista(artist.artworkUrl)! }} contentFit="cover"
         style={{ width: side, height: side, borderRadius: side / 2, backgroundColor: colors.surfaceHigh }} />
