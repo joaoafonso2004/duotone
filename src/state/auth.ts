@@ -6,6 +6,7 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { endSession } from '../lib/sessionSync';
 import { terminarPresenca } from '../lib/presenceSync';
+import { esquecerPerfisPublicos } from '../api/profiles';
 
 let authGeneration=0;
 /**
@@ -180,6 +181,8 @@ export const useAuth = create<AuthState>((set) => ({
     if(!useConnectivity.getState().offline){await endSession();await terminarPresenca();}
     if(Platform.OS==='ios')await AsyncStorage.removeItem('offline:last-user');
     set({session:null,offlineUserId:null});
+    // Os perfis lidos (30 min) eram os amigos de quem saiu.
+    esquecerPerfisPublicos();
     await supabase.auth.signOut({scope:useConnectivity.getState().offline?'local':'global'});
   },
 

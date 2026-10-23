@@ -29,15 +29,36 @@ export async function saveProfileCustomization(value: ProfileAppearance,name:str
   if(error)throw new Error(error.code==='40001'?'O perfil foi alterado noutro dispositivo. Fecha e volta a abrir o editor.':error.message);
 }
 
+/**
+ * Os perfis públicos já lidos, por 30 min (23/10, os logs do Supabase). Cada
+ * atualização do Social -- a inbox, as conversas, os grupos, os amigos -- pedia
+ * outra vez o nome e a fotografia das mesmas pessoas: ~30 `get_public_profiles`
+ * por hora num PC à vista. Uma mudança num perfil chega pelo Realtime (a tabela
+ * `profiles`, no `state/social.ts`), e aí esquece-se tudo; sair da conta também.
+ */
+const PERFIS_VALEM_MS = 30 * 60_000;
+const perfisLidos = new Map<string, { perfil: PublicProfile; em: number }>();
+
+/** Esquece os perfis lidos: um perfil mudou (Realtime), ou a conta saiu. */
+export function esquecerPerfisPublicos(): void {
+  perfisLidos.clear();
+}
+
 export async function getPublicProfiles(ids: string[]): Promise<PublicProfile[]> {
-  if (!ids.length) return [];
-  const result: PublicProfile[] = [];
-  for (let i=0;i<ids.length;i+=200) {
-    const { data,error } = await supabase.rpc('get_public_profiles',{p_ids:ids.slice(i,i+200)});
+  const unicos = [...new Set(ids.filter(Boolean))];
+  if (!unicos.length) return [];
+  const agora = Date.now();
+  const faltam = unicos.filter((id) => {
+    const lido = perfisLidos.get(id);
+    return !lido || agora - lido.em >= PERFIS_VALEM_MS;
+  });
+  for (let i=0;i<faltam.length;i+=200) {
+    const { data,error } = await supabase.rpc('get_public_profiles',{p_ids:faltam.slice(i,i+200)});
     if (error) throw error;
-    result.push(...(data ?? []));
+    const em = Date.now();
+    for (const p of (data ?? []) as PublicProfile[]) perfisLidos.set(p.id, { perfil: p, em });
   }
-  return result;
+  return unicos.flatMap((id) => { const p = perfisLidos.get(id)?.perfil; return p ? [p] : []; });
 }
 export async function searchPublicProfiles(query: string): Promise<PublicProfile[]> {
   const {data,error}=await supabase.rpc('get_public_profiles',{p_query:query.trim().slice(0,80)});

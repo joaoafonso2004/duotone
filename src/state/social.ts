@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase';
 import { estadoDaPresenca, type SocialPresence } from '../lib/socialPresence';
 import { fundirRecebidas, fundirVistos, marcaDasNovas } from '../lib/social';
 import { clearProfileMediaCache } from '../lib/profileMedia';
-import { getSocialConversations,type PublicProfile } from '../api/profiles';
+import { esquecerPerfisPublicos, getSocialConversations,type PublicProfile } from '../api/profiles';
 import { appEstaVisivel, intervaloComAppVisivel } from '../lib/appVisibility';
 import { serialRefresh, type InboxSnapshot } from '../lib/inAppNotifications';
 import { deveRelerAInbox, TIQUE_DA_INBOX_MS } from '../lib/recuperacaoDaInbox';
@@ -366,7 +366,8 @@ export function iniciarSocial(userId: string): () => void {
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships' }, aoMudarAmizades)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'shared_items' }, aoMudarMensagens)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, ()=>{useSocial.setState(s=>({profileVersion:s.profileVersion+1}));refresh(true);})
+    // Um perfil mudou: os nomes e as fotografias guardadas (30 min) esquecem-se antes de reler.
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, ()=>{esquecerPerfisPublicos();useSocial.setState(s=>({profileVersion:s.profileVersion+1}));refresh(true);})
     .subscribe((status) => {
       if (gen !== generation) return;
       marcarAoVivo(status === 'SUBSCRIBED');

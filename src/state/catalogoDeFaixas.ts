@@ -55,9 +55,15 @@ export async function garantirCatalogo(faixas: readonly Track[]): Promise<void> 
   });
   if (!porConhecer.length) return;
 
-  const sabidas = await lerCatalogoDeFaixas(
-    porConhecer.map((t) => ({ source: t.source, sourceId: t.sourceId })),
-  );
+  // A tabela partilhada só se pergunta UMA vez por faixa em cada sessão (23/10,
+  // os logs do Supabase): só se resolvem doze de cada vez, e as que sobravam
+  // voltavam todas à tabela a cada leitura da biblioteca -- e ela continuava
+  // sem as ter. Marca-se antes de esperar, como no `encherDoPartilhado`.
+  const porPerguntar = porConhecer.filter((t) => !jaPerguntado.has(chaveDoCatalogo(t.source, t.sourceId)));
+  porPerguntar.forEach((t) => jaPerguntado.add(chaveDoCatalogo(t.source, t.sourceId)));
+  const sabidas = porPerguntar.length
+    ? await lerCatalogoDeFaixas(porPerguntar.map((t) => ({ source: t.source, sourceId: t.sourceId })))
+    : new Map<string, never>();
   if (sabidas.size) {
     useCatalogoDeFaixas.setState((s) => ({
       porFaixa: { ...s.porFaixa, ...Object.fromEntries(sabidas) },

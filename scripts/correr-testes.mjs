@@ -258,6 +258,7 @@ const TESTES = [
   'scripts/test-presenca-com-fila-sql.mjs',
   'scripts/test-jam-passa-o-anfitriao-sql.mjs',
   'scripts/test-radio-no-jam-sql.mjs',
+  'scripts/test-menos-pedidos-repetidos.cjs',
   'scripts/test-painel-de-saude-sql.mjs',
   'scripts/test-presenca-mais-longa-sql.mjs',
   'scripts/test-presenca-quinze-minutos-sql.mjs',
