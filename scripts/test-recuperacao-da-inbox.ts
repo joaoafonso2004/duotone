@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  deveRelerAInbox, TIQUE_DA_INBOX_MS, TIQUES_COM_REALTIME, TIQUES_SEM_REALTIME,
+  deveRelerAInbox, TIQUE_DA_INBOX_MS, TIQUES_COM_REALTIME, TIQUES_SEM_REALTIME, TIQUES_SEM_REALTIME_ESCONDIDA,
 } from '../src/lib/recuperacaoDaInbox.ts';
 
 const base = { aoVivo: false, visivel: true, podeLer: true, tiques: 0 };
@@ -17,8 +17,11 @@ assert.equal(deveRelerAInbox({ ...base, tiques: 1 }), false, 'sem Realtime, não
 assert.equal(deveRelerAInbox({ ...base, tiques: TIQUES_SEM_REALTIME - 1 }), false);
 assert.equal(deveRelerAInbox({ ...base, tiques: TIQUES_SEM_REALTIME }), true, 'sem Realtime, uma por minuto');
 // O PC com a janela escondida pode ler (a barra de tarefas mostra as por ler):
-// sem Realtime, é a única maneira de lá chegar uma mensagem.
-assert.equal(deveRelerAInbox({ ...base, visivel: false, tiques: TIQUES_SEM_REALTIME }), true);
+// sem Realtime, é a única maneira de lá chegar uma mensagem. Mas de 5 em 5
+// min (23/10): um PC no tabuleiro sem canal eram 60 leituras por hora.
+assert.equal(TIQUE_DA_INBOX_MS * TIQUES_SEM_REALTIME_ESCONDIDA, 5 * 60_000);
+assert.equal(deveRelerAInbox({ ...base, visivel: false, tiques: TIQUES_SEM_REALTIME }), false, 'escondida, não de minuto a minuto');
+assert.equal(deveRelerAInbox({ ...base, visivel: false, tiques: TIQUES_SEM_REALTIME_ESCONDIDA }), true, 'escondida e sem canal, de 5 em 5 min');
 
 // Com Realtime: quinze minutos com a app à frente, nunca escondida.
 assert.equal(TIQUE_DA_INBOX_MS * TIQUES_COM_REALTIME, 15 * 60_000);
