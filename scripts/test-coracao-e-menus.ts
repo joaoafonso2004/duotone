@@ -20,7 +20,7 @@ function caso(nome: string, fn: () => void): void {
   try { fn(); console.log(`  ok    ${nome}`); }
   catch (e) { falhas++; console.log(`  FALHA ${nome}\n        ${(e as Error).message}`); }
 }
-const ler = (f: string) => readFileSync(f, 'utf8');
+const ler = (f: string) => readFileSync(f, 'utf8').replace(/\r\n/g, '\n');
 
 console.log('\no coração');
 caso('pôr são as Faíscas, tirar é o Encolher', () => {
@@ -161,7 +161,12 @@ caso('o motor do PC e o leitor do iPhone são os da 5.0.1', () => {
   assert.match(motor, /export const SEM_ARRANQUE_MS = 6000;/);
   assert.match(motor, /const daSala = !!useOuvirJuntos\.getState\(\)\.sessao \|\| !!useSeguirAmigo\.getState\(\)\.seguindo;/);
   assert.match(motor, /if \(tipo === 'tempo-esgotado' && !daSala && saltosSeguidos < SALTOS_SEGUIDOS_NO_MAXIMO\) \{[\s\S]{0,160}skipUnavailableTrack/);
-  assert.match(motor, /if \(s === 1\) \{\s*saltosSeguidos = 0;/);
+  assert.match(motor, /if \(s === 1\) \{\s*saltosSeguidos = 0;\s*recusasSeguidas = 0;/);
+  // E as recusas do embed (23/10, um amigo do João: 60 recusas em 20 s, a fila
+  // inteira saltada, com uma pesquisa por cada): três seguidas param, sem
+  // pesquisar outra cópia nem saltar, e um "a tocar" zera a conta.
+  assert.match(motor, /export const RECUSAS_SEGUIDAS_NO_MAXIMO = 3;/);
+  assert.match(motor, /recusasSeguidas\+\+;\n\s+if \(recusasSeguidas >= RECUSAS_SEGUIDAS_NO_MAXIMO\) \{[\s\S]{0,260}return;\n\s+\}\n\s+void recoverUnavailableVideo\(faixaRef\.current, tipo\);/);
   assert.match(ler('src/api/search.ts'), /setTimeout\(cancelar, ESPERA_DA_PESQUISA_LIVRE_MS\)/);
   assert.doesNotMatch(ler('src/components/PlayerRoot.tsx'), /CoracaoAnimado|useCoracaoAoCarregar/);
   assert.doesNotMatch(ler('src/components/YouTubePlayerView.tsx'), /proximaFaixaParaOMotor/);

@@ -161,6 +161,18 @@ export const SALTOS_SEGUIDOS_NO_MAXIMO = 4;
 export const MENSAGEM_DO_SALTO = "This song didn't load. Skipping to the next one.";
 export const MENSAGEM_SEM_RESPOSTA = "Songs aren't loading right now. Try again in a moment.";
 let saltosSeguidos = 0;
+/**
+ * Vídeos seguidos recusados pelo embed (removido, região, dono proibiu) antes
+ * de parar (23/10). Um amigo do João, na 5.3.1: 60 recusas em 20 s, todas com o
+ * código 150, até de áudios oficiais que aqui tocavam -- o YouTube recusava
+ * tudo àquela ligação. Cada recusa procurava outra cópia (uma pesquisa) e
+ * saltava, sem limite: a fila inteira em segundos, e uma rajada de pedidos que
+ * só piora o bloqueio. Três seguidas, de duas músicas, já não é o dono de um
+ * vídeo: pára-se e diz-se, sem pesquisar nem saltar. Um "a tocar" zera.
+ */
+export const RECUSAS_SEGUIDAS_NO_MAXIMO = 3;
+export const MENSAGEM_DAS_RECUSAS = 'Songs are being blocked on this connection right now. Try again later, or on another network.';
+let recusasSeguidas = 0;
 
 /**
  * Quanto tempo a passagem espera que a fila avance depois de pedir o `ended`.
@@ -174,6 +186,12 @@ const ESPERA_PELA_ENTREGA_MS = 3000;
 const PRAZO_DO_ALINHAMENTO_MS = 10_000;
 /** Depois do salto do acerto, o som volta quando o vídeo já está no sítio novo. */
 const SOM_DEPOIS_DO_ACERTO_MS = 250;
+/**
+ * O volume mais baixo que a faixa que entra recebe numa passagem (23/10). Nunca
+ * 0: o player do YouTube conta um volume 0 como mudo, e o `unMute` devolve o
+ * volume de antes. Ver o começo da passagem em `cuidarDaPassagem`.
+ */
+const VOLUME_MINIMO_DA_QUE_ENTRA = 1;
 
 /** A posição da sala para esta faixa, só com a sala a tocar (fora de um Jam, `null`). */
 function posicaoNaSala(faixa: Pick<Track, 'source' | 'sourceId'>): number | null {
@@ -215,8 +233,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const aCriarEsperaRef = useRef(false);
   /** A faixa carregada no player em espera; `pronta` quando já está parada no 0, calada. */
   const seguinteRef = useRef<{ sourceId: string; pronta: boolean; rate: number } | null>(null);
-  /** Há uma passagem a decorrer (duração do fade dela). */
-  const passagemRef = useRef<{ fade: number } | null>(null);
+  /** Há uma passagem a decorrer (duração do fade dela; `vigiada`: já se viu se entrou alta). */
+  const passagemRef = useRef<{ fade: number; vigiada?: boolean } | null>(null);
   /** A passagem acabou e pediu o `ended`; à espera que a loja mude de faixa. */
   const entregaRef = useRef<{ deQual: string; quando: number } | null>(null);
   const estrangularRef = useRef(true);
@@ -460,8 +478,19 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       if (decorrido < -0.5 || c.repeatUma) { abortarPassagem(true); return null; }
       const volume = volumeParaOMotor(st.volume);
       const v = volumesDoCrossfade(decorrido, passagem.fade, volume, volume);
+      const entra = Math.max(VOLUME_MINIMO_DA_QUE_ENTRA, Math.round(v.entra));
       try { ativoRef.current?.setVolume?.(Math.round(v.sai)); } catch {}
-      try { esperaRef.current?.setVolume?.(Math.round(v.entra)); } catch {}
+      try { esperaRef.current?.setVolume?.(entra); } catch {}
+      // Para o relatório: se a que entra ainda soar alta logo depois de começar,
+      // o player do YouTube voltou a mexer-lhe no volume.
+      if (!passagem.vigiada && decorrido >= 0.3) {
+        passagem.vigiada = true;
+        let ouvido: number | null = null;
+        try { ouvido = esperaRef.current?.isMuted?.() ? 0 : Number(esperaRef.current?.getVolume?.()); } catch {}
+        if (ouvido != null && Number.isFinite(ouvido) && ouvido > entra + 25) {
+          registarNaFila(`${seguinteRef.current?.sourceId ?? '?'}: crossfade start was loud (PC), volume ${ouvido} for ${entra}`);
+        }
+      }
       if (decorrido >= passagem.fade) { terminarPassagem(); return null; }
       return 100;
     }
@@ -475,8 +504,16 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       passagemRef.current = { fade: c.duracaoDoFade };
       try {
         const espera = esperaRef.current;
-        espera.setVolume(0);
+        // O som volta ANTES do volume, e o volume nunca é 0 (23/10, João, na
+        // 5.3.2: "quando começa o crossfade dá um segundo da próxima música e
+        // depois começa o crossfade"). Era `setVolume(0)` e depois `unMute()`:
+        // para o player do YouTube um volume 0 é mudo, e o `unMute` devolve o
+        // volume de antes do mudo -- a seguinte arrancava alta até a primeira
+        // leitura da curva a baixar, e só então subia devagar. A guarda da
+        // 5.3.1 (calar o em espera a cada evento) olhava para a preparação, 15 s
+        // antes, e não para este instante.
         espera.unMute();
+        espera.setVolume(VOLUME_MINIMO_DA_QUE_ENTRA);
         // A velocidade DELA, e não a da que sai.
         espera.setPlaybackRate?.(seguinteRef.current?.rate ?? velocidadeDoMotor());
         espera.playVideo();
@@ -577,6 +614,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     }
     if (s === 1) {
       saltosSeguidos = 0;
+      recusasSeguidas = 0;
       const nota = notaRef.current;
       if (nota && nota.id === faixaRef.current.sourceId && estaNoVideo(event.target, nota.id)) {
         notaRef.current = null;
@@ -618,6 +656,13 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       detalhe: 'iframe code=' + code,
     });
     if (recuperacao(tipo).alternativa) {
+      recusasSeguidas++;
+      if (recusasSeguidas >= RECUSAS_SEGUIDAS_NO_MAXIMO) {
+        registarNaFila(`${faixaRef.current.sourceId}: stopped after ${recusasSeguidas} refused videos in a row (PC)`);
+        state.setError(MENSAGEM_DAS_RECUSAS);
+        playbackNotice(MENSAGEM_DAS_RECUSAS);
+        return;
+      }
       void recoverUnavailableVideo(faixaRef.current, tipo);
     } else {
       state.setError(mensagemDaFalha(tipo));

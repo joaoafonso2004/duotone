@@ -171,6 +171,20 @@ console.log('Crossfade: condições, momento, curva de igual potência e interru
     'cada evento do em espera, fora da passagem e da entrega, volta a calá-lo');
   assert.match(motor, /crossfade prep was audible on load \(PC\), muted again/, 'e o relatório diz quando o apanhou com som');
   // A passagem marca-se ANTES de tirar o mudo: senão o evento do "a tocar" dela calava-a.
-  assert.match(motor, /passagemRef\.current = \{ fade: c\.duracaoDoFade \};\n      try \{\n        const espera = esperaRef\.current;\n        espera\.setVolume\(0\);\n        espera\.unMute\(\);/);
-  console.log('Crossfade no PC: a preparada fica calada até a passagem começar.');
+  assert.match(motor, /passagemRef\.current = \{ fade: c\.duracaoDoFade \};\n      try \{\n        const espera = esperaRef\.current;\n/);
+  // E no começo o som volta ANTES do volume, que nunca é 0 (23/10, João, na
+  // 5.3.2: "quando começa o crossfade dá um segundo da próxima música"). Com
+  // `setVolume(0)` e depois `unMute()`, o player do YouTube devolvia o volume de
+  // antes do mudo e a seguinte arrancava alta até à primeira leitura da curva.
+  const comeco = motor.slice(motor.indexOf('passagemRef.current = { fade: c.duracaoDoFade };'));
+  const tirarMudo = comeco.indexOf('espera.unMute();');
+  const volume = comeco.indexOf('espera.setVolume(VOLUME_MINIMO_DA_QUE_ENTRA);');
+  const tocar = comeco.indexOf('espera.playVideo();');
+  assert.ok(tirarMudo > 0 && volume > tirarMudo && tocar > volume, 'unMute, depois o volume mínimo, e só depois o play');
+  assert.doesNotMatch(comeco.slice(0, tocar), /espera\.setVolume\(0\)/, 'nada de volume 0 antes do play');
+  assert.match(motor, /const VOLUME_MINIMO_DA_QUE_ENTRA = 1;/);
+  assert.match(motor, /const entra = Math\.max\(VOLUME_MINIMO_DA_QUE_ENTRA, Math\.round\(v\.entra\)\);\n\s+try \{ ativoRef\.current\?\.setVolume\?\.\(Math\.round\(v\.sai\)\); \} catch \{\}\n\s+try \{ esperaRef\.current\?\.setVolume\?\.\(entra\); \} catch \{\}/,
+    'a curva nunca manda volume 0 à que entra');
+  assert.match(motor, /crossfade start was loud \(PC\)/, 'e o relatório diz se ela entrou alta');
+  console.log('Crossfade no PC: a preparada fica calada até a passagem começar, e começa baixa.');
 }
