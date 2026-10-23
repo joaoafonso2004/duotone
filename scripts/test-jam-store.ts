@@ -152,6 +152,12 @@ assert.equal(acertoNoPrimeiroSom(3400, NaN, 600), null, 'sem leitura do motor n�
   assert.match(pc, /else if \(s === 3 && alinhar\.saltou\)/, 'depois do salto, o som espera que o vídeo toque');
   assert.match(pc, /if \(!emJam\) soltarAlinhamento\(\);/, 'sair do Jam devolve o som');
   assert.match(pc, /return;\n    \}\n    soltarAlinhamento\(\);\n    \/\/ Códigos da IFrame API/, 'um erro devolve o som');
+  // E devolve-o no volume da barra (23/10): o mudo do PC é o volume 0, e o
+  // `unMute` do YouTube punha o de antes -- a música seguinte da Jam tocava alta.
+  const soltar = pc.slice(pc.indexOf('const soltarAlinhamento = useCallback'), pc.indexOf('const comecarAlinhamento = useCallback'));
+  assert.match(soltar, /const volume = volumeParaOMotor\(st\.volume \* \(st\.closeGain \?\? 1\)\);/, 'o volume da barra');
+  assert.match(soltar, /if \(volume > 0\) p\?\.unMute\?\.\(\);\n\s+p\?\.setVolume\?\.\(volume\);/, 'em mudo fica calada; senão, o volume volta depois do unMute');
+  assert.doesNotMatch(soltar, /ativoRef\.current\?\.unMute\?\.\(\); \} catch/, 'nada de unMute sem volume');
 }
 let vigente = true;
 const porta = { player: usePlayer.getState, vigente: () => vigente,

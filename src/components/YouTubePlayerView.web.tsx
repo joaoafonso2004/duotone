@@ -271,7 +271,18 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (!a) return;
     clearTimeout(a.prazo);
     alinharRef.current = null;
-    try { ativoRef.current?.unMute?.(); } catch {}
+    // O som volta no volume de quem ouve (23/10, João: "na jam, se eu tiver
+    // em mute, a música seguinte ignora o mute e toca"). O mudo do PC é o
+    // volume 0, e o `unMute` do player do YouTube devolve o volume de antes
+    // do mudo: cada música nova da Jam saía do alinhamento alta. Com o volume
+    // a 0 fica calada; com outro, volta a ser o da barra.
+    const st = usePlayer.getState();
+    const volume = volumeParaOMotor(st.volume * (st.closeGain ?? 1));
+    try {
+      const p = ativoRef.current;
+      if (volume > 0) p?.unMute?.();
+      p?.setVolume?.(volume);
+    } catch {}
   }, []);
   const comecarAlinhamento = useCallback((p: any, sourceId: string) => {
     if (alinharRef.current) clearTimeout(alinharRef.current.prazo);
