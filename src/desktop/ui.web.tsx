@@ -828,7 +828,7 @@ function CarregarAoChegar({ aoChegar }: { aoChegar: () => void }) {
   return <View ref={ref} style={{ height: 1 }} />;
 }
 
-export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = false, plain = false, listKey, contexto, ordenacao, colunaDoArtista = true, caraDaLinha, larguraDaCara = 34 }: {
+export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = false, plain = false, listKey, contexto, ordenacao, colunaDoArtista = true, caraDaLinha, larguraDaCara = 34, divisoria }: {
   tracks: Track[]; onPlay: (track: Track, discoveryContext?: DiscoveryContext) => void; onMore?: (track: Track, discoveryContext?: DiscoveryContext) => void; empty?: ReactNode;
   /** Marcar as que já estão na biblioteca. Só em listas que misturam
    * guardadas e não guardadas (pesquisa) — na tabela de Songs seria um
@@ -851,6 +851,11 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
   caraDaLinha?: (track: Track) => ReactNode;
   /** A largura da coluna do `caraDaLinha`: 34 para as caras das colaborativas; mais para um texto (as reproduções, 11/10). */
   larguraDaCara?: number;
+  /**
+   * Uma linha a separar dois grupos (23/10): antes da faixa `antesDe` (as tuas
+   * e as outras de um artista). A numeração continua.
+   */
+  divisoria?: { antesDe: number; rotulo: string };
 }) {
   // A coluna do artista só existe com largura para ela; numa janela estreita
   // o artista volta a ir por baixo do título.
@@ -899,7 +904,12 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
     </View>
     {visiveis.map((track, index) => {
       const aTocar = !!atual && atual.source === track.source && atual.sourceId === track.sourceId;
-      return <P key={`${track.source}:${track.sourceId}`} onPress={() => onPlay(track,contexto?.(track))}
+      const separar = !!divisoria && index > 0 && index === divisoria.antesDe;
+      return <React.Fragment key={`${track.source}:${track.sourceId}`}>
+      {separar ? <View style={ui.divisoriaDaTabela} accessibilityRole="header">
+        <Text style={ui.divisoriaTexto}>{divisoria!.rotulo.toUpperCase()}</Text><View style={ui.divisoriaLinha} />
+      </View> : null}
+      <P onPress={() => onPlay(track,contexto?.(track))}
       onContextMenu={((event: any) => { event.preventDefault(); onMore?.(track,contexto?.(track)); }) as any}
       {...marcar('fila')}
       style={({ hovered, pressed, focused }: any) => [ui.trackRow, plain && ui.trackRowPlain, (hovered || focused) && ui.trackHover, pressed && ui.pressed]}>
@@ -932,7 +942,8 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
       {showTime && <Text numberOfLines={1} style={[ui.trackMeta, { width: LARGURA_DURACAO, textAlign: 'right' }]}>{formatTime(track.durationSeconds)}</Text>}
       <View {...marcar('mais')}>
         <IconButton name="ellipsis-horizontal" label={`Actions for ${track.title}`} onPress={() => onMore?.(track,contexto?.(track))} />
-      </View></P>;
+      </View></P>
+      </React.Fragment>;
     })}
     {visiveis.length < tracks.length && <CarregarAoChegar key={visiveis.length} aoChegar={mostrarMais} />}
   </View>;
@@ -1064,6 +1075,10 @@ export const ui = StyleSheet.create({
   title: { ...TIPO.display, color: COR.texto, lineHeight: 40 },
   subtitle: { ...TIPO.corpo, color: COR.textoMedio, marginTop: ESP.sm, lineHeight: 21 },
   scrollContent: { paddingHorizontal: ESP.xxxl, paddingBottom: ESP.xxxl },
+  // A linha entre dois grupos de uma tabela (as tuas e as outras de um artista).
+  divisoriaDaTabela: { flexDirection: 'row', alignItems: 'center', gap: ESP.md, paddingHorizontal: ESP.sm, marginTop: ESP.lg, marginBottom: ESP.sm },
+  divisoriaTexto: { ...TIPO.micro, color: COR.textoFraco },
+  divisoriaLinha: { flex: 1, height: 1, backgroundColor: COR.linhaSuave },
 
   iconButton: { width: 34, height: 34, borderRadius: RAIO.cartao, alignItems: 'center', justifyContent: 'center' },
   // Hover e escolhido pela regra dos estados (ESTADO, tokens.web.ts).

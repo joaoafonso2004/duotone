@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   discografia, fasDoArtista, legendaDoDisco, metaDoAlbum, metaDoArtista, musicasAVista, musicasDoArtista,
-  MUSICAS_A_VISTA, parecidosAVista,
+  MUSICAS_A_VISTA, MUSICAS_NA_GRELHA, parecidosAVista,
 } from '../src/lib/musicasDoArtista.ts';
 
 let falhas = 0;
@@ -83,25 +83,46 @@ console.log('\nligado nas duas páginas');
 const iphone = ler('src/screens/LibraryGroupScreen.tsx');
 const pc = ler('src/desktop/paginas/BibliotecaPages.web.tsx');
 caso('uma página por secções, sem separadores, nos dois lados', () => {
-  assert.match(iphone, /<CabecalhoDaSeccao titulo="Songs" direita=\{ordemDasMusicas\} \/>/);
+  // iPhone (23/10, docs/artista-ios-maquete.html): Top Songs numa grelha, o
+  // último lançamento em destaque, a discografia, os parecidos e o About.
+  assert.match(iphone, /<CabecalhoDaSeccao titulo="Top Songs" aoCarregar=/);
+  assert.match(iphone, /<GrelhaDeMusicas musicas=\{musicasAVista\(musicas, false, MUSICAS_NA_GRELHA\)\} renderLinha=\{linhaDaGrelha\} \/>/);
+  assert.match(iphone, /<LancamentoEmDestaque album=\{pagina\.maisRecente\} aoAbrir=\{abrirDisco\} \/>/);
   assert.match(iphone, /<DiscosDoArtista titulo="Albums" discos=\{discos\.albuns\}/);
-  assert.match(iphone, /<DiscosDoArtista titulo="Singles & EPs" discos=\{discos\.singles\}/);
+  assert.match(iphone, /<DiscosDoArtista titulo="Singles & EPs" discos=\{discos\.singles\} aoAbrir=\{abrirDisco\} lado=\{136\} \/>/);
   assert.match(iphone, /<ParecidosDoArtista nomes=\{vizinhanca\.parecidos\}/);
+  assert.match(iphone, /\{fas \? <SobreOArtista foto=\{capaDoArtista\} fas=\{fas\} numeros=\{numerosDoArtista\} \/> : null\}/, 'o About só com os fãs');
+  assert.doesNotMatch(iphone, /UltimoLancamento|See all songs|setTodas/, 'iPhone: a caixa colada aos botões e o botão grande saíram');
+  // PC (23/10, variante A de docs/artista-pc-maquete.html): todas as músicas e
+  // uma coluna parada com o último lançamento, a discografia e os parecidos.
   assert.match(pc, /<Text style=\{artistStyles\.tituloDaSeccao\}>Songs<\/Text>/);
-  assert.match(pc, /<ShelfDeLancamentos titulo="Albums" itens=\{discos\.albuns\.map\(emCapa\)\}/);
-  assert.match(pc, /<ShelfDeLancamentos titulo="Singles & EPs" itens=\{discos\.singles\.map\(emCapa\)\}/);
+  assert.match(pc, /\{discos\.albuns\.map\(\(a\) => <Pressable key=\{a\.id\} onPress=\{\(\) => void abrirAlbum\(a\)\}/);
+  assert.match(pc, /\{discos\.singles\.map\(\(a\) => <Pressable key=\{a\.id\} onPress=\{\(\) => void abrirAlbum\(a\)\}/);
   assert.match(pc, />Fans also like<\/Text>/);
+  assert.match(pc, /coluna: \{\n\s+width: 330, flexShrink: 0, position: 'sticky', top: ESP\.lg,/, 'a coluna fica parada ao rolar');
+  assert.doesNotMatch(pc, /<Page title="Artist"/, 'sem o título por cima da foto');
   for (const [nome, s] of [['iPhone', iphone], ['PC', pc]] as const) {
     assert.doesNotMatch(s, /'In your library', 'heart|\['library', 'In your library'\]|More songs'|More tracks'/, `${nome}: separador antigo`);
     assert.doesNotMatch(s, /\['songs', 'Songs'|\['albums', 'Albums'|setSeparador|setActiveTab/, `${nome}: os separadores Songs/Albums`);
   }
 });
-caso('cinco à vista no iPhone e dez no PC, com "See all songs", e o Play toca a página toda', () => {
-  assert.match(iphone, /const rows = type === 'artist' \? musicasAVista\(musicas, todas\) : musicas;/);
-  assert.match(iphone, /`See all \$\{musicas\.length\} songs`/);
-  assert.match(pc, /tracks=\{musicasAVista\(musicas, todas, MUSICAS_A_VISTA_NO_PC\)\}/);
-  assert.match(pc, /const MUSICAS_A_VISTA_NO_PC = 10;/);
-  assert.match(pc, /`See all \$\{musicas\.length\} songs`/);
+caso('doze na grelha do iPhone (todas no "›") e todas no PC, e o Play toca a página toda', () => {
+  assert.equal(MUSICAS_NA_GRELHA, 12);
+  // O "›" das Top Songs abre a folha com todas, com a ordem e a pesquisa.
+  assert.match(iphone, /setVerTodas\(true\)/);
+  assert.match(iphone, /<MusicasDoArtistaSheet[\s\S]{0,120}musicas=\{musicas\}/);
+  const folha = ler('src/components/MusicasDoArtistaSheet.tsx');
+  assert.match(folha, /correspondeAPesquisa\(q, tituloDaFaixa\(t\), displayArtist\(t\), t\.album\)/, 'a pesquisa é em memória');
+  assert.match(folha, /`In your library · \$\{tuas\.length\}`/);
+  assert.match(folha, /<TrackActionsSheet visible=\{!!acao\}/, 'o menu de uma música abre dentro da folha');
+  assert.match(iphone, /const tocarDaPagina = useCallback\(\(t: Track\) => tocarMusica\(t, musicas, true, undefined, origemDaPagina\)/,
+    'iPhone: uma linha (da grelha ou da folha) toca a página toda');
+  // No PC estão todas na tabela (que monta ao rolar), sem "See all", com um
+  // filtro em memória e uma linha entre as tuas e as dele.
+  assert.match(pc, /<TrackTable plain colunaDoArtista=\{false\} showSavedBadge tracks=\{musicasFiltradas\}/);
+  assert.match(pc, /correspondeAPesquisa\(q, tituloDaFaixa\(t\), displayArtist\(t\), t\.album\)/);
+  assert.match(pc, /divisoria=\{\{ antesDe: tuasNaLista, rotulo: `More from \$\{name\}` \}\}/);
+  assert.doesNotMatch(pc, /See all \$\{musicas\.length\} songs|MUSICAS_A_VISTA_NO_PC|setTodas/);
   assert.match(pc, /props\.tocarMusica\(t, musicas, undefined, \{ tipo: 'artista', nome: name \}\)/, 'PC: uma linha toca a página toda');
 });
 caso('os fãs e os parecidos pela vizinhança confirmada, e os parecidos abrem a página deles', () => {
@@ -116,12 +137,13 @@ caso('os fãs e os parecidos pela vizinhança confirmada, e os parecidos abrem a
 caso('a lista é a das tuas mais as dele, e as dele só quando a fonte certa responde', () => {
   assert.match(iphone, /musicasDoArtista\(tracksDaAba, aCarregarOutras \? \[\] : otherTracks\)/);
   assert.match(pc, /musicasDoArtista\(guardadasPorOrdem, aProcurarMusicas \? \[\] : outrasPorOrdem\)/);
-  assert.match(iphone, /showSavedBadge=\{type === 'artist'\}/, 'iPhone: as tuas marcadas');
-  assert.match(pc, /<TrackTable plain colunaDoArtista=\{false\} showSavedBadge tracks=\{musicasAVista\(/, 'PC: as tuas marcadas');
+  assert.match(iphone, /<TrackRow track=\{t\} showSavedBadge acompanharATocar mostrarDuracao=\{false\}/, 'iPhone: as tuas marcadas');
+  assert.match(pc, /<TrackTable plain colunaDoArtista=\{false\} showSavedBadge tracks=\{musicasFiltradas\}/, 'PC: as tuas marcadas');
 });
 caso('nenhum cabeçalho diz "0 songs" ou "0 saved tracks"', () => {
-  assert.match(iphone, /meta=\{metaDoArtista\(tracks\.length, loading, vizinhanca\.fas\)\}/);
-  assert.match(iphone, /subtitle=\{type === 'album' \? metaDoAlbum\(tracks\.length, loading\) : undefined\}/);
+  assert.match(iphone, /const tuas = !loading && tracks\.length > 0 \? `\$\{tracks\.length\} in your library` : null;/);
+  assert.match(iphone, /<CapaDoArtista nome=\{name\} foto=\{capaDoArtista\} fas=\{fas\} tuas=\{tuas\}/);
+  assert.match(iphone, /subtitle=\{metaDoAlbum\(tracks\.length, loading\)\}/);
   assert.match(pc, /metaDoArtista\(tracks\.length, data\.loading, vizinhanca\.fas\)/);
   assert.doesNotMatch(pc, /saved \{tracks\.length === 1 \? 'track' : 'tracks'\}/);
   assert.doesNotMatch(iphone, /`Album · \$\{tracks\.length\} songs`/);

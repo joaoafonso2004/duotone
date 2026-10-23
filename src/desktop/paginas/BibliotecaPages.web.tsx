@@ -21,7 +21,9 @@ import { addTracksToPlaylist, createPlaylist } from '../../api/playlists';
 import { getTopArtists } from '../../api/plays';
 import { addSearchHistoryEntry, clearSearchHistory, getOrdemDasGostadas, getOrdemDoArtista, getSearchHistory, setOrdemDasGostadas, setOrdemDoArtista, type OrdemDoArtista } from '../../lib/prefs';
 import { detalheDaLinha, infoDaPesquisa, infoDe, modosComDados, ordenarMusicasDoArtista } from '../../lib/ordemDoArtista';
-import { discografia, legendaDoDisco, metaDoArtista, musicasAVista, musicasDoArtista } from '../../lib/musicasDoArtista';
+import { discografia, legendaDoDisco, metaDoArtista, musicasDoArtista } from '../../lib/musicasDoArtista';
+import { useCorDoAmbiente } from '../../hooks/useCorDoAmbiente';
+import { degradeDaCorDaCapa } from '../../lib/profileImageCrop';
 import { useFotoDoArtista, useVizinhancaDoArtista } from '../../hooks/useVizinhancaDoArtista';
 import { useDestinos } from '../../navigation/destinos';
 import { chaveDoTitulo } from '../../lib/albunsDoArtista';
@@ -623,10 +625,12 @@ export function MisturaPage({ id, titulo, back, ...props }: {
 
 export function ArtistPage({ name, back, ...props }: { name: string; back: () => void } & CommonPageProps) {
   const data = useLibraryData();
-  // Uma página só, por secções (20/10, variante A de docs/artista-maquete.html):
-  // as músicas (dez, ou todas com "See all songs"), o último lançamento e os
-  // parecidos ao lado, e a discografia por baixo. Eram separadores.
-  const [todas, setTodas] = useState(false);
+  // A página do artista (23/10, variante A de docs/artista-pc-maquete.html,
+  // escolhida pelo João): a foto grande à direita, a desfazer-se no fundo, com
+  // o nome e as ações; por baixo, TODAS as músicas (sem "See all": a tabela
+  // vai montando ao rolar) e, ao lado, uma coluna que fica parada com o último
+  // lançamento, a discografia e os parecidos.
+  const [filtro, setFiltro] = useState('');
   const [outras, setOutras] = useState<Track[]>([]);
   // As visualizações e a idade de cada vídeo da pesquisa (15/10): a ordem de
   // um artista sem página musical.
@@ -662,7 +666,7 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
     setOutras([]);
     setDetalhesDaPesquisa({});
     setPagina(null);
-    setTodas(false);
+    setFiltro('');
     fecharAlbum();
     useSaved.getState().refresh();
 
@@ -760,10 +764,20 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
     if (!podeTocarAba) return;
     void usePlayer.getState().tocarLista(faixasDaAba, ligado, inteligente, { tipo: 'artista', nome: name });
   };
-  // A foto do catálogo; sem ela, a do canal dele no YouTube Music (30/9).
+  // A foto do catálogo; sem ela, a do canal dele no YouTube Music (30/9); sem
+  // as duas, a capa de uma música dele.
   const fotoDoCanal = foto ? null : pagina?.foto ?? null;
-  // A de fundo do cabeçalho, desfocada: a mesma, ou a capa de uma música dele.
-  const fotoDoFundo = foto ?? fotoDoCanal ?? tracks[0]?.artworkUrl ?? outras[0]?.artworkUrl ?? null;
+  const fotoDoHeroi = foto ?? fotoDoCanal ?? tracks[0]?.artworkUrl ?? outras[0]?.artworkUrl ?? null;
+  // A cor da foto por trás do cabeçalho (como no iPhone). Só a do catálogo: a
+  // do canal vem sem Referer, e não se lê num canvas.
+  const cor = useCorDoAmbiente(foto);
+  // O filtro procura nas que já estão em memória: nenhum pedido.
+  const musicasFiltradas = useMemo(() => {
+    const q = filtro.trim();
+    return q ? musicas.filter((t) => correspondeAPesquisa(q, tituloDaFaixa(t), displayArtist(t), t.album)) : musicas;
+  }, [musicas, filtro]);
+  const tuasNaLista = useMemo(() => musicasFiltradas.filter((t) => chavesDaBiblioteca.has(`${t.source}:${t.sourceId}`)).length,
+    [musicasFiltradas, chavesDaBiblioteca]);
   // Os fãs e os parecidos (o catálogo, com as tuas como prova de quem ele é),
   // e a discografia partida em álbuns e em singles e EPs.
   const vizinhanca = useVizinhancaDoArtista(name, tracks, !data.loading);
@@ -774,48 +788,46 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
   const abrirPorId = (id: string) => { const a = albuns.find((x) => x.id === id); if (a) void abrirAlbum(a); };
 
   return <>
-    <Page title="Artist" action={<BotaoVoltar onPress={back} />}>
-      <ContentScroll scrollKey={`artist:${chaveDeArtista(name)}`}>{data.loading ? <View style={{ height: 350 }}><Loading /></View> : <>
-        {/* A cara da página (20/10, variante A de docs/artista-maquete.html): a
-            foto desfocada por trás, e a foto redonda com o nome grande por cima. */}
-        <View style={artistStyles.banner}>
-          {fotoDoFundo ? <Image source={{ uri: fotoDoFundo }} style={artistStyles.bannerFundo} /> : null}
-          <View pointerEvents="none" style={artistStyles.bannerVeu} />
-          <View style={artistStyles.bannerLinha}>
-            {/* A foto do catálogo (27/9, `fotoDoArtista`); sem ela, a do canal
-                (sem Referer, como as outras do YouTube Music); sem as duas, uma
-                música dele. */}
-            <View style={[artistStyles.bannerFoto, !foto && !fotoDoCanal && !tracks[0] && !outras[0] && artistStyles.heroFallback]}>{foto
-              ? <Image source={{ uri: foto }} style={{ width: LADO_DA_FOTO, height: LADO_DA_FOTO }} />
-              : fotoDoCanal ? <CapaSemReferer uri={fotoDoCanal} lado={LADO_DA_FOTO} redonda icone="person" />
-              : tracks[0] ? <Artwork track={tracks[0]} size={LADO_DA_FOTO} />
-              : outras[0] ? <Artwork track={outras[0]} size={LADO_DA_FOTO} />
-              : <Ionicons name="person" size={56} color={COR.textoFraco} />}</View>
-            <View style={styles.detailHeroBody}>
-              <Text style={styles.detailHeroEyebrow}>ARTIST</Text>
-              <Text numberOfLines={2} style={artistStyles.bannerNome}>{name}</Text>
-              {/* Os fãs e quantas são tuas, só quando são ("0 saved tracks"
-                  parecia uma página que não carregou). */}
-              {meta ? <Text style={styles.detailHeroMeta}>{meta}</Text> : null}
+    {/* Sem o título "Artist" por cima: a foto é o cabeçalho, e o voltar vive nela. */}
+    <View style={{ flex: 1, minWidth: 0 }}>
+      <ContentScroll scrollKey={`artist:${chaveDeArtista(name)}`}>
+        {cor ? <View pointerEvents="none" style={[artistStyles.tom, { backgroundImage: tomDoArtista(cor) } as any]} /> : null}
+        <View style={artistStyles.heroi}>
+          {/* Um `<img>` a sério, sem Referer (as do canal davam 429 com ele, ver
+              `CapaSemReferer`), desfeito para a esquerda e para baixo. */}
+          {fotoDoHeroi ? <div style={FOTO_DO_HEROI}>
+            <img src={fotoDoHeroi} alt="" referrerPolicy="no-referrer" decoding="async" draggable={false}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: '50% 20%', display: 'block' }} />
+          </div> : null}
+          <View style={artistStyles.voltar}><BotaoVoltar onPress={back} /></View>
+          <View style={artistStyles.heroiBaixo}>
+            <Text style={styles.detailHeroEyebrow}>ARTIST</Text>
+            <Text numberOfLines={2} style={artistStyles.heroiNome}>{name}</Text>
+            {/* Os fãs e quantas são tuas, só quando são ("0 saved tracks"
+                parecia uma página que não carregou). */}
+            {meta ? <Text style={artistStyles.heroiMeta}>{meta}</Text> : null}
+            <View style={artistStyles.accoes}>
+              <Button icon="play" onPress={playAll} disabled={!podeTocarAba}>Play</Button>
+              <Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle} disabled={!podeTocarAba}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button>
+              {pagina?.mix ? <Button secondary icon="radio-outline" onPress={() => void tocarMix()} ocupado={aAbrirMix}>{aAbrirMix ? 'Loading…' : 'Mix'}</Button> : null}
+              {/* O mesmo coração dos cartões da página Artists (29/9). */}
+              <IconButton name={favorito ? 'heart' : 'heart-outline'} active={favorito}
+                label={favorito ? `Unfavourite ${name}` : `Favourite ${name}`}
+                onPress={() => alternarFavorito(chaveDoArtista)} />
+              <BotaoDeFixar atalho={{ tipo: 'artista', nome: name, capa: tracks[0]?.artworkUrl ?? null }} />
             </View>
           </View>
         </View>
-        <View style={artistStyles.accoes}>
-          <Button icon="play" onPress={playAll} disabled={!podeTocarAba}>Play</Button>
-          <Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle} disabled={!podeTocarAba}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button>
-          {pagina?.mix ? <Button secondary icon="radio-outline" onPress={() => void tocarMix()} ocupado={aAbrirMix}>{aAbrirMix ? 'Loading…' : 'Mix'}</Button> : null}
-          {/* O mesmo coração dos cartões da página Artists (29/9): só lá se
-              favoritava, e quem estava dentro do artista tinha de voltar atrás. */}
-          <IconButton name={favorito ? 'heart' : 'heart-outline'} active={favorito}
-            label={favorito ? `Unfavourite ${name}` : `Favourite ${name}`}
-            onPress={() => alternarFavorito(chaveDoArtista)} />
-          <BotaoDeFixar atalho={{ tipo: 'artista', nome: name, capa: tracks[0]?.artworkUrl ?? null }} />
-        </View>
 
-        <View style={artistStyles.duas}>
+        {data.loading ? <View style={{ height: 320 }}><Loading /></View> : <View style={artistStyles.duas}>
           <View style={artistStyles.colunaDasMusicas}>
             <View style={artistStyles.cabecalhoDaSeccao}>
               <Text style={artistStyles.tituloDaSeccao}>Songs</Text>
+              {!aProcurarMusicas && musicas.length ? <Text style={artistStyles.contagem}>{musicas.length}</Text> : null}
+              <View style={{ flex: 1 }} />
+              {musicas.length > LINHAS_SEM_FILTRO ? <View style={artistStyles.filtro}>
+                <Field icon="search" placeholder="Filter songs" value={filtro} onChangeText={setFiltro} />
+              </View> : null}
               {mostrarOrdem && <View style={artistStyles.ordem} accessibilityRole={'radiogroup' as any}>
                 {([['ouvidas', 'Most played'], ['recentes', 'Newest']] as const).map(([o, rotulo]) => <Pressable key={o}
                   accessibilityRole={'radio' as any} accessibilityState={{ checked: ordem === o }} onPress={() => escolherOrdem(o)}
@@ -824,38 +836,58 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
                 </Pressable>)}
               </View>}
             </View>
-            {/* As tuas aparecem logo (com o coração); as outras dele entram por baixo quando chegarem. */}
+            {/* Todas, sem botão: as tuas primeiro (com o coração), uma linha, e as
+                outras dele, que entram quando chegarem. A tabela monta ao rolar. */}
             {aProcurarMusicas && !musicas.length ? <View style={{ height: 280 }}><Loading /></View> : <>
-              <TrackTable plain colunaDoArtista={false} showSavedBadge tracks={musicasAVista(musicas, todas, MUSICAS_A_VISTA_NO_PC)} caraDaLinha={detalheDaFaixa} larguraDaCara={96}
+              <TrackTable plain colunaDoArtista={false} showSavedBadge tracks={musicasFiltradas} listKey={`artista:${chaveDoArtista}`}
+                divisoria={{ antesDe: tuasNaLista, rotulo: `More from ${name}` }}
+                caraDaLinha={detalheDaFaixa} larguraDaCara={96}
                 onPlay={(t) => props.tocarMusica(t, musicas, undefined, { tipo: 'artista', nome: name })} onMore={props.more}
-                empty={<Empty icon="musical-notes-outline" title="No songs found" body="No songs by this artist were found." />} />
+                empty={filtro.trim() ? <Empty icon="search" title="No matches" body={`No songs match “${filtro.trim()}”.`} />
+                  : <Empty icon="musical-notes-outline" title="No songs found" body="No songs by this artist were found." />} />
               {aProcurarMusicas ? <View style={{ height: 120 }}><Loading /></View> : null}
-              {musicas.length > MUSICAS_A_VISTA_NO_PC ? <View style={artistStyles.verTodas}>
-                <Button secondary onPress={() => setTodas((t) => !t)}>{todas ? 'Show fewer' : `See all ${musicas.length} songs`}</Button>
-              </View> : null}
             </>}
           </View>
 
-          <View style={artistStyles.colunaDoLado}>
+          {/* A coluna parada: fica à vista enquanto se rola pelas músicas. */}
+          <View style={artistStyles.coluna}>
             {pagina?.maisRecente ? <UltimoLancamento album={pagina.maisRecente} onPress={() => void abrirAlbum(pagina.maisRecente!)} /> : null}
+            {aProcurarAlbuns ? <View style={{ height: 200 }}><Loading /></View> : <>
+              {discos.albuns.length ? <>
+                <Text style={artistStyles.subtitulo}>Albums <Text style={artistStyles.contagem}>{discos.albuns.length}</Text></Text>
+                <View style={artistStyles.grelhaDeDiscos}>
+                  {discos.albuns.map((a) => <Pressable key={a.id} onPress={() => void abrirAlbum(a)} accessibilityRole="button"
+                    accessibilityLabel={`${a.title}, ${legendaDoDisco(a)}`}
+                    style={({ hovered, focused }: any) => [artistStyles.disco, (hovered || focused) && artistStyles.discoHover]}>
+                    <CapaSemReferer uri={a.artworkUrl} lado={LADO_DO_DISCO} icone="albums-outline" />
+                    <Text numberOfLines={1} style={artistStyles.discoTitulo}>{a.title}</Text>
+                    <Text numberOfLines={1} style={artistStyles.discoAno}>{legendaDoDisco(a)}</Text>
+                  </Pressable>)}
+                </View>
+              </> : null}
+              {discos.singles.length ? <>
+                <Text style={artistStyles.subtitulo}>Singles &amp; EPs <Text style={artistStyles.contagem}>{discos.singles.length}</Text></Text>
+                {discos.singles.map((a) => <Pressable key={a.id} onPress={() => void abrirAlbum(a)} accessibilityRole="button"
+                  accessibilityLabel={`${a.title}, ${legendaDoDisco(a)}`}
+                  style={({ hovered, focused }: any) => [artistStyles.single, (hovered || focused) && artistStyles.discoHover]}>
+                  <CapaSemReferer uri={a.artworkUrl} lado={44} icone="albums-outline" />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text numberOfLines={1} style={artistStyles.singleTitulo}>{a.title}</Text>
+                    <Text numberOfLines={1} style={artistStyles.discoAno}>{legendaDoDisco(a)}</Text>
+                  </View>
+                </Pressable>)}
+              </> : null}
+            </>}
             {vizinhanca.parecidos.length ? <>
-              <View style={artistStyles.cabecalhoDaSeccao}><Text style={artistStyles.tituloDaSeccao}>Fans also like</Text></View>
+              <Text style={artistStyles.subtitulo}>Fans also like</Text>
               <View style={artistStyles.parecidos}>
                 {vizinhanca.parecidos.map((n) => <ParecidoNoPc key={n} nome={n} aoAbrir={() => irPara({ tipo: 'artista', nome: n })} />)}
               </View>
             </> : null}
           </View>
-        </View>
-
-        {/* A discografia nos carrosséis da Home: os álbuns, e os singles e EPs. */}
-        <View style={{ marginTop: ESP.xxl }}>
-          {aProcurarAlbuns ? <View style={{ height: 220 }}><Loading /></View> : albuns.length ? <>
-            <ShelfDeLancamentos titulo="Albums" itens={discos.albuns.map(emCapa)} onOpen={abrirPorId} />
-            <ShelfDeLancamentos titulo="Singles & EPs" itens={discos.singles.map(emCapa)} onOpen={abrirPorId} />
-          </> : <Empty icon="albums-outline" title="No albums found" body="No albums by this artist were found." />}
-        </View>
-      </>}</ContentScroll>
-    </Page>
+        </View>}
+      </ContentScroll>
+    </View>
 
     {dialogoDoAlbum}
   </>;
@@ -984,10 +1016,24 @@ function useDialogoDoAlbum(props: CommonPageProps) {
  * O lançamento mais recente do artista, por cima das músicas (29/9). Vem do
  * canal certo (`paginaDoArtista`); abre o mesmo diálogo dos álbuns.
  */
-/** Quantas músicas a página do artista mostra antes de "See all songs". */
-const MUSICAS_A_VISTA_NO_PC = 10;
-/** O lado da foto redonda do cabeçalho do artista. */
-const LADO_DA_FOTO = 190;
+/** Abaixo disto a lista lê-se de uma vez, e o filtro não ajuda. */
+const LINHAS_SEM_FILTRO = 12;
+/** O lado das capas dos álbuns na coluna parada (duas por linha em 330 px). */
+const LADO_DO_DISCO = 158;
+
+/** A foto do cabeçalho: à direita, a desfazer-se para a esquerda e para baixo (máscara do CSS). */
+const MASCARA_DO_HEROI = 'linear-gradient(90deg, transparent 0%, #000 45%), linear-gradient(0deg, transparent 0%, #000 42%)';
+const FOTO_DO_HEROI: React.CSSProperties = {
+  position: 'absolute', top: 0, right: 0, bottom: 0, width: '62%', pointerEvents: 'none',
+  WebkitMaskImage: MASCARA_DO_HEROI, WebkitMaskComposite: 'source-in', maskImage: MASCARA_DO_HEROI, maskComposite: 'intersect',
+} as any;
+
+/** A cor da foto por trás do cabeçalho, a apagar-se no fundo (os passos do perfil, `degradeDaCorDaCapa`). */
+function tomDoArtista(cor: string): string {
+  const d = degradeDaCorDaCapa(ALTURA_DO_HEROI, cor);
+  return `linear-gradient(180deg, ${d.cores.map((c, k) => `${c} ${Math.round(d.paragens[k] * 100)}%`).join(', ')})`;
+}
+const ALTURA_DO_HEROI = 400;
 
 /** Um "Fans also like": a foto do catálogo, redonda, e o nome; abre a página dele. */
 function ParecidoNoPc({ nome, aoAbrir }: { nome: string; aoAbrir: () => void }) {
@@ -1015,40 +1061,44 @@ function UltimoLancamento({ album, onPress }: { album: AlbumDaPagina; onPress: (
 }
 
 const artistStyles = StyleSheet.create({
-  heroFallback: { alignItems: 'center', justifyContent: 'center' },
-  // O cabeçalho do artista (20/10, variante A): um cartão com a foto desfocada.
-  banner: {
-    minHeight: 300, justifyContent: 'flex-end', padding: ESP.xxl, marginBottom: ESP.lg,
-    borderRadius: RAIO.superficie, overflow: 'hidden', backgroundColor: COR.painel,
+  // O cabeçalho (23/10, variante A de docs/artista-pc-maquete.html): sem caixa,
+  // de ponta a ponta da página (a margem do `ContentScroll` é anulada).
+  // Um absoluto mede-se pela caixa COM a margem do `ContentScroll`: 0 e 0 já é de ponta a ponta
+  // (com -48 a página ficava 48 px mais larga e fugia para o lado ao focar o filtro).
+  tom: { position: 'absolute', top: 0, left: 0, right: 0, height: ALTURA_DO_HEROI + 520 } as any,
+  heroi: { height: ALTURA_DO_HEROI, marginHorizontal: -ESP.xxxl, marginBottom: ESP.lg, overflow: 'hidden' },
+  voltar: { position: 'absolute', top: ESP.xl, left: ESP.xxxl },
+  heroiBaixo: { position: 'absolute', left: ESP.xxxl, right: ESP.xxxl, bottom: ESP.xl },
+  heroiNome: {
+    fontFamily: FONT.display, color: COR.texto, fontSize: 72, lineHeight: 74, fontWeight: '800' as any, letterSpacing: -2,
+    marginTop: ESP.sm, maxWidth: 900, textShadowColor: 'rgba(0,0,0,0.35)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 30,
   },
-  bannerFundo: {
-    position: 'absolute', top: -60, left: -60, right: -60, bottom: -60,
-    filter: 'blur(48px) brightness(0.5) saturate(1.2)',
+  heroiMeta: { ...TIPO.corpo, color: COR.textoMedio, marginTop: ESP.sm },
+  accoes: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: ESP.sm, marginTop: ESP.xl },
+  // As músicas à esquerda; a coluna parada à direita (por baixo delas numa janela estreita).
+  duas: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', columnGap: 40, rowGap: ESP.xl },
+  colunaDasMusicas: { flexGrow: 1, flexShrink: 1, flexBasis: 480, minWidth: 0 },
+  coluna: {
+    width: 330, flexShrink: 0, position: 'sticky', top: ESP.lg, maxHeight: 'calc(100vh - 140px)', overflowY: 'auto',
+    scrollbarWidth: 'none', paddingTop: ESP.sm, paddingBottom: ESP.xl,
   } as any,
-  bannerVeu: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    backgroundImage: `linear-gradient(180deg, rgba(6,6,8,0) 25%, rgba(6,6,8,0.75) 100%)`,
-  } as any,
-  bannerLinha: { flexDirection: 'row', alignItems: 'flex-end', gap: ESP.xxl, flexWrap: 'wrap' },
-  bannerFoto: {
-    width: LADO_DA_FOTO, height: LADO_DA_FOTO, borderRadius: LADO_DA_FOTO / 2, overflow: 'hidden',
-    backgroundColor: COR.elevado, boxShadow: '0 18px 50px rgba(0,0,0,.45)',
-  } as any,
-  bannerNome: { fontFamily: FONT.display, color: COR.texto, fontSize: 52, lineHeight: 58, fontWeight: '700' as any, letterSpacing: -1 },
-  accoes: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: ESP.sm, marginBottom: ESP.xl },
-  // As músicas à esquerda; o último lançamento e os parecidos à direita, e por
-  // baixo delas quando a janela é estreita.
-  duas: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', columnGap: ESP.xxxl, rowGap: ESP.xl },
-  colunaDasMusicas: { flexGrow: 1.6, flexShrink: 1, flexBasis: 520, minWidth: 0 },
-  colunaDoLado: { flexGrow: 1, flexShrink: 1, flexBasis: 320, minWidth: 320, maxWidth: 560 },
-  cabecalhoDaSeccao: { flexDirection: 'row', alignItems: 'center', gap: ESP.lg, minHeight: 32, marginBottom: ESP.md },
+  cabecalhoDaSeccao: { flexDirection: 'row', alignItems: 'center', gap: ESP.md, minHeight: 40, marginBottom: ESP.md },
   // O mesmo título das prateleiras (`ui.shelfTitle`): "Songs" e "Albums" leem-se como irmãos.
   tituloDaSeccao: { ...TIPO.titulo, color: COR.texto },
-  verTodas: { alignSelf: 'flex-start', marginTop: ESP.md },
-  parecidos: { flexDirection: 'row', flexWrap: 'wrap', gap: ESP.md },
-  parecido: { width: 108, alignItems: 'center', gap: ESP.sm, padding: ESP.sm, borderRadius: RAIO.cartao },
+  contagem: { ...TIPO.numero, color: COR.textoFraco },
+  filtro: { width: 220 },
+  subtitulo: { ...TIPO.seccao, color: COR.texto, marginTop: ESP.xl, marginBottom: ESP.md },
+  grelhaDeDiscos: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
+  disco: { width: LADO_DO_DISCO, borderRadius: RAIO.cartao, padding: 0 },
+  discoHover: { opacity: 0.85 },
+  discoTitulo: { ...TIPO.corpo, color: COR.texto, fontWeight: '600' as any, marginTop: ESP.sm },
+  discoAno: { ...TIPO.micro, color: COR.textoFraco, marginTop: 2 },
+  single: { flexDirection: 'row', alignItems: 'center', gap: ESP.md, paddingVertical: 6, borderRadius: RAIO.cartao },
+  singleTitulo: { ...TIPO.corpo, color: COR.texto, fontWeight: '500' as any },
+  parecidos: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  parecido: { width: 102, alignItems: 'center', gap: ESP.sm, paddingVertical: ESP.sm, borderRadius: RAIO.cartao },
   parecidoHover: { backgroundColor: COR.hover },
-  parecidoFoto: { width: 88, height: 88, borderRadius: 44, backgroundColor: COR.elevado },
+  parecidoFoto: { width: 84, height: 84, borderRadius: 42, backgroundColor: COR.elevado },
   parecidoNome: { ...TIPO.legenda, color: COR.textoMedio, textAlign: 'center', alignSelf: 'stretch' },
   ultimo: {
     flexDirection: 'row', alignItems: 'center', gap: ESP.lg, alignSelf: 'flex-start', minWidth: 320, maxWidth: 520,
@@ -1056,6 +1106,7 @@ const artistStyles = StyleSheet.create({
     borderWidth: 1, borderColor: COR.linhaSuave, backgroundColor: 'rgba(255,255,255,0.03)',
   },
   ultimoHover: { backgroundColor: COR.hover },
+  // O artista em destaque na pesquisa.
   destaque: {
     flexDirection: 'row', alignItems: 'center', gap: ESP.xl, padding: ESP.lg, paddingRight: ESP.xl,
     marginBottom: ESP.xl, borderRadius: RAIO.superficie, borderWidth: 1, borderColor: COR.linhaSuave,
