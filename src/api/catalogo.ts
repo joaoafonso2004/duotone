@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { cacheGet, cacheSet, DIA_MS } from './cache';
 import { chaveDeArtista } from '../lib/artistName';
 import { escolher, type Candidato, type FaixaLocal } from '../lib/catalogoDaFaixa';
@@ -569,23 +570,77 @@ export async function procurarArtistas(
  */
 const fotos = new Map<string, Promise<string | null>>();
 
+/**
+ * As fotos que já se sabem, no APARELHO (23/10). A grelha dos Artists passou a
+ * mostrar a foto de cada um, a mesma da página dele ("as imagens continuam
+ * diferentes de fora para dentro"), e sem isto eram até dois pedidos ao
+ * catálogo por artista a cada sessão. Uma foto vale 30 dias; "não tem foto"
+ * (o catálogo respondeu, e não havia) vale 7; uma falha de rede não fica. É o
+ * AsyncStorage, e não o `yt_cache` do Supabase: nenhum pedido a mais lá.
+ */
+const CHAVE_DAS_FOTOS = 'duotone:fotos-dos-artistas:v1';
+const VALIDADE_DA_FOTO = 30 * DIA_MS;
+const VALIDADE_SEM_FOTO = 7 * DIA_MS;
+type FotoConhecida = { url: string | null; em: number };
+const conhecidas = new Map<string, FotoConhecida>();
+let fotosLidas: Promise<void> | null = null;
+let gravarFotos: ReturnType<typeof setTimeout> | undefined;
+
+function lerFotosDoDisco(): Promise<void> {
+  if (!fotosLidas) {
+    fotosLidas = AsyncStorage.getItem(CHAVE_DAS_FOTOS).then((texto) => {
+      if (!texto) return;
+      for (const [k, v] of JSON.parse(texto) as [string, FotoConhecida][]) if (!conhecidas.has(k)) conhecidas.set(k, v);
+    }).catch(() => {});
+  }
+  return fotosLidas;
+}
+const aindaVale = (f: FotoConhecida | undefined): f is FotoConhecida =>
+  !!f && Date.now() - f.em < (f.url ? VALIDADE_DA_FOTO : VALIDADE_SEM_FOTO);
+function lembrarFoto(chave: string, url: string | null) {
+  conhecidas.set(chave, { url, em: Date.now() });
+  // Uma escrita por rajada (uma grelha pede várias de seguida), e não uma por foto.
+  clearTimeout(gravarFotos);
+  gravarFotos = setTimeout(() => {
+    void AsyncStorage.setItem(CHAVE_DAS_FOTOS, JSON.stringify([...conhecidas])).catch(() => {});
+  }, 1500);
+}
+
+/**
+ * A foto de um artista se já se souber, sem esperar: a grelha e a página
+ * desenham-na logo, em vez de passarem pela capa. `undefined`: ainda não se
+ * sabe (e começa-se a ler o disco); `null`: sabe-se que não tem.
+ */
+export function fotoJaConhecida(nome: string): string | null | undefined {
+  void lerFotosDoDisco();
+  const f = conhecidas.get(chaveDeCatalogo(nome ?? ''));
+  return aindaVale(f) ? f.url : undefined;
+}
+
 export function fotoDoArtista(nome: string): Promise<string | null> {
   const chave = chaveDeCatalogo(nome ?? '');
   if (!chave) return Promise.resolve(null);
   const jaVem = fotos.get(chave);
   if (jaVem) return jaVem;
   const pedido = (async () => {
+    await lerFotosDoDisco();
+    const guardada = conhecidas.get(chave);
+    if (aindaVale(guardada)) return guardada.url;
     const decidida = vizinhancaJaDecidida(nome);
     if (decidida?.artista?.id) {
       const a = await pedir<any>(`/artist/${decidida.artista.id}`);
       for (const url of [a?.picture_xl, a?.picture_big, a?.picture_medium]) {
-        if (!eFotoVazia(url)) return url as string;
+        if (!eFotoVazia(url)) { lembrarFoto(chave, url as string); return url as string; }
       }
     }
     const r = await pedir<{ data?: any[] }>(`/search/artist?q=${encodeURIComponent(nome.trim())}&limit=8`);
-    return fotoEntre(r?.data ?? [], nome);
+    // Sem resposta (rede, limite): não se sabe, e a próxima vez pergunta outra vez.
+    if (r === null) return null;
+    const url = fotoEntre(r.data ?? [], nome);
+    lembrarFoto(chave, url);
+    return url;
   })().catch(() => null);
   fotos.set(chave, pedido);
-  void pedido.then((url) => { if (!url) fotos.delete(chave); });
+  void pedido.then((url) => { if (!url && !aindaVale(conhecidas.get(chave))) fotos.delete(chave); });
   return pedido;
 }

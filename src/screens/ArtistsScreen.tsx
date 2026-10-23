@@ -28,9 +28,27 @@ import { useTheme } from '../state/theme';
 import { useNovosLancamentos } from '../state/novosLancamentos';
 import type { Track } from '../types';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
+import { useFotoDoArtista } from '../hooks/useVizinhancaDoArtista';
+import { fotoNoTamanho } from '../lib/catalogo';
 import { useAlturaDosSeparadores } from '../state/doca';
 
 interface ArtistGroup { name: string; chave: string; artworkUrl: string | null; count: number }
+
+/**
+ * A imagem de um artista nos Artists (23/10): a foto do catálogo, a MESMA da
+ * página dele ("as imagens continuam diferentes de fora para dentro"); sem
+ * ela, a capa de uma música dele. `aoSaber` diz à grelha qual se está a ver,
+ * para a página abrir com ela.
+ */
+function ImagemDoArtista({ nome, capa, lado, aoSaber }: { nome: string; capa: string | null; lado: number; aoSaber: (imagem: string | null) => void }) {
+  const foto = useFotoDoArtista(nome);
+  const imagem = foto ?? capa;
+  useEffect(() => { aoSaber(imagem); }, [imagem, aoSaber]);
+  const uri = foto ? fotoNoTamanho(foto, 250) : capa ? capaParaLista(capa) : null;
+  return uri ? <Image source={{ uri }} contentFit="cover" transition={200}
+    style={{ width: lado, height: lado, borderRadius: lado / 2, backgroundColor: colors.surfaceHigh }} />
+    : <View style={[styles.fallback, { width: lado, height: lado, borderRadius: lado / 2 }]}><Ionicons name="person" size={30} color={colors.textTertiary} /></View>;
+}
 export function ArtistsScreen() {
   // Tocar no separador onde ja se esta volta ao topo (3/10, como no iOS).
   const topo = useRef<any>(null);
@@ -119,15 +137,15 @@ export function ArtistsScreen() {
   const corDoTema = useTheme((s) => s.destino.color);
   // Um lançamento novo que ainda não se foi ver (10/10, state/novosLancamentos.ts).
   const comNovidade = useNovosLancamentos((s) => s.comNovidade);
+  // A imagem que cada cartão está a mostrar: a página do artista abre com ela.
+  const imagens = useRef(new Map<string, string | null>()).current;
   const renderArtist = (artist: ArtistGroup, shelf = false) => {
     const side = shelf ? 86 : Math.min(120, cardWidth);
     const novidade = comNovidade.has(artist.chave);
     return <Pressable accessibilityRole="button" accessibilityLabel={`${artist.name}, ${artist.count} songs${novidade ? ', new release' : ''}`}
-      onPress={() => navigation.navigate('LibraryGroup', { type: 'artist', name: artist.name, capa: artist.artworkUrl })}
+      onPress={() => navigation.navigate('LibraryGroup', { type: 'artist', name: artist.name, capa: imagens.get(artist.chave) ?? artist.artworkUrl })}
       style={({ pressed }) => [styles.card, { width: shelf ? 94 : cardWidth, opacity: pressed ? 0.6 : 1 }]}>
-      {artist.artworkUrl ? <Image source={{ uri: capaParaLista(artist.artworkUrl)! }} contentFit="cover"
-        style={{ width: side, height: side, borderRadius: side / 2, backgroundColor: colors.surfaceHigh }} />
-        : <View style={[styles.fallback, { width: side, height: side, borderRadius: side / 2 }]}><Ionicons name="person" size={30} color={colors.textTertiary} /></View>}
+      <ImagemDoArtista nome={artist.name} capa={artist.artworkUrl} lado={side} aoSaber={(imagem) => { imagens.set(artist.chave, imagem); }} />
       {novidade && <View pointerEvents="none" style={[styles.pontoNovo, { backgroundColor: corDoTema, left: ((shelf ? 94 : cardWidth) - side) / 2 + side * 0.08 }]} />}
       {/* Na prateleira de cima não: são círculos de 86 e já dizem quem se
           ouve mais. A estrela vive na grelha, que é a lista toda. */}

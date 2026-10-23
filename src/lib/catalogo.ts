@@ -292,6 +292,15 @@ export function repartir(pesos: readonly number[], total: number): number[] {
  * a silhueta cinzenta por defeito, que parecia a página sem foto (30/9, a do
  * Dave Blunts). Mostrá-la era trocar a foto do canal por um quadrado cinzento.
  */
+/**
+ * A mesma foto do catálogo noutro tamanho (23/10): o endereço diz
+ * ".../1000x1000-000000-80-0-0.jpg", e uma grelha de círculos de 120 pt não
+ * precisa de mil píxeis. O que não tiver esse formato fica como veio.
+ */
+export function fotoNoTamanho(url: string, lado: number): string {
+  return url.replace(/\/\d+x\d+-(\d{6}-\d+-\d+-\d+\.jpg)$/, `/${lado}x${lado}-$1`);
+}
+
 export function eFotoVazia(url: unknown): boolean {
   return typeof url !== 'string' || !url.trim()
     || /\/images\/artist\/(\/|d41d8cd98f00b204e9800998ecf8427e\/)/.test(url);

@@ -6,6 +6,7 @@ import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, V
 import { DissolverEmBaixo } from './DissolverEmBaixo';
 import { useFotoDoArtista } from '../hooks/useVizinhancaDoArtista';
 import { legendaDoDisco } from '../lib/musicasDoArtista';
+import { fotoNoTamanho } from '../lib/catalogo';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { useCorDoAmbiente } from '../hooks/useCorDoAmbiente';
 import { degradeDaCorDaCapa, EXTENSAO_DO_AMBIENTE } from '../lib/profileImageCrop';
@@ -59,14 +60,24 @@ export function CapaDoArtista({ nome, foto, fas, tuas, accoes, aoMedirNome }: {
 }) {
   const { width } = useWindowDimensions();
   const altura = alturaDaCapaDoArtista(width);
-  const [baixoY, setBaixoY] = React.useState(0);
+  // Onde acaba o nome = onde começa o bloco de baixo + onde acaba o nome nele.
+  // As duas medidas chegam por ordem incerta: o nome chegava primeiro, com o
+  // bloco ainda a 0, e a barra mostrava o nome pequeno a uns 110 pt em vez de
+  // ~420 (23/10, João: "o nome de cima só devia aparecer quando o scroll
+  // passasse o nome que está na página"). Avisa-se quando há as duas.
+  const baixoY = React.useRef<number | null>(null);
+  const fimNoBloco = React.useRef<number | null>(null);
+  const avisar = () => {
+    if (aoMedirNome && baixoY.current != null && fimNoBloco.current != null) aoMedirNome(baixoY.current + fimNoBloco.current);
+  };
   return (
     <View style={{ height: altura }}>
       <DissolverEmBaixo desde={0.5}>
         {foto ? (
           // Uma troca de imagem é um fundido lento (23/10): a página abre com a
-          // capa que se tocou e passa para a foto quando ela se souber.
-          <Image source={{ uri: foto }} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top"
+          // capa que se tocou e passa para a foto quando ela se souber. A foto
+          // pequena da grelha (já em cache) segura o lugar enquanto a grande chega.
+          <Image source={{ uri: foto }} placeholder={{ uri: fotoNoTamanho(foto, 250) }} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top"
             transition={{ duration: 450, effect: 'cross-dissolve', timing: 'ease-in-out' }} />
         ) : (
           <View style={[StyleSheet.absoluteFill, styles.semFoto]}>
@@ -76,7 +87,7 @@ export function CapaDoArtista({ nome, foto, fas, tuas, accoes, aoMedirNome }: {
       </DissolverEmBaixo>
       {/* A barra de estado e os botões de cima leem-se em qualquer foto. */}
       <LinearGradient pointerEvents="none" colors={['rgba(0,0,0,0.38)', 'rgba(0,0,0,0)']} style={styles.sombraDeCima} />
-      <View style={styles.baixo} onLayout={(e) => setBaixoY(e.nativeEvent.layout.y)}>
+      <View style={styles.baixo} onLayout={(e) => { baixoY.current = e.nativeEvent.layout.y; avisar(); }}>
         <Text
           accessibilityRole="header"
           numberOfLines={2}
@@ -84,7 +95,7 @@ export function CapaDoArtista({ nome, foto, fas, tuas, accoes, aoMedirNome }: {
           minimumFontScale={0.6}
           maxFontSizeMultiplier={ESCALA_MAXIMA.fixa}
           style={styles.nome}
-          onLayout={aoMedirNome ? (e) => aoMedirNome(baixoY + e.nativeEvent.layout.y + e.nativeEvent.layout.height) : undefined}
+          onLayout={(e) => { fimNoBloco.current = e.nativeEvent.layout.y + e.nativeEvent.layout.height; avisar(); }}
         >
           {nome}
         </Text>

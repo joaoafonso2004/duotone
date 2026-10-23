@@ -172,7 +172,7 @@ const iphone = ler_('src/screens/LibraryGroupScreen.tsx');
 assert.match(pc, /const fotoDoCanal = foto \? null : pagina\?\.foto \?\? null;/);
 // No iPhone a do canal só entra se o catálogo disser que não tem foto (23/10):
 // a imagem do topo muda no máximo uma vez (test-play-aba-artista.cjs).
-assert.match(iphone, /const capaDoArtista = foto \?\? \(foto === null \? pagina\?\.foto : null\) \?\? capaDeEntrada;/);
+assert.match(iphone, /const capaDoArtista = foto \?\? capaDeEntrada \?\? \(foto === null \? pagina\?\.foto \?\? null : null\);/);
 // Uma página só (20/10, variante A): o Play toca as músicas da página toda.
 assert.match(pc, /const faixasDaAba = musicas;/, 'PC: o Play toca a página toda');
 assert.match(iphone, /const faixasDaAba = musicas;/, 'iPhone: o Play toca a página toda');

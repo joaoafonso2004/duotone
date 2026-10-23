@@ -13,7 +13,7 @@ import { tocarMixDoArtista } from '../state/mixDoArtista';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLibrary } from '../api/library';
 import { lerFaixas } from '../lib/cacheDaBiblioteca';
-import { fotoDoArtista } from '../api/catalogo';
+import { fotoDoArtista, fotoJaConhecida } from '../api/catalogo';
 import { paginaDoArtista, type AlbumDaPagina, type PaginaDoArtista } from '../api/albunsDoArtista';
 import { useArtistasFavoritos } from '../state/artistasFavoritos';
 import { pesquisarMusica, type DetalheDaPesquisa } from '../api/search';
@@ -151,12 +151,15 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   }, [type, name, loading, provas]);
   // A FOTO do artista vem do catálogo (27/9, `fotoDoArtista`). Era a capa da
   // primeira música dele na biblioteca, e quem não tinha nenhuma via uma nota.
-  // `undefined`: ainda a caminho; `null`: o catálogo não a tem.
-  const [foto, setFoto] = useState<string | null | undefined>(undefined);
+  // `undefined`: ainda a caminho; `null`: o catálogo não a tem. A que já se
+  // sabe (no aparelho) desenha-se logo.
+  const [foto, setFoto] = useState<string | null | undefined>(() => (type === 'artist' ? fotoJaConhecida(name) : undefined));
   useEffect(() => {
     if (type !== 'artist' || !name) return;
     let vivo = true;
-    setFoto(undefined);
+    const ja = fotoJaConhecida(name);
+    setFoto(ja);
+    if (ja !== undefined) return;
     void fotoDoArtista(name).then((url) => { if (vivo) setFoto(url); });
     return () => { vivo = false; };
   }, [type, name]);
@@ -240,15 +243,15 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   // de fora do artista não é a mesma de dentro ... faz uma transição clean
   // quando muda de foto"). Abre com a que se tocou (a capa do cartão dos
   // Artists, a foto de um parecido) e passa para a definitiva quando se souber
-  // qual é: a do catálogo; se o catálogo não a tiver, a do canal dele no
-  // YouTube Music (30/9); sem as duas, fica a capa de uma música dele. Antes
-  // passava por três, conforme cada uma chegava: a capa, a do canal e a do
-  // catálogo.
+  // qual é: a do catálogo. Sem ela, FICA a que se tocou (a da grelha, que é a
+  // mesma regra: 23/10, "as imagens continuam diferentes de fora para
+  // dentro"), e a do canal dele no YouTube Music (30/9) só se não houver
+  // nenhuma: num canal sem foto era a silhueta cinzenta por omissão.
   const capaDeEntrada = route.params.capa
     ?? tracks.find((t) => t.artworkUrl)?.artworkUrl
     ?? ytTracks.find((t) => t.artworkUrl)?.artworkUrl
     ?? null;
-  const capaDoArtista = foto ?? (foto === null ? pagina?.foto : null) ?? capaDeEntrada;
+  const capaDoArtista = foto ?? capaDeEntrada ?? (foto === null ? pagina?.foto ?? null : null);
   // Os fãs e os parecidos (o catálogo, com as tuas como prova de quem ele é), e
   // a discografia partida em álbuns e em singles e EPs.
   const vizinhanca = useVizinhancaDoArtista(name, tracks, type === 'artist' && !loading);
@@ -296,6 +299,8 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   </View>;
 
   const fas = fasDoArtista(vizinhanca.fas);
+  // A página do canal respondeu, e não há discos nenhuns.
+  const semDiscografia = !loadingYtAlbums && !pagina?.maisRecente && !discos.albuns.length && !discos.singles.length;
   // Quantas são tuas, só quando se sabe e são (o "0 songs" parecia uma página avariada).
   const tuas = !loading && tracks.length > 0 ? `${tracks.length} in your library` : null;
   const numerosDoArtista = [
@@ -336,10 +341,14 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
           <FundoDaCorDoArtista foto={capaDoArtista} altura={alturaDaCapaDoArtista(width)} />
           <CapaDoArtista nome={name} foto={capaDoArtista} fas={fas} tuas={tuas} accoes={accoes} aoMedirNome={setFimDoNome} />
 
-          <CabecalhoDaSeccao titulo="Top Songs" aoCarregar={!waiting && musicas.length ? () => { hapticSelection(); setVerTodas(true); } : undefined} />
+          <CabecalhoDaSeccao titulo={semDiscografia ? 'Songs' : 'Top Songs'} aoCarregar={!waiting && musicas.length ? () => { hapticSelection(); setVerTodas(true); } : undefined} />
           {waiting ? <SkeletonDeFaixas linhas={4} />
-            : musicas.length ? <GrelhaDeMusicas musicas={musicasAVista(musicas, false, MUSICAS_NA_GRELHA)} renderLinha={linhaDaGrelha} />
-            : <EmptyState icon="musical-notes-outline" title="No songs found" subtitle="No songs by this artist were found." />}
+            : !musicas.length ? <EmptyState icon="musical-notes-outline" title="No songs found" subtitle="No songs by this artist were found." />
+            // Sem discografia (um artista sem página no catálogo de música), a
+            // página acabava nas Top Songs (23/10, Dave Blunts): as músicas
+            // vão todas, numa lista, em vez de doze numa grelha.
+            : semDiscografia ? musicas.map((t) => <React.Fragment key={`${t.source}:${t.sourceId}`}>{linhaDaGrelha(t)}</React.Fragment>)
+            : <GrelhaDeMusicas musicas={musicasAVista(musicas, false, MUSICAS_NA_GRELHA)} renderLinha={linhaDaGrelha} />}
           {/* As outras dele ainda a chegar (as tuas já estão à vista). */}
           {!waiting && aCarregarOutras ? <SkeletonDeFaixas linhas={2} /> : null}
 

@@ -11,7 +11,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FILTROS_DE_VERSAO, filtrosComResultados, versaoPassa, type FiltroDeVersao } from '../../lib/filtroDeVersao';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { fotoDoArtista } from '../../api/catalogo';
+import { fotoDoArtista, fotoJaConhecida } from '../../api/catalogo';
+import { fotoNoTamanho } from '../../lib/catalogo';
 import { getLikedSongs } from '../../api/library';
 import { fetchYouTubePlaylistById, type YtRecommendedPlaylist } from '../../api/youtube';
 import { lembrarCanalDoArtista, paginaDoArtista, type AlbumDaPagina, type PaginaDoArtista } from '../../api/albunsDoArtista';
@@ -532,7 +533,7 @@ export function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) 
       <Pressable key={chave} onPress={() => navigate({ name: 'artist', value: nome })}
         {...marcar('cartao')} style={styles.playlistCard}>
         <View style={styles.playlistArt}>
-          <Artwork track={faixas[0]} size={200} />
+          <FotoDoCartao nome={nome} faixa={faixas[0]} />
           {/* Um lançamento novo que ainda não se foi ver (10/10). */}
           {comNovidade.has(chave) ? <View accessibilityLabel="New release" style={styles.pontoNovo} /> : null}
           {/* É o MESMO coração das músicas, e não uma estrela: guardar é o
@@ -646,10 +647,13 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
   const favorito = favoritos.has(chaveDoArtista);
   const [aDescobrir, setADescobrir] = useState(true);
   const { abrirAlbum, fecharAlbum, dialogoDoAlbum } = useDialogoDoAlbum(props);
-  const [foto, setFoto] = useState<string | null>(null);
+  // A que já se sabe (no aparelho) desenha-se logo: é a mesma da grelha.
+  const [foto, setFoto] = useState<string | null>(() => fotoJaConhecida(name) ?? null);
   useEffect(() => {
     let vivo = true;
-    setFoto(null);
+    const ja = fotoJaConhecida(name);
+    setFoto(ja ?? null);
+    if (ja !== undefined) return;
     void fotoDoArtista(name).then((url) => { if (vivo) setFoto(url); });
     return () => { vivo = false; };
   }, [name]);
@@ -767,7 +771,9 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
   // A foto do catálogo; sem ela, a do canal dele no YouTube Music (30/9); sem
   // as duas, a capa de uma música dele.
   const fotoDoCanal = foto ? null : pagina?.foto ?? null;
-  const fotoDoHeroi = foto ?? fotoDoCanal ?? tracks[0]?.artworkUrl ?? outras[0]?.artworkUrl ?? null;
+  // A ordem é a da grelha dos Artists (23/10): a foto, e sem ela a capa da
+  // primeira música dele -- fora e dentro, a mesma imagem.
+  const fotoDoHeroi = foto ?? tracks[0]?.artworkUrl ?? fotoDoCanal ?? outras[0]?.artworkUrl ?? null;
   // A cor da foto por trás do cabeçalho (como no iPhone). Só a do catálogo: a
   // do canal vem sem Referer, e não se lê num canvas.
   const cor = useCorDoAmbiente(foto);
@@ -1034,6 +1040,15 @@ function tomDoArtista(cor: string): string {
   return `linear-gradient(180deg, ${d.cores.map((c, k) => `${c} ${Math.round(d.paragens[k] * 100)}%`).join(', ')})`;
 }
 const ALTURA_DO_HEROI = 400;
+
+/**
+ * A imagem de um artista na grelha dos Artists (23/10): a foto do catálogo, a
+ * MESMA da página dele; sem ela, a capa da primeira música dele (a de sempre).
+ */
+function FotoDoCartao({ nome, faixa }: { nome: string; faixa: Track }) {
+  const foto = useFotoDoArtista(nome);
+  return foto ? <Image source={{ uri: fotoNoTamanho(foto, 250) }} style={{ width: 200, height: 200 }} /> : <Artwork track={faixa} size={200} />;
+}
 
 /** Um "Fans also like": a foto do catálogo, redonda, e o nome; abre a página dele. */
 function ParecidoNoPc({ nome, aoAbrir }: { nome: string; aoAbrir: () => void }) {

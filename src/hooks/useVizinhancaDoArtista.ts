@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { fotoDoArtista, vizinhancaConfirmada } from '../api/catalogo';
+import { fotoDoArtista, fotoJaConhecida, vizinhancaConfirmada } from '../api/catalogo';
 import { chaveDeArtista, tituloNoLeitor } from '../lib/artistName';
 import { parecidosAVista } from '../lib/musicasDoArtista';
 import type { Track } from '../types';
@@ -50,14 +50,16 @@ export function useVizinhancaDoArtista(nome: string, faixas: readonly Track[], p
 
 /**
  * A foto de um artista do catálogo (a mesma da página dele), para os "Fans also
- * like". Fica em memória durante a sessão (`fotoDoArtista`); não passa pelo
- * Supabase.
+ * like" e as grelhas dos Artists. Fica no aparelho (`fotoDoArtista`): a que já
+ * se sabe desenha-se logo. Não passa pelo Supabase.
  */
 export function useFotoDoArtista(nome: string): string | null {
-  const [foto, setFoto] = useState<string | null>(null);
+  const [foto, setFoto] = useState<string | null>(() => fotoJaConhecida(nome) ?? null);
   useEffect(() => {
     let vivo = true;
-    setFoto(null);
+    const ja = fotoJaConhecida(nome);
+    setFoto(ja ?? null);
+    if (ja !== undefined) return;
     void fotoDoArtista(nome).then((url) => { if (vivo) setFoto(url); });
     return () => { vivo = false; };
   }, [nome]);

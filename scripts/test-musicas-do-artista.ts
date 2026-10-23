@@ -85,7 +85,7 @@ const pc = ler('src/desktop/paginas/BibliotecaPages.web.tsx');
 caso('uma página por secções, sem separadores, nos dois lados', () => {
   // iPhone (23/10, docs/artista-ios-maquete.html): Top Songs numa grelha, o
   // último lançamento em destaque, a discografia, os parecidos e o About.
-  assert.match(iphone, /<CabecalhoDaSeccao titulo="Top Songs" aoCarregar=/);
+  assert.match(iphone, /<CabecalhoDaSeccao titulo=\{semDiscografia \? 'Songs' : 'Top Songs'\} aoCarregar=/);
   assert.match(iphone, /<GrelhaDeMusicas musicas=\{musicasAVista\(musicas, false, MUSICAS_NA_GRELHA\)\} renderLinha=\{linhaDaGrelha\} \/>/);
   assert.match(iphone, /<LancamentoEmDestaque album=\{pagina\.maisRecente\} aoAbrir=\{abrirDisco\} \/>/);
   assert.match(iphone, /<DiscosDoArtista titulo="Albums" discos=\{discos\.albuns\}/);
@@ -93,6 +93,9 @@ caso('uma página por secções, sem separadores, nos dois lados', () => {
   assert.match(iphone, /<ParecidosDoArtista nomes=\{vizinhanca\.parecidos\}/);
   assert.match(iphone, /\{fas \? <SobreOArtista foto=\{capaDoArtista\} fas=\{fas\} numeros=\{numerosDoArtista\} \/> : null\}/, 'o About só com os fãs');
   assert.doesNotMatch(iphone, /UltimoLancamento|See all songs|setTodas/, 'iPhone: a caixa colada aos botões e o botão grande saíram');
+  // Sem discografia, as músicas vão todas numa lista (23/10, a página acabava nas Top Songs).
+  assert.match(iphone, /const semDiscografia = !loadingYtAlbums && !pagina\?\.maisRecente && !discos\.albuns\.length && !discos\.singles\.length;/);
+  assert.match(iphone, /: semDiscografia \? musicas\.map\(\(t\) => <React\.Fragment key=\{`\$\{t\.source\}:\$\{t\.sourceId\}`\}>\{linhaDaGrelha\(t\)\}<\/React\.Fragment>\)/);
   // PC (23/10, variante A de docs/artista-pc-maquete.html): todas as músicas e
   // uma coluna parada com o último lançamento, a discografia e os parecidos.
   assert.match(pc, /<Text style=\{artistStyles\.tituloDaSeccao\}>Songs<\/Text>/);
