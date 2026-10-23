@@ -37,8 +37,16 @@ export type SessaoDeEscuta = {
    * aparece num Jam.
    */
   radio: boolean | null;
+  /**
+   * O tipo do Radio da sala (23/10, `supabase/radio-tipo-no-jam.sql`): o de uma
+   * música ou o Mix da sala. `null` sem a migração, e aí não há menu.
+   */
+  radioTipo?: TipoDoRadioDaSala | null;
   acabouEm: number | null;
 };
+
+/** Os tipos do Radio da sala: os mesmos nomes do `TipoDeRadio` do leitor. */
+export type TipoDoRadioDaSala = 'musica' | 'mix';
 
 export type MembroDaSessao = {
   userId: string;
@@ -61,6 +69,8 @@ export function sessaoDaLinha(r: any): SessaoDeEscuta {
     convidadosControlam: !!r.guests_can_control,
     auxDe: typeof r.aux_de === 'string' ? r.aux_de : null,
     radio: typeof r.radio === 'boolean' ? r.radio : null,
+    // O tipo (23/10, supabase/radio-tipo-no-jam.sql); sem a migração, `null`.
+    radioTipo: r.radio_tipo === 'mix' || r.radio_tipo === 'musica' ? r.radio_tipo : null,
     acabouEm: instante(r.ended_at),
   };
 }
@@ -188,9 +198,15 @@ export async function retomar(sessao: string): Promise<void> {
 }
 
 /** Liga e desliga a roda do aux. So o anfitriao. */
-/** Liga ou desliga o Radio da sala. Quem pode mandar nela (`exigir_controlo`). */
-export async function definirRadioDoJam(sessao: string, ligado: boolean): Promise<void> {
-  const { error } = await supabase.rpc('definir_radio_do_jam', { p_session: sessao, p_ligado: ligado });
+/**
+ * Liga ou desliga o Radio da sala e, com `tipo`, escolhe-o (23/10). Quem pode
+ * mandar nela (`exigir_controlo`). Sem `tipo` é a versão de dois argumentos,
+ * a que existe sem o radio-tipo-no-jam.sql.
+ */
+export async function definirRadioDoJam(sessao: string, ligado: boolean, tipo?: TipoDoRadioDaSala): Promise<void> {
+  const { error } = await supabase.rpc('definir_radio_do_jam', tipo
+    ? { p_session: sessao, p_ligado: ligado, p_tipo: tipo }
+    : { p_session: sessao, p_ligado: ligado });
   if (error) throw error;
 }
 

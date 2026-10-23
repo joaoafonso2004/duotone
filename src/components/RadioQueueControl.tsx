@@ -37,6 +37,9 @@ export function useRadioDaFila() {
   const offline=useConnectivity(s=>s.offline);
   const owner=useAuth(s=>s.session?.user.id??s.offlineUserId);
   const radioDoJam=useOuvirJuntos(s=>s.sessao?s.sessao.radio:undefined);
+  // O tipo do Radio da sala (23/10): com a migração, a Jam também escolhe entre
+  // "Songs like this one" e o Mix (o da SALA); sem ela, `null` e não há menu.
+  const tipoDoJam=useOuvirJuntos(s=>s.sessao?.radioTipo??null);
   const mandoNoJam=useOuvirJuntos(s=>s.possoControlar());
   const [aLigarNoJam,setALigarNoJam]=useState(false);
   const emJam=radioDoJam!==undefined;
@@ -73,6 +76,8 @@ export function useRadioDaFila() {
     if(emJam){
       // Na sala é uma decisão sobre o que todos ouvem: só quem manda nela.
       if(aLigarNoJam)return;
+      // Desligado e com o tipo na sala, abre o menu, como fora da Jam (23/10).
+      if(!radioDoJam&&tipoDoJam){setMenuAberto(true);return;}
       setALigarNoJam(true);
       void useOuvirJuntos.getState().ligarRadio(!radioDoJam).finally(()=>setALigarNoJam(false));
       return;
@@ -85,6 +90,12 @@ export function useRadioDaFila() {
   /** Ligar o Radio escolhido no menu. Corre quando o menu já fechou. */
   const escolher=(qual:TipoDeRadio)=>{
     if(reason)return;
+    if(emJam){
+      if(aLigarNoJam)return;
+      setALigarNoJam(true);
+      void useOuvirJuntos.getState().ligarRadio(true,qual).finally(()=>setALigarNoJam(false));
+      return;
+    }
     // A seguir um amigo (5/10): ligar o Radio e deixar de o seguir, a partir
     // da musica dele -- como tocar noutra musica, que tambem deixa de seguir.
     if(useSeguirAmigo.getState().seguindo)useSeguirAmigo.getState().parar(null);
@@ -103,15 +114,16 @@ export function useRadioDaFila() {
       sugeridas:before.sugeridas,origemDaFila:before.origemDaFila});
     setUndo(null);
   };
+  const tipoMostrado: TipoDeRadio = emJam ? (tipoDoJam ?? 'musica') : tipo;
   return { mode, error, reason, podeDesfazer: !emJam && !!undo, alternar, desfazer,
-    tipo, menuAberto, fecharMenu: () => setMenuAberto(false), escolher,
-    /** O que a pastilha diz ligada: "Radio on" ou "Mix on" (num Jam, sempre "Radio on"). */
-    rotuloLigado: emJam ? ROTULO_DO_RADIO.ligado : ROTULO_LIGADO[tipo],
-    /** Carregar agora abre o menu (e não liga nem desliga logo). */
-    abreMenu: !emJam && mode === 'off' && !reason,
+    tipo: tipoMostrado, menuAberto, fecharMenu: () => setMenuAberto(false), escolher,
+    /** O que a pastilha diz ligada: "Radio on" ou "Mix on" (num Jam sem a migração, sempre "Radio on"). */
+    rotuloLigado: emJam && !tipoDoJam ? ROTULO_DO_RADIO.ligado : ROTULO_LIGADO[tipoMostrado],
+    /** Carregar agora abre o menu (e não liga nem desliga logo). Num Jam, só com o tipo na sala. */
+    abreMenu: (!emJam || !!tipoDoJam) && mode === 'off' && !reason,
     /** Num Jam sem a migração (a sessão não traz o Radio) não há pastilha. */
     visivel: emJam ? radioDoJam !== null : !!current,
-    dica: emJam ? ROTULO_DO_RADIO.dicaNoJam : ROTULO_DO_RADIO.dica };
+    dica: emJam ? (tipoDoJam ? ROTULO_DO_RADIO.dicaNoJamComTipo : ROTULO_DO_RADIO.dicaNoJam) : ROTULO_DO_RADIO.dica };
 }
 
 /** Quem não manda na Jam: como é que passa a poder (o interruptor da folha da Jam). */
@@ -121,6 +133,7 @@ export const ROTULO_DO_RADIO = {
   desligado: 'Radio', aPreparar: 'Starting…', ligado: 'Radio on',
   dica: 'Choose Songs like this one or Mix. Radio swaps Up next and stays on: a song you tap starts it again.',
   dicaNoJam: 'Keeps the Jam going with music like what everyone is hearing, after the songs people picked.',
+  dicaNoJamComTipo: 'Choose Songs like this one or the Jam Mix. It keeps the Jam going after the songs people picked.',
 };
 
 /** A pastilha do iPhone, para o cabeçalho do Up next (QueueSheet). */

@@ -33,6 +33,8 @@ await db.exec(ler('social-setup.sql'));
 await db.exec(ler('ouvir-juntos.sql'));
 await db.exec(ler('radio-no-jam.sql'));
 await db.exec(ler('radio-no-jam.sql')); // correr duas vezes não parte nada
+await db.exec(ler('radio-tipo-no-jam.sql'));
+await db.exec(ler('radio-tipo-no-jam.sql')); // o tipo (23/10), também duas vezes
 await db.exec('grant all on all tables in schema public to authenticated;');
 
 for (let n = 1; n <= 3; n++) {
@@ -101,6 +103,54 @@ await caso('anónimos não chamam a função', async () => {
   const s = await abrir(1);
   await db.exec(`reset role; set role anon;`);
   await recusa(() => q(`select public.definir_radio_do_jam($1, true)`, [s]), /permission denied/);
+});
+
+// O tipo do Radio da sala (23/10, supabase/radio-tipo-no-jam.sql).
+const tipo = async (s) => { await admin(); return (await q(`select radio_tipo from public.listening_sessions where id = $1`, [s])).rows[0].radio_tipo; };
+const ligarCom = async (n, s, v, t) => { await como(n); await q(`select public.definir_radio_do_jam($1, $2, $3)`, [s, v, t]); };
+
+await caso('uma sessão nova tem o Radio de uma música', async () => {
+  const s = await abrir(1);
+  assert.equal(await tipo(s), 'musica');
+});
+
+await caso('ligar com o Mix guarda o tipo, e desligar não o perde', async () => {
+  const s = await abrir(1);
+  await ligarCom(1, s, true, 'mix');
+  assert.equal(await radio(s), true);
+  assert.equal(await tipo(s), 'mix');
+  await ligarCom(1, s, false, null);
+  assert.equal(await radio(s), false);
+  assert.equal(await tipo(s), 'mix', 'sem tipo, fica o que lá estava');
+});
+
+await caso('um tipo que não se conhece não entra', async () => {
+  const s = await abrir(1);
+  await ligarCom(1, s, true, 'qualquer');
+  assert.equal(await tipo(s), 'musica');
+  await admin();
+  await recusa(() => q(`update public.listening_sessions set radio_tipo = 'outro' where id = $1`, [s]), /radio_tipo_valido|check/);
+});
+
+await caso('a versão de dois argumentos continua a funcionar (apps antigas)', async () => {
+  const s = await abrir(1);
+  await ligarCom(1, s, true, 'mix');
+  await ligar(1, s, false);
+  assert.equal(await radio(s), false);
+  assert.equal(await tipo(s), 'mix');
+});
+
+await caso('um convidado sem controlo não muda o tipo', async () => {
+  const s = await abrir(1);
+  await entrar(2, s);
+  await recusa(() => ligarCom(2, s, true, 'mix'), /anfitrião controla/);
+  assert.equal(await tipo(s), 'musica');
+});
+
+await caso('anónimos não chamam a de três argumentos', async () => {
+  const s = await abrir(1);
+  await db.exec(`reset role; set role anon;`);
+  await recusa(() => q(`select public.definir_radio_do_jam($1, true, 'mix')`, [s]), /permission denied/);
 });
 
 if (falhas) { console.error(`Radio no Jam (SQL): ${falhas} falharam.`); process.exitCode = 1; }

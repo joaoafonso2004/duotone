@@ -1036,6 +1036,23 @@ async function chavesDasEscutasRecentes(dono: string | null): Promise<Set<string
  */
 let ouvidasEmCache: { ate: number; pedido: Promise<Map<string, number>> } | null = null;
 const OUVIDAS_DURANTE_MS = 30 * 24 * 60 * 60 * 1000;
+/**
+ * A memória do Radio, para o Radio da Jam (23/10, João: "às vezes repete
+ * músicas na radio"): as sugestões dos últimos 30 dias e as que se ouviram há
+ * pouco -- as mesmas que o Radio de sempre evita. A Jam pedia sem nenhuma.
+ */
+export async function memoriaDoRadio(): Promise<{ dono: string | null; jaDescobertas: ReadonlySet<string>; ouvidas: ReadonlyMap<string, number> }> {
+  const dono = donoDoSmartShuffle();
+  const [jaDescobertas, ouvidas] = await Promise.all([chavesDasDescobertasRecentes(dono), identidadesOuvidas()]);
+  return { dono, jaDescobertas, ouvidas };
+}
+
+/** As que o Radio da Jam pôs entram na memória dos 30 dias, como as do Radio de sempre (as da biblioteca não). */
+export async function lembrarSugestoesDoRadio(dono: string | null, tracks: readonly Track[]): Promise<void> {
+  const daBiblioteca = await chavesDaBiblioteca();
+  await registarSugestoesGuardadas(dono, tracks.filter((t) => !chavesDaFaixaSugerida(t).some((chave) => daBiblioteca.has(chave))));
+}
+
 function identidadesOuvidas(): Promise<Map<string, number>> {
   const agora = Date.now();
   if (ouvidasEmCache && ouvidasEmCache.ate > agora) return ouvidasEmCache.pedido;

@@ -1,4 +1,4 @@
-import { registarOuvirJuntos, usePlayer } from './player';
+import { lembrarSugestoesDoRadio, memoriaDoRadio, registarOuvirJuntos, usePlayer } from './player';
 import { create } from 'zustand';
 import { AppState } from 'react-native';
 import {
@@ -6,7 +6,7 @@ import {
   juntarAFila, juntarMuitasAFila, lerFila, lerMembros, lerSessao, marcarPronto, membroDaLinha,
   definirAux, definirRadioDoJam, fecharJamsAbandonadas, minhasSessoesAbertas, pausar, permitirControlo, relogioActualizado, retomar,
   sair, sessaoDaLinha, itemDaLinha, tirarDaFila, avancarFila, procurarNaSessao,
-  type ItemDaFila, type MembroDaSessao, type SessaoDeEscuta,
+  type ItemDaFila, type MembroDaSessao, type SessaoDeEscuta, type TipoDoRadioDaSala,
 } from '../api/ouvirJuntos';
 import { agoraNoServidor, type Estimativa } from '../lib/relogioPartilhado';
 import { posicaoDaSessao } from '../lib/sincronizacao';
@@ -99,7 +99,8 @@ type Estado = {
    * Quem pode mandar na sessão. Ligado, o anfitrião enche a fila partilhada
    * pelo Radio quando ela está a acabar -- depois do que as pessoas puseram.
    */
-  ligarRadio: (ligado: boolean) => Promise<void>;
+  /** `tipo` (23/10): o Radio de uma música ou o Mix da sala; só com o radio-tipo-no-jam.sql. */
+  ligarRadio: (ligado: boolean, tipo?: TipoDoRadioDaSala) => Promise<void>;
   anunciarProntidao: (pronta: boolean, percentagem?: number) => Promise<void>;
 
   /** `aSeguir` poe no topo da fila partilhada em vez do fundo. */
@@ -114,8 +115,12 @@ type Estado = {
    * um fallback para repeat, rádio ou fila pessoal durante a sessão.
    */
   avancarPelaFila: () => Promise<boolean>;
-  /** Enche a fila partilhada quando ela esta a acabar. So o anfitriao. Com o Radio da sala ligado, pelo Radio. */
-  encherSeSecar: () => Promise<void>;
+  /**
+   * Enche a fila partilhada quando ela esta a acabar. So o anfitriao. Com o
+   * Radio da sala ligado, pelo Radio. `jaAgora` (ao ligar o Radio): um lote
+   * mesmo com a fila cheia, depois do que lá está.
+   */
+  encherSeSecar: (opcoes?: { jaAgora?: boolean }) => Promise<void>;
   /**
    * A app põe músicas na fila partilhada sem ninguém pedir?
    *
@@ -137,6 +142,11 @@ let geracao = 0;
 let leitura = 0;
 let avancando = false;
 let aEncher = false;
+/**
+ * O que o Radio da sala já pôs na fila nesta sessão (23/10): não volta a pôr,
+ * nem depois de tocar nem se alguém a tirou. Esquece-se ao mudar de sessão.
+ */
+let doRadioNaSala = new Set<string>();
 let pararLeiturasDaSala: (() => void) | null = null;
 /**
  * Abaixo de quantas faixas se enche, e quantas se juntam de cada vez.
@@ -150,6 +160,49 @@ const POR_ENCHIMENTO = 12;
 /** Até seis artistas das músicas que se ouviram realmente nesta sessão. */
 const ALVOS_DA_SALA = 6;
 let fecho: Promise<boolean> | null = null;
+
+/**
+ * Um lote do Radio da sala (23/10, João: "às vezes repete músicas na radio").
+ * O Radio de sempre (`fetchRadioTracks`), a partir do que a SALA está a ouvir,
+ * agora com a memória dele (as sugestões dos últimos 30 dias e as ouvidas há
+ * pouco, `memoriaDoRadio`) e sem NADA do que a sala já ouviu nesta sessão nem
+ * do que o Radio já lá pôs -- só excluía a fila e as últimas cinco, e uma
+ * música de há meia hora voltava. E não seca, como o Radio de sempre
+ * (`tentativasDoRadio`): sem nada novo, tenta a partir do fim da fila, e só
+ * depois larga a memória dos 30 dias.
+ */
+async function loteDoRadioDaSala(contexto: Track[], fila: readonly Track[]): Promise<{ faixas: Track[]; dono: string | null }> {
+  let memoria: Awaited<ReturnType<typeof memoriaDoRadio>> = { dono: null, jaDescobertas: new Set<string>(), ouvidas: new Map<string, number>() };
+  try { memoria = await memoriaDoRadio(); } catch { /* sem memória, pede-se na mesma */ }
+  const jaLa = [...fila, ...percurso, ...contexto];
+  const tentativas = [
+    { sementes: contexto, comMemoria: true },
+    { sementes: [...fila.slice(-3), contexto[0]], comMemoria: true },
+    { sementes: contexto, comMemoria: false },
+  ];
+  for (const t of tentativas) {
+    const lote = (await fetchRadioTracks(t.sementes, jaLa, POR_ENCHIMENTO,
+      t.comMemoria ? memoria.jaDescobertas : new Set<string>(), 'session', t.comMemoria ? memoria.ouvidas : new Map<string, number>()))
+      .filter((x) => !doRadioNaSala.has(trackKey(x)));
+    if (lote.length) return { faixas: lote, dono: memoria.dono };
+  }
+  return { faixas: [], dono: memoria.dono };
+}
+
+/**
+ * Junta um lote do Radio da sala à fila partilhada, lembra-o (nesta sessão e,
+ * com `dono`, na memória dos 30 dias do Radio) e relê a fila.
+ */
+async function juntarDoRadio(sessao: string, lote: Track[], actual: Track, dono: string | null | undefined): Promise<void> {
+  const loja = useOuvirJuntos.getState();
+  const porJuntar = porSemear(lote, { fila: loja.fila, track: actual }, trackKey);
+  if (!porJuntar.length) return;
+  const entraram = await juntarMuitasAFila(sessao, porJuntar);
+  if (entraram <= 0) return;
+  for (const t of porJuntar) doRadioNaSala.add(trackKey(t));
+  if (dono !== undefined) void lembrarSugestoesDoRadio(dono, porJuntar).catch(() => {});
+  if (useOuvirJuntos.getState().sessao?.id === sessao) await useOuvirJuntos.getState().actualizar();
+}
 
 
 export const useOuvirJuntos = create<Estado>((set, get) => ({
@@ -284,8 +337,9 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
           if (nova.acabouEm) { get().desligar(); set({ acabouSemAviso: true }); return; }
           const radioAntes = get().sessao?.radio === true;
           set({ sessao: nova });
-          // Alguém ligou o Radio da sala: quem enche (o anfitrião) enche já.
-          if (nova.radio === true && !radioAntes) void get().encherSeSecar();
+          // Alguém ligou o Radio da sala: quem enche (o anfitrião) enche já,
+          // mesmo com a fila cheia (senão ligar não fazia nada que se visse).
+          if (nova.radio === true && !radioAntes) void get().encherSeSecar({ jaAgora: true });
         }
       )
       .on(
@@ -494,17 +548,19 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     if (get().sessao?.id === s.id) await get().actualizar();
   },
 
-  ligarRadio: async (ligado) => {
+  ligarRadio: async (ligado, tipo) => {
     const s = get().sessao;
     if (!s || s.radio === null || !get().possoControlar()) return;
     try {
-      await definirRadioDoJam(s.id, ligado);
+      // O tipo só vai com a migração (a sessão traz `radioTipo`); sem ela é a
+      // chamada de sempre, de dois argumentos.
+      await definirRadioDoJam(s.id, ligado, s.radioTipo ? tipo : undefined);
     } catch {
       set({ aviso: ligado ? 'Could not start the Jam Radio. Try again.' : 'Could not stop the Jam Radio. Try again.' });
       return;
     }
     if (get().sessao?.id === s.id) await get().actualizar();
-    if (ligado) void get().encherSeSecar();
+    if (ligado) void get().encherSeSecar({ jaAgora: true });
   },
 
   /**
@@ -617,14 +673,18 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     void setJamAutoFila(v);
   },
 
-  encherSeSecar: async () => {
+  encherSeSecar: async (opcoes) => {
     const s = get().sessao;
     // Com o Radio da sala ligado enche-se sempre (6/10); sem ele, desligado o
     // interruptor, a fila só tem o que alguém lá pôs.
     const comRadio = s?.radio === true;
     if (!comRadio && !get().autoFila) return;
     if (!s || !get().souAnfitriao() || aEncher) return;
-    if (get().fila.length >= MINIMO_NA_FILA) return;
+    // Ao LIGAR o Radio enche-se já (23/10, João: "o radio na jam não funciona
+    // direito"): só enchia com menos de três na fila, e com a fila cheia ligar
+    // não fazia nada que se visse. O lote entra depois do que lá está.
+    const jaAgora = comRadio && !!opcoes?.jaAgora;
+    if (!jaAgora && get().fila.length >= MINIMO_NA_FILA) return;
     const actual = s.track;
     if (!actual) return;
     const contexto: Track[] = [actual, ...percurso.slice(-5).reverse()];
@@ -634,25 +694,22 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
       return geracao === minha && (agora.sessao?.radio === true ? comRadio : !comRadio && agora.autoFila) && agora.souAnfitriao()
         && agora.sessao?.id === s.id && !!agora.sessao.track
         && trackKey(agora.sessao.track) === trackKey(actual)
-        && agora.fila.length < MINIMO_NA_FILA;
+        && (jaAgora || agora.fila.length < MINIMO_NA_FILA);
     };
     aEncher = true;
     try {
-      if (comRadio) {
-        // O Radio de sempre (api/radio.ts), a partir do que a SALA está a
-        // ouvir -- a de agora e as últimas cinco --, sem repetir o que já está
-        // na fila nem o mesmo artista colado.
-        const jaLa = [...get().fila.map((i) => i.track), ...contexto];
+      // O Mix da sala (23/10): o que a SALA ouve (o retrato dela), e não uma
+      // música. É o mesmo caminho do "Queue the whole list" sem Radio.
+      const mixDaSala = comRadio && s.radioTipo === 'mix';
+      if (comRadio && !mixDaSala) {
+        const { faixas, dono } = await loteDoRadioDaSala(contexto, get().fila.map((i) => i.track));
         const doRadio = espalharArtistas(
-          await fetchRadioTracks(contexto, jaLa, POR_ENCHIMENTO, new Set<string>(), 'session'),
+          faixas,
           (t) => chaveDeArtista(displayArtist(t)),
           [...get().fila.slice(-3).map((i) => i.track), actual].map((t) => chaveDeArtista(displayArtist(t))),
         );
         if (!doRadio.length || !vigente()) return;
-        const porJuntar = porSemear(doRadio, { fila: get().fila, track: actual }, trackKey);
-        if (!porJuntar.length) return;
-        const entraram = await juntarMuitasAFila(s.id, porJuntar);
-        if (entraram > 0 && get().sessao?.id === s.id) await get().actualizar();
+        await juntarDoRadio(s.id, doRadio, actual, dono);
         return;
       }
       const retrato = await retratoDaSessao(s.id);
@@ -663,17 +720,17 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
         const k = chaveDeArtista(nome);
         if (k) escutas.set(k, Math.max(escutas.get(k) ?? 0, peso));
       }
+      // Nada do que está na fila, do que a sala já ouviu nesta sessão, nem do
+      // que o Radio já lá pôs (23/10: só olhava para as últimas cinco).
       const jaLa = new Set(get().fila.map((i) => trackKey(i.track)));
-      for (const t of contexto) jaLa.add(trackKey(t));
+      for (const t of [...contexto, ...percurso]) jaLa.add(trackKey(t));
+      for (const k of doRadioNaSala) jaLa.add(k);
       const novas = await candidatasParaDescoberta(
         contexto, jaLa, new Set<string>(), POR_ENCHIMENTO, ALVOS_DA_SALA, escutas,
         undefined, undefined, 'estrito',
       );
       if (!novas.length || !vigente()) return;
-      const porJuntar = porSemear(novas, { fila: get().fila, track: actual }, trackKey);
-      if (!porJuntar.length) return;
-      const entraram = await juntarMuitasAFila(s.id, porJuntar);
-      if (entraram > 0 && get().sessao?.id === s.id) await get().actualizar();
+      await juntarDoRadio(s.id, novas, actual, mixDaSala ? (await memoriaDoRadio().catch(() => null))?.dono ?? null : undefined);
     } catch {
       // Sem sugestões confirmadas, fica apenas o que as pessoas escolheram.
     } finally {
@@ -727,7 +784,7 @@ useOuvirJuntos.subscribe((agora, antes) => {
   if (passouParaMim(antes.sessao, agora.sessao, agora.euId)) {
     useOuvirJuntos.setState({ aviso: 'You are now the Jam host' });
   }
-  if (agora.sessao?.id !== antes.sessao?.id) { percurso = []; return; }
+  if (agora.sessao?.id !== antes.sessao?.id) { percurso = []; doRadioNaSala = new Set(); return; }
   percurso = percursoDaSessao(
     percurso, antes.sessao?.track ?? null, agora.sessao?.track ?? null, trackKey,
   );

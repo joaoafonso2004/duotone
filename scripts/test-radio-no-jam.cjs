@@ -27,14 +27,22 @@ const carregar = (nome, mocks = {}) => {
 const esperar = (ms = 0) => new Promise((r) => setTimeout(r, ms));
 const faixa = (id, artist = 'Isak') => ({ source: 'youtube', sourceId: id, title: id, artist });
 
-const c = { radio: 0, contextos: [], juntadas: [], definir: [], descoberta: 0, lidas: 0 };
+const c = { radio: 0, contextos: [], juntadas: [], definir: [], descoberta: 0, lidas: 0, memorias: [], lembradas: [] };
+// O que o Radio devolve em cada pedido (por omissão, o de sempre); `[]` simula um lote seco.
+let respostasDoRadio = [];
 let ponte = null, sessaoNoServidor = null, aoMudarSessao = null;
 const mocks = {
-  './player': { registarOuvirJuntos: (fn) => { ponte = fn; }, usePlayer: { getState: () => ({ positionMs: 0, upcomingQueue: () => [] }) } },
+  './player': { registarOuvirJuntos: (fn) => { ponte = fn; }, usePlayer: { getState: () => ({ positionMs: 0, upcomingQueue: () => [] }) },
+    // A memória do Radio (23/10): as sugestões de 30 dias e as ouvidas há pouco.
+    memoriaDoRadio: async () => ({ dono: 'host', jaDescobertas: new Set(['memoria']), ouvidas: new Map([['ouvida', 1]]) }),
+    lembrarSugestoesDoRadio: async (dono, tracks) => { c.lembradas.push([dono, [...tracks].map((t) => t.sourceId)]); } },
   zustand: { create: createStore }, 'react-native': { AppState: { addEventListener: () => ({ remove() {} }) } },
   '../api/ouvirJuntos': {
     lerSessao: async () => { c.lidas++; return sessaoNoServidor; }, lerFila: async () => [], lerMembros: async () => [],
-    definirRadioDoJam: async (id, v) => { c.definir.push([id, v]); sessaoNoServidor = { ...sessaoNoServidor, radio: v }; },
+    definirRadioDoJam: async (id, v, tipo) => {
+      c.definir.push(tipo ? [id, v, tipo] : [id, v]);
+      sessaoNoServidor = { ...sessaoNoServidor, radio: v, ...(tipo ? { radioTipo: tipo } : {}) };
+    },
     juntarMuitasAFila: async (_id, tracks) => { c.juntadas.push([...tracks].map((t) => t.sourceId)); return tracks.length; },
     retratoDaSessao: async () => new Map(), fecharJamsAbandonadas: async () => {}, minhasSessoesAbertas: async () => [{ id: 'jam', sessao: sessaoNoServidor, entrouEm: 1 }],
     relogioActualizado: async () => null, continuoNaSessao: async () => {},
@@ -47,9 +55,10 @@ const mocks = {
   }, removeChannel: async () => {} } },
   '../api/descoberta': { candidatasParaDescoberta: async () => { c.descoberta++; return [faixa('descoberta')]; } },
   '../lib/artistName': { chaveDeArtista: (n) => String(n).toLowerCase(), displayArtist: (t) => t.artist },
-  '../api/radio': { fetchRadioTracks: async (sementes, excluir) => {
-    c.radio++; c.contextos.push([...sementes].map((t) => t.sourceId));
-    return [faixa('r1', 'Bispo'), faixa('na-fila', 'X'), faixa('r2', 'Holly Hood')].filter((t) => !excluir.some((e) => e.sourceId === t.sourceId));
+  '../api/radio': { fetchRadioTracks: async (sementes, excluir, _n, jaDescobertas) => {
+    c.radio++; c.contextos.push([...sementes].map((t) => t.sourceId)); c.memorias.push([...jaDescobertas]);
+    const lote = respostasDoRadio.length ? respostasDoRadio.shift() : [faixa('r1', 'Bispo'), faixa('na-fila', 'X'), faixa('r2', 'Holly Hood')];
+    return lote.filter((t) => !excluir.some((e) => e.sourceId === t.sourceId));
   } },
   '../lib/radio': { espalharArtistas: (lista) => lista },
   '../lib/jam': carregar('src/lib/jam.ts'),
@@ -63,6 +72,9 @@ const sala = (o = {}) => ({ id: 'jam', hostId: 'host', track: faixa('agora'), co
   convidadosControlam: false, auxDe: null, radio: false, acabouEm: null, ...o });
 const repor = (o, eu = 'host', fila = []) => {
   for (const k of Object.keys(c)) c[k] = Array.isArray(c[k]) ? [] : 0;
+  respostasDoRadio = [];
+  // Cada caso numa sessão limpa: sair da sessão esquece o que o Radio dela pôs.
+  loja.setState({ sessao: null });
   sessaoNoServidor = sala(o);
   loja.setState({ sessao: sessaoNoServidor, euId: eu, fila, autoFila: false, aviso: null });
 };
@@ -132,6 +144,71 @@ async function main() {
   loja.setState({ sessao: sala({ radio: null }) });
   assert.equal(ponte().radio, null);
   loja.getState().desligar();
+
+  // --- 23/10: o Radio da sala a sério ---
+  // Ligar com a fila cheia enche JÁ (só enchia com menos de três, e ligar não
+  // fazia nada que se visse), depois do que lá está.
+  repor({ radio: false }, 'host', [1, 2, 3, 4].map((n) => ({ id: `i${n}`, posicao: n, track: faixa(`p${n}`) })));
+  await loja.getState().ligarRadio(true);
+  await esperar(5);
+  assert.equal(c.radio, 1, 'ligar com a fila cheia enche na mesma');
+  assert.deepEqual(c.juntadas, [['r1', 'na-fila', 'r2']], 'depois do que lá está');
+  // Mas, já ligado, a fila cheia continua a não encher.
+  loja.setState({ fila: [1, 2, 3, 4].map((n) => ({ id: `i${n}`, posicao: n, track: faixa(`p${n}`) })) });
+  for (const k of Object.keys(c)) c[k] = Array.isArray(c[k]) ? [] : 0;
+  await loja.getState().encherSeSecar();
+  assert.equal(c.radio, 0, 'o enchimento normal espera pela fila a acabar');
+
+  // A memória do Radio vai no pedido, e o que entrou fica lembrado.
+  repor({ radio: true }, 'host');
+  await loja.getState().encherSeSecar();
+  assert.deepEqual(c.memorias[0], ['memoria'], 'com a memória dos 30 dias, como o Radio de sempre');
+  assert.deepEqual(c.lembradas, [['host', ['r1', 'na-fila', 'r2']]], 'e o que pôs entra nela');
+
+  // O que o Radio já pôs nesta sessão não volta, mesmo que tenha saído da fila.
+  loja.setState({ fila: [] });
+  for (const k of Object.keys(c)) c[k] = Array.isArray(c[k]) ? [] : 0;
+  respostasDoRadio = [[faixa('r1', 'Bispo'), faixa('r3', 'Nova')]];
+  await loja.getState().encherSeSecar();
+  assert.deepEqual(c.juntadas, [['r3']], 'r1 já tinha sido posto pelo Radio da sala');
+
+  // O que a SALA já ouviu nesta sessão não volta (só se excluíam as últimas cinco).
+  repor({ radio: false }, 'host');
+  await loja.getState().ligar('host', 'jam');
+  await esperar(5);
+  for (let n = 1; n <= 8; n++) { loja.setState({ sessao: sala({ radio: true, track: faixa(`ouvida${n}`) }) }); }
+  loja.setState({ fila: [] });
+  for (const k of Object.keys(c)) c[k] = Array.isArray(c[k]) ? [] : 0;
+  respostasDoRadio = [[faixa('ouvida1', 'A'), faixa('ouvida2', 'B'), faixa('nova', 'C')]];
+  await loja.getState().encherSeSecar();
+  assert.deepEqual(c.juntadas, [['nova']], 'nada do que a sala ouviu há mais de cinco músicas');
+  loja.getState().desligar();
+
+  // Não seca: um lote vazio tenta a partir do fim da fila, e só depois sem a memória.
+  repor({ radio: true }, 'host', [{ id: 'i1', posicao: 1, track: faixa('fim-da-fila', 'X') }]);
+  respostasDoRadio = [[], [], [faixa('sem-memoria', 'Z')]];
+  await loja.getState().encherSeSecar();
+  assert.equal(c.radio, 3, 'três tentativas');
+  assert.deepEqual(c.contextos[1], ['fim-da-fila', 'agora'], 'a segunda parte do fim da fila');
+  assert.deepEqual(c.memorias.map((m) => m.length), [1, 1, 0], 'a última larga a memória dos 30 dias');
+  assert.deepEqual(c.juntadas, [['sem-memoria']]);
+
+  // O tipo: com a migração vai no pedido; sem ela, a chamada de sempre.
+  repor({ radio: false, radioTipo: 'musica' }, 'host');
+  await loja.getState().ligarRadio(true, 'mix');
+  await esperar(5);
+  assert.deepEqual(c.definir, [['jam', true, 'mix']]);
+  repor({ radio: false, radioTipo: null }, 'host');
+  await loja.getState().ligarRadio(true, 'mix');
+  await esperar(5);
+  assert.deepEqual(c.definir, [['jam', true]], 'sem a coluna, sem tipo');
+
+  // O Mix da sala: o que a SALA ouve (o retrato), e não o Radio de uma música.
+  repor({ radio: true, radioTipo: 'mix' }, 'host');
+  await loja.getState().encherSeSecar();
+  assert.deepEqual([c.radio, c.descoberta], [0, 1], 'o Mix da sala vai pela descoberta da sala');
+  assert.deepEqual(c.juntadas, [['descoberta']]);
+  assert.deepEqual(c.lembradas, [['host', ['descoberta']]], 'e também fica na memória');
 
   console.log('Radio no Jam (app): passou.');
 }
