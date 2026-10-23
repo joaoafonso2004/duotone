@@ -91,6 +91,25 @@ async function main() {
   await catalogo.garantirCatalogo([...biblioteca, faixa('nova')]);
   assert.equal(JSON.stringify(lidas[1]), JSON.stringify(['nova']), 'uma faixa nova pergunta-se, só ela');
 
-  console.log('Menos pedidos repetidos: os perfis em memória 30 min e o catálogo uma vez por faixa passaram.');
+  // --- sem o Realtime (o relatório de um PC: 62 releituras da inbox por hora) ---
+  const inbox = carregar('src/lib/recuperacaoDaInbox.ts', {});
+  const momento = (o) => ({ aoVivo: false, visivel: true, podeLer: true, tiques: 0, ...o });
+  assert.equal(inbox.deveRelerAInbox(momento({ tiques: 4 })), true, 'à vista e sem canal: de minuto a minuto');
+  assert.equal(inbox.deveRelerAInbox(momento({ visivel: false, tiques: 4 })), false, 'escondida: não de minuto a minuto');
+  assert.equal(inbox.deveRelerAInbox(momento({ visivel: false, tiques: 20 })), true, 'escondida e sem canal: de 5 em 5 min');
+  assert.equal(inbox.deveRelerAInbox(momento({ aoVivo: true, visivel: false, tiques: 999 })), false, 'com o canal e escondida, nunca');
+  assert.match(ler('src/lib/connectSync.ts'), /intervaloComAppVisivel\(\(\) => \{ if \(!aoVivo\) varrer\(\); \}, 60_000\)/, 'o Connect sem canal, de minuto a minuto');
+
+  // O batimento do Realtime num worker no PC, e o relatório diz como ele está.
+  const cliente = ler('src/lib/supabase.ts');
+  assert.match(cliente, /worker: typeof window !== 'undefined' && Platform\.OS === 'web' && typeof \(globalThis as any\)\.Worker === 'function',/);
+  assert.match(cliente, /heartbeatCallback: \(estado: string\) => \{\n\s+if \(estado === 'timeout' \|\| estado === 'disconnected' \|\| estado === 'error'\) registarQuedaDoRealtime\(\);/);
+  const contador = carregar('src/lib/pedidosAoSupabase.ts', {});
+  contador.definirEstadoDoRealtime(() => 'connected, 5/5 channels joined');
+  contador.registarQuedaDoRealtime(agora - 2 * 60 * 60_000);
+  contador.registarQuedaDoRealtime(agora - 60_000);
+  assert.match(contador.textoDoSupabase(agora), /realtime: connected, 5\/5 channels joined \| drops: 1 last hour, 2 in 24 h/);
+
+  console.log('Menos pedidos repetidos: os perfis em memória 30 min, o catálogo uma vez por faixa, a inbox e o Connect sem canal, e o Realtime no relatório passaram.');
 }
 main().catch((e) => { console.error(e); process.exitCode = 1; });

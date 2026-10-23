@@ -21,6 +21,13 @@ export const TIQUE_DA_INBOX_MS = 15_000;
 /** Sem Realtime: uma leitura por minuto. */
 export const TIQUES_SEM_REALTIME = 4;
 /**
+ * Sem o Realtime e com a app ESCONDIDA (só o PC lê assim, para a barra de
+ * tarefas): de 5 em 5 min e não de minuto a minuto (23/10). Um PC no tabuleiro
+ * o dia todo sem canal eram 60 leituras da inbox por hora, cada uma com os
+ * perfis e as marcas de leitura atrás.
+ */
+export const TIQUES_SEM_REALTIME_ESCONDIDA = 20;
+/**
  * Com Realtime e a app à frente: uma a cada quinze minutos (eram cinco; 6/10,
  * os logs do Supabase -- um PC com a janela à vista lia o dia inteiro).
  */
@@ -42,5 +49,5 @@ export function deveRelerAInbox(m: MomentoDaInbox): boolean {
   // Com o Realtime ligado e a app escondida, quem avisa é ele: é assim que a
   // barra de tarefas do PC fica a par sem ler nada de minuto a minuto.
   if (m.aoVivo) return m.visivel && m.tiques >= TIQUES_COM_REALTIME;
-  return m.tiques >= TIQUES_SEM_REALTIME;
+  return m.tiques >= (m.visivel ? TIQUES_SEM_REALTIME : TIQUES_SEM_REALTIME_ESCONDIDA);
 }

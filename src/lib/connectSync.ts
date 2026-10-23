@@ -149,7 +149,10 @@ export function useComandosDoAparelho(userId: string | null | undefined): void {
       // Corria depois, e por isso nunca chegava a tempo de proteger o
       // arranque. Falhar não custa -- o varrimento vai na mesma.
       void limparPedidosVelhos().catch(() => {}).then(varrer);
-      pararIntervalo = intervaloComAppVisivel(() => { if (!aoVivo) varrer(); }, 20_000);
+      // Sem o canal, de minuto a minuto (era de 20 em 20 s, 23/10: 374 leituras
+      // num dia de um PC sem Realtime). Uma ordem espera no máximo um minuto,
+      // e com o canal ligado chega na hora.
+      pararIntervalo = intervaloComAppVisivel(() => { if (!aoVivo) varrer(); }, 60_000);
       const aoVoltar = AppState.addEventListener('change', (estado) => {
         if (estado === 'background') esteveEmSegundoPlano = true;
         if (estado === 'active' && (esteveEmSegundoPlano || !aoVivo || Date.now() - ultimaLeituraEm >= 60_000)) {
