@@ -9,6 +9,9 @@ Novo nesta versão:
   - Com texto selecionado na mensagem, o botão direito copia só o que escolheste.
 - Os avisos do Social (por exemplo "Invited … to listen") aparecem no PC. Antes não aparecia nada.
 
+Corrigido:
+- Jam: com o som em mudo, a música seguinte ficava calada mesmo depois de subires o volume. Agora subir o volume devolve o som.
+
 Da 5.3.6 (para quem vem de antes): o botão direito em artistas, discos, misturas, Liked Songs, na música que toca e nos campos de texto, e o Add to playlist num painel ao lado do menu.
 
 Verificações recomendadas: https://github.com/joaoafonso2004/duotone/blob/win-v5.3.7/docs/VERIFICAR-5.3.7.md

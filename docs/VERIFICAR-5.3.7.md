@@ -22,6 +22,12 @@ Passaram os 267 testes, também numa cópia com os finais de linha do Windows. O
 - **Com texto selecionado** dentro da mensagem, o botão direito mostra o Copy do Windows e copia só o que selecionaste.
 - Os dois botões que aparecem ao passar o rato (responder e reagir) continuam lá.
 
+## O mudo numa Jam (PC)
+
+- **O bug:** numa Jam, põe em mudo e passa à música seguinte. Ela começa calada, como deve.
+- **Agora:** sobe o volume. O som tem de voltar logo, no volume da barra. Antes ficava calado até à música seguinte.
+- **Ao contrário:** sem mudo, a música seguinte entra no volume da barra, sem um instante alto.
+
 ## Avisos no PC
 
 - Os avisos do Social passaram a aparecer no PC. Experimenta convidar um amigo para ouvir contigo: deve aparecer "Invited … to listen".

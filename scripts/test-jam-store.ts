@@ -158,6 +158,10 @@ assert.equal(acertoNoPrimeiroSom(3400, NaN, 600), null, 'sem leitura do motor n�
   assert.match(soltar, /const volume = volumeParaOMotor\(st\.volume \* \(st\.closeGain \?\? 1\)\);/, 'o volume da barra');
   assert.match(soltar, /if \(volume > 0\) p\?\.unMute\?\.\(\);\n\s+p\?\.setVolume\?\.\(volume\);/, 'em mudo fica calada; senão, o volume volta depois do unMute');
   assert.doesNotMatch(soltar, /ativoRef\.current\?\.unMute\?\.\(\); \} catch/, 'nada de unMute sem volume');
+  // E subir o volume da barra tira esse mudo (24/10): em mudo, a música seguinte
+  // da Jam ficava com o `mute()` do alinhamento, e nenhum volume a fazia tocar.
+  assert.match(pc, /if \(volume > 0 && !alinharRef\.current && ativo\?\.isMuted\?\.\(\)\) ativo\.unMute\?\.\(\);\n\s+ativo\?\.setVolume\(volume\);/,
+    'subir o volume tira o mudo, menos a meio do alinhamento, e antes do setVolume');
 }
 let vigente = true;
 const porta = { player: usePlayer.getState, vigente: () => vigente,

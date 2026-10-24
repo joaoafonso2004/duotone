@@ -757,7 +757,18 @@ export function YouTubePlayerView({ track }: { track: Track }) {
               setVolume: (vol) => {
                 try {
                   // A barra numa curva de ouvido (16/10, lib/curvaDoVolume.ts).
-                  ativoRef.current?.setVolume(volumeParaOMotor(vol));
+                  const volume = volumeParaOMotor(vol);
+                  const ativo = ativoRef.current;
+                  // Subir o volume tira o mudo do player (24/10, João: "na jam
+                  // dou mute, dou skip, e quando aumento o volume não dá som").
+                  // A música nova da Jam carrega com `mute()`, e com o volume a
+                  // 0 o alinhamento larga-a assim de propósito -- mas o
+                  // `setVolume` sozinho não tira um `mute()`, e ela ficava calada
+                  // até à seguinte. A meio do alinhamento não: é ele que devolve
+                  // o som, no volume da barra. O `unMute` vem antes do
+                  // `setVolume`, senão punha o volume de antes do mudo.
+                  if (volume > 0 && !alinharRef.current && ativo?.isMuted?.()) ativo.unMute?.();
+                  ativo?.setVolume(volume);
                 } catch (err) {
                   console.warn('Failed to set volume on YT player', err);
                 }
