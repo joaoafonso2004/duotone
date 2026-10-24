@@ -225,6 +225,7 @@ function DesktopShell() {
    *  true` sempre -- um leitor via "Remove from this playlist", que a RLS
    *  recusava, e o menu do leitor ou do painel herdava-o da página de baixo. */
   const [trackMenuPlaylist, setTrackMenuPlaylist] = useState<OrigemDoMenu['playlist'] | null>(null);
+  const [trackMenuLeitor, setTrackMenuLeitor] = useState<OrigemDoMenu['leitor'] | null>(null);
   const semRede = useConnectivity((s) => s.offline);
   const emJam = useOuvirJuntos((s) => !!s.sessao);
   const filaDoLeitor = usePlayer((s) => s.queue);
@@ -535,6 +536,7 @@ function DesktopShell() {
     setTrackMenuContext(discoveryContext??null);
     setTrackMenuFila(typeof origem?.fila === 'number' ? origem.fila : null);
     setTrackMenuPlaylist(origem?.playlist ?? null);
+    setTrackMenuLeitor(origem?.leitor ?? null);
     // Abre onde se clicou (5/10, MenuDeContexto.web.tsx): clique direito ou "…".
     setPontoDoMenu(ultimoClique());
     setTrackMenuOpen(true);
@@ -590,7 +592,8 @@ function DesktopShell() {
     || filaDoLeitor[trackMenuFila]?.sourceId !== trackMenu.sourceId;
   const menuDoPc = trackMenu ? menuDaFaixa({
     plataforma: 'pc',
-    onde: trackMenuFila !== null ? 'fila' : 'lista',
+    // A barra do leitor tem o "Open Now Playing"; a capa do Now Playing, o menu curto do leitor (24/10).
+    onde: trackMenuFila !== null ? 'fila' : trackMenuLeitor === 'barra' ? 'barra' : trackMenuLeitor === 'capa' ? 'leitor' : 'lista',
     semRede,
     tocaSemRede: false,
     guardada: guardadasLidas ? isSaved : null,
@@ -605,6 +608,7 @@ function DesktopShell() {
     const t = trackMenu;
     if (!t) return;
     switch (id) {
+      case 'abrir-leitor': setTrackMenuOpen(false); irPara({ tipo: 'a-tocar' }); return;
       case 'tocar-agora':
         setTrackMenuOpen(false);
         // Na fila, o mesmo que clicar na linha; nas listas, o que já fazia.
@@ -701,7 +705,7 @@ function DesktopShell() {
   const common = { play, tocarMusica, notify, more };
   let page: ReactNode;
   switch (route.name) {
-    case 'search': page = <SearchPage navigate={navigate} {...common} />; break; case 'songs': page = <SongsPage {...common} />; break; case 'artists': page = <ArtistsPage navigate={navigate} />; break;
+    case 'search': page = <SearchPage navigate={navigate} {...common} />; break; case 'songs': page = <SongsPage {...common} />; break; case 'artists': page = <ArtistsPage navigate={navigate} notify={notify} />; break;
     case 'artist': page = <ArtistPage name={route.value} back={back} {...common} />; break; case 'playlists': page = <PlaylistsPage navigate={navigate} notify={notify} share={openShareDialog} />; break; case 'playlist': page = <PlaylistPage id={route.id} title={route.title} abrirPessoas={!!route.pessoas} back={back} share={openShareDialog} navigate={navigate} {...common} />; break;
     case 'mistura': page = <MisturaPage key={route.id} id={route.id} titulo={route.titulo} back={back} {...common} />; break;
     case 'stats': page = <StatsPage key={route.userId} back={back} play={play} userId={route.userId} />; break;
@@ -721,7 +725,7 @@ function DesktopShell() {
   // O nome da página que está atrás (5/10, lib/voltarPara.ts). Com o Now
   // Playing por cima, o voltar fecha-o e mostra a página de baixo.
   const rotuloDoVoltar = nomeDaRota(nowPlayingOpen ? route : history.current[history.current.length - 1]);
-  return <DestinosProvider value={irPara}><RotuloDoVoltar.Provider value={rotuloDoVoltar}><View style={[styles.root, { backgroundColor: 'transparent' }]}>{corNaJanela && <FundoDaCapa onde="janela" aApagar={aApagarACor} uri={currentTrack?.artworkUrl ?? null} />}<ThemeCssSync panelOpacity={panelOpacity}/><TitleBar comPainel /><V style={[styles.main, corNaJanela && !aApagarACor ? { backgroundColor: 'transparent' } : bgStyle]} {...(aApagarACor ? marcar('main-a-voltar') : {})}><View style={styles.sidebar}><Sidebar route={rotaDaLateral} navigate={navigate} notify={notify} /></View><PainelDoLeitor more={more} notify={notify}><View style={styles.content}>{/* Com a cor na janela o painel do leitor é transparente: a página de baixo esconde-se (continua montada, com o scroll onde estava). */}<View style={[{ flex: 1, minHeight: 0 }, nowPlayingOpen && corNaJanela && ({ visibility: 'hidden' } as any)]}><TransicaoDePagina chave={JSON.stringify(route)} aSair={aMudarDePagina}><BarreiraDeErros onde={`pagina:${route.name}`} chave={JSON.stringify(route)}>{page}</BarreiraDeErros></TransicaoDePagina></View>{saidaDoLeitor.montado&&<View pointerEvents={saidaDoLeitor.aSair?'none':'auto'} {...(saidaDoLeitor.aSair?marcar('np-a-sair'):{})} style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:corNaJanela?'transparent':COR.fundo}]}><BarreiraDeErros onde="pagina:now-playing-painel"><NowPlayingPage fundoNaJanela={corNaJanela} share={openShareDialog} play={play} tocarMusica={tocarMusica} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={abrirPlaylistsSozinhas} /></BarreiraDeErros></View>}</View></PainelDoLeitor></V><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} onJam={() => void abrirJam()} discordLigado={discordLigado} onAviso={notify} /><HandoffBanner /><NotificationBanner onOpen={abrirSocial} /><ModoLimpo /><BoasVindasPc />{toast && <Toast message={toast} onDone={() => setToast('')} />}
+  return <DestinosProvider value={irPara}><RotuloDoVoltar.Provider value={rotuloDoVoltar}><View style={[styles.root, { backgroundColor: 'transparent' }]}>{corNaJanela && <FundoDaCapa onde="janela" aApagar={aApagarACor} uri={currentTrack?.artworkUrl ?? null} />}<ThemeCssSync panelOpacity={panelOpacity}/><TitleBar comPainel /><V style={[styles.main, corNaJanela && !aApagarACor ? { backgroundColor: 'transparent' } : bgStyle]} {...(aApagarACor ? marcar('main-a-voltar') : {})}><View style={styles.sidebar}><Sidebar route={rotaDaLateral} navigate={navigate} notify={notify} /></View><PainelDoLeitor more={more} notify={notify}><View style={styles.content}>{/* Com a cor na janela o painel do leitor é transparente: a página de baixo esconde-se (continua montada, com o scroll onde estava). */}<View style={[{ flex: 1, minHeight: 0 }, nowPlayingOpen && corNaJanela && ({ visibility: 'hidden' } as any)]}><TransicaoDePagina chave={JSON.stringify(route)} aSair={aMudarDePagina}><BarreiraDeErros onde={`pagina:${route.name}`} chave={JSON.stringify(route)}>{page}</BarreiraDeErros></TransicaoDePagina></View>{saidaDoLeitor.montado&&<View pointerEvents={saidaDoLeitor.aSair?'none':'auto'} {...(saidaDoLeitor.aSair?marcar('np-a-sair'):{})} style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:corNaJanela?'transparent':COR.fundo}]}><BarreiraDeErros onde="pagina:now-playing-painel"><NowPlayingPage fundoNaJanela={corNaJanela} share={openShareDialog} play={play} tocarMusica={tocarMusica} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={abrirPlaylistsSozinhas} /></BarreiraDeErros></View>}</View></PainelDoLeitor></V><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} onJam={() => void abrirJam()} discordLigado={discordLigado} onAviso={notify} aoMenuDaFaixa={() => { if (currentTrack) void more(currentTrack, undefined, { leitor: 'barra' }); }} /><HandoffBanner /><NotificationBanner onOpen={abrirSocial} /><ModoLimpo /><BoasVindasPc />{toast && <Toast message={toast} onDone={() => setToast('')} />}
     <JanelaDoJam open={jamOpen} onClose={fecharJam} notify={notify} />
     
     {/* O menu de uma faixa abre no cursor (5/10, auditoria M1): era um

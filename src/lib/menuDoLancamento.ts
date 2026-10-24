@@ -34,14 +34,20 @@ function nomeDoTipo(tipo: string): string {
   return t.toUpperCase() === t ? t : t.toLowerCase();
 }
 
-export function menuDoLancamento(l: { tipo: string }, s: { semRede: boolean }): LinhaDoLancamento[] {
+/**
+ * Desde 24/10 serve também os discos da página do artista e os álbuns e
+ * playlists da pesquisa. `temArtista: false` tira o "View artist" onde não há
+ * para onde ir: na página do próprio artista, ou numa playlist da pesquisa.
+ */
+export function menuDoLancamento(l: { tipo: string }, s: { semRede: boolean; temArtista?: boolean }): LinhaDoLancamento[] {
   const rede = s.semRede ? MOTIVOS.semRede : null;
-  return [
+  const linhas: LinhaDoLancamento[] = [
     { id: 'abrir', rotulo: `Open ${nomeDoTipo(l.tipo)}`, icone: 'albums-outline', motivo: rede },
     { id: 'tocar', rotulo: 'Play', icone: 'play-outline', inicioDeGrupo: true, motivo: rede },
     { id: 'baralhar', rotulo: 'Shuffle', icone: 'shuffle', motivo: rede },
     { id: 'fila', rotulo: 'Add to queue', icone: 'list-outline', motivo: rede },
     { id: 'guardar', rotulo: 'Save as playlist', icone: 'add-circle-outline', inicioDeGrupo: true, motivo: rede },
-    { id: 'artista', rotulo: 'View artist', icone: 'mic-outline' },
   ];
+  if (s.temArtista !== false) linhas.push({ id: 'artista', rotulo: 'View artist', icone: 'mic-outline' });
+  return linhas;
 }

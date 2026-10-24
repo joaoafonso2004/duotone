@@ -77,6 +77,7 @@ test-*.mjs
 !scripts/test-segunda-instancia.mjs
 !scripts/test-barra-de-tarefas.mjs
 !scripts/test-add-to-playlist-pc.mjs
+!scripts/test-botao-direito-pc.mjs
 
 # Cache das ferramentas de diagnostico em scripts/ (respostas da YouTube API)
 .cache/

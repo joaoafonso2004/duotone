@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { MenuDeContexto, pontoDoEvento, type PontoNoEcra } from './MenuDeContexto.web';
+import { MenuDeContexto, pontoDoEvento, type LinhaDoMenu, type PontoNoEcra } from './MenuDeContexto.web';
+import { MenuDoArtista } from './MenuDoArtista.web';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { getLibrary } from '../api/library';
@@ -33,7 +34,18 @@ const { createPortal } = require('react-dom') as { createPortal: (filho: React.R
  * - O × mostra-se pelo CSS (`atalho`/`atalho-tirar`), e não pelo `hovered` do
  *   RNW: é clicável dentro de uma linha clicável (ver "O movimento do PC").
  */
-export function AtalhosNaLateral({ navigate }: { navigate: (r: Route) => void }) {
+const MOVER: LinhaDoMenu[] = [
+  { id: 'subir', rotulo: 'Move up', icone: 'arrow-up' },
+  { id: 'descer', rotulo: 'Move down', icone: 'arrow-down' },
+];
+function moverOuTirar(a: Atalho, id: string): void {
+  const chave = chaveDoAtalho(a);
+  if (id === 'subir') useAtalhosDaLateral.getState().mover(chave, -1);
+  else if (id === 'descer') useAtalhosDaLateral.getState().mover(chave, 1);
+  else useAtalhosDaLateral.getState().tirar(chave);
+}
+
+export function AtalhosNaLateral({ navigate, notify }: { navigate: (r: Route) => void; notify: (texto: string) => void }) {
   const lista = useAtalhosDaLateral((s) => s.lista);
   const carregados = useAtalhosDaLateral((s) => s.carregados);
   const amigos = useSocial((s) => s.friends);
@@ -95,21 +107,19 @@ export function AtalhosNaLateral({ navigate }: { navigate: (r: Route) => void })
         </ScrollView>
       )}
 
-      {/* O menu de contexto comum do PC, no cursor (5/10): era um diálogo ao centro. */}
-      {menu ? <MenuDeContexto
+      {/* O menu de contexto comum do PC, no cursor (5/10): era um diálogo ao centro.
+          Um artista fixado abre o menu de um artista (24/10), com o mover no meio. */}
+      {menu?.tipo === 'artista' ? <MenuDoArtista
+        artista={{ nome: menu.nome, capa: menu.capa ?? null }}
+        rato={ondeMenu}
+        notify={notify}
+        extras={{ linhas: MOVER, aoEscolher: (id) => moverOuTirar(menu, id) }}
+        aoFechar={() => setMenu(null)}
+      /> : menu ? <MenuDeContexto
         rato={ondeMenu}
         rotulo={`Options for ${nomeDoAtalho(menu)}`}
-        linhas={[
-          { id: 'subir', rotulo: 'Move up', icone: 'arrow-up' },
-          { id: 'descer', rotulo: 'Move down', icone: 'arrow-down' },
-          { id: 'tirar', rotulo: 'Unpin from sidebar', icone: 'close-circle-outline', inicioDeGrupo: true },
-        ]}
-        aoEscolher={(id) => {
-          const chave = chaveDoAtalho(menu);
-          if (id === 'subir') useAtalhosDaLateral.getState().mover(chave, -1);
-          else if (id === 'descer') useAtalhosDaLateral.getState().mover(chave, 1);
-          else useAtalhosDaLateral.getState().tirar(chave);
-        }}
+        linhas={[...MOVER, { id: 'tirar', rotulo: 'Unpin from sidebar', icone: 'close-circle-outline', inicioDeGrupo: true }]}
+        aoEscolher={(id) => moverOuTirar(menu, id)}
         aoFechar={() => setMenu(null)}
       /> : null}
       <PorCimaDeTudo aberto={escolher}><EscolherAtalho aberto={escolher} aoFechar={() => setEscolher(false)} /></PorCimaDeTudo>

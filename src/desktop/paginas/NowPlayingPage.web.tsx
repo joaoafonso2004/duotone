@@ -305,7 +305,9 @@ export function NowPlayingPage({
           <img key={`sai:${capaQueSai.chave}`} data-dt="np-capa-sai" src={capaQueSai.uri} alt=""
             style={{ position: 'absolute', width: ladoCapa, height: ladoCapa, borderRadius: 14, objectFit: 'cover' }} />
         ) : null}
-        <View key={`entra:${faixaAtual}`} {...marcar('np-capa-entra')}>
+        {/* O botão direito na capa abre o menu da música (24/10), o curto do leitor. */}
+        <View key={`entra:${faixaAtual}`} {...marcar('np-capa-entra')}
+          {...({ onContextMenu: (e: any) => { e.preventDefault(); more(track, undefined, { leitor: 'capa' }); } } as any)}>
           <ArtworkLyricsCube track={track} size={ladoCapa} artwork={track.artworkUrl} showLyrics={showLyrics} onChange={setShowLyrics}
             front={<GlitchArtwork uri={capaGrande} lado={ladoCapa} modo={glitch} intensidade={effectIntensity} />} />
         </View>

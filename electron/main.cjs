@@ -98,6 +98,7 @@ const { spawn } = require('node:child_process');
 const atualizacao = require('./atualizacao.cjs');
 const atalhos = require('./atalhos.cjs');
 const mini = require('./miniLeitor.cjs');
+const { linhasDoMenuDoTexto } = require('./menuDoTexto.cjs');
 const barra = require('./barraDeTarefas.cjs');
 const { arranqueAoAbrir, escolhaDaPessoa, MODO_DE_ORIGEM } = require('./arranqueComWindows.cjs');
 
@@ -1111,6 +1112,12 @@ function createWindow() {
       event.preventDefault();
       if (/^https?:/.test(url)) shell.openExternal(url);
     }
+  });
+
+  // O menu do Windows nos campos de texto (24/10, electron/menuDoTexto.cjs).
+  win.webContents.on('context-menu', (_event, params) => {
+    const linhas = linhasDoMenuDoTexto(params);
+    if (linhas.length) Menu.buildFromTemplate(linhas).popup({ window: win });
   });
 
   if (isDev) win.loadURL(process.env.DUOTONE_DEV_URL || 'http://localhost:8081');

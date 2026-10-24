@@ -32,8 +32,21 @@ export type ControloDoSubmenu = { fechar: () => void; voltar: () => void };
  * o último sítio onde se carregou (`ultimoClique`); sem nenhum, o meio da janela.
  */
 let ultimo: PontoNoEcra | null = null;
+/**
+ * Do teclado (Shift+F10, a tecla de menu; 24/10) o `contextmenu` pode vir sem
+ * rato, em 0,0: o menu abre junto do que tem o foco, e não no canto da janela.
+ */
+function pontoDe(n: any): PontoNoEcra | null {
+  const x = n?.clientX ?? n?.pageX, y = n?.clientY ?? n?.pageY;
+  if (typeof x !== 'number' || typeof y !== 'number') return null;
+  if (x === 0 && y === 0) {
+    const r = n?.target?.getBoundingClientRect?.();
+    if (r) return { x: r.left + Math.min(24, r.width / 2), y: r.top + Math.min(32, r.height) };
+  }
+  return { x, y };
+}
 if (typeof window !== 'undefined') {
-  const guardar = (e: MouseEvent) => { ultimo = { x: e.clientX, y: e.clientY }; };
+  const guardar = (e: MouseEvent) => { ultimo = pontoDe(e) ?? ultimo; };
   window.addEventListener('mousedown', guardar, true);
   window.addEventListener('contextmenu', guardar, true);
 }
@@ -42,9 +55,7 @@ export function ultimoClique(): PontoNoEcra {
   return typeof window === 'undefined' ? { x: 0, y: 0 } : { x: window.innerWidth / 2, y: window.innerHeight / 3 };
 }
 export function pontoDoEvento(e: any): PontoNoEcra {
-  const n = e?.nativeEvent ?? e;
-  const x = n?.clientX ?? n?.pageX, y = n?.clientY ?? n?.pageY;
-  return typeof x === 'number' && typeof y === 'number' ? { x, y } : ultimoClique();
+  return pontoDe(e?.nativeEvent ?? e) ?? ultimoClique();
 }
 
 const LARGURA = 280;

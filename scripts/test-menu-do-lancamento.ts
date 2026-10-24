@@ -35,6 +35,11 @@ caso('sem rede as linhas ficam à vista a dizer porquê, menos ir ao artista', (
   assert.equal(m.length, 6, 'o menu sem rede não perde linhas');
   for (const l of m) assert.equal(l.motivo ?? null, l.id === 'artista' ? null : MOTIVOS.semRede, l.id);
 });
+caso('sem artista para onde ir (a página dele, uma playlist da pesquisa), sem "View artist" (24/10)', () => {
+  const m = menuDoLancamento({ tipo: 'Playlist' }, { semRede: false, temArtista: false });
+  assert.deepEqual(m.map((l) => l.id), ['abrir', 'tocar', 'baralhar', 'fila', 'guardar']);
+  assert.equal(m[0]!.rotulo, 'Open playlist');
+});
 caso('tocar, baralhar e pôr na fila dizem-se como no menu de uma playlist', () => {
   const playlist = ler('src/lib/menuDaPlaylist.ts');
   for (const r of ['Play', 'Shuffle', 'Add to queue']) assert.match(playlist, new RegExp(`rotulo: '${r}'`), r);
@@ -46,9 +51,9 @@ const home = ler('src/desktop/paginas/BibliotecaPages.web.tsx');
 caso('o cartão de um lançamento abre o menu no clique direito', () => {
   const prateleira = ui.slice(ui.indexOf('export function ShelfDeLancamentos('), ui.indexOf('export function PrateleiraDeMisturas('));
   assert.match(prateleira, /onContextMenu=\{\(\(e: any\) => \{ if \(!onMenu\) return; e\.preventDefault\(\); onMenu\(it\.id, e\); \}\) as any\}/);
-  assert.match(home, /onMenu=\{\(id, e\) => \{ const l = lancamentos\.find/);
-  assert.match(home, /linhas=\{menuDoLancamento\(menuDoLanc\.l, \{ semRede \}\)/);
-  assert.match(home, /aoEscolher=\{\(id\) => fazerNoLancamento\(menuDoLanc\.l, id as AcaoDoLancamento\)\}/);
+  assert.match(home, /onMenu=\{\(id, e\) => \{ const l = lancamentos\.find\([^\n]+abrirMenuDoDisco\(\{ id: l\.id, titulo: l\.titulo, legenda: legendaDoLancamento\(l\), capa: l\.capa, tipo: l\.tipo, artista: l\.artista \}, e\)/);
+  assert.match(home, /linhas=\{menuDoLancamento\(menu\.d, \{ semRede, temArtista: !!menu\.d\.artista \}\)/);
+  assert.match(home, /aoEscolher=\{\(id\) => fazer\(menu\.d, id as AcaoDoLancamento\)\}/);
 });
 caso('o que o menu faz é o mesmo da pré-visualização do álbum', () => {
   assert.match(home, /const faixasDe = async \(album: YtRecommendedPlaylist\): Promise<Track\[\]> =>/);

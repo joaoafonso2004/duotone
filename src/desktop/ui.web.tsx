@@ -599,10 +599,14 @@ export function ShelfDeLancamentos({ titulo, nota, itens, onOpen, onMenu }: {
  * O clique ABRE, nao toca. Uma mistura e uma lista, e uma lista abre-se; o
  * `onPlay` fica para quem quiser tocar a coisa inteira a partir de dentro.
  */
-export function PrateleiraDeMisturas({ titulo, nota, misturas, aoAbrir }: {
+export function PrateleiraDeMisturas({ titulo, nota, misturas, aoAbrir, aoMenu, escolhido }: {
   titulo: string; nota?: string;
   misturas: readonly { id: string; nome: string; faixas: Track[] }[];
   aoAbrir: (mistura: { id: string; nome: string }) => void;
+  /** O botão direito num cartão (24/10): o menu de uma mistura. */
+  aoMenu?: (mistura: { id: string; nome: string }, e: any) => void;
+  /** O id com o menu aberto: o cartão fica levantado. */
+  escolhido?: string | null;
 }) {
   const { ref, podeEsquerda, podeDireita, deslizar, arrastou } = useCarrossel();
   if (!misturas.length) return null;
@@ -626,8 +630,9 @@ export function PrateleiraDeMisturas({ titulo, nota, misturas, aoAbrir }: {
       contentContainerStyle={{ gap: ESP.lg, paddingRight: ESP.xxxl }}>
       {misturas.map((m) => (
         <P key={m.id}
-          {...marcar('cartao')}
+          {...marcar('cartao', ...(escolhido === m.id ? ['com-menu'] : []))}
           onPress={() => { if (arrastou.current) return; aoAbrir(m); }}
+          onContextMenu={((e: any) => { if (!aoMenu) return; e.preventDefault(); aoMenu(m, e); }) as any}
           style={({ hovered, pressed }: any) => [ui.shelfCard, hovered && ui.shelfCardHover, pressed && ui.pressed]}>
           <View style={ui.mosaico}>
             {[0, 1, 2, 3].map((i) => {

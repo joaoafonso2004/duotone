@@ -56,6 +56,8 @@ import { menuDoLancamento, type AcaoDoLancamento } from '../../lib/menuDoLancame
 import { mensagemDeErro } from '../../lib/mensagemDeErro';
 import { useConnectivity } from '../../state/connectivity';
 import { MenuDeContexto, pontoDoEvento, type PontoNoEcra } from '../MenuDeContexto.web';
+import { useMenuDoArtista } from '../MenuDoArtista.web';
+import { menuDaMistura, type AcaoDaMistura } from '../../lib/menuDaMistura';
 import { BotaoDeFixar } from '../AtalhosNaLateral.web';
 import type { CommonPageProps, NavegarFn, Route } from '../rotas';
 import { COR, ESP, ESTADO, FONT, RAIO, TIPO } from '../tokens.web';
@@ -70,8 +72,6 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
   // na lista não tira o foco à caixa (o `mousedown` dela é cancelado), senão a
   // lista desaparecia antes de o clique chegar à etiqueta.
   const [comFoco, setComFoco] = useState(false);
-  // O menu de um lançamento novo, no clique direito (20/10).
-  const [menuDoLanc, setMenuDoLanc] = useState<{ l: Lancamento; ponto: PontoNoEcra } | null>(null);
   const semRede = useConnectivity((s) => s.offline);
   // As músicas do dia saíram (7/10): já não existiam no iPhone (3/10), e a
   // Pesquisa sem texto é só a descoberta.
@@ -147,15 +147,33 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
   // "drake playlist" abre as Playlists sozinho; "drake album", os Albums.
   useEffect(() => { const pedido = separadorPedidoPelaPergunta(query); if (pedido) setTipo(pedido); }, [query]);
   const porTipo = usePesquisaPorTipo(query, tipoAtivo);
-  const { abrirAlbum, dialogoDoAlbum, albumSemAbrir, guardarAlbumSemAbrir } = useDialogoDoAlbum({ play, tocarMusica, notify, more });
+  const dialogo = useDialogoDoAlbum({ play, tocarMusica, notify, more });
+  const { abrirAlbum, dialogoDoAlbum } = dialogo;
   const albumDoLancamento = (l: Lancamento): YtRecommendedPlaylist =>
     ({ id: l.id, title: l.titulo, artworkUrl: l.capa, channelTitle: legendaDoLancamento(l) });
-  const fazerNoLancamento = (l: Lancamento, acao: AcaoDoLancamento) => {
-    const album = albumDoLancamento(l);
-    if (acao === 'abrir') void abrirAlbum(album);
-    else if (acao === 'guardar') void guardarAlbumSemAbrir(album);
-    else if (acao === 'artista') navigate({ name: 'artist', value: l.artista });
-    else void albumSemAbrir(album, acao);
+  // O botão direito num disco (os lançamentos novos, os álbuns e as playlists
+  // da pesquisa), num artista e numa mistura (24/10).
+  const { abrirMenuDoDisco, menuDoDisco, discoDoMenu } = useMenuDoDisco(dialogo);
+  const { abrirMenuDoArtista, menuDoArtista, artistaDoMenu } = useMenuDoArtista(notify);
+  const [menuDaMist, setMenuDaMist] = useState<{ id: string; ponto: PontoNoEcra } | null>(null);
+  const fazerNaMistura = async (id: string, acao: AcaoDaMistura) => {
+    const m = recs.misturas.find((x) => x.id === id);
+    if (!m || !m.faixas.length) return;
+    const leitor = usePlayer.getState();
+    const origem = { tipo: 'mistura' as const, nome: m.nome, id: m.id };
+    try {
+      if (acao === 'tocar') await leitor.tocarLista(m.faixas, leitor.shuffle, leitor.shuffleInteligente, origem);
+      else if (acao === 'baralhar') await leitor.playShuffled(m.faixas, leitor.shuffleInteligente, origem);
+      else if (acao === 'fila') { leitor.addManyToQueue(m.faixas); notify(`Added ${m.faixas.length} ${m.faixas.length === 1 ? 'song' : 'songs'} to the queue.`); }
+      else {
+        const playlist = await createPlaylist(m.nome);
+        await addTracksToPlaylist(playlist.id, m.faixas);
+        notify(`Saved “${m.nome}” with ${m.faixas.length} tracks.`);
+        window.dispatchEvent(new CustomEvent('duotone:refresh-playlists'));
+      }
+    } catch (e) {
+      notify(mensagemDeErro(e, acao === 'guardar' ? "Couldn't save this mix." : "Couldn't play this mix."));
+    }
   };
   const lancamentos = useNovosLancamentos((s) => s.itens);
   // O artista abre pelo CANAL escolhido, sem adivinhar pelo nome (homónimos).
@@ -180,16 +198,19 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
       valor={tipo} aoMudar={setTipo} /></View> : null}
     <ContentScroll>
       {destaque && (tipoAtivo === 'musicas' || tipoAtivo === 'playlists') ? <ArtistaEmDestaque artista={destaque}
-        aoAbrir={() => abrirArtista(destaque)} aoTocarMix={() => void tocarMixDoDestaque(destaque)} aAbrirMix={aAbrirMix} /> : null}
+        aoAbrir={() => abrirArtista(destaque)} aoTocarMix={() => void tocarMixDoDestaque(destaque)} aAbrirMix={aAbrirMix}
+        aoMenu={(e) => abrirMenuDoArtista({ nome: destaque.nome, canal: destaque.canal, capa: destaque.foto }, e)} /> : null}
       {
-      tipoAtivo === 'artistas' ? <ResultadosDeArtistas artistas={porTipo.artistas} loading={porTipo.loading} falhou={porTipo.falhou} aoTentar={porTipo.repetir} aoAbrir={abrirArtista} />
+      tipoAtivo === 'artistas' ? <ResultadosDeArtistas artistas={porTipo.artistas} loading={porTipo.loading} falhou={porTipo.falhou} aoTentar={porTipo.repetir} aoAbrir={abrirArtista}
+          aoMenu={(a, e) => abrirMenuDoArtista({ nome: a.nome, canal: a.canal, capa: a.foto }, e)} escolhido={artistaDoMenu} />
       : tipoAtivo === 'albuns' || tipoAtivo === 'playlists' ? <ResultadosEmCapas loading={porTipo.loading} falhou={porTipo.falhou} aoTentar={porTipo.repetir}
           itens={tipoAtivo === 'albuns'
-            ? porTipo.albuns.map((a) => ({ id: a.id, titulo: a.titulo, legenda: legendaDoAlbumEncontrado(a), capa: a.capa }))
-            : porTipo.playlists}
+            ? porTipo.albuns.map((a) => ({ id: a.id, titulo: a.titulo, legenda: legendaDoAlbumEncontrado(a), capa: a.capa, tipo: a.tipo, artista: a.artista || null }))
+            : porTipo.playlists.map((p) => ({ id: p.id, titulo: p.titulo, legenda: p.legenda, capa: p.capa, tipo: 'Playlist', artista: null }))}
           icone={tipoAtivo === 'albuns' ? 'albums-outline' : 'list-outline'}
           vazio={tipoAtivo === 'albuns' ? 'No albums found' : 'No playlists found'}
-          aoAbrir={(a) => void abrirAlbum({ id: a.id, title: a.titulo, artworkUrl: a.capa, channelTitle: a.legenda })} />
+          aoAbrir={(a) => void abrirAlbum({ id: a.id, title: a.titulo, artworkUrl: a.capa, channelTitle: a.legenda })}
+          aoMenu={abrirMenuDoDisco} escolhido={discoDoMenu} />
       :
       /* O que já é teu vem primeiro e não espera pela rede; o YouTube fica por
          baixo. Ver lib/pesquisaLocal.ts. */
@@ -235,7 +256,7 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
           <ShelfDeLancamentos titulo="New releases" nota="from the artists you listen to"
             itens={lancamentos.map(({ lancamento: l, novo }) => ({ id: l.id, titulo: l.titulo, legenda: legendaDoLancamento(l), capa: l.capa, novo }))}
             onOpen={(id) => { const l = lancamentos.find((x) => x.lancamento.id === id)?.lancamento; if (l) void abrirAlbum(albumDoLancamento(l)); }}
-            onMenu={(id, e) => { const l = lancamentos.find((x) => x.lancamento.id === id)?.lancamento; if (l) setMenuDoLanc({ l, ponto: pontoDoEvento(e) }); }} />
+            onMenu={(id, e) => { const l = lancamentos.find((x) => x.lancamento.id === id)?.lancamento; if (l) abrirMenuDoDisco({ id: l.id, titulo: l.titulo, legenda: legendaDoLancamento(l), capa: l.capa, tipo: l.tipo, artista: l.artista }, e); }} />
           <Shelf titulo="Rare finds" nota={notaDaPrateleira('nuncaLancado')} selo="New to you" tracks={nuncaLancado} onPlay={tocarMusica} onMore={more} contexto={contextoPrateleira('nuncaLancado')} />
           {/* AS MISTURAS QUE A APP MONTA. Quatro familias, e a diferenca esta
               toda no titulo -- que e o que elas tem de diferente:
@@ -245,11 +266,16 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
                 Decades     -> a TUA musica daquela era, nao musica nova dela
                 Playlists   -> a tua biblioteca com descobertas pelo meio
               Ver `lib/estilos.ts`, `radiosDeArtista` e `lib/decadas.ts`. */}
-          <PrateleiraDeMisturas titulo="Your styles" misturas={estilos} aoAbrir={abrirMistura} />
-          <PrateleiraDeMisturas titulo="Radio" nota="three new tracks for every one of yours" misturas={radios} aoAbrir={abrirMistura} />
-          <PrateleiraDeMisturas titulo="Your genres" nota="your library, by genre" misturas={generos} aoAbrir={abrirMistura} />
-          <PrateleiraDeMisturas titulo="Decades" nota="your music from that era" misturas={decadas} aoAbrir={abrirMistura} />
-          <PrateleiraDeMisturas titulo="Playlists" misturas={playlists} aoAbrir={abrirMistura} />
+          <PrateleiraDeMisturas titulo="Your styles" misturas={estilos} aoAbrir={abrirMistura}
+            aoMenu={(m, e) => setMenuDaMist({ id: m.id, ponto: pontoDoEvento(e) })} escolhido={menuDaMist?.id ?? null} />
+          <PrateleiraDeMisturas titulo="Radio" nota="three new tracks for every one of yours" misturas={radios} aoAbrir={abrirMistura}
+            aoMenu={(m, e) => setMenuDaMist({ id: m.id, ponto: pontoDoEvento(e) })} escolhido={menuDaMist?.id ?? null} />
+          <PrateleiraDeMisturas titulo="Your genres" nota="your library, by genre" misturas={generos} aoAbrir={abrirMistura}
+            aoMenu={(m, e) => setMenuDaMist({ id: m.id, ponto: pontoDoEvento(e) })} escolhido={menuDaMist?.id ?? null} />
+          <PrateleiraDeMisturas titulo="Decades" nota="your music from that era" misturas={decadas} aoAbrir={abrirMistura}
+            aoMenu={(m, e) => setMenuDaMist({ id: m.id, ponto: pontoDoEvento(e) })} escolhido={menuDaMist?.id ?? null} />
+          <PrateleiraDeMisturas titulo="Playlists" misturas={playlists} aoAbrir={abrirMistura}
+            aoMenu={(m, e) => setMenuDaMist({ id: m.id, ponto: pontoDoEvento(e) })} escolhido={menuDaMist?.id ?? null} />
           {/* A unica prateleira desta pagina que nao sai do teu proprio
               historico. Fica entre a descoberta e o que ja e teu. */}
           <Shelf titulo="Your friends' favourites" nota={notaDaPrateleira('amigos')} tracks={amigos} onPlay={tocarMusica} onMore={more} contexto={contextoPrateleira('amigos')} />
@@ -264,21 +290,71 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
             : 'One moment.'} />}
     </ContentScroll></Page>
     {dialogoDoAlbum}
-    {menuDoLanc ? <MenuDeContexto
-      rato={menuDoLanc.ponto}
-      rotulo={`Options for ${menuDoLanc.l.titulo}`}
-      cabecalho={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        {menuDoLanc.l.capa ? <Image source={{ uri: menuDoLanc.l.capa }} style={{ width: 40, height: 40, borderRadius: RAIO.ctrl }} /> : null}
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text numberOfLines={1} style={{ color: COR.texto, fontSize: 14, fontWeight: '700' }}>{menuDoLanc.l.titulo}</Text>
-          <Text numberOfLines={1} style={{ color: COR.textoMedio, fontSize: 12, marginTop: 1 }}>{legendaDoLancamento(menuDoLanc.l)}</Text>
-        </View>
-      </View>}
-      linhas={menuDoLancamento(menuDoLanc.l, { semRede }).map((a) => ({ id: a.id, rotulo: a.rotulo, icone: a.icone, inicioDeGrupo: a.inicioDeGrupo, motivo: a.motivo }))}
-      aoEscolher={(id) => fazerNoLancamento(menuDoLanc.l, id as AcaoDoLancamento)}
-      aoFechar={() => setMenuDoLanc(null)}
-    /> : null}
+    {menuDoDisco}
+    {menuDoArtista}
+    {menuDaMist ? <MenuDaMistura mistura={recs.misturas.find((x) => x.id === menuDaMist.id) ?? null} ponto={menuDaMist.ponto} semRede={semRede}
+      aoEscolher={(id, acao) => void fazerNaMistura(id, acao)} aoFechar={() => setMenuDaMist(null)} /> : null}
   </>;
+}
+
+/** O menu de uma mistura da Home (24/10, `lib/menuDaMistura.ts`). */
+function MenuDaMistura({ mistura: m, ponto, semRede, aoEscolher, aoFechar }: {
+  mistura: { id: string; nome: string; faixas: Track[] } | null; ponto: PontoNoEcra; semRede: boolean;
+  aoEscolher: (id: string, acao: AcaoDaMistura) => void; aoFechar: () => void;
+}) {
+  if (!m) return null;
+  return <MenuDeContexto
+    rato={ponto}
+    rotulo={`Options for ${m.nome}`}
+    cabecalho={<CabecalhoDoMenu capa={m.faixas[0]?.artworkUrl ?? null} titulo={m.nome}
+      legenda={`Mix · ${m.faixas.length} ${m.faixas.length === 1 ? 'song' : 'songs'}`} />}
+    linhas={menuDaMistura({ semRede }).map((a) => ({ id: a.id, rotulo: a.rotulo, icone: a.icone, inicioDeGrupo: a.inicioDeGrupo, motivo: a.motivo }))}
+    aoEscolher={(id) => aoEscolher(m.id, id as AcaoDaMistura)}
+    aoFechar={aoFechar}
+  />;
+}
+
+/** A capa, o título e a legenda no topo do menu de uma lista (um disco, uma mistura). */
+function CabecalhoDoMenu({ capa, titulo, legenda }: { capa: string | null; titulo: string; legenda: string }) {
+  return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+    {capa ? <Image source={{ uri: capa }} style={{ width: 40, height: 40, borderRadius: RAIO.ctrl, backgroundColor: COR.elevado }} /> : null}
+    <View style={{ flex: 1, minWidth: 0 }}>
+      <Text numberOfLines={1} style={{ color: COR.texto, fontSize: 14, fontWeight: '700' }}>{titulo}</Text>
+      <Text numberOfLines={1} style={{ color: COR.textoMedio, fontSize: 12, marginTop: 1 }}>{legenda}</Text>
+    </View>
+  </View>;
+}
+
+/** Um disco no menu: um lançamento novo, um álbum ou single do artista, um álbum ou uma playlist da pesquisa. */
+type DiscoDoMenu = { id: string; titulo: string; legenda: string; capa: string | null; tipo: string; artista: string | null };
+
+/**
+ * O botão direito num disco (20/10 nos "New releases"; 24/10 também nos discos
+ * da página do artista e nos álbuns e playlists da pesquisa): as linhas de
+ * `lib/menuDoLancamento.ts`, e o que fazem é o da pré-visualização do álbum.
+ * `discoDoMenu`: o id do que está aberto, para o cartão ficar marcado.
+ */
+function useMenuDoDisco(dialogo: Pick<ReturnType<typeof useDialogoDoAlbum>, 'abrirAlbum' | 'albumSemAbrir' | 'guardarAlbumSemAbrir'>) {
+  const [menu, setMenu] = useState<{ d: DiscoDoMenu; ponto: PontoNoEcra } | null>(null);
+  const semRede = useConnectivity((s) => s.offline);
+  const { irPara } = useDestinos();
+  const abrirMenuDoDisco = useCallback((d: DiscoDoMenu, e: any) => { e?.preventDefault?.(); setMenu({ d, ponto: pontoDoEvento(e) }); }, []);
+  const fazer = (d: DiscoDoMenu, acao: AcaoDoLancamento) => {
+    const album: YtRecommendedPlaylist = { id: d.id, title: d.titulo, artworkUrl: d.capa, channelTitle: d.legenda };
+    if (acao === 'abrir') void dialogo.abrirAlbum(album);
+    else if (acao === 'guardar') void dialogo.guardarAlbumSemAbrir(album);
+    else if (acao === 'artista') { if (d.artista) irPara({ tipo: 'artista', nome: d.artista }); }
+    else void dialogo.albumSemAbrir(album, acao);
+  };
+  const menuDoDisco = menu ? <MenuDeContexto
+    rato={menu.ponto}
+    rotulo={`Options for ${menu.d.titulo}`}
+    cabecalho={<CabecalhoDoMenu capa={menu.d.capa} titulo={menu.d.titulo} legenda={menu.d.legenda} />}
+    linhas={menuDoLancamento(menu.d, { semRede, temArtista: !!menu.d.artista }).map((a) => ({ id: a.id, rotulo: a.rotulo, icone: a.icone, inicioDeGrupo: a.inicioDeGrupo, motivo: a.motivo }))}
+    aoEscolher={(id) => fazer(menu.d, id as AcaoDoLancamento)}
+    aoFechar={() => setMenu(null)}
+  /> : null;
+  return { abrirMenuDoDisco, menuDoDisco, discoDoMenu: menu?.d.id ?? null };
 }
 
 /**
@@ -286,12 +362,12 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
  * audiência, o Mix dele e a página. É o cartão que o YouTube mostra para
  * "drake playlist" -- só quando a pergunta é mesmo o nome dele.
  */
-function ArtistaEmDestaque({ artista, aoAbrir, aoTocarMix, aAbrirMix }: {
-  artista: ArtistaEncontrado; aoAbrir: () => void; aoTocarMix: () => void; aAbrirMix: boolean;
+function ArtistaEmDestaque({ artista, aoAbrir, aoTocarMix, aAbrirMix, aoMenu }: {
+  artista: ArtistaEncontrado; aoAbrir: () => void; aoTocarMix: () => void; aAbrirMix: boolean; aoMenu: (e: any) => void;
 }) {
   // O cartão não é um botão: os botões estão lá dentro, e botão dentro de
   // botão é HTML inválido. A foto e o nome abrem a página, como o "Open".
-  return <View style={artistStyles.destaque}>
+  return <View style={artistStyles.destaque} {...({ onContextMenu: aoMenu } as any)}>
     <Pressable onPress={aoAbrir} accessibilityRole="link" accessibilityLabel={`Open ${artista.nome}`}
       style={({ hovered, focused }: any) => [{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: ESP.xl },
         (hovered || focused) && { opacity: 0.88 }]}>
@@ -331,23 +407,26 @@ function FalhaDaPesquisa({ aoTentar }: { aoTentar: () => void }) {
     action={<Button onPress={aoTentar}>{FRASES_DA_PESQUISA.tentarDeNovo}</Button>} />;
 }
 
-function ResultadosDeArtistas({ artistas, loading, falhou, aoTentar, aoAbrir }: {
+function ResultadosDeArtistas({ artistas, loading, falhou, aoTentar, aoAbrir, aoMenu, escolhido }: {
   artistas: ArtistaEncontrado[]; loading: boolean; falhou: boolean; aoTentar: () => void; aoAbrir: (a: ArtistaEncontrado) => void;
+  aoMenu: (a: ArtistaEncontrado, e: any) => void;
+  /** A chave do artista com o menu aberto: o cartão fica marcado. */
+  escolhido: string | null;
 }) {
   if (loading) return <View style={{ height: 320 }}><Loading /></View>;
   if (!artistas.length) return falhou
     ? <FalhaDaPesquisa aoTentar={aoTentar} />
     : <Empty icon="person-outline" title="No artists found" body={FRASES_DA_PESQUISA.semResultadosCorpo} />;
   return <View style={artistStyles.albumGrid}>{artistas.map((a) => <Pressable key={a.canal} onPress={() => aoAbrir(a)}
-    accessibilityRole="button" accessibilityLabel={a.nome}
-    style={({ hovered, focused }: any) => [artistStyles.artistaCard, (hovered || focused) && artistStyles.albumCardHover]}>
+    accessibilityRole="button" accessibilityLabel={a.nome} {...({ onContextMenu: (e: any) => aoMenu(a, e) } as any)}
+    style={({ hovered, focused }: any) => [artistStyles.artistaCard, (hovered || focused || escolhido === chaveDeArtista(a.nome)) && artistStyles.albumCardHover]}>
     <CapaSemReferer uri={a.foto} lado={170} redonda icone="person" />
     <Text numberOfLines={1} style={[artistStyles.albumTitle, { textAlign: 'center' }]}>{a.nome}</Text>
     {a.legenda ? <Text numberOfLines={1} style={[artistStyles.albumMeta, { textAlign: 'center' }]}>{a.legenda}</Text> : null}
   </Pressable>)}</View>;
 }
 
-type ItemEmCapa = { id: string; titulo: string; legenda: string; capa: string | null };
+type ItemEmCapa = { id: string; titulo: string; legenda: string; capa: string | null; tipo: string; artista: string | null };
 
 /**
  * Uma capa ou foto do YouTube Music SEM `Referer` (29/9). O servidor das capas
@@ -381,17 +460,20 @@ function CapaSemReferer({ uri, lado, redonda, icone }: {
  * Os álbuns e as playlists da pesquisa por tipo, em grelha de capas. Os dois
  * abrem o mesmo diálogo (tocar, ou guardar como playlist).
  */
-function ResultadosEmCapas({ itens, loading, falhou, aoTentar, icone, vazio, aoAbrir }: {
+function ResultadosEmCapas({ itens, loading, falhou, aoTentar, icone, vazio, aoAbrir, aoMenu, escolhido }: {
   itens: ItemEmCapa[]; loading: boolean; falhou: boolean; aoTentar: () => void; icone: 'albums-outline' | 'list-outline';
   vazio: string; aoAbrir: (a: ItemEmCapa) => void;
+  aoMenu: (a: ItemEmCapa, e: any) => void;
+  /** O id com o menu aberto: o cartão fica marcado. */
+  escolhido: string | null;
 }) {
   if (loading) return <View style={{ height: 320 }}><Loading /></View>;
   if (!itens.length) return falhou
     ? <FalhaDaPesquisa aoTentar={aoTentar} />
     : <Empty icon={icone} title={vazio} body={FRASES_DA_PESQUISA.semResultadosCorpo} />;
   return <View style={artistStyles.albumGrid}>{itens.map((a) => <Pressable key={a.id} onPress={() => aoAbrir(a)}
-    accessibilityRole="button" accessibilityLabel={a.legenda ? `${a.titulo}, ${a.legenda}` : a.titulo}
-    style={({ hovered, focused }: any) => [artistStyles.albumCard, (hovered || focused) && artistStyles.albumCardHover]}>
+    accessibilityRole="button" accessibilityLabel={a.legenda ? `${a.titulo}, ${a.legenda}` : a.titulo} {...({ onContextMenu: (e: any) => aoMenu(a, e) } as any)}
+    style={({ hovered, focused }: any) => [artistStyles.albumCard, (hovered || focused || escolhido === a.id) && artistStyles.albumCardHover]}>
     <CapaSemReferer uri={a.capa} lado={190} icone={icone} />
     <Text numberOfLines={2} style={artistStyles.albumTitle}>{a.titulo}</Text>
     {a.legenda ? <Text numberOfLines={1} style={artistStyles.albumMeta}>{a.legenda}</Text> : null}
@@ -465,8 +547,10 @@ function gruposDaBiblioteca(faixas: readonly Track[], versao: unknown) {
   return grupos;
 }
 
-export function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) {
+export function ArtistsPage({ navigate, notify }: { navigate: (route: Route) => void; notify: (texto: string) => void }) {
   const data = useLibraryData();
+  // O botão direito num cartão (24/10): o menu de um artista.
+  const { abrirMenuDoArtista, menuDoArtista, artistaDoMenu } = useMenuDoArtista(notify);
   const [query, setQuery] = useState('');
   // Ordem por ESCUTA. Alfabetica era neutra e por isso inutil: quem tem 200
   // artistas nao procura pelo nome, procura por quem ouve. O ranking vem do
@@ -531,7 +615,8 @@ export function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) 
     </View>
     <ContentScroll scrollKey="artists" aoChegarAoFim={mostrarMais}>{data.loading ? <View style={{ height: 350 }}><Loading /></View> : data.semLista ? <Empty icon="alert-circle-outline" title="Couldn't load your library" body="Check your connection. Nothing was removed: your songs are still saved." action={<Button onPress={() => void data.refresh()}>Try again</Button>} /> : filteredArtists.length ? <View style={styles.playlistGrid}>{visiveis.map(({ nome, chave, faixas }) => { const favorito = favoritos.has(chave); return (
       <Pressable key={chave} onPress={() => navigate({ name: 'artist', value: nome })}
-        {...marcar('cartao')} style={styles.playlistCard}>
+        {...({ onContextMenu: (e: any) => abrirMenuDoArtista({ nome, capa: faixas[0]?.artworkUrl ?? null }, e) } as any)}
+        {...marcar('cartao', ...(artistaDoMenu === chave ? ['com-menu'] : []))} style={styles.playlistCard}>
         <View style={styles.playlistArt}>
           <FotoDoCartao nome={nome} faixa={faixas[0]} />
           {/* Um lançamento novo que ainda não se foi ver (10/10). */}
@@ -563,6 +648,7 @@ export function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) 
         <Text style={styles.playlistMeta}>{faixas.length} {faixas.length === 1 ? 'track' : 'tracks'}</Text>
       </Pressable>
     ); })}</View> : query ? <Empty icon="search-outline" title="No artists found" body={`No artist matches "${query}".`} /> : <Empty icon="mic-outline" title="No artists yet" body="Artists are collected automatically from the tracks in your library." />}</ContentScroll>
+    {menuDoArtista}
   </Page>;
 }
 
@@ -646,7 +732,13 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
   useEffect(() => { marcarArtistaAberto(chaveDoArtista); }, [chaveDoArtista]);
   const favorito = favoritos.has(chaveDoArtista);
   const [aDescobrir, setADescobrir] = useState(true);
-  const { abrirAlbum, fecharAlbum, dialogoDoAlbum } = useDialogoDoAlbum(props);
+  const dialogo = useDialogoDoAlbum(props);
+  const { abrirAlbum, fecharAlbum, dialogoDoAlbum } = dialogo;
+  // O botão direito num disco, num single e num parecido (24/10).
+  const { abrirMenuDoDisco, menuDoDisco, discoDoMenu } = useMenuDoDisco(dialogo);
+  const { abrirMenuDoArtista, menuDoArtista } = useMenuDoArtista(props.notify);
+  // Na página dele, o "View artist" não iria a lado nenhum.
+  const discoNoMenu = (a: AlbumDaPagina): DiscoDoMenu => ({ id: a.id, titulo: a.title, legenda: legendaDoDisco(a), capa: a.artworkUrl, tipo: a.tipo, artista: null });
   // A que já se sabe (no aparelho) desenha-se logo: é a mesma da grelha.
   const [foto, setFoto] = useState<string | null>(() => fotoJaConhecida(name) ?? null);
   useEffect(() => {
@@ -857,14 +949,15 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
 
           {/* A coluna parada: fica à vista enquanto se rola pelas músicas. */}
           <View style={artistStyles.coluna}>
-            {pagina?.maisRecente ? <UltimoLancamento album={pagina.maisRecente} onPress={() => void abrirAlbum(pagina.maisRecente!)} /> : null}
+            {pagina?.maisRecente ? <UltimoLancamento album={pagina.maisRecente} onPress={() => void abrirAlbum(pagina.maisRecente!)}
+              aoMenu={(e) => abrirMenuDoDisco(discoNoMenu(pagina.maisRecente!), e)} escolhido={discoDoMenu === pagina.maisRecente.id} /> : null}
             {aProcurarAlbuns ? <View style={{ height: 200 }}><Loading /></View> : <>
               {discos.albuns.length ? <>
                 <Text style={artistStyles.subtitulo}>Albums <Text style={artistStyles.contagem}>{discos.albuns.length}</Text></Text>
                 <View style={artistStyles.grelhaDeDiscos}>
                   {discos.albuns.map((a) => <Pressable key={a.id} onPress={() => void abrirAlbum(a)} accessibilityRole="button"
-                    accessibilityLabel={`${a.title}, ${legendaDoDisco(a)}`}
-                    style={({ hovered, focused }: any) => [artistStyles.disco, (hovered || focused) && artistStyles.discoHover]}>
+                    accessibilityLabel={`${a.title}, ${legendaDoDisco(a)}`} {...({ onContextMenu: (e: any) => abrirMenuDoDisco(discoNoMenu(a), e) } as any)}
+                    style={({ hovered, focused }: any) => [artistStyles.disco, (hovered || focused || discoDoMenu === a.id) && artistStyles.discoHover]}>
                     <CapaSemReferer uri={a.artworkUrl} lado={LADO_DO_DISCO} icone="albums-outline" />
                     <Text numberOfLines={1} style={artistStyles.discoTitulo}>{a.title}</Text>
                     <Text numberOfLines={1} style={artistStyles.discoAno}>{legendaDoDisco(a)}</Text>
@@ -874,8 +967,8 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
               {discos.singles.length ? <>
                 <Text style={artistStyles.subtitulo}>Singles &amp; EPs <Text style={artistStyles.contagem}>{discos.singles.length}</Text></Text>
                 {discos.singles.map((a) => <Pressable key={a.id} onPress={() => void abrirAlbum(a)} accessibilityRole="button"
-                  accessibilityLabel={`${a.title}, ${legendaDoDisco(a)}`}
-                  style={({ hovered, focused }: any) => [artistStyles.single, (hovered || focused) && artistStyles.discoHover]}>
+                  accessibilityLabel={`${a.title}, ${legendaDoDisco(a)}`} {...({ onContextMenu: (e: any) => abrirMenuDoDisco(discoNoMenu(a), e) } as any)}
+                  style={({ hovered, focused }: any) => [artistStyles.single, (hovered || focused || discoDoMenu === a.id) && artistStyles.discoHover]}>
                   <CapaSemReferer uri={a.artworkUrl} lado={44} icone="albums-outline" />
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text numberOfLines={1} style={artistStyles.singleTitulo}>{a.title}</Text>
@@ -887,7 +980,8 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
             {vizinhanca.parecidos.length ? <>
               <Text style={artistStyles.subtitulo}>Fans also like</Text>
               <View style={artistStyles.parecidos}>
-                {vizinhanca.parecidos.map((n) => <ParecidoNoPc key={n} nome={n} aoAbrir={() => irPara({ tipo: 'artista', nome: n })} />)}
+                {vizinhanca.parecidos.map((n) => <ParecidoNoPc key={n} nome={n} aoAbrir={() => irPara({ tipo: 'artista', nome: n })}
+                  aoMenu={(e) => abrirMenuDoArtista({ nome: n }, e)} />)}
               </View>
             </> : null}
           </View>
@@ -896,6 +990,8 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
     </View>
 
     {dialogoDoAlbum}
+    {menuDoDisco}
+    {menuDoArtista}
   </>;
 }
 
@@ -1051,9 +1147,9 @@ function FotoDoCartao({ nome, faixa }: { nome: string; faixa: Track }) {
 }
 
 /** Um "Fans also like": a foto do catálogo, redonda, e o nome; abre a página dele. */
-function ParecidoNoPc({ nome, aoAbrir }: { nome: string; aoAbrir: () => void }) {
+function ParecidoNoPc({ nome, aoAbrir, aoMenu }: { nome: string; aoAbrir: () => void; aoMenu: (e: any) => void }) {
   const foto = useFotoDoArtista(nome);
-  return <Pressable onPress={aoAbrir} accessibilityRole="button" accessibilityLabel={nome}
+  return <Pressable onPress={aoAbrir} accessibilityRole="button" accessibilityLabel={nome} {...({ onContextMenu: aoMenu } as any)}
     style={({ hovered, focused }: any) => [artistStyles.parecido, (hovered || focused) && artistStyles.parecidoHover]}>
     {foto ? <Image source={{ uri: foto }} style={artistStyles.parecidoFoto} />
       : <View style={[artistStyles.parecidoFoto, artistStyles.albumFallback]}><Ionicons name="person" size={28} color={COR.textoFraco} /></View>}
@@ -1061,9 +1157,10 @@ function ParecidoNoPc({ nome, aoAbrir }: { nome: string; aoAbrir: () => void }) 
   </Pressable>;
 }
 
-function UltimoLancamento({ album, onPress }: { album: AlbumDaPagina; onPress: () => void }) {
+function UltimoLancamento({ album, onPress, aoMenu, escolhido }: { album: AlbumDaPagina; onPress: () => void; aoMenu: (e: any) => void; escolhido: boolean }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={`Latest release: ${album.title}`} onPress={onPress}
-    style={({ hovered, focused }: any) => [artistStyles.ultimo, (hovered || focused) && artistStyles.ultimoHover]}>
+    {...({ onContextMenu: aoMenu } as any)}
+    style={({ hovered, focused }: any) => [artistStyles.ultimo, (hovered || focused || escolhido) && artistStyles.ultimoHover]}>
     {album.artworkUrl ? <Image source={{ uri: album.artworkUrl }} style={artistStyles.ultimoCapa} />
       : <View style={[artistStyles.ultimoCapa, artistStyles.albumFallback]}><Ionicons name="albums-outline" size={24} color={COR.textoFraco} /></View>}
     <View style={{ flex: 1, minWidth: 0 }}>

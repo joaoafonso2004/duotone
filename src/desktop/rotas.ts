@@ -64,7 +64,8 @@ export interface CommonPageProps {
 }
 
 /** De onde abriu o menu de uma faixa (o `more`). */
-export type OrigemDoMenu = { fila?: number; playlist?: { id: string; podeEditar: boolean } };
+/** `leitor` (24/10): a música que toca, na barra do leitor ou na capa do Now Playing. */
+export type OrigemDoMenu = { fila?: number; playlist?: { id: string; podeEditar: boolean }; leitor?: 'barra' | 'capa' };
 
 export type NavegarFn = (route: Route) => void;
 

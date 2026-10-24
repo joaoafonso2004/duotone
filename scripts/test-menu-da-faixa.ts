@@ -33,6 +33,8 @@ const SITIOS: [string, Partial<ContextoDoMenu>][] = [
   ['PC, clique direito e "…"', { plataforma: 'pc', podeDescarregar: false }],
   ['playlist do PC', { plataforma: 'pc', podeDescarregar: false, playlist: { podeEditar: true } }],
   ['fila do PC', { plataforma: 'pc', podeDescarregar: false, onde: 'fila', fila: { emJam: false, mudou: false } }],
+  ['barra do leitor do PC', { plataforma: 'pc', podeDescarregar: false, onde: 'barra' }],
+  ['capa do Now Playing do PC', { plataforma: 'pc', podeDescarregar: false, onde: 'leitor' }],
 ];
 
 console.log('\na mesma coisa em todo o lado');
@@ -177,6 +179,19 @@ caso('Not interested vem antes do Recommendations…, nas listas', () => {
 });
 caso('No leitor, uma sugestão continua com o menu curto mais o Not interested', () => {
   assert.deepEqual(ids({ onde: 'leitor', sugestao: true }), ['guardar', 'por-em-playlist', 'partilhar', 'nao-interessa']);
+});
+
+caso('Na barra do leitor do PC (24/10): Open Now Playing primeiro, sem tocar nem pôr na fila (já está a tocar)', () => {
+  const pc = { plataforma: 'pc' as const, podeDescarregar: false };
+  assert.deepEqual(ids({ ...pc, onde: 'barra' }), ['abrir-leitor', 'guardar', 'por-em-playlist', 'ver-artista', 'partilhar', 'recomendacoes']);
+  assert.equal(achar('abrir-leitor', { ...pc, onde: 'barra', semRede: true }).indisponivel, null, 'abrir o leitor não precisa de rede');
+  assert.equal(achar('abrir-leitor', { ...pc, onde: 'barra' }).rotulo, 'Open Now Playing');
+});
+caso('O Open Now Playing só existe na barra', () => {
+  for (const [sitio, over] of SITIOS) {
+    if (over.onde === 'barra') continue;
+    assert.ok(!ids(over).includes('abrir-leitor'), sitio);
+  }
 });
 
 if (falhas) {

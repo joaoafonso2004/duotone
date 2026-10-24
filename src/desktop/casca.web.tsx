@@ -23,6 +23,11 @@ import { useAuth } from '../state/auth';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { useSeguirAmigo } from '../state/seguirAmigo';
 import { usePlayer } from '../state/player';
+import { getLikedSongs } from '../api/library';
+import { lerFaixas } from '../lib/cacheDaBiblioteca';
+import { menuDasGostadas } from '../lib/menuDaMistura';
+import { useConnectivity } from '../state/connectivity';
+import { MenuDeContexto, pontoDoEvento, type PontoNoEcra } from './MenuDeContexto.web';
 import { criarRoda, volumeComARoda } from '../lib/rodaDoRato';
 import { useShallow } from 'zustand/react/shallow';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
@@ -368,7 +373,8 @@ export function injectDesktopDocumentStyles() {
        vez. O ":hover" do CSS e hierarquico e nao tem isso. */
     [data-dt~="cartao"]{ transition: transform var(--dt-rapido) var(--dt-curva),
                          filter var(--dt-rapido) var(--dt-curva); }
-    [data-dt~="cartao"]:hover, [data-dt~="cartao"]:focus-visible{
+    [data-dt~="cartao"]:hover, [data-dt~="cartao"]:focus-visible,
+    [data-dt~="cartao"][data-dt~="com-menu"]{
       transform: translateY(-3px); filter: brightness(1.08); }
 
     /* O coracao de favoritar um artista: so com o rato no cartao, e SEMPRE em
@@ -467,6 +473,20 @@ export function Sidebar({ route, navigate, notify }: { route: Route; navigate: (
   const medir=(id:string)=>(y:number,altura:number)=>setLugares((m)=>(
     m[id]?.y===y&&m[id]?.altura===altura?m:{...m,[id]:{y,altura}}));
   const realce=lugares[active as string];
+  // O botão direito nas Liked Songs (24/10, lib/menuDaMistura.ts): tocar ou
+  // baralhar a biblioteca sem abrir a página. Os outros itens são só lugares.
+  const [menuDasLiked,setMenuDasLiked]=useState<PontoNoEcra|null>(null);
+  const semRede=useConnectivity((s)=>s.offline);
+  const tocarAsLiked=async(id:string)=>{
+    try{
+      const faixas=await lerFaixas(getLikedSongs);
+      if(!faixas.length)return;
+      const leitor=usePlayer.getState();
+      const origem={tipo:'guardadas' as const,nome:'Liked Songs'};
+      if(id==='baralhar')await leitor.playShuffled(faixas,leitor.shuffleInteligente,origem);
+      else await leitor.tocarLista(faixas,leitor.shuffle,leitor.shuffleInteligente,origem);
+    }catch{notify('Could not load your Liked Songs.');}
+  };
   // O `onLayout` do react-native-web só dispara quando o item muda de TAMANHO
   // (é um ResizeObserver), e não quando muda de SÍTIO. Uma fonte que chega
   // depois empurra os itens uns pixéis e o realce ficava onde estava --
@@ -495,7 +515,8 @@ export function Sidebar({ route, navigate, notify }: { route: Route; navigate: (
         style={[styles.navRealce,{height:realce.altura,transform:[{translateY:realce.y}],backgroundColor:tema.soft}]}/>:null}
       {/* "LIBRARY" e não "DISCOVER" (5/10, auditoria N9): o que está por baixo é a biblioteca e os amigos. */}
       <Text style={styles.navLabel}>LIBRARY</Text>
-      {PRIMARY.map((item) => <NavItem key={item.id} active={active === item.id} semFundo={!!realce} medicao={medicao} aoMedir={medir(item.id)} {...item} badge={item.id === 'social' && (naoLidasPorAmigo(socialReceived,socialSeen).size>0 || socialFriends.some(f=>f.status==='pending'&&!f.isSender))} onPress={() => navigate({ name: item.id })} />)}
+      {PRIMARY.map((item) => <NavItem key={item.id} active={active === item.id} semFundo={!!realce} medicao={medicao} aoMedir={medir(item.id)} {...item} badge={item.id === 'social' && (naoLidasPorAmigo(socialReceived,socialSeen).size>0 || socialFriends.some(f=>f.status==='pending'&&!f.isSender))} onPress={() => navigate({ name: item.id })}
+        aoMenu={item.id === 'songs' ? (e) => setMenuDasLiked(pontoDoEvento(e)) : undefined} />)}
     </ScrollView>
     {/* O perfil é a linha com a tua cara (o item "Profile" repetia-a) e as
         Definições são a roda dentada nela (26/9, decidido com o João). */}
@@ -506,11 +527,16 @@ export function Sidebar({ route, navigate, notify }: { route: Route; navigate: (
     <ProgressoDaImportacao />
     <AmigosNaLateral navigate={navigate} notify={notify} />
     {/* O espaço que sobrava por baixo: é do utilizador (26/9). */}
-    <AtalhosNaLateral navigate={navigate} />
+    <AtalhosNaLateral navigate={navigate} notify={notify} />
+    {menuDasLiked ? <MenuDeContexto rato={menuDasLiked} rotulo="Options for Liked Songs"
+      linhas={menuDasGostadas({ semRede }).map((l) => ({ id: l.id, rotulo: l.rotulo, icone: l.icone, motivo: l.motivo }))}
+      aoEscolher={(id) => void tocarAsLiked(id)} aoFechar={() => setMenuDasLiked(null)} /> : null}
   </View>;
 }
 
-export function NavItem({ label, icon, active, badge, onPress, aoMedir, semFundo, medicao }: { label: string; icon: keyof typeof Ionicons.glyphMap; active: boolean; badge?: boolean; onPress: () => void;
+export function NavItem({ label, icon, active, badge, onPress, aoMenu, aoMedir, semFundo, medicao }: { label: string; icon: keyof typeof Ionicons.glyphMap; active: boolean; badge?: boolean; onPress: () => void;
+  /** O botão direito, nos itens que são uma coisa e não só um lugar (as Liked Songs). */
+  aoMenu?: (e: any) => void;
   /** Muda para pedir outra medição (ver `medicao` na barra lateral). */
   medicao?: number;
   /** Onde é que este item está, para o realce saber para onde atravessar. */
@@ -528,6 +554,7 @@ export function NavItem({ label, icon, active, badge, onPress, aoMedir, semFundo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [medicao]);
   return <P ref={ref} {...marcar('premir')} onPress={onPress}
+    onContextMenu={(e: any) => { if (!aoMenu) return; e.preventDefault(); aoMenu(e); }}
     onLayout={(e: any) => aoMedir?.(e.nativeEvent.layout.y, e.nativeEvent.layout.height)}
     style={({ hovered, focused, pressed }: any) => [styles.navItem, (hovered || focused) && styles.navHover, active && !semFundo && { backgroundColor: theme.soft }, pressed && ui.pressed]}><Ionicons name={icon} size={19} color={active ? theme.color : COR.textoMedio} /><Text style={[styles.navText, active && styles.navTextActive, active && { color: theme.color }]}>{label}</Text>{badge && <BolinhaDeAviso />}</P>;
 }
@@ -672,8 +699,10 @@ function SeguirNaBarra() {
   );
 }
 
-export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLigado = false, onAviso }: {
+export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLigado = false, onAviso, aoMenuDaFaixa }: {
   currentIsSaved: boolean; toggleSaveCurrent: () => void; onJam: () => void;
+  /** O botão direito na música que toca (24/10): o menu dela, com o "Open Now Playing". */
+  aoMenuDaFaixa?: () => void;
   /** O Discord está a publicar -- quem sabe é a casca, que tem a preferência. */
   discordLigado?: boolean;
   onAviso?: (mensagem: string) => void;
@@ -713,6 +742,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
       <Pressable
         style={styles.playerTrackLink}
         onPress={() => {if(!swiping.current)irPara({ tipo: 'a-tocar' });}}
+        {...({ onContextMenu: (e: any) => { if (!aoMenuDaFaixa) return; e.preventDefault(); aoMenuDaFaixa(); } } as any)}
       >
         <Artwork track={p.current} size={52} />
         {/* O título limpo e o artista, como em todas as listas: aqui ia o

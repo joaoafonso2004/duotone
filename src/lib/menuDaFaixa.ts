@@ -30,6 +30,7 @@
 import type { DownloadNoMenu } from './downloadsExplicitos';
 
 export type IdDaAcao =
+  | 'abrir-leitor'
   | 'tocar-agora'
   | 'tocar-a-seguir'
   | 'por-na-fila'
@@ -45,6 +46,7 @@ export type IdDaAcao =
 
 /** A ordem de todos os menus. As de contexto e destrutivas ficam no fim. */
 export const ORDEM: readonly IdDaAcao[] = [
+  'abrir-leitor',
   'tocar-agora',
   'tocar-a-seguir',
   'por-na-fila',
@@ -61,6 +63,7 @@ export const ORDEM: readonly IdDaAcao[] = [
 
 /** Nomes do Ionicons, escritos aqui para nenhum menu escolher o seu. */
 export type IconeDoMenu =
+  | 'open-outline'
   | 'play-circle-outline'
   | 'play-forward-outline'
   | 'list-outline'
@@ -87,8 +90,11 @@ export const MOTIVOS = {
   filaMudou: 'The queue changed',
 } as const;
 
-/** Onde o menu abriu. */
-export type OndeAbriu = 'lista' | 'leitor' | 'fila';
+/**
+ * Onde o menu abriu. `barra`: a música que toca, na barra do leitor do PC
+ * (24/10), com o "Open Now Playing" e o artista que o leitor não tem.
+ */
+export type OndeAbriu = 'lista' | 'leitor' | 'fila' | 'barra';
 
 export interface ContextoDoMenu {
   plataforma: 'ios' | 'pc';
@@ -142,7 +148,8 @@ export interface AcaoDoMenu {
  */
 function aplicaSe(id: IdDaAcao, c: ContextoDoMenu): boolean {
   switch (id) {
-    case 'tocar-agora': return c.onde !== 'leitor';
+    case 'abrir-leitor': return c.onde === 'barra';
+    case 'tocar-agora': return c.onde === 'lista' || c.onde === 'fila';
     case 'tocar-a-seguir':
     case 'por-na-fila': return c.onde === 'lista';
     case 'ver-artista':
@@ -164,6 +171,7 @@ function descrever(id: IdDaAcao, c: ContextoDoMenu): AcaoDoMenu {
     ({ id, rotulo, icone, destrutiva, indisponivel });
 
   switch (id) {
+    case 'abrir-leitor': return acao('Open Now Playing', 'open-outline', null);
     case 'tocar-agora': return acao('Play now', 'play-circle-outline', tocar);
     case 'tocar-a-seguir': return acao('Play next', 'play-forward-outline', tocar);
     case 'por-na-fila': return acao('Add to queue', 'list-outline', tocar);
@@ -202,7 +210,7 @@ export function menuDaFaixa(c: ContextoDoMenu): AcaoDoMenu[] {
  * uma ação pela posição.
  */
 export const GRUPO: Readonly<Record<IdDaAcao, number>> = {
-  'tocar-agora': 0, 'tocar-a-seguir': 0, 'por-na-fila': 0,
+  'abrir-leitor': 0, 'tocar-agora': 0, 'tocar-a-seguir': 0, 'por-na-fila': 0,
   'guardar': 1, 'por-em-playlist': 1,
   'ver-artista': 2, 'partilhar': 2, 'descarregar': 2,
   'nao-interessa': 3, 'recomendacoes': 3,

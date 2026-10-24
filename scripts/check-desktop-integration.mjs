@@ -74,10 +74,10 @@ const contexto = vm.createContext({
   // RELATIVO nao resolve a partir deste script. O modulo do Discord entra como
   // duplo: esta verificacao e sobre a casca do Electron, e nao sobre o socket
   // do Discord, que tem os seus proprios testes.
-  // Os módulos da atualização, dos atalhos, do mini leitor e do arranque com o
-  // Windows são puros (sem
+  // Os módulos da atualização, dos atalhos, do mini leitor, do arranque com o
+  // Windows e do menu do texto são puros (sem
   // `electron`): entram os verdadeiros.
-  require: (id) => id === './messageBadge.cjs' ? require('../electron/messageBadge.cjs') : id === './saude.cjs' ? { criarSaude: (o) => { captura.saude = o; return saudeDupla; } } : id === './atualizacao.cjs' ? require('../electron/atualizacao.cjs') : id === './atalhos.cjs' ? require('../electron/atalhos.cjs') : id === './miniLeitor.cjs' ? require('../electron/miniLeitor.cjs') : id === './barraDeTarefas.cjs' ? require('../electron/barraDeTarefas.cjs') : id === './arranqueComWindows.cjs' ? require('../electron/arranqueComWindows.cjs') : id === './discord.cjs' ? {
+  require: (id) => id === './messageBadge.cjs' ? require('../electron/messageBadge.cjs') : id === './saude.cjs' ? { criarSaude: (o) => { captura.saude = o; return saudeDupla; } } : id === './atualizacao.cjs' ? require('../electron/atualizacao.cjs') : id === './atalhos.cjs' ? require('../electron/atalhos.cjs') : id === './miniLeitor.cjs' ? require('../electron/miniLeitor.cjs') : id === './barraDeTarefas.cjs' ? require('../electron/barraDeTarefas.cjs') : id === './arranqueComWindows.cjs' ? require('../electron/arranqueComWindows.cjs') : id === './menuDoTexto.cjs' ? require('../electron/menuDoTexto.cjs') : id === './discord.cjs' ? {
     DISCORD_APP_ID: '1547625164328538133',
     definirPresenca: () => Promise.resolve(false),
     prepararDiscord: () => { preparacoesDiscord++; return Promise.resolve(true); },
