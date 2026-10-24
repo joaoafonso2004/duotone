@@ -4,7 +4,7 @@
  * no componente -- "tudo funcional do menu" (João).
  */
 import { readFileSync } from 'node:fs';
-import { faixaDoAmigo, opcoesDoMenuDoAmigo, posicaoDoMenu, type SituacaoDoAmigo } from '../src/lib/menuDoAmigo.ts';
+import { faixaDoAmigo, opcoesDoMenuDoAmigo, posicaoDoMenu, posicaoDoSubmenu, type SituacaoDoAmigo } from '../src/lib/menuDoAmigo.ts';
 
 let mau = 0;
 const check = (rotulo: string, ok: boolean, extra = '') => {
@@ -59,6 +59,17 @@ for (const rato of [{ x: 0, y: 0 }, { x: 1280, y: 800 }, { x: 640, y: 799 }]) {
   const p = posicaoDoMenu(rato, menu, janela);
   check(`sempre dentro da janela (${rato.x},${rato.y})`, p.x >= 8 && p.y >= 8 && p.x + 280 <= 1272 && p.y + 420 <= 792, JSON.stringify(p));
 }
+
+console.log('\no painel de uma linha (o "Add to playlist ›" do PC, 24/10)');
+const painel = { largura: 280, altura: 360 };
+const s1 = posicaoDoSubmenu({ topo: 200 }, { esquerda: 100, direita: 380 }, painel, janela);
+check('com espaço: colado à direita do menu, à altura da linha', s1.x === 384 && s1.y === 194, JSON.stringify(s1));
+const s2 = posicaoDoSubmenu({ topo: 200 }, { esquerda: 900, direita: 1180 }, painel, janela);
+check('sem espaço à direita: à esquerda do menu', s2.x === 616, JSON.stringify(s2));
+const s3 = posicaoDoSubmenu({ topo: 700 }, { esquerda: 100, direita: 380 }, painel, janela);
+check('perto do fundo: sobe para caber', s3.y === 432, JSON.stringify(s3));
+const s4 = posicaoDoSubmenu({ topo: 300 }, { esquerda: 8, direita: 1272 }, painel, janela);
+check('sem espaço de nenhum lado: fica dentro da janela', s4.x >= 8 && s4.x + 280 <= 1272, JSON.stringify(s4));
 
 console.log('\na música dele como faixa');
 const f = faixaDoAmigo({ source: 'youtube', sourceId: 'abc', title: 'deaf note', artist: 'Playboi Carti', artworkUrl: null, durationSeconds: 140, positionMs: 3000 } as any);

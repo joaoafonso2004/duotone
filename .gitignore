@@ -76,6 +76,7 @@ test-*.mjs
 !scripts/test-sincronizacao-economica.mjs
 !scripts/test-segunda-instancia.mjs
 !scripts/test-barra-de-tarefas.mjs
+!scripts/test-add-to-playlist-pc.mjs
 
 # Cache das ferramentas de diagnostico em scripts/ (respostas da YouTube API)
 .cache/

@@ -184,6 +184,7 @@ const TESTES = [
   `${TS} scripts/test-rascunho.ts`,
   `${TS} scripts/test-menu-da-faixa.ts`,
   `${TS} scripts/test-menu-do-amigo.ts`,
+  'scripts/test-add-to-playlist-pc.mjs',
   `${TS} scripts/test-letra-minima.ts`,
   `${TS} scripts/test-escalas.ts`,
   `${TS} scripts/test-estados-dos-controlos.ts`,

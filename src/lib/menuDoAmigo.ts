@@ -113,3 +113,25 @@ export function posicaoDoMenu(
   y = Math.max(folga, Math.min(y, janela.altura - menu.altura - folga));
   return { x, y };
 }
+
+/**
+ * Onde abre o painel de uma linha do menu (o "Add to playlist ›" do PC, 24/10):
+ * colado à direita do menu, com o topo à altura da linha; sem espaço à
+ * direita, à esquerda. Perto do fundo sobe o que for preciso para caber.
+ */
+export function posicaoDoSubmenu(
+  linha: { topo: number },
+  menu: { esquerda: number; direita: number },
+  painel: { largura: number; altura: number },
+  janela: { largura: number; altura: number },
+  folga = 8,
+): { x: number; y: number } {
+  const espaco = 4;
+  // O painel tem o mesmo enchimento do menu: subir 6 põe a 1.ª linha dele ao lado da linha que o abriu.
+  const enchimento = 6;
+  let x = menu.direita + espaco;
+  if (x + painel.largura > janela.largura - folga) x = menu.esquerda - espaco - painel.largura;
+  x = Math.max(folga, Math.min(x, janela.largura - painel.largura - folga));
+  const y = Math.max(folga, Math.min(linha.topo - enchimento, janela.altura - painel.altura - folga));
+  return { x, y };
+}

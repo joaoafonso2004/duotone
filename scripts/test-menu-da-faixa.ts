@@ -41,7 +41,8 @@ caso('cada ação tem o mesmo nome e o mesmo ícone em todos os sítios', () => 
   for (const [sitio, over] of SITIOS) {
     for (const a of menu(over)) {
       const chave = `${a.id}|${over.guardada ?? base.guardada}`;
-      const nome = `${a.rotulo} · ${a.icone}`;
+      // As reticências não são o nome: no PC o "Add to playlist" abre um painel ao lado, com a seta (24/10).
+      const nome = `${a.rotulo.replace(/…$/, '')} · ${a.icone}`;
       if (visto.has(chave)) assert.equal(nome, visto.get(chave), `${a.id} em ${sitio}`);
       else visto.set(chave, nome);
     }

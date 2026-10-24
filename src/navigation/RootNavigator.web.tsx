@@ -6,11 +6,12 @@ import { VocesOsDoisPage } from '../desktop/paginas/VocesOsDoisPage.web';
 import { nomeDaRota } from '../lib/voltarPara';
 import { ShareFriendSheet } from '../components/ShareFriendSheet';
 import { RecommendationPreferences } from '../components/RecommendationPreferences';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { ReactNode, useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
-import { addTracksToPlaylist, removeTrackFromPlaylist } from '../api/playlists';
+import { addTracksToPlaylist, createPlaylist, removeTrackFromPlaylist } from '../api/playlists';
+import { EscolherPlaylist } from '../desktop/EscolherPlaylist.web';
+import { mensagemDeErro } from '../lib/mensagemDeErro';
 import { removeFromLibrary, saveToLibrary, checkIsSaved } from '../api/library';
 import type { OrigemDaFila } from '../lib/origemDaFila';
 import { savedKey, useSaved } from '../state/saved';
@@ -22,7 +23,7 @@ import { NotificationBanner } from '../components/NotificationBanner';
 import { HandoffBanner } from '../components/HandoffBanner';
 import { endSession, publishSession, publishSessionNow } from '../lib/sessionSync';
 import { useAutoplayRadio } from '../lib/radioSync';
-import { RotuloDoVoltar, Artwork, Button, Dialog, Empty, Field, Loading, marcar, Toast } from '../desktop/ui.web';
+import { RotuloDoVoltar, Artwork, Button, Field, Loading, marcar, Toast } from '../desktop/ui.web';
 import { COR } from '../desktop/tokens.web';
 import { styles } from '../desktop/estilos.web';
 import { SpotifyImportPage } from '../desktop/SpotifyImportPage.web';
@@ -199,13 +200,14 @@ function DesktopShell() {
       })();
     });
   },[discordUserId]);
-  const [trackMenu, setTrackMenu] = useState<Track | null>(null); const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [trackMenu, setTrackMenu] = useState<Track | null>(null);
+  /** O "Add to playlist" do Now Playing: o painel das playlists sozinho, no botão. */
+  const [escolhaSolta, setEscolhaSolta] = useState<{ faixa: Track; rato: PontoNoEcra } | null>(null);
   const [trackMenuOpen, setTrackMenuOpen] = useState(false);
   const [recommendationTrack,setRecommendationTrack]=useState<Track|null>(null);
   const [recommendationContext,setRecommendationContext]=useState<DiscoveryContext|null>(null);
   const [trackMenuContext,setTrackMenuContext]=useState<DiscoveryContext|null>(null);
   const [pontoDoMenu, setPontoDoMenu] = useState<PontoNoEcra>({ x: 0, y: 0 });
-  const [playlistDialog, setPlaylistDialog] = useState(false);
   // Partilhar é a MESMA janela em toda a app (5/10, auditoria M2): a
   // `ShareFriendSheet`, que no PC é um diálogo. Havia uma segunda aqui, com
   // outro título e sem o "Listen together".
@@ -287,7 +289,6 @@ function DesktopShell() {
   const [panelOpacity, setPanelOpacity] = useState(0.72);
   // Diálogos usam o destino estável. A animação CSS vive no componente
   // minúsculo abaixo e deixa de redesenhar toda a aplicação dez vezes.
-  const theme = useTheme((s) => s.destino);
 
   // O caminho para a FRENTE, como num browser (27/9: os botões laterais do rato
   // andam para trás e para a frente). `voltar` enche-o; navegar para um sítio
@@ -613,7 +614,7 @@ function DesktopShell() {
       case 'tocar-a-seguir': setTrackMenuOpen(false); usePlayer.getState().playNext(t); notify('Will play next.'); return;
       case 'por-na-fila': setTrackMenuOpen(false); usePlayer.getState().addToQueue(t); notify('Added to queue.'); return;
       case 'guardar': void toggleSave(); return;
-      case 'por-em-playlist': setTrackMenuOpen(false); void openPlaylistDialog(); return;
+      // 'por-em-playlist' não chega aqui: a linha abre o painel das playlists ao lado.
       // O artista sai do `displayArtist` e nao do campo `artist`, que no
       // YouTube e o CANAL: com o campo cru abria-se a pagina de um canal de
       // uploads em vez da do artista.
@@ -640,33 +641,53 @@ function DesktopShell() {
     }
   };
 
-  const openPlaylistDialog = async () => {
-    // A leitura pode falhar (sessao expirada, sem rede). Sem isto a promessa
-    // ficava por apanhar e carregar no botao nao fazia NADA -- nem abria, nem
-    // dizia porque nao. Abre-se na mesma: o dialogo sabe mostrar-se vazio.
-    try {
-      await usePlaylists.getState().carregar();
-      setPlaylists(usePlaylists.getState().items);
-    } catch (e: any) {
-      setPlaylists([]);
-      notify(e?.message || 'Could not load your playlists.');
-    }
-    setPlaylistDialog(true);
+  /**
+   * O "Add to playlist" (24/10): um painel ao lado do menu, e não um diálogo
+   * (desktop/EscolherPlaylist.web.tsx). Quando isto corre, o menu já fechou.
+   */
+  const mudouAPlaylist = (id: string) => {
+    invalidarCacheDaPlaylist(id);
+    window.dispatchEvent(new CustomEvent('duotone:refresh-playlist', { detail: { id } }));
+    window.dispatchEvent(new CustomEvent('duotone:refresh-playlists'));
   };
-
-  const addTo = async (id: string) => {
-    if (!trackMenu) return;
+  const porNaPlaylist = async (t: Track, p: Playlist, jaLaEsta: boolean) => {
+    // O servidor não a punha duas vezes; dizer que já lá está é a resposta certa.
+    if (jaLaEsta) { notify(`Already in ${p.name}.`); return; }
     try {
-      await addTracksToPlaylist(id, [trackMenu]);
-      invalidarCacheDaPlaylist(id);
-      setPlaylistDialog(false);
-      notify('Added to playlist.');
-      window.dispatchEvent(new CustomEvent('duotone:refresh-playlist', { detail: { id } }));
-      window.dispatchEvent(new CustomEvent('duotone:refresh-playlists'));
-    } catch (e: any) {
-      notify(e?.message || 'Could not add track.');
+      await addTracksToPlaylist(p.id, [t]);
+      mudouAPlaylist(p.id);
+      notify(`Added to ${p.name}.`);
+    } catch (e) {
+      notify(mensagemDeErro(e, 'Could not add to the playlist.'));
     }
   };
+  const criarEPor = async (t: Track, nome: string) => {
+    try {
+      const p = await createPlaylist(nome);
+      await addTracksToPlaylist(p.id, [t]);
+      // A store tem de saber da nova já, e não daqui a 30 s.
+      void usePlaylists.getState().carregar(true).catch(() => {});
+      mudouAPlaylist(p.id);
+      notify(`Added to ${nome}.`);
+    } catch (e) {
+      notify(mensagemDeErro(e, 'Could not create the playlist.'));
+    }
+  };
+  const painelDasPlaylists = (t: Track, fechar: () => void, voltar?: () => void) => (
+    <EscolherPlaylist faixa={t} aoFechar={fechar} aoVoltar={voltar}
+      aoEscolher={(p, jaLaEsta) => void porNaPlaylist(t, p, jaLaEsta)}
+      aoCriar={(nome) => void criarEPor(t, nome)} />
+  );
+  const cabecalhoDaFaixa = (t: Track) => (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+      <Artwork track={t} size={40} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text numberOfLines={1} style={{ color: COR.texto, fontSize: 14, fontWeight: '700' }}>{tituloDaFaixa(t)}</Text>
+        <Text numberOfLines={1} style={{ color: COR.textoMedio, fontSize: 12, marginTop: 1 }}>{displayArtist(t)}</Text>
+      </View>
+    </View>
+  );
+  const abrirPlaylistsSozinhas = (t: Track) => setEscolhaSolta({ faixa: t, rato: ultimoClique() });
 
   const openShareDialog = (target: ShareTarget) => { setShareTarget(target); };
 
@@ -690,7 +711,7 @@ function DesktopShell() {
     case 'library-check': page = <LibraryCheckPage back={back} play={play} />; break;
     case 'social': page = <SocialPage friendId={route.friendId} groupId={route.groupId} visible={!nowPlayingOpen && !jamOpen} />; break;
     case 'friend-profile': page = <ProfilePage userId={route.userId} back={back} />; break;
-    case 'now-playing': page = <NowPlayingPage fundoNaJanela={corNaJanela} share={openShareDialog} play={play} tocarMusica={tocarMusica} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} />; break;
+    case 'now-playing': page = <NowPlayingPage fundoNaJanela={corNaJanela} share={openShareDialog} play={play} tocarMusica={tocarMusica} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={abrirPlaylistsSozinhas} />; break;
   }
 
   // Painel dos tokens, com a opacidade que o utilizador escolher nas
@@ -700,7 +721,7 @@ function DesktopShell() {
   // O nome da página que está atrás (5/10, lib/voltarPara.ts). Com o Now
   // Playing por cima, o voltar fecha-o e mostra a página de baixo.
   const rotuloDoVoltar = nomeDaRota(nowPlayingOpen ? route : history.current[history.current.length - 1]);
-  return <DestinosProvider value={irPara}><RotuloDoVoltar.Provider value={rotuloDoVoltar}><View style={[styles.root, { backgroundColor: 'transparent' }]}>{corNaJanela && <FundoDaCapa onde="janela" aApagar={aApagarACor} uri={currentTrack?.artworkUrl ?? null} />}<ThemeCssSync panelOpacity={panelOpacity}/><TitleBar comPainel /><V style={[styles.main, corNaJanela && !aApagarACor ? { backgroundColor: 'transparent' } : bgStyle]} {...(aApagarACor ? marcar('main-a-voltar') : {})}><View style={styles.sidebar}><Sidebar route={rotaDaLateral} navigate={navigate} notify={notify} /></View><PainelDoLeitor more={more} notify={notify}><View style={styles.content}>{/* Com a cor na janela o painel do leitor é transparente: a página de baixo esconde-se (continua montada, com o scroll onde estava). */}<View style={[{ flex: 1, minHeight: 0 }, nowPlayingOpen && corNaJanela && ({ visibility: 'hidden' } as any)]}><TransicaoDePagina chave={JSON.stringify(route)} aSair={aMudarDePagina}><BarreiraDeErros onde={`pagina:${route.name}`} chave={JSON.stringify(route)}>{page}</BarreiraDeErros></TransicaoDePagina></View>{saidaDoLeitor.montado&&<View pointerEvents={saidaDoLeitor.aSair?'none':'auto'} {...(saidaDoLeitor.aSair?marcar('np-a-sair'):{})} style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:corNaJanela?'transparent':COR.fundo}]}><BarreiraDeErros onde="pagina:now-playing-painel"><NowPlayingPage fundoNaJanela={corNaJanela} share={openShareDialog} play={play} tocarMusica={tocarMusica} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} /></BarreiraDeErros></View>}</View></PainelDoLeitor></V><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} onJam={() => void abrirJam()} discordLigado={discordLigado} onAviso={notify} /><HandoffBanner /><NotificationBanner onOpen={abrirSocial} /><ModoLimpo /><BoasVindasPc />{toast && <Toast message={toast} onDone={() => setToast('')} />}
+  return <DestinosProvider value={irPara}><RotuloDoVoltar.Provider value={rotuloDoVoltar}><View style={[styles.root, { backgroundColor: 'transparent' }]}>{corNaJanela && <FundoDaCapa onde="janela" aApagar={aApagarACor} uri={currentTrack?.artworkUrl ?? null} />}<ThemeCssSync panelOpacity={panelOpacity}/><TitleBar comPainel /><V style={[styles.main, corNaJanela && !aApagarACor ? { backgroundColor: 'transparent' } : bgStyle]} {...(aApagarACor ? marcar('main-a-voltar') : {})}><View style={styles.sidebar}><Sidebar route={rotaDaLateral} navigate={navigate} notify={notify} /></View><PainelDoLeitor more={more} notify={notify}><View style={styles.content}>{/* Com a cor na janela o painel do leitor é transparente: a página de baixo esconde-se (continua montada, com o scroll onde estava). */}<View style={[{ flex: 1, minHeight: 0 }, nowPlayingOpen && corNaJanela && ({ visibility: 'hidden' } as any)]}><TransicaoDePagina chave={JSON.stringify(route)} aSair={aMudarDePagina}><BarreiraDeErros onde={`pagina:${route.name}`} chave={JSON.stringify(route)}>{page}</BarreiraDeErros></TransicaoDePagina></View>{saidaDoLeitor.montado&&<View pointerEvents={saidaDoLeitor.aSair?'none':'auto'} {...(saidaDoLeitor.aSair?marcar('np-a-sair'):{})} style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:corNaJanela?'transparent':COR.fundo}]}><BarreiraDeErros onde="pagina:now-playing-painel"><NowPlayingPage fundoNaJanela={corNaJanela} share={openShareDialog} play={play} tocarMusica={tocarMusica} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={abrirPlaylistsSozinhas} /></BarreiraDeErros></View>}</View></PainelDoLeitor></V><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} onJam={() => void abrirJam()} discordLigado={discordLigado} onAviso={notify} /><HandoffBanner /><NotificationBanner onOpen={abrirSocial} /><ModoLimpo /><BoasVindasPc />{toast && <Toast message={toast} onDone={() => setToast('')} />}
     <JanelaDoJam open={jamOpen} onClose={fecharJam} notify={notify} />
     
     {/* O menu de uma faixa abre no cursor (5/10, auditoria M1): era um
@@ -709,23 +730,23 @@ function DesktopShell() {
     {trackMenuOpen && trackMenu ? <MenuDeContexto
       rato={pontoDoMenu}
       rotulo={`Options for ${tituloDaFaixa(trackMenu)}`}
-      cabecalho={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        <Artwork track={trackMenu} size={40} />
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text numberOfLines={1} style={{ color: COR.texto, fontSize: 14, fontWeight: '700' }}>{tituloDaFaixa(trackMenu)}</Text>
-          <Text numberOfLines={1} style={{ color: COR.textoMedio, fontSize: 12, marginTop: 1 }}>{displayArtist(trackMenu)}</Text>
-        </View>
-      </View>}
-      linhas={menuDoPc.map((a) => ({ id: a.id, rotulo: a.rotulo, icone: a.icone, perigo: a.destrutiva, motivo: a.indisponivel }))}
+      cabecalho={cabecalhoDaFaixa(trackMenu)}
+      linhas={menuDoPc.map((a) => ({ id: a.id, rotulo: a.rotulo, icone: a.icone, perigo: a.destrutiva, motivo: a.indisponivel, submenu: a.id === 'por-em-playlist' }))}
+      submenu={({ fechar, voltar }) => painelDasPlaylists(trackMenu, fechar, voltar)}
       aoEscolher={(id) => fazerNoMenu(id as IdDaAcao)}
       aoFechar={() => setTrackMenuOpen(false)}
     /> : null}
+    {escolhaSolta ? <MenuDeContexto
+      rato={escolhaSolta.rato}
+      rotulo="Add to playlist"
+      cabecalho={cabecalhoDaFaixa(escolhaSolta.faixa)}
+      linhas={[]}
+      corpo={painelDasPlaylists(escolhaSolta.faixa, () => setEscolhaSolta(null))}
+      aoEscolher={() => {}}
+      aoFechar={() => setEscolhaSolta(null)}
+    /> : null}
 
     <RecommendationPreferences visible={!!recommendationTrack} track={recommendationTrack} reason={recommendationContext?.reason} onClose={()=>{setRecommendationTrack(null);setRecommendationContext(null);}}/>
-    {/* PLAYLIST DIALOG */}
-    <Dialog open={playlistDialog} title="Add to playlist" onClose={() => setPlaylistDialog(false)}>
-      {playlists.length ? <View style={{ gap: 6 }}>{playlists.map((p) => <Pressable key={p.id} onPress={() => addTo(p.id)} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="albums-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>{p.name}</Text></Pressable>)}</View> : <Empty icon="albums-outline" title="No playlists" body="Create a playlist first, then add this track." />}
-    </Dialog>
 
     <ShareFriendSheet visible={!!shareTarget} itemType={shareTarget?.itemType ?? 'track'} item={shareTarget?.item ?? null} onClose={() => setShareTarget(null)} />
   </View></RotuloDoVoltar.Provider></DestinosProvider>;

@@ -170,7 +170,8 @@ function descrever(id: IdDaAcao, c: ContextoDoMenu): AcaoDoMenu {
     case 'guardar': return c.guardada
       ? acao('Remove from Liked Songs', 'heart', semRede)
       : acao('Add to Liked Songs', 'heart-outline', semRede ?? (c.guardada === null ? MOTIVOS.aVerificar : null));
-    case 'por-em-playlist': return acao('Add to playlist…', 'albums-outline', semRede);
+    // No PC abre um painel ao lado (24/10), com a seta: as reticências querem dizer "abre uma folha".
+    case 'por-em-playlist': return acao(c.plataforma === 'pc' ? 'Add to playlist' : 'Add to playlist…', 'albums-outline', semRede);
     case 'ver-artista': return acao('View artist', 'mic-outline', c.temArtista ? null : MOTIVOS.semArtista);
     case 'partilhar': return acao('Share with friends or groups…', 'share-social-outline', semRede);
     // Tirar um download não precisa de rede; fazê-lo sim -- a não ser que o
