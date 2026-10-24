@@ -13,6 +13,8 @@ import { abrirFolhaDoAmigo } from '../state/folhaDoAmigo';
 import { mesmoGrupo, separadorPorCima } from '../lib/gruposDeMensagens';
 import { MENSAGEM_DO_CONVITE } from '../lib/playlistColaborativa';
 import { avisarErro, avisarFeito, avisarInfo } from '../lib/avisoDeRemocao';
+import { useMenuDaMensagem } from './MenuDaMensagem';
+import { useMenuDoAmigoNoPc } from './MenuDoAmigoNoPc';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
 import { textoSobre } from '../lib/corDaCapa';
 import { EnviarMusica } from './EnviarMusica';
@@ -135,6 +137,14 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
     try{await setReaction(itemId,emoji);}catch{/* a releitura repõe */}
     void recarregarReacoes();
   };
+  // O botão direito numa mensagem (PC, 24/10): as reações em cima, Reply e Copy text.
+  const {abrirMenuDaMensagem,menuDaMensagem}=useMenuDaMensagem({
+    aoReagir:(m,emoji)=>void reagir(m.id,emoji),
+    aoResponder:(m)=>responderA(m),
+    minhaReacao:(m)=>(reacoes.get(m.id)??[]).find(r=>r.userId===myId)?.emoji??null,
+  });
+  // E num amigo da lista (PC, 24/10): o menu da lateral.
+  const {abrirMenuDoAmigo,menuDoAmigo:menuDoAmigoNoPc}=useMenuDoAmigoNoPc();
   const idsDePlaylist=Array.from(new Set(messages.map(m=>m.playlistId).filter(Boolean) as string[])).sort().join(',');
   useEffect(()=>{
     if(!idsDePlaylist){setPlaylistsDoChat(new Map());return;}
@@ -330,7 +340,7 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
         loading={social.loading} requests={requests} onOpen={open} onProfile={onProfile} onTrack={setTrack}
         pedidos={pending.filter(f=>!f.isSender).length} procurar={web?undefined:procurar} gutter={web?SOCIAL_GUTTER:24}
         onRemoveFriend={id=>setConfirm({id,group:false})}
-        onFriendMenu={web?undefined:(id,ancora)=>setMenuDoAmigo({id,ancora})}
+        onFriendMenu={web?(id,_ancora,e)=>abrirMenuDoAmigo(id,e):(id,ancora)=>setMenuDoAmigo({id,ancora})}
         onDeleteConversation={id=>setConfirm({id,group:false,conversa:true})} onStart={()=>setComecar(true)}/>
     </Animated.ScrollView>
   </View>;
@@ -367,7 +377,8 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
     const nomeDaPlaylist=m.playlistId?playlistsDoChat.get(m.playlistId)?.name??'a playlist':'a playlist';
     let corpo:React.ReactNode;
     if(group){
-      corpo=<GroupMessage message={m} own={m.sender.id===myId} showSender={!seguida(m,index)} citacao={citacao(m)} onResponder={()=>responderA(m)} destacada={destacada===m.id} playlist={m.playlistId?playlistsDoChat.get(m.playlistId):undefined}
+      corpo=<GroupMessage message={m} own={m.sender.id===myId} showSender={!seguida(m,index)} citacao={citacao(m)} onResponder={()=>responderA(m)} destacada={destacada===m.id}
+          onMenu={abrirMenuDaMensagem?e=>abrirMenuDaMensagem(m,e):undefined} playlist={m.playlistId?playlistsDoChat.get(m.playlistId):undefined}
           reactions={reacoes.get(m.id)??[]} myId={myId} aReagir={aReagir===m.id} onReagir={emoji=>void reagir(m.id,emoji)} onAbrirReacoes={()=>setAReagir(a=>a===m.id?null:m.id)} onFecharReacoes={()=>setAReagir(null)} onProfile={onProfile} onTrack={setTrack} onPlaylist={onPlaylist}/>;
     }else if(m.itemType==='sessao'&&m.sessionId){
       corpo=<ConviteDeSessao id={m.sessionId} mensagem={m.message} minha={minha} quem={m.sender.name}/>;
@@ -388,6 +399,7 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
         <View style={{flexShrink:1,gap:5}}>
         <MessageBubble own={minha} aberto={aReagir===m.id} onAbrir={()=>setAReagir(a=>a===m.id?null:m.id)}
           onResponder={()=>responderA(m)} onDuploToque={()=>void reagir(m.id,'❤️')}
+          onMenu={abrirMenuDaMensagem?e=>abrirMenuDaMensagem(m,e):undefined}
           rotulo={`Message from ${m.sender.name}. Double-tap to like, hold to react or reply`}
           style={{
             // `theme.soft` e nao `accent` puro: o accent pode ser CLARO (o do
@@ -508,6 +520,8 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
         onLeave={()=>{setError('');setConfirm({id:detailedGroup.id,group:true});setGroupDetails(null);}}/>}
     </SocialModal>
 
+    {menuDaMensagem}
+    {menuDoAmigoNoPc}
     {!web&&<OpcoesDoAmigo amigo={menuDoAmigo?social.friends.find(f=>f.friendId===menuDoAmigo.id)??null:null} ancora={menuDoAmigo?.ancora??null}
       aoFechar={()=>setMenuDoAmigo(null)} aoMensagem={id=>open('friend',id)} aoPerfil={onProfile} aoPedirRemover={id=>setConfirm({id,group:false})}/>}
     <SocialModal visible={!!confirm} title={confirm?.conversa?'Delete conversation?':confirm?.group?'Leave group?':'Remove friend?'} onClose={()=>setConfirm(null)}><View style={{padding:20,gap:12}}><Text style={s.muted}>{confirm?.conversa?'The messages are deleted for good, on both sides. This cannot be undone.':'Earlier messages stay saved.'}</Text><SocialButton danger disabled={busy} onPress={()=>void run(async()=>{if(!confirm)return;if(confirm.conversa)await apagarConversa(confirm.id);else if(confirm.group)await sairDoGrupo(confirm.id);else await declineOrRemoveFriendship(confirm.id);setConfirm(null);closeChat();})}>{confirm?.conversa?'Delete':'Confirm'}</SocialButton><SocialButton quiet onPress={()=>setConfirm(null)}>Cancel</SocialButton></View></SocialModal>

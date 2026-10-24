@@ -140,7 +140,8 @@ caso('no PC, o clique direito abre no cursor: faixas, playlists, atalhos e amigo
   }
 });
 caso('no iPhone, o toque longo num amigo abre o menu dele (e não pede logo para o remover)', () => {
-  assert.match(ler('src/components/SocialHub.tsx'), /onFriendMenu=\{web\?undefined:/);
+  // No PC o mesmo menu abre no botão direito (24/10, components/MenuDoAmigoNoPc.web.tsx).
+  assert.match(ler('src/components/SocialHub.tsx'), /onFriendMenu=\{web\?\(id,_ancora,e\)=>abrirMenuDoAmigo\(id,e\):\(id,ancora\)=>setMenuDoAmigo\(\{id,ancora\}\)\}/);
   assert.match(ler('src/components/OpcoesDoAmigo.tsx'), /plataforma: 'ios'/);
 });
 

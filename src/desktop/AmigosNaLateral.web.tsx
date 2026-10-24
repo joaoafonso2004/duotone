@@ -60,7 +60,7 @@ export function AmigosNaLateral({ navigate, notify }: { navigate: (r: Route) => 
     <>
       {menu && amigoDoMenu ? (
         <MenuDoAmigo key={`${menu.amigoId}:${menu.rato.x}:${menu.rato.y}`} amigo={amigoDoMenu} sessaoDele={sessoes.get(amigoDoMenu.friendId) ?? null}
-          rato={menu.rato} aoFechar={fecharMenu} aoPedirRemover={setARemover} navigate={navigate} notify={notify} />
+          rato={menu.rato} aoFechar={fecharMenu} aoPedirRemover={setARemover} notify={notify} />
       ) : null}
       <ConfirmarRemoverAmigo amigo={aRemover} aoFechar={() => setARemover(null)} notify={notify} />
     </>

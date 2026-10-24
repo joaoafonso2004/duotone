@@ -10,6 +10,7 @@ import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { Button, Dialog, Artwork } from './ui.web';
 import { COR, ESP, FONT, RAIO, TIPO } from './tokens.web';
 import { efeitoDaAutoFila } from '../lib/jam';
+import { useMenuDoAmigoNoPc } from '../components/MenuDoAmigoNoPc';
 
 /**
  * O Jam do Windows.
@@ -36,6 +37,9 @@ export function JanelaDoJam({ open, onClose, notify }: {
   const retirarSugestao = useOuvirJuntos((s) => s.retirarSugestao);
   const abandonar = useOuvirJuntos((s) => s.abandonar);
   const amigos = useSocial((s) => s.friends);
+  // O botão direito num participante que é teu amigo (24/10): o menu dele, sem
+  // "ouvir com" nem "convidar" (já está na tua Jam). Os outros não têm menu.
+  const { abrirMenuDoAmigo, menuDoAmigo } = useMenuDoAmigoNoPc(notify);
   const [convidados, setConvidados] = React.useState<string[]>([]);
   const [busy, setBusy] = React.useState(false);
 
@@ -80,7 +84,8 @@ export function JanelaDoJam({ open, onClose, notify }: {
       <Text style={styles.section}>IN THE JAM</Text>
       <View style={styles.list}>
         {membros.map((membro) => {
-          return <View key={membro.userId} style={styles.row}>
+          return <View key={membro.userId} style={styles.row}
+            {...({ onContextMenu: (e: any) => { if (membro.userId !== euId) abrirMenuDoAmigo(membro.userId, e, { naTuaJam: true }); } } as any)}>
             <FriendAvatar avatarUrl={avatarDe(membro.userId)} name={nomeDe(membro.userId)} size={36} />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text numberOfLines={1} style={styles.title}>{rotuloDe(membro.userId)}</Text>
@@ -147,6 +152,7 @@ export function JanelaDoJam({ open, onClose, notify }: {
       <Button secondary onPress={onClose}>Keep listening</Button>
       <Button danger ocupado={busy} onPress={() => void sair()}>{busy ? 'Please wait…' : acabaComigo ? 'End Jam' : 'Leave Jam'}</Button>
     </View>
+    {menuDoAmigo}
   </Dialog>;
 }
 

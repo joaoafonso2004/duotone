@@ -30,6 +30,7 @@ import type { Track } from '../types';
 import type { Playlist } from '../types';
 import { savePlaylistCopy, unsavePlaylistCopy } from '../api/playlists';
 import { useDestinos } from '../navigation/destinos';
+import { useMenuDoAmigoNoPc } from './MenuDoAmigoNoPc';
 
 export function SocialProfileView({userId,onBack,active=true,scrollRef}:{userId:string;onBack?:()=>void;active?:boolean;
   /** A lista do perfil, para o separador do iPhone a levar ao topo (3/10). */
@@ -83,6 +84,9 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef}:{userId:
   const request=useRef(0);
   const friends=useSocial(x=>x.friends),now=useSocial(x=>x.now);
   const friend=friends.find(f=>f.friendId===userId);
+  // O botão direito no topo do perfil de um amigo abre o menu dele (PC, 24/10).
+  const {abrirMenuDoAmigo,menuDoAmigo}=useMenuDoAmigoNoPc();
+  const menuNoTopo=web&&!own&&friend?.status==='accepted'?{onContextMenu:(e:any)=>abrirMenuDoAmigo(userId,e)}:{};
   const cover=useProfileMedia(profile?.appearance?.cover_path?`storage:${profile.appearance.cover_path}`:null,'cover');
   /**
    * `silencioso` atualiza por baixo, sem apagar o que já está no ecrã.
@@ -328,8 +332,10 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef}:{userId:
 
   const nome=profile?.profile.name||'';
   return <View style={s.body} onLayout={e=>setWidth(e.nativeEvent.layout.width)}>
+    {menuDoAmigo}
     <Animated.ScrollView ref={scrollRef} refreshControl={puxar} onScroll={web?undefined:aoRolar} scrollEventThrottle={16}
       contentContainerStyle={{paddingBottom:bottomPadding}} keyboardShouldPersistTaps="handled">
+      <View {...(menuNoTopo as any)}>
       <ProfileHero profile={profile} own={own} cover={cover} unread={unread} botoesFora={!web} rolagem={web?undefined:rolagem}
         status={!own&&profile?.canView?(friend?.online?'● Online now':ultimaAtividade(friend?.lastSeenAt,now)):undefined}
         onVocesOsDois={onVocesOsDois&&profile?.canView&&friend?.status==='accepted'?()=>onVocesOsDois(profile.profile.name||profile.profile.username||undefined):undefined}
@@ -337,6 +343,7 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef}:{userId:
         onEdit={()=>setEditing(true)} onSocial={onSocial} onStats={abrirEstatisticas} onBack={onBack}
         onMessage={()=>onMessage(userId)} onRefresh={()=>void load()} pending={friend?.status==='pending'}
         onAddFriend={()=>{void sendFriendRequest(userId).then(()=>useSocial.getState().refresh()).catch(()=>setError('Could not send the friend request. Please try again.'));}}/>
+      </View>
       <View style={{paddingHorizontal:SOCIAL_GUTTER,paddingTop:26,gap:24}}>
       {loading&&!profile&&<SkeletonDoPerfil/>}
       {!!error&&sectionFailure(error)}

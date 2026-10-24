@@ -80,9 +80,11 @@ export function GroupEmptyState({group}:{group:ChatGroup}) {
  * mas desaparece quando a mesma pessoa fala de seguida: repetir o avatar e o
  * nome em cada linha era o que fazia o grupo parecer uma lista de recibos.
  */
-export function GroupMessage({message:m,own,showSender=true,playlist,reactions=[],myId,aReagir=false,onReagir,onAbrirReacoes,onFecharReacoes,onProfile,onTrack,onPlaylist,citacao,onResponder,destacada=false}:{message:SharedItem;own:boolean;showSender?:boolean;playlist?:Playlist;
+export function GroupMessage({message:m,own,showSender=true,playlist,reactions=[],myId,aReagir=false,onReagir,onAbrirReacoes,onFecharReacoes,onProfile,onTrack,onPlaylist,citacao,onResponder,onMenu,destacada=false}:{message:SharedItem;own:boolean;showSender?:boolean;playlist?:Playlist;
   /** A citação, quando esta mensagem responde a outra. Ver RespostaNaConversa. */
   citacao?:React.ReactNode;onResponder?:()=>void;destacada?:boolean;
+  /** O botão direito no PC: o menu da mensagem (24/10). */
+  onMenu?:(e:any)=>void;
   reactions?:Reaction[];myId?:string;aReagir?:boolean;
   onReagir?:(emoji:string|null)=>void;onAbrirReacoes?:()=>void;onFecharReacoes?:()=>void;
   onProfile:(id:string)=>void;onTrack:(track:Track)=>void;onPlaylist:(id:string)=>void}) {
@@ -95,7 +97,7 @@ export function GroupMessage({message:m,own,showSender=true,playlist,reactions=[
       <Text numberOfLines={1} style={[s.muted,{fontWeight:'600',color:colors.text,flexShrink:1}]}>{m.sender.name}</Text>
       {own&&<Text style={[s.muted,{fontSize:11}]}>You</Text>}
     </Pressable>}
-    <MessageBubble own={own} aberto={aReagir} onAbrir={()=>onAbrirReacoes?.()} onResponder={onResponder}
+    <MessageBubble own={own} aberto={aReagir} onAbrir={()=>onAbrirReacoes?.()} onResponder={onResponder} onMenu={onMenu}
       rotulo={`Message from ${m.sender.name}. Hold to react or reply`}
       style={{padding:12,gap:10,borderRadius:18,borderTopLeftRadius:!own&&showSender?6:18,borderTopRightRadius:own&&showSender?6:18,
         backgroundColor:own?colors.surfaceHigh:colors.surface,borderWidth:1,borderColor:destacada?(Platform.OS==='web'?colors.accent:corDoTema):own?colors.borderStrong:colors.border}}>

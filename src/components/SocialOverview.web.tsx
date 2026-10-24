@@ -36,7 +36,8 @@ interface Props {
   onTrack: (track: Track) => void;
   onRemoveFriend: (id: string) => void;
   /** O menu de um amigo no toque longo (iPhone, 5/10); sem ele, o toque longo pede para o remover. */
-  onFriendMenu?: (id: string, ancora: { x: number; y: number; width: number; height: number }) => void;
+  /** `e`: o evento do botão direito (24/10), para o menu abrir onde está o rato. */
+  onFriendMenu?: (id: string, ancora: { x: number; y: number; width: number; height: number }, e?: any) => void;
   onDeleteConversation: (id: string) => void;
   onStart: () => void;
 }
@@ -99,7 +100,11 @@ export function SocialOverview(props: Props) {
           : friend?.musicActivity?.listening ? 'Listening now' : friend?.online ? 'Online now' : ultimaAtividade(friend?.lastSeenAt, props.now);
         const open = () => props.onOpen(group ? 'group' : 'friend', c.id);
         const oldContact = former.some(p => p.id === c.id);
-        return <View key={key} style={styles.personRow}>
+        // O botão direito num amigo abre o menu dele (24/10); num grupo, ou numa conversa antiga, nada.
+        const menu = !group && !oldContact && props.onFriendMenu
+          ? { onContextMenu: (e: any) => { e.preventDefault(); props.onFriendMenu!(c.id, { x: e.nativeEvent?.clientX ?? 0, y: e.nativeEvent?.clientY ?? 0, width: 1, height: 1 }, e); } }
+          : {};
+        return <View key={key} style={styles.personRow} {...(menu as any)}>
           <Pressable accessibilityRole="button" accessibilityLabel={group ? `Open ${c.nome}` : `View ${c.nome}`}
             onPress={group ? open : () => props.onProfile(c.id)}>
             {c.tipo === 'grupo' ? <GroupAvatar group={c.grupo} size={44}/>

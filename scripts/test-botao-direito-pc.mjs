@@ -97,5 +97,58 @@ caso('do teclado (Shift+F10) o menu abre junto do que tem o foco', () => {
   assert.match(menu, /if \(x === 0 && y === 0\) \{\n\s+const r = n\?\.target\?\.getBoundingClientRect\?\.\(\);/);
 });
 
+console.log('\nfase 2: uma pessoa');
+const social = ler('src/components/SocialHub.tsx');
+const naLista = ler('src/components/SocialOverview.web.tsx');
+caso('na lista do Social: um amigo (não um grupo, nem uma conversa antiga)', () => {
+  assert.match(naLista, /const menu = !group && !oldContact && props\.onFriendMenu/);
+  assert.match(naLista, /<View key=\{key\} style=\{styles\.personRow\} \{\.\.\.\(menu as any\)\}>/);
+  assert.match(social, /const \{abrirMenuDoAmigo,menuDoAmigo:menuDoAmigoNoPc\}=useMenuDoAmigoNoPc\(\);/);
+});
+caso('nos participantes da Jam, sem "ouvir com" nem "convidar" (já lá estão)', () => {
+  const jam = ler('src/desktop/JanelaDoJam.web.tsx');
+  assert.match(jam, /if \(membro\.userId !== euId\) abrirMenuDoAmigo\(membro\.userId, e, \{ naTuaJam: true \}\);/);
+  assert.match(jam, /\{menuDoAmigo\}\n\s+<\/Dialog>;/);
+});
+caso('no topo do perfil de um amigo', () => {
+  assert.match(ler('src/components/SocialProfileView.tsx'), /const menuNoTopo=web&&!own&&friend\?\.status==='accepted'\?\{onContextMenu:\(e:any\)=>abrirMenuDoAmigo\(userId,e\)\}:\{\};/);
+});
+caso('só para amigos aceites, e a Jam dele só se pergunta se estiver a ouvir', () => {
+  const m = ler('src/components/MenuDoAmigoNoPc.web.tsx');
+  assert.match(m, /f\.friendId === amigoId && f\.status === 'accepted'/);
+  assert.match(m, /if \(!menu \|\| !aOuvir \|\| menu\.naTuaJam\) return;/);
+  assert.match(ler('src/components/MenuDoAmigoNoPc.tsx'), /return \{ abrirMenuDoAmigo: \(\) => \{\}, menuDoAmigo: null \};/, 'no iPhone não faz nada');
+});
+caso('o menu do amigo navega pelo useDestinos (serve fora da lateral)', () => {
+  const m = ler('src/desktop/MenuDoAmigo.web.tsx');
+  assert.match(m, /irPara\(\{ tipo: 'conversa', kind: 'friend', id: amigo\.friendId \}\);/);
+  assert.match(m, /irPara\(\{ tipo: 'perfil', userId: amigo\.friendId \}\);/);
+});
+
+console.log('\nfase 2: uma mensagem');
+caso('o balão abre o menu no botão direito, menos com texto selecionado (fica o Copy do Windows)', () => {
+  const balao = ler('src/components/ReactionRow.tsx');
+  assert.match(balao, /\{\.\.\.\(web&&onMenu\?\{onContextMenu:\(e:any\)=>\{\n\s+if\(\(globalThis as any\)\.getSelection\?\.\(\)\?\.toString\(\)\.trim\(\)\)return;\n\s+e\.preventDefault\(\);onMenu\(e\);/);
+});
+caso('nas conversas a dois e nos grupos', () => {
+  assert.equal(social.match(/onMenu=\{abrirMenuDaMensagem\?e=>abrirMenuDaMensagem\(m,e\):undefined\}/g)?.length, 2);
+  assert.match(ler('src/components/GroupChat.tsx'), /onResponder=\{onResponder\} onMenu=\{onMenu\}/);
+});
+caso('as reações em cima (as "A"), e reagir com a que já é tua tira-a', () => {
+  const m = ler('src/components/MenuDaMensagem.web.tsx');
+  assert.match(m, /cabecalho=\{<View style=\{\{ flexDirection: 'row', justifyContent: 'space-between' \}\}/);
+  assert.match(m, /onPress=\{\(\) => \{ aoFechar\(\); opcoes\.aoReagir\(m, minha === emoji \? null : emoji\); \}\}/);
+  assert.match(social, /minhaReacao:\(m\)=>\(reacoes\.get\(m\.id\)\?\?\[\]\)\.find\(r=>r\.userId===myId\)\?\.emoji\?\?null,/);
+});
+caso('numa música partilhada, o "Add to playlist ›" é o painel do menu de uma música', () => {
+  const m = ler('src/components/MenuDaMensagem.web.tsx');
+  assert.match(m, /submenu=\{faixa \? \(\{ fechar, voltar \}\) => <EscolherPlaylist faixa=\{faixa\}/);
+  assert.match(m, /aoEscolher=\{\(p, jaLaEsta\) => void porNaPlaylist\(faixa, p, jaLaEsta, avisar\)\}/);
+  assert.match(raiz, /aoEscolher=\{\(p, jaLaEsta\) => void porNaPlaylist\(t, p, jaLaEsta, notify\)\}/);
+});
+caso('os avisos dos componentes partilhados chegam ao toast do PC (calavam-se)', () => {
+  assert.match(raiz, /useEffect\(\(\) => avisos\.ouvir\(\(\) => \{\n\s+const a = avisos\.atual\(\);\n\s+if \(a\) setToast\(/);
+});
+
 if (falhas) { console.error(`\n  ${falhas} caso(s) a falhar.`); process.exit(1); }
-console.log('\nO botão direito no PC (fase 1): artistas, discos, misturas, Liked Songs e a música que toca passaram.');
+console.log('\nO botão direito no PC: artistas, discos, misturas, Liked Songs, a música que toca, pessoas e mensagens passaram.');

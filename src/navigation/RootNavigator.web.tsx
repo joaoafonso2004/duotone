@@ -9,9 +9,10 @@ import { RecommendationPreferences } from '../components/RecommendationPreferenc
 import React, { ReactNode, useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
-import { addTracksToPlaylist, createPlaylist, removeTrackFromPlaylist } from '../api/playlists';
+import { removeTrackFromPlaylist } from '../api/playlists';
 import { EscolherPlaylist } from '../desktop/EscolherPlaylist.web';
-import { mensagemDeErro } from '../lib/mensagemDeErro';
+import { criarEPor, porNaPlaylist } from '../desktop/porNaPlaylist.web';
+import { avisos } from '../lib/avisoDeRemocao';
 import { removeFromLibrary, saveToLibrary, checkIsSaved } from '../api/library';
 import type { OrigemDaFila } from '../lib/origemDaFila';
 import { savedKey, useSaved } from '../state/saved';
@@ -42,9 +43,8 @@ import { menuDaFaixa, type IdDaAcao } from '../lib/menuDaFaixa';
 import { useConnectivity } from '../state/connectivity';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { usePrivacidade } from '../state/privacidade';
-import { usePlaylists } from '../state/playlists';
 import { useTheme } from '../state/theme';
-import type { Playlist, Track } from '../types';
+import type { Track } from '../types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { SocialPage } from '../desktop/paginas/SocialPage.web';
@@ -57,7 +57,7 @@ import { ProfilePage, StatsPage } from '../desktop/paginas/ProfilePage.web';
 
 import { ArtistPage, ArtistsPage, MisturaPage, SearchPage, SongsPage } from '../desktop/paginas/BibliotecaPages.web';
 
-import { invalidarCacheDaPlaylist, PlaylistPage, PlaylistsPage } from '../desktop/paginas/PlaylistPages.web';
+import { PlaylistPage, PlaylistsPage } from '../desktop/paginas/PlaylistPages.web';
 
 import { ImportPage } from '../desktop/paginas/ImportPage.web';
 
@@ -344,6 +344,13 @@ function DesktopShell() {
     return () => { window.removeEventListener('mouseup', aoLargar); window.removeEventListener('mousedown', engolir); };
   }, [voltarPeloRato, avancar]);
   const notify = useCallback((s: string) => setToast(s), []);
+  // Os avisos dos componentes partilhados (avisarFeito/avisarErro/avisarInfo,
+  // lib/avisoDeRemocao.ts) só tinham quem os mostrasse no iPhone: no PC
+  // calavam-se (o "Invited … to listen" do Social, 24/10). Vão para o toast.
+  useEffect(() => avisos.ouvir(() => {
+    const a = avisos.atual();
+    if (a) setToast(a.detalhe ? `${a.texto} · ${a.detalhe}` : a.texto);
+  }), []);
   // Os avisos da Jam (29/9): no iPhone aparecem na barra da sessão; o PC não
   // tinha onde os mostrar -- "You are now the Jam host", "Added · ...", a Jam
   // que acabou. Vão para o mesmo toast do resto da app.
@@ -647,40 +654,12 @@ function DesktopShell() {
 
   /**
    * O "Add to playlist" (24/10): um painel ao lado do menu, e não um diálogo
-   * (desktop/EscolherPlaylist.web.tsx). Quando isto corre, o menu já fechou.
+   * (desktop/EscolherPlaylist.web.tsx, desktop/porNaPlaylist.web.ts).
    */
-  const mudouAPlaylist = (id: string) => {
-    invalidarCacheDaPlaylist(id);
-    window.dispatchEvent(new CustomEvent('duotone:refresh-playlist', { detail: { id } }));
-    window.dispatchEvent(new CustomEvent('duotone:refresh-playlists'));
-  };
-  const porNaPlaylist = async (t: Track, p: Playlist, jaLaEsta: boolean) => {
-    // O servidor não a punha duas vezes; dizer que já lá está é a resposta certa.
-    if (jaLaEsta) { notify(`Already in ${p.name}.`); return; }
-    try {
-      await addTracksToPlaylist(p.id, [t]);
-      mudouAPlaylist(p.id);
-      notify(`Added to ${p.name}.`);
-    } catch (e) {
-      notify(mensagemDeErro(e, 'Could not add to the playlist.'));
-    }
-  };
-  const criarEPor = async (t: Track, nome: string) => {
-    try {
-      const p = await createPlaylist(nome);
-      await addTracksToPlaylist(p.id, [t]);
-      // A store tem de saber da nova já, e não daqui a 30 s.
-      void usePlaylists.getState().carregar(true).catch(() => {});
-      mudouAPlaylist(p.id);
-      notify(`Added to ${nome}.`);
-    } catch (e) {
-      notify(mensagemDeErro(e, 'Could not create the playlist.'));
-    }
-  };
   const painelDasPlaylists = (t: Track, fechar: () => void, voltar?: () => void) => (
     <EscolherPlaylist faixa={t} aoFechar={fechar} aoVoltar={voltar}
-      aoEscolher={(p, jaLaEsta) => void porNaPlaylist(t, p, jaLaEsta)}
-      aoCriar={(nome) => void criarEPor(t, nome)} />
+      aoEscolher={(p, jaLaEsta) => void porNaPlaylist(t, p, jaLaEsta, notify)}
+      aoCriar={(nome) => void criarEPor(t, nome, notify)} />
   );
   const cabecalhoDaFaixa = (t: Track) => (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>

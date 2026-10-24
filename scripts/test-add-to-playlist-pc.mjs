@@ -20,6 +20,8 @@ const caso = (nome, f) => {
 const casca = ler('src/navigation/RootNavigator.web.tsx');
 const painel = ler('src/desktop/EscolherPlaylist.web.tsx');
 const menu = ler('src/desktop/MenuDeContexto.web.tsx');
+// O que se faz ao escolher vive à parte desde 24/10: o menu de uma mensagem usa o mesmo.
+const porNa = ler('src/desktop/porNaPlaylist.web.ts');
 
 caso('o diálogo ao centro saiu', () => {
   assert.ok(!casca.includes('title="Add to playlist"'), 'voltou o Dialog');
@@ -34,14 +36,14 @@ caso('o botão do Now Playing abre o mesmo painel, sozinho, no botão', () => {
   assert.match(casca, /corpo=\{painelDasPlaylists\(escolhaSolta\.faixa, \(\) => setEscolhaSolta\(null\)\)\}/);
 });
 caso('com o ✓, não a põe outra vez: diz que já lá está', () => {
-  assert.match(casca, /if \(jaLaEsta\) \{ notify\(`Already in \$\{p\.name\}\.`\); return; \}/);
+  assert.match(porNa, /if \(jaLaEsta\) \{ notify\(`Already in \$\{p\.name\}\.`\); return; \}/);
 });
 caso('criar põe a música lá, e a lista das Playlists sabe já da nova', () => {
-  assert.match(casca, /const p = await createPlaylist\(nome\);\n\s+await addTracksToPlaylist\(p\.id, \[t\]\);\n[\s\S]{0,160}carregar\(true\)/);
+  assert.match(porNa, /const p = await createPlaylist\(nome\);\n\s+await addTracksToPlaylist\(p\.id, \[t\]\);\n[\s\S]{0,160}carregar\(true\)/);
 });
 caso('os erros pela frase legível', () => {
-  assert.match(casca, /notify\(mensagemDeErro\(e, 'Could not add to the playlist\.'\)\)/);
-  assert.match(casca, /notify\(mensagemDeErro\(e, 'Could not create the playlist\.'\)\)/);
+  assert.match(porNa, /notify\(mensagemDeErro\(e, 'Could not add to the playlist\.'\)\)/);
+  assert.match(porNa, /notify\(mensagemDeErro\(e, 'Could not create the playlist\.'\)\)/);
 });
 
 caso('as marcas ✓ pelas regras da folha do iPhone, só da abertura de agora', () => {

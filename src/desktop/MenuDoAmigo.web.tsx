@@ -16,7 +16,7 @@ import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { usePlayer } from '../state/player';
 import { useSaved } from '../state/saved';
 import { useSocial } from '../state/social';
-import type { Route } from './rotas';
+import { useDestinos } from '../navigation/destinos';
 import { COR, FONT } from './tokens.web';
 import { Button, Dialog } from './ui.web';
 import { novaEscolha } from '../lib/ultimaEscolha';
@@ -30,21 +30,26 @@ const LARGURA = 280;
  * O menu do botão direito num amigo da lateral (2/10, maquete
  * `docs/mensagens-e-menu-do-amigo.html`). Abre onde está o rato; as regras
  * (que ações, por que ordem, com que nome) vivem em `lib/menuDoAmigo.ts`.
+ * Desde 24/10 abre também na página Social, nos participantes da Jam e no
+ * perfil de um amigo (`components/MenuDoAmigoNoPc.web.tsx`): por isso navega
+ * pelo `useDestinos`, e não por uma rota da lateral.
  *
  * Fecha com um clique fora, Esc, a roda do rato, ou a janela a perder o foco.
  * Enquanto está aberto, os atalhos da janela (espaço, setas) ficam parados:
  * as setas são do menu.
  */
-export function MenuDoAmigo({ amigo, sessaoDele, rato, aoFechar, aoPedirRemover, navigate, notify }: {
+export function MenuDoAmigo({ amigo, sessaoDele, rato, aoFechar, aoPedirRemover, notify, naTuaJam = false }: {
   amigo: Friendship;
   /** O Jam aberto dele, se houver. */
   sessaoDele: string | null;
   rato: { x: number; y: number };
   aoFechar: () => void;
   aoPedirRemover: (a: Friendship) => void;
-  navigate: (r: Route) => void;
   notify: (texto: string) => void;
+  /** Ele está na tua Jam (um participante): sem "ouvir com" nem "convidar". */
+  naTuaJam?: boolean;
 }) {
+  const { irPara } = useDestinos();
   const nome = amigo.name || amigo.username || 'your friend';
   const faixa = useMemo(() => faixaDoAmigo(amigo.currentlyPlaying), [amigo.currentlyPlaying]);
   const guardadas = useSaved((s) => s.keys);
@@ -53,7 +58,7 @@ export function MenuDoAmigo({ amigo, sessaoDele, rato, aoFechar, aoPedirRemover,
   const atalhos = useAtalhosDaLateral((s) => s.lista);
   const fixado = estaFixado(atalhos, `amigo:${amigo.friendId}`);
   const faixaGuardada = !!faixa && guardadas.has(`${faixa.source}:${faixa.sourceId}`);
-  const linhas = opcoesDoMenuDoAmigo({ nome, faixa: faixa ? { titulo: faixa.title } : null, temJam: !!sessaoDele, faixaGuardada, estouNumJam, tenhoFaixa, fixado });
+  const linhas = opcoesDoMenuDoAmigo({ nome, faixa: faixa ? { titulo: faixa.title } : null, temJam: !!sessaoDele, faixaGuardada, estouNumJam, tenhoFaixa, fixado, naTuaJam });
 
   const executar = async (id: AcaoDoAmigo) => {
     aoFechar();
@@ -83,10 +88,10 @@ export function MenuDoAmigo({ amigo, sessaoDele, rato, aoFechar, aoPedirRemover,
           window.dispatchEvent(new Event('duotone:refresh-library'));
           break;
         case 'mensagem':
-          navigate({ name: 'social', friendId: amigo.friendId });
+          irPara({ tipo: 'conversa', kind: 'friend', id: amigo.friendId });
           break;
         case 'perfil':
-          navigate({ name: 'friend-profile', userId: amigo.friendId });
+          irPara({ tipo: 'perfil', userId: amigo.friendId });
           break;
         case 'mistura': {
           const eu = useAuth.getState().session?.user?.id;

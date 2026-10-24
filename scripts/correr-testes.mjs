@@ -188,6 +188,7 @@ const TESTES = [
   'scripts/test-botao-direito-pc.mjs',
   'scripts/test-menu-do-texto.cjs',
   `${RESOLVER} scripts/test-menu-do-artista.ts`,
+  `${RESOLVER} scripts/test-menu-da-mensagem.ts`,
   `${TS} scripts/test-letra-minima.ts`,
   `${TS} scripts/test-escalas.ts`,
   `${TS} scripts/test-estados-dos-controlos.ts`,

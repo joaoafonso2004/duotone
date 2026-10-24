@@ -69,14 +69,19 @@ export type SituacaoDoAmigo = {
    * longo de um amigo no Social do iPhone). Sem nada, PC.
    */
   plataforma?: 'ios' | 'pc';
+  /**
+   * Ele está na mesma Jam que tu (o botão direito num participante, 24/10):
+   * ouvir com ele e convidá-lo para a Jam já não dizem nada.
+   */
+  naTuaJam?: boolean;
 };
 
 export function opcoesDoMenuDoAmigo(s: SituacaoDoAmigo): LinhaDoMenuDoAmigo[] {
   const linhas: LinhaDoMenuDoAmigo[] = [];
   // A música dele só existe se ele estiver a ouvir alguma coisa.
   if (s.faixa) {
+    if (!s.naTuaJam) linhas.push({ id: 'ouvir', rotulo: s.temJam ? `Join ${s.nome}'s Jam` : `Listen along with ${s.nome}`, icone: 'headset-outline' });
     linhas.push(
-      { id: 'ouvir', rotulo: s.temJam ? `Join ${s.nome}'s Jam` : `Listen along with ${s.nome}`, icone: 'headset-outline' },
       { id: 'tocar', rotulo: 'Play this song', icone: 'play-outline' },
       { id: 'fila', rotulo: 'Add to queue', icone: 'list-outline' },
       { id: 'gostar', rotulo: s.faixaGuardada ? 'Remove from Liked Songs' : 'Add to Liked Songs', icone: s.faixaGuardada ? 'heart' : 'heart-outline' },
@@ -86,8 +91,8 @@ export function opcoesDoMenuDoAmigo(s: SituacaoDoAmigo): LinhaDoMenuDoAmigo[] {
     { id: 'mensagem', rotulo: 'Send message', icone: 'chatbubble-outline', inicioDeGrupo: true },
     { id: 'perfil', rotulo: 'View profile', icone: 'person-outline' },
     { id: 'mistura', rotulo: 'Play a mix of you two', icone: 'git-merge-outline' },
-    { id: 'jam', rotulo: s.estouNumJam ? 'Invite to your Jam' : `Start a Jam with ${s.nome}`, icone: 'people-circle-outline' },
   );
+  if (!s.naTuaJam) linhas.push({ id: 'jam', rotulo: s.estouNumJam ? 'Invite to your Jam' : `Start a Jam with ${s.nome}`, icone: 'people-circle-outline' });
   if (s.tenhoFaixa) linhas.push({ id: 'partilhar', rotulo: "Send what you're playing", icone: 'paper-plane-outline' });
   if (s.plataforma !== 'ios') linhas.push({ id: 'fixar', rotulo: s.fixado ? 'Unpin from sidebar' : 'Pin to sidebar', icone: s.fixado ? 'pin' : 'pin-outline', inicioDeGrupo: true });
   linhas.push({ id: 'remover', rotulo: 'Remove friend', icone: 'person-remove-outline', perigo: true, inicioDeGrupo: s.plataforma === 'ios' });

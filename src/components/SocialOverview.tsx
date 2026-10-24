@@ -45,7 +45,8 @@ interface Props {
   onTrack: (track: Track) => void;
   onRemoveFriend: (id: string) => void;
   /** O menu de um amigo no toque longo (iPhone, 5/10); sem ele, o toque longo pede para o remover. */
-  onFriendMenu?: (id: string, ancora: { x: number; y: number; width: number; height: number }) => void;
+  /** `e`: o evento do botão direito, no PC (SocialOverview.web.tsx). */
+  onFriendMenu?: (id: string, ancora: { x: number; y: number; width: number; height: number }, e?: any) => void;
   onDeleteConversation: (id: string) => void;
   onStart: () => void;
 }

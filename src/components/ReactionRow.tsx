@@ -4,11 +4,12 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import type {Reaction} from '../api/social';
 import {hapticSelection} from '../lib/haptics';
 import {duploToque} from '../lib/duploToque';
+import {REACOES_RAPIDAS} from '../lib/menuDaMensagem';
 import {colors,radii} from './socialTokens';
 import {socialStyles as s} from './socialUI';
 
-/** As primeiras da fila. As restantes vêm do teclado do sistema, pelo `+`. */
-const RAPIDAS=['❤️','😂','🔥','😮','😢','👍'];
+/** As primeiras da fila (as mesmas do menu do botão direito no PC). As restantes vêm do teclado do sistema, pelo `+`. */
+const RAPIDAS=REACOES_RAPIDAS;
 
 /** Quanto se arrasta para a esquerda até a resposta ficar armada, e o máximo. */
 const LIMIAR_DA_RESPOSTA=56;
@@ -35,8 +36,13 @@ const ARRASTO_MAXIMO=72;
  * espalhar os `panHandlers` no próprio Pressable substituía os dele e matava o
  * toque longo.
  */
-export function MessageBubble({own,aberto,onAbrir,onResponder,onDuploToque,style,children,rotulo}:{
+export function MessageBubble({own,aberto,onAbrir,onResponder,onDuploToque,onMenu,style,children,rotulo}:{
   own:boolean; aberto:boolean; onAbrir:()=>void; onResponder?:()=>void;
+  /**
+   * O botão direito no PC (24/10): o menu da mensagem (`MenuDaMensagem.web.tsx`).
+   * Com texto selecionado no balão fica para o Copy do Windows.
+   */
+  onMenu?:(e:any)=>void;
   /** Dois toques põem ❤️ (9/10), como na capa do leitor. */
   onDuploToque?:()=>void;
   style:any; rotulo:string; children:React.ReactNode;
@@ -72,6 +78,10 @@ export function MessageBubble({own,aberto,onAbrir,onResponder,onDuploToque,style
     <Pressable delayLongPress={280} onLongPress={onAbrir}
       onPress={onDuploToque?()=>{const agora=Date.now();if(duploToque(ultimoToque.current,agora)){ultimoToque.current=0;hapticSelection();onDuploToque();}else ultimoToque.current=agora;}:undefined}
       onHoverIn={()=>setSobre(true)} onHoverOut={()=>setSobre(false)}
+      {...(web&&onMenu?{onContextMenu:(e:any)=>{
+        if((globalThis as any).getSelection?.()?.toString().trim())return;
+        e.preventDefault();onMenu(e);
+      }}:{}) as any}
       accessibilityLabel={rotulo}
       accessibilityActions={onResponder?[{name:'reply',label:'Reply'}]:undefined}
       onAccessibilityAction={e=>{if(e.nativeEvent.actionName==='reply')onResponder?.();}}

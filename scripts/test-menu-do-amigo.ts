@@ -60,6 +60,15 @@ for (const rato of [{ x: 0, y: 0 }, { x: 1280, y: 800 }, { x: 640, y: 799 }]) {
   check(`sempre dentro da janela (${rato.x},${rato.y})`, p.x >= 8 && p.y >= 8 && p.x + 280 <= 1272 && p.y + 420 <= 792, JSON.stringify(p));
 }
 
+console.log('\num participante da tua Jam (24/10)');
+{
+  const naJam = opcoesDoMenuDoAmigo({ nome: 'Ana', faixa: { titulo: 'Sky' }, temJam: true, faixaGuardada: false, estouNumJam: true, tenhoFaixa: true, fixado: false, naTuaJam: true });
+  const deles = naJam.map((l) => l.id);
+  check('sem "ouvir com" nem "convidar para a Jam": já está nela', !deles.includes('ouvir') && !deles.includes('jam'), deles.join(','));
+  check('o resto fica (tocar a música dele, mensagem, perfil, remover)', ['tocar', 'mensagem', 'perfil', 'remover'].every((i) => deles.includes(i)), deles.join(','));
+  check('a primeira linha não leva separador', !naJam[0]!.inicioDeGrupo);
+}
+
 console.log('\no painel de uma linha (o "Add to playlist ›" do PC, 24/10)');
 const painel = { largura: 280, altura: 360 };
 const s1 = posicaoDoSubmenu({ topo: 200 }, { esquerda: 100, direita: 380 }, painel, janela);
