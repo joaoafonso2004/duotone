@@ -36,7 +36,9 @@ import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { useTheme } from '../state/theme';
 import { styles } from './estilos.web';
 import { COR, cssDasFontes, ESTADO, FONT, RAIO } from './tokens.web';
-import { Artwork, comDica, formatTime, IconButton, ui, marcar, useProcurarAoLargar } from './ui.web';
+import { ANEL_DO_REFRAO, Artwork, comDica, formatTime, IconButton, ui, marcar, useProcurarAoLargar } from './ui.web';
+import { PRE_ESCUTA_S } from '../lib/refrao';
+import { usePontoNaBarra } from '../state/refrao';
 import { dentesDaTecla, valorDaProcura } from '../lib/acessibilidadeDoPc';
 import { PRIMARY, type Route } from './rotas';
 import { IndicadorDeVisibilidade } from './IndicadorDeVisibilidade.web';
@@ -106,6 +108,15 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="calha"]:hover [data-dt~="pega"] {
       transform: translate(-50%, -50%) scale(1);
     }
+    /* A risca do refrao (25/10, so com a opcao ligada): dois pixeis meio
+       apagados; com o rato na barra acende e diz "Chorus". */
+    [data-dt~="marca-do-refrao"]{ position: absolute; top: 50%; width: 2px; height: 8px; border-radius: 1px;
+      transform: translate(-50%, -50%); background-color: rgba(233,234,238,.42); pointer-events: none;
+      transition: background-color var(--dt-rapido) var(--dt-curva); }
+    [data-dt~="marca-rotulo"]{ position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+      opacity: 0; transition: opacity var(--dt-rapido) var(--dt-curva); white-space: nowrap; }
+    [data-dt~="calha"]:hover [data-dt~="marca-do-refrao"]{ background-color: rgba(233,234,238,.85); }
+    [data-dt~="calha"]:hover [data-dt~="marca-rotulo"]{ opacity: 1; }
     /* Os sliders com o foco do teclado (20/10): o anel, e a pega e o cheio
        acesos como no hover -- sem eles nao se via o que as setas mexiam. O
        arrasto nao foca (o mousedown faz preventDefault), por isso isto e so
@@ -395,6 +406,24 @@ export function injectDesktopDocumentStyles() {
     @keyframes dt-mola { to { background-size: 100% 100%; } }
     @media (prefers-reduced-motion: reduce) { [data-largar="mola"]{ background-size: 100% 100%; } }
 
+    /* O auscultador do refrao primeiro (25/10, ui.web.tsx): so com o rato no
+       cartao, e sempre enquanto e a pre-escuta dele. A preparar, respira; a
+       soar, o anel conta os 15 s. */
+    [data-dt~="refrao"]{ opacity:0; transform: scale(.88); cursor: pointer;
+      transition: opacity var(--dt-rapido) var(--dt-curva), transform var(--dt-rapido) var(--dt-curva),
+                  background-color var(--dt-rapido) var(--dt-curva); }
+    [data-dt~="cartao"]:hover [data-dt~="refrao"], [data-dt~="cartao"]:focus-within [data-dt~="refrao"],
+    [data-dt~="refrao"][data-dt~="refrao-meu"]{ opacity:1; transform:none; }
+    [data-dt~="refrao"]:hover{ background-color: rgba(6,6,8,0.86) !important; transform: scale(1.06); }
+    [data-dt~="refrao-meu"]:not([data-dt~="refrao-a-soar"]){ animation: dt-refrao-respira 900ms ease-in-out infinite alternate; }
+    @keyframes dt-refrao-respira { from { opacity: 1; } to { opacity: .55; } }
+    [data-dt~="refrao-anel"] circle{ stroke-dashoffset: 0; animation: dt-refrao-anel ${PRE_ESCUTA_S}s linear forwards; }
+    @keyframes dt-refrao-anel { to { stroke-dashoffset: ${ANEL_DO_REFRAO}; } }
+    @media (prefers-reduced-motion: reduce) {
+      [data-dt~="refrao-meu"]{ animation: none !important; }
+      [data-dt~="refrao-anel"] circle{ animation: none !important; }
+    }
+
     /* O coracao de favoritar um artista: so com o rato no cartao, e SEMPRE em
        quem ja e favorito (o "fixo"). Um coracao apagado em cada um dos
        setecentos cartoes era ruido. */
@@ -617,6 +646,8 @@ function BolinhaDeAviso() {
 function BarraDeProgresso() {
   const positionMs = usePlayer((s) => s.positionMs);
   const durationMs = usePlayer((s) => s.durationMs);
+  // A risca do refrão (25/10): só com "Chorus on the progress bar" ligada.
+  const refraoS = usePontoNaBarra(usePlayer((s) => s.current), true);
   const { arrasto, comecar, rodar, teclar } = useProcurarAoLargar();
   const ratio = arrasto ?? (durationMs ? Math.min(1, positionMs / durationMs) : 0);
   const mostradoS = (arrasto !== null ? Math.round(arrasto * durationMs) : positionMs) / 1000;
@@ -629,7 +660,9 @@ function BarraDeProgresso() {
     <V role="slider" aria-label="Seek" aria-valuemin={0} aria-valuemax={Math.round(durationMs / 1000)}
       aria-valuenow={Math.round(mostradoS)} aria-valuetext={valorDaProcura(mostradoS, durationMs / 1000)} tabIndex={0}
       onKeyDown={teclar} onMouseDown={comecar} onTouchStart={comecar} style={styles.progressHit} {...marcar('calha')}>
-      <V style={styles.progressTrack}><V style={[styles.progressFill, { width: `${ratio * 100}%` }]} {...marcar('cheio')} /></V><V {...marcar('pega')} style={{ left: `${ratio * 100}%` }} />
+      <V style={styles.progressTrack}><V style={[styles.progressFill, { width: `${ratio * 100}%` }]} {...marcar('cheio')} /></V>
+      {refraoS != null && durationMs > 0 ? <V {...marcar('marca-do-refrao')} aria-hidden style={{ left: `${Math.min(100, (refraoS * 1000 / durationMs) * 100)}%` }}><Text {...marcar('marca-rotulo')} style={styles.marcaDoRefraoRotulo}>Chorus</Text></V> : null}
+      <V {...marcar('pega')} style={{ left: `${ratio * 100}%` }} />
     </V>
     <Text style={styles.timeText}>{formatTime(durationMs / 1000)}</Text>
   </V>;

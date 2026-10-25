@@ -32,6 +32,7 @@ import { Animated, StyleSheet, View, ActivityIndicator } from 'react-native';
 import { escalaDoFundo, raioDoFundo, veuDoFundo } from '../state/transicaoDoLeitor';
 import { HandoffBanner } from '../components/HandoffBanner';
 import { PlayerRoot } from '../components/PlayerRoot';
+import { PreEscutaDoRefrao } from '../components/PreEscutaDoRefrao';
 import { Doca } from '../components/Doca';
 import { atualizarDoca } from '../state/doca';
 import { ArtistsScreen } from '../screens/ArtistsScreen';
@@ -503,6 +504,10 @@ export function RootNavigator() {
                 (e a faixa retoma), sem aviso por cima da app. */}
             <BarreiraDeErros onde="leitor" discreta>
               <PlayerRoot />
+            </BarreiraDeErros>
+            {/* O refrão primeiro (25/10): 15 s por cima do que estiver a tocar. */}
+            <BarreiraDeErros onde="refrao" discreta>
+              <PreEscutaDoRefrao />
             </BarreiraDeErros>
             {/* "A tocar no PC — continuar aqui". Fica por cima do mini-player. */}
             <HandoffBanner />

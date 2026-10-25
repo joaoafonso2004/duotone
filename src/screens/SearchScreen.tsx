@@ -43,6 +43,7 @@ import { EmptyState } from '../components/EmptyState';
 import { SkeletonDeFaixas, SkeletonDePrateleira } from '../components/Skeleton';
 import { AmigosAOuvir } from '../components/AmigosAOuvir';
 import { CartaoDaMisturaDoDia } from '../components/CartaoDaMisturaDoDia';
+import { BotaoDoRefrao } from '../components/BotaoDoRefrao';
 import { NovosLancamentos } from '../components/NovosLancamentos';
 import { legendaDoLancamento } from '../lib/novosLancamentos';
 import { EscolherArtistas } from '../components/EscolherArtistas';
@@ -443,6 +444,7 @@ export function SearchScreen() {
                     key={`${track.source}:${track.sourceId}`}
                     track={track}
                     mostrarDuracao={false}
+                    refrao
                     onPress={() => tocarMusica(track, data, true, contextoDe(track))}
                     onAction={() => abrirAcoes(track)}
                   />
@@ -521,6 +523,7 @@ export function SearchScreen() {
                     <Text style={styles.seloTexto}>{selo}</Text>
                   </View>
                 ) : null}
+                <BotaoDoRefrao track={track} forma="capa" />
               </View>
               <Text numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA.lista} style={styles.cardTitle}>
                 {tituloDaFaixa(track)}

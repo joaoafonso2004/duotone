@@ -61,6 +61,7 @@ contextBridge.exposeInMainWorld('duotoneDesktop', Object.freeze({
   pesquisarCancoes: (pedido) => ipcRenderer.invoke('ytmusic:pesquisa', pedido),
   /** As musicas de um Mix do YouTube (`RD...`), pelo processo principal. Leva so o id. */
   lerMixDoYouTube: (pedido) => ipcRenderer.invoke('yt:mix', pedido),
+  lerRefraoDoYouTube: (pedido) => ipcRenderer.invoke('yt:refrao', pedido),
   /** A pagina de um artista no YouTube Music (os albuns dele). Leva so o canal. */
   lerArtistaDoYtMusic: (pedido) => ipcRenderer.invoke('ytmusic:artista', pedido),
   /** O Mix de um artista (a radio do canal no YouTube Music). Leva so o id, o video e os params. */

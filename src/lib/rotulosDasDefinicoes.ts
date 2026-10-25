@@ -12,6 +12,7 @@ export const ROTULOS = {
   smartShuffle: 'Smart shuffle',
   crossfade: 'Crossfade',
   automix: 'AutoMix',
+  refraoNaBarra: 'Chorus on the progress bar',
   velocidade: 'Playback speed',
   temporizador: 'Sleep timer',
   autoplay: 'Autoplay similar music',

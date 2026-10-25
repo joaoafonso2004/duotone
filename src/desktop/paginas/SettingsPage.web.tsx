@@ -51,7 +51,8 @@ import { usePresets } from '../../state/presets';
 import { chaveDaFaixa, PLANO } from '../../lib/equalizer';
 import { getCorNaJanela, getDiscordRichPresence, setCorNaJanela, setCrossfadeSegundos, setDiscordRichPresence, setIntensidadeDoSmartShuffle, type CorDoLeitor } from '../../lib/prefs';
 import { DURACOES_DO_CROSSFADE, type DuracaoDoCrossfade } from '../../lib/crossfade';
-import { efeitoDoCrossfade, efeitoDoDiscord, efeitoDoPadrao, efeitoDoRadio, efeitoDoRecomendado, efeitoDoSmartShuffle, efeitoDoTemporizador } from '../../lib/efeitoDasDefinicoes';
+import { efeitoDaMarcaDoRefrao, efeitoDoCrossfade, efeitoDoDiscord, efeitoDoPadrao, efeitoDoRadio, efeitoDoRecomendado, efeitoDoSmartShuffle, efeitoDoTemporizador } from '../../lib/efeitoDasDefinicoes';
+import { lerMarcaDoRefrao, ligarMarcaDoRefrao, useMarcaDoRefrao } from '../../state/refrao';
 import { useEstadoDoDiscord } from '../../hooks/usePresencaDoDiscord';
 import { usePrivacidade } from '../../state/privacidade';
 import { getLibrary } from '../../api/library';
@@ -212,7 +213,11 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   const smartLigado = usePlayer((s) => s.shuffle && s.shuffleInteligente);
   const estadoDoDiscord = useEstadoDoDiscord((s) => s.estado);
   const privada = usePrivacidade((s) => s.privada);
+  // A risca do refrão na barra do leitor (25/10, desligada de origem).
+  const marcaDoRefrao = useMarcaDoRefrao((s) => s.ligada);
+  useEffect(lerMarcaDoRefrao, []);
   const efeitos = {
+    refrao: efeitoDaMarcaDoRefrao({ ligada: marcaDoRefrao }),
     smart: efeitoDoSmartShuffle({ intensidade: intensidadeSmart, ligado: smartLigado }),
     discord: efeitoDoDiscord({ ligado: discordOn, privada, estado: estadoDoDiscord }),
     radio: efeitoDoRadio({ ligado: autoplayRadio, aTocarRadio: radioActivo }),
@@ -407,6 +412,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                   onChange={(v) => { const d = Number(v) as DuracaoDoCrossfade; usePlayer.setState({ crossfadeSegundos: d }); void setCrossfadeSegundos(d); }}
                   efeito={efeitos.crossfade} />
                 <ToggleLine label={ROTULOS.autoplay} description="When the queue ends, keep playing music like it instead of stopping." value={autoplayRadio} onChange={(v) => { usePlayer.getState().setAutoplayRadio(v); persistAutoplayRadio(v); }} efeito={efeitos.radio} />
+                <ToggleLine label={ROTULOS.refraoNaBarra} description="A thin mark where the chorus starts." value={marcaDoRefrao} onChange={ligarMarcaDoRefrao} efeito={efeitos.refrao} />
                 <ChoiceLine label={ROTULOS.temporizador} value={sleepChoice} choices={[['0', 'Off'], ['15', '15 min'], ['30', '30 min'], ['45', '45 min'], ['60', '60 min'], ['fim', 'End of track']]} onChange={(v) => (v === 'fim' ? usePlayer.getState().setSleepTimerNoFimDaFaixa() : usePlayer.getState().setSleepTimer(Number(v)))} efeito={efeitos.temporizador} />
                 <View style={[styles.settingLine, { flexDirection: 'column', alignItems: 'stretch', gap: ESP.md }]}>
                   <View>

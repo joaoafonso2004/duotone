@@ -20,6 +20,7 @@ for (const antes of [10, 30, 64, 80, 100]) {
 // Nenhum sítio do motor do PC manda o volume da loja cru ao player.
 const motor = readFileSync(new URL('../src/components/YouTubePlayerView.web.tsx', import.meta.url), 'utf8');
 assert.doesNotMatch(motor, /setVolume\??\.?\((?:state|st|usePlayer\.getState\(\))\.volume\)/, 'um volume cru escapou à curva');
-assert.match(motor, /const volume = volumeParaOMotor\(vol\);/, 'a barra e a roda do rato passam pela curva');
+// Pela curva, e depois o abafo da pré-escuta do refrão (25/10: 1 sem ela).
+assert.match(motor, /const volume = abafado\(volumeParaOMotor\(vol\)\);/, 'a barra e a roda do rato passam pela curva');
 assert.match(motor, /ativo\?\.setVolume\(volume\);/, 'e é esse o volume que chega ao player');
 console.log('Curva do volume: mesmo máximo, -12 dB a meio, sem calar acima do zero, e a mesma altura na primeira vez.');

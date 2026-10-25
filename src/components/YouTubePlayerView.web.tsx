@@ -18,6 +18,7 @@ import { primeiraNota } from '../lib/tocarEnquantoDescarrega';
 import { miniLeitorEstaAberto } from '../desktop/usePonteDoLeitor.web';
 import type { Track } from '../types';
 import { volumeParaOMotor } from '../lib/curvaDoVolume';
+import { abafoDoRefrao, seguirOAbafo } from '../state/refrao';
 import { acertoNoPrimeiroSom, posicaoDaSalaParaFaixa } from '../lib/arranqueDaSala';
 import { TOLERANCIA_MS } from '../lib/sincronizacao';
 import { registarNaFila } from '../lib/playbackDiagnostics';
@@ -223,6 +224,14 @@ function posicaoNaSala(faixa: Pick<Track, 'source' | 'sourceId'>): number | null
  *   principal que não o faça (`naoEstrangular`), e devolve-se depois.
  * - Dentro de um Jam não há crossfade: manda a posição partilhada.
  */
+/**
+ * O volume do motor com a pré-escuta do refrão a soar por cima (25/10,
+ * `state/refrao.ts`): mais baixo, sem nunca calar o que não estava calado.
+ */
+function abafado(volume: number): number {
+  return volume > 0 ? Math.max(1, Math.round(volume * abafoDoRefrao())) : 0;
+}
+
 export function YouTubePlayerView({ track }: { track: Track }) {
   const hostA = useRef(`duotone-player-${Math.random().toString(36).slice(2)}`);
   const hostB = useRef(`duotone-player-${Math.random().toString(36).slice(2)}`);
@@ -277,7 +286,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     // do mudo: cada música nova da Jam saía do alinhamento alta. Com o volume
     // a 0 fica calada; com outro, volta a ser o da barra.
     const st = usePlayer.getState();
-    const volume = volumeParaOMotor(st.volume * (st.closeGain ?? 1));
+    const volume = abafado(volumeParaOMotor(st.volume * (st.closeGain ?? 1)));
     try {
       const p = ativoRef.current;
       if (volume > 0) p?.unMute?.();
@@ -293,6 +302,13 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     notaRef.current = usePlayer.getState().autoplayOnLoad ? { id: track.sourceId, em: Date.now() } : null;
   }, [track.sourceId]);
   const querTocar = usePlayer((s) => s.isPlaying);
+  // A pré-escuta do refrão a começar ou a acabar: o volume volta a pôr-se. A
+  // meio de uma passagem não, que é ela que o põe a cada passo (já abafado).
+  useEffect(() => seguirOAbafo(() => {
+    if (passagemRef.current) return;
+    const st = usePlayer.getState();
+    st._yt?.setVolume?.(st.volume * (st.closeGain ?? 1));
+  }), []);
 
   // Ao restaurar a janela, não esperar pelos cinco segundos do ritmo de
   // background para atualizar a barra e a posição da sessão.
@@ -489,7 +505,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (passagem) {
       const decorrido = decorridoDaPassagem({ ...c, duracaoDoFade: passagem.fade });
       if (decorrido < -0.5 || c.repeatUma) { abortarPassagem(true); return null; }
-      const volume = volumeParaOMotor(st.volume);
+      const volume = abafado(volumeParaOMotor(st.volume));
       const v = volumesDoCrossfade(decorrido, passagem.fade, volume, volume);
       const entra = Math.max(VOLUME_MINIMO_DA_QUE_ENTRA, Math.round(v.entra));
       try { ativoRef.current?.setVolume?.(Math.round(v.sai)); } catch {}
@@ -759,7 +775,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
               setVolume: (vol) => {
                 try {
                   // A barra numa curva de ouvido (16/10, lib/curvaDoVolume.ts).
-                  const volume = volumeParaOMotor(vol);
+                  const volume = abafado(volumeParaOMotor(vol));
                   const ativo = ativoRef.current;
                   // Subir o volume tira o mudo do player (24/10, João: "na jam
                   // dou mute, dou skip, e quando aumento o volume não dá som").

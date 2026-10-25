@@ -49,6 +49,9 @@ const TABELA = [
     leitores: [['src/lib/radioSync.ts', /s\.autoplayRadio/]] },
   { opcao: 'AutoMix', escreve: ['setAutomix'],
     leitores: [['src/components/YouTubePlayerView.tsx', /st\.automix && temAutomixNativo/]] },
+  // Escrita pela store (`ligarMarcaDoRefrao`), lida pelas duas barras do leitor.
+  { opcao: 'Chorus on the progress bar', escreve: ['setRefraoNaBarra'],
+    leitores: [['src/desktop/casca.web.tsx', /usePontoNaBarra\(/], ['src/components/PlayerRoot.tsx', /usePontoNaBarra\(/]] },
   { opcao: 'Keep screen awake', escreve: ['setKeepAwake'],
     leitores: [['App.tsx', /getKeepAwake\(/]] },
   { opcao: 'Show track duration', escreve: ['setShowTrackDuration', 'setShowTrackDurationCache'],

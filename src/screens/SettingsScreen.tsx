@@ -10,6 +10,7 @@ import { useOfflineMode } from '../hooks/useOfflineMode';
 import { removeOwnProfileMedia } from '../lib/profileMedia';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, {useEffect, useMemo, useState, useRef } from 'react';
+import { lerMarcaDoRefrao, ligarMarcaDoRefrao, useMarcaDoRefrao } from '../state/refrao';
 import { Alert, Animated, StyleSheet, Text, View, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
@@ -23,7 +24,7 @@ import { clearStreamMemo, clearVisitorData, streamEmMemoria } from '../api/ytstr
 import {
   efeitoDaNormalizacao, efeitoDaQualidade, efeitoDeLimparACache, efeitoDeManterOEcra,
   efeitoDoCrossfade, efeitoDoSmartShuffle, efeitoDoGostoDoSpotify, efeitoDoPadrao, efeitoDoRadio,
-  efeitoDoAutomix, efeitoDoRecomendado, efeitoDoTemporizador,
+  efeitoDoAutomix, efeitoDoRecomendado, efeitoDoTemporizador, efeitoDaMarcaDoRefrao,
 } from '../lib/efeitoDasDefinicoes';
 import { temAutomixNativo } from '../../modules/duotone-audio';
 import { estadoDeEnergia } from '../../modules/duotone-diagnostico';
@@ -255,6 +256,10 @@ export function SettingsScreen({ navigation }: Props) {
     void setAutomix(v);
   };
 
+  // A risca do refrão na barra do Now Playing (25/10, desligada de origem).
+  const marcaDoRefrao = useMarcaDoRefrao((s) => s.ligada);
+  useEffect(lerMarcaDoRefrao, []);
+
   const toggleAutoplayRadio = async (v: boolean) => {
     setAutoplayRadio(v);
     hapticSelection();
@@ -383,6 +388,7 @@ export function SettingsScreen({ navigation }: Props) {
     }),
     crossfade: efeitoDoCrossfade({ segundos: crossfade, repeatUma }),
     automix: efeitoDoAutomix({ ligado: automix, crossfadeS: crossfade, aPoupar: quantoPoupar(estadoDeEnergia()) === 'tudo' }),
+    refrao: efeitoDaMarcaDoRefrao({ ligada: marcaDoRefrao }),
     velocidade: efeitoDoPadrao({
       tipo: 'velocidade', temFaixa: !!atual,
       temAjusteProprio: !!ajusteDaFaixa && ajusteDaFaixa.rate !== null,
@@ -495,6 +501,10 @@ export function SettingsScreen({ navigation }: Props) {
           {temAutomixNativo ? (
             <LinhaInterruptor icone="pulse" rotulo={ROTULOS.automix} valor={automix} aoMudar={toggleAutomix} />
           ) : null}
+        </Grupo>
+        <Grupo rodape={efeitos.refrao}>
+          <LinhaInterruptor icone="flag-outline" rotulo={ROTULOS.refraoNaBarra} valor={marcaDoRefrao}
+            aoMudar={(v) => { hapticSelection(); ligarMarcaDoRefrao(v); }} />
         </Grupo>
         <Grupo rodape={efeitos.velocidade}>
           <LinhaAlta icone="speedometer-outline" rotulo={ROTULOS.velocidade}>

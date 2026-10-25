@@ -91,6 +91,8 @@ interface Props {
   aVista?: boolean;
   /** A pista com o dobro da espessura (10/10, personalização: "Thick"). */
   grossa?: boolean;
+  /** Onde começa o refrão, em segundos (25/10): só com a opção ligada. */
+  refraoS?: number | null;
 }
 
 /**
@@ -163,7 +165,7 @@ function useTempoRestante(): [boolean, () => void] {
  * Um gesto com `Animated.event` nativo não entrega os movimentos ao JavaScript,
  * e por isso são dois e não um.
  */
-export function ProgressBar({ positionMs, durationMs, aTocar = false, ritmo = 1, onSeek, onScrubbingChange, faixa = null, aVista = true, grossa = false }: Props) {
+export function ProgressBar({ positionMs, durationMs, aTocar = false, ritmo = 1, onSeek, onScrubbingChange, faixa = null, aVista = true, grossa = false, refraoS = null }: Props) {
   const [width, setWidth] = useState(0);
   const reduzido = useReducedMotion();
   /**
@@ -400,6 +402,12 @@ export function ProgressBar({ positionMs, durationMs, aTocar = false, ritmo = 1,
                 <Animated.View style={[styles.track, grossa && styles.trackGrossa, { transform: [{ scaleY: espessura }] }]}>
                   <Animated.View style={[styles.fill, grossa && styles.fillGrossa, { width, transform: [{ translateX: avancoDoPreenchimento }] }]} />
                 </Animated.View>
+                {/* A risca do refrão (25/10, "Chorus on the progress bar"):
+                    fina e meio apagada, por baixo do botão. */}
+                {refraoS != null && durationMs > 0 ? (
+                  <View pointerEvents="none" style={[styles.marcaDoRefrao, grossa && styles.marcaDoRefraoGrossa,
+                    { left: `${Math.min(100, (refraoS * 1000 / durationMs) * 100)}%` }]} />
+                ) : null}
                 <Animated.View
                   style={[
                     styles.knob,
@@ -484,6 +492,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   trackGrossa: { height: 8, borderRadius: 4 },
+  marcaDoRefrao: {
+    position: 'absolute', width: 2, height: 8, marginLeft: -1, borderRadius: 1,
+    backgroundColor: 'rgba(255,255,255,0.42)',
+  },
+  marcaDoRefraoGrossa: { height: 12 },
   fillGrossa: { borderRadius: 4 },
   fill: {
     position: 'absolute',

@@ -155,7 +155,7 @@ assert.equal(acertoNoPrimeiroSom(3400, NaN, 600), null, 'sem leitura do motor n�
   // E devolve-o no volume da barra (23/10): o mudo do PC é o volume 0, e o
   // `unMute` do YouTube punha o de antes -- a música seguinte da Jam tocava alta.
   const soltar = pc.slice(pc.indexOf('const soltarAlinhamento = useCallback'), pc.indexOf('const comecarAlinhamento = useCallback'));
-  assert.match(soltar, /const volume = volumeParaOMotor\(st\.volume \* \(st\.closeGain \?\? 1\)\);/, 'o volume da barra');
+  assert.match(soltar, /const volume = abafado\(volumeParaOMotor\(st\.volume \* \(st\.closeGain \?\? 1\)\)\);/, 'o volume da barra');
   assert.match(soltar, /if \(volume > 0\) p\?\.unMute\?\.\(\);\n\s+p\?\.setVolume\?\.\(volume\);/, 'em mudo fica calada; senão, o volume volta depois do unMute');
   assert.doesNotMatch(soltar, /ativoRef\.current\?\.unMute\?\.\(\); \} catch/, 'nada de unMute sem volume');
   // E subir o volume da barra tira esse mudo (24/10): em mudo, a música seguinte

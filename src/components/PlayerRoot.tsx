@@ -52,6 +52,7 @@ import { hapticImpact, hapticNotification, hapticSelection } from '../lib/haptic
 import { setRepeatMode as persistRepeatMode } from '../lib/prefs';
 import { savedKey, useSaved } from '../state/saved';
 import { contextoDaRecomendacaoAtual, usePlayer } from '../state/player';
+import { usePontoNaBarra } from '../state/refrao';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import { useTheme } from '../state/theme';
 import { useShallow } from 'zustand/react/shallow';
@@ -2317,7 +2318,9 @@ function BarraDoLeitor(props: Pick<React.ComponentProps<typeof ProgressBar>, 'on
   // Fechar o leitor ou mudar de faixa larga um arrasto preso (6/10).
   const aberto = usePlayer((s) => s.expanded);
   const faixa = usePlayer((s) => s.current?.sourceId ?? null);
-  return <ProgressBar positionMs={positionMs} durationMs={durationMs} aTocar={aVista} ritmo={ritmo} faixa={faixa} aVista={aberto} {...props} />;
+  // A risca do refrão (25/10): só com a opção ligada, e só pede com o leitor aberto.
+  const refraoS = usePontoNaBarra(usePlayer((s) => s.current), aberto);
+  return <ProgressBar positionMs={positionMs} durationMs={durationMs} aTocar={aVista} ritmo={ritmo} faixa={faixa} aVista={aberto} refraoS={refraoS} {...props} />;
 }
 
 /**

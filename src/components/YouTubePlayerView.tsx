@@ -45,6 +45,7 @@ import {
   registarNaFila, registarNoStream, sinalDoErro, type TipoFalha,
 } from '../lib/playbackDiagnostics';
 import { baseDoEq, ganhosEmVigor, usePlayer } from '../state/player';
+import { abafoDoRefrao, seguirOAbafo } from '../state/refrao';
 import { useSaudeDaReproducao } from '../state/saudeDaReproducao';
 import { aoTocar as ajusteAoTocar, chaveDaFaixa, compensacaoLinear } from '../lib/equalizer';
 import { arredondar as arredondarRate } from '../lib/playbackRate';
@@ -2351,6 +2352,15 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     return () => clearInterval(id);
   }, [backend, track.durationSeconds, track.sourceId, repeatMode, player, onStateChange]);
 
+  // A pré-escuta do refrão (25/10, state/refrao.ts): a música que toca fica
+  // mais baixa por baixo dela, e volta no fim. Com as guardas do teto, logo
+  // abaixo: nem a meio de um fade, de uma passagem ou do fecho, nem na que sai.
+  useEffect(() => seguirOAbafo(() => {
+    if (backend !== 'native' || mantidoVivoRef.current || fadeIntervalRef.current || passagemRef.current) return;
+    if (usePlayer.getState().closing) return;
+    try { motorActivo().volume = ceilingRef.current * abafoDoRefrao(); } catch {}
+  }), [backend]);
+
   // Ligar/desligar a normalização nas Definições aplica-se já, sem esperar
   // pela faixa seguinte.
   //
@@ -2365,7 +2375,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     // teto novo à mesma.
     if (!fadeIntervalRef.current && !passagemRef.current && !usePlayer.getState().closing) {
       try {
-        player.volume = ceiling;
+        player.volume = ceiling * abafoDoRefrao();
       } catch {
         // player sem fonte — ignorar
       }

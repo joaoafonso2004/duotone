@@ -117,6 +117,8 @@ export function PrateleiraScreen({ route }: Props) {
             <TrackRow
               track={item}
               showSavedBadge
+              // As duas prateleiras de descoberta: música que ainda não se conhece.
+              refrao={fonte.tipo === 'prateleira' && (fonte.nome === 'descobrir' || fonte.nome === 'nuncaLancado')}
               contextLabel={contextoDe(item).reason}
               onPress={() => tocarMusica(item, faixas, true, contextoDe(item), origemDaPrateleira(fonte, titulo))}
               onAction={() => setAberta(item)}

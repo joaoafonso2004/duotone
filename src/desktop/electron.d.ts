@@ -70,6 +70,7 @@ declare global {
       pesquisarCancoes?: (pedido: { query: string; clientVersion: string; tipo?: 'cancoes' | 'artistas' | 'albuns' | 'playlists' | 'playlistsEditoriais' }) => Promise<any>;
       /** O `next` do InnerTube para um Mix (`RD...`), pelo processo principal (28/9). */
       lerMixDoYouTube?: (pedido: { playlistId: string; clientVersion: string; videoId?: string }) => Promise<any>;
+      lerRefraoDoYouTube?: (pedido: { videoId: string; clientVersion: string }) => Promise<any>;
       /** A página de um artista no YouTube Music, para os álbuns (lib/albunsDoArtista.ts, 28/9). */
       lerArtistaDoYtMusic?: (pedido: { browseId?: string; continuation?: string; clientVersion: string }) => Promise<any>;
       /** O Mix de um artista (`RDEM...`), pelo `next` do YouTube Music (29/9). */

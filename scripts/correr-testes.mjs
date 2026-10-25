@@ -158,6 +158,8 @@ const TESTES = [
   `${TS} scripts/test-auditoria-faria-ja.ts`,
   `${TS} scripts/test-coracao-e-menus.ts`,
   `${DUPLOS} scripts/test-pedidos-ao-youtube.ts`,
+  `${TS} scripts/test-refrao.ts`,
+  `${DUPLOS} scripts/test-refrao-pre-escuta.ts`,
   `${RESOLVER} scripts/test-pedidos-ao-supabase-contados.ts`,
   `${TS} scripts/test-menu-da-playlist.ts`,
   `${RESOLVER} scripts/test-menu-do-lancamento.ts`,

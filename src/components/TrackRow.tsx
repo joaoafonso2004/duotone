@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import React, { useEffect, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Toque } from './Toque';
+import { BotaoDoRefrao } from './BotaoDoRefrao';
 import { BarrasDaFaixa } from './BarrasDaFaixa';
 import { FriendAvatar } from './FriendAvatar';
 import { ESCALA } from '../lib/movimento';
@@ -72,6 +73,8 @@ interface Props {
    * senão desfaz o memo.
    */
   quemPos?: { avatarUrl: string | null; nome: string } | null;
+  /** O auscultador do refrão primeiro (25/10): só nas listas de descoberta. */
+  refrao?: boolean;
 }
 
 /** 52 px de capa + 8 px de padding em cima e em baixo (compacta: 40 + 8 + 8, `alturaDaLinha`). */
@@ -105,6 +108,7 @@ function TrackRowComponent({
   mostrarDuracao = true,
   contextLabel,
   quemPos,
+  refrao = false,
 }: Props) {
   const theme = useTheme((s) => s.theme);
   const aTocar = usePlayer((s) =>
@@ -244,6 +248,8 @@ function TrackRowComponent({
       {mostrarDuracao && isShowTrackDurationSync() ? (
         <Text maxFontSizeMultiplier={ESCALA_MAXIMA.lista} style={styles.duration}>{formatDuration(track.durationSeconds)}</Text>
       ) : null}
+
+      {refrao && !selectMode ? <BotaoDoRefrao track={track} forma="linha" /> : null}
 
       {!selectMode && onAction ? (
         <Toque

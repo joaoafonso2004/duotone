@@ -108,6 +108,14 @@ export function efeitoDoAutomix(e: { ligado: boolean; crossfadeS: number; aPoupa
 }
 
 /**
+ * A risca do refrão na barra (25/10): só onde há dados de quem ouve -- uma
+ * música sem curva fica com a barra limpa, em vez de uma risca adivinhada.
+ */
+export function efeitoDaMarcaDoRefrao(e: { ligada: boolean }): string | null {
+  return e.ligada ? 'Marked where listeners replay most · songs without that data stay clean' : null;
+}
+
+/**
  * O EQ padrão quando é o Recommended (25/10): para que auscultadores está
  * afinado agora, e que muda com eles. Sem medição, diz que fica plano.
  */

@@ -29,9 +29,11 @@ export type TipoDePedido =
   | 'ytm-pagina'
   /** Rádios e Mix do YouTube Music (`next`). */
   | 'ytm-radio'
+  /** O ponto mais repetido de uma música, para o refrão primeiro (25/10, `next`). */
+  | 'refrao'
   | 'outro';
 
-export const TIPOS: readonly TipoDePedido[] = ['pesquisa', 'procura-de-musica', 'ytm-pesquisa', 'ytm-pagina', 'ytm-radio', 'outro'];
+export const TIPOS: readonly TipoDePedido[] = ['pesquisa', 'procura-de-musica', 'ytm-pesquisa', 'ytm-pagina', 'ytm-radio', 'refrao', 'outro'];
 
 export const RECUO_INICIAL_MS = 5 * 60_000;
 export const RECUO_MAXIMO_MS = 30 * 60_000;

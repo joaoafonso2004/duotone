@@ -1445,6 +1445,33 @@ ipcMain.handle('yt:mix', async (event, pedido) => {
 });
 
 /**
+ * O `next` de uma musica so pelo video (25/10), para a curva "Most replayed"
+ * de onde sai o refrao (src/api/refrao.ts). Do renderer vem so o id do video
+ * (11 caracteres): o endereco e o corpo vivem deste lado, como no `yt:mix`.
+ */
+ipcMain.handle('yt:refrao', async (event, pedido) => {
+  if (!daJanelaPrincipal(event)) throw new Error('Pedido invalido.');
+  const videoId = pedido && typeof pedido.videoId === 'string' ? pedido.videoId : '';
+  if (!/^[\w-]{11}$/.test(videoId)) throw new Error('Video invalido.');
+  const versao = typeof pedido.clientVersion === 'string' && /^[\w.]{1,32}$/.test(pedido.clientVersion)
+    ? pedido.clientVersion : '2.20260114.08.00';
+  const controlador = new AbortController();
+  const relogio = setTimeout(() => controlador.abort(), 15000);
+  try {
+    const res = await net.fetch('https://www.youtube.com/youtubei/v1/next?prettyPrint=false', {
+      method: 'POST',
+      signal: controlador.signal,
+      headers: { 'Content-Type': 'application/json', 'X-YouTube-Client-Name': '1', 'X-YouTube-Client-Version': versao },
+      body: JSON.stringify({ context: { client: { clientName: 'WEB', clientVersion: versao, hl: 'en', gl: 'US' } }, videoId }),
+    });
+    if (!res.ok) throw new Error('YouTube HTTP ' + res.status);
+    return res.json();
+  } finally {
+    clearTimeout(relogio);
+  }
+});
+
+/**
  * As unicas formas de caminho que o catalogo aceita.
  *
  * Sao exactamente as que o `src/api/catalogo.ts` pede, e nada mais. Mesma

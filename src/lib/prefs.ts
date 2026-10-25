@@ -412,6 +412,20 @@ export async function setAutomix(v: boolean): Promise<void> {
 }
 
 /**
+ * A risca do refrão na barra do leitor (25/10, `state/refrao.ts`): desligada de
+ * origem -- o João não a quer à vista sem a pedir. Por aparelho, como o EQ.
+ */
+const KEY_REFRAO_NA_BARRA = 'pref:refrao-na-barra';
+
+export async function getRefraoNaBarra(): Promise<boolean> {
+  return (await AsyncStorage.getItem(KEY_REFRAO_NA_BARRA)) === '1';
+}
+
+export async function setRefraoNaBarra(v: boolean): Promise<void> {
+  await AsyncStorage.setItem(KEY_REFRAO_NA_BARRA, v ? '1' : '0');
+}
+
+/**
  * Como as playlists são ordenadas.
  *
  * Guardado porque não o estar era um imposto a cada visita: escolhia-se a

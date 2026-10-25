@@ -32,3 +32,12 @@ export function setEqPadrao(ganhos: readonly number[]): Promise<void> {
 export function getPoTokenServerUrl(): Promise<string> {
   return Promise.resolve('');
 }
+
+/** A risca do refrão na barra (25/10): lida e escrita pelo `state/refrao.ts`. */
+export function getRefraoNaBarra(): Promise<boolean> {
+  return Promise.resolve(!!guardadas.refraoNaBarra);
+}
+export function setRefraoNaBarra(v: boolean): Promise<void> {
+  guardadas.refraoNaBarra = v;
+  return Promise.resolve();
+}

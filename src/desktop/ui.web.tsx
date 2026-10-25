@@ -9,6 +9,7 @@ import { LIMIAR_ARRASTO_PX } from '../lib/reorder';
 import { BrilhoInteligente, EstrelaInteligente } from '../components/BrilhoInteligente';
 import { usePlayer } from '../state/player';
 import { useSaved } from '../state/saved';
+import { ouvirRefrao, temRefrao, useRefrao } from '../state/refrao';
 import { comecarArrasto, refDoAlvo, type Alvo, type ArrastoAtivo } from './Arrastar.web';
 import { destinoDaOrdem, posicaoDeInsercao, ROTULOS_DO_ARRASTO, topoDaInsercao } from '../lib/arrastar';
 import type { DiscoveryContext } from '../lib/contextoDaDescoberta';
@@ -442,6 +443,40 @@ export function Separadores<T extends string>({ opcoes, valor, aoMudar }: {
   </View>;
 }
 
+/** O anel dos 15 s à volta do auscultador: 2πr com r = 11. */
+export const ANEL_DO_REFRAO = 69.1;
+
+/**
+ * O auscultador do refrão primeiro (25/10, João: "ao dar hover aparece lá o
+ * simbolozinho, pequeninho, subtil"; `state/refrao.ts`). No canto da capa, e
+ * quem o mostra é o CSS (`refrao` na casca): só com o rato no cartão, e
+ * sempre enquanto é a pré-escuta dele -- a preparar, ou a soar com o anel a
+ * contar os 15 s. Carregar nele ouve o refrão por cima do que estiver a
+ * tocar; carregar no resto do cartão toca a música normal.
+ */
+function BotaoDoRefrao({ track }: { track: Track }) {
+  const meu = useRefrao((s) => s.faixa?.sourceId === track.sourceId);
+  const aSoar = useRefrao((s) => s.faixa?.sourceId === track.sourceId && s.ate != null);
+  if (!temRefrao(track)) return null;
+  const marcas = aSoar ? marcar('refrao', 'refrao-meu', 'refrao-a-soar') : meu ? marcar('refrao', 'refrao-meu') : marcar('refrao');
+  return <P
+    accessibilityRole="button"
+    accessibilityLabel={meu ? 'Stop chorus preview' : 'Play chorus preview'}
+    // As marcas e a dica do PC ("Preview chorus") no mesmo `dataSet`.
+    dataSet={{ ...marcas.dataSet, dica: meu ? 'Stop preview' : 'Preview chorus' }}
+    // Não começa a arrastar a música, nem é o clique do cartão.
+    onPointerDown={((e: any) => e.stopPropagation()) as any}
+    onPress={(e: any) => { e?.stopPropagation?.(); ouvirRefrao(track); }}
+    style={ui.refrao}>
+    {aSoar ? <svg width={26} height={26} viewBox="0 0 26 26" data-dt="refrao-anel"
+      style={{ position: 'absolute', left: 0, top: 0, transform: 'rotate(-90deg)', pointerEvents: 'none' }}>
+      <circle cx={13} cy={13} r={11} fill="none" stroke={COR.texto} strokeWidth={1.5} strokeLinecap="round"
+        strokeDasharray={ANEL_DO_REFRAO} />
+    </svg> : null}
+    <Ionicons name={meu ? 'stop' : 'headset-outline'} size={meu ? 9 : 13} color={COR.texto} />
+  </P>;
+}
+
 /** O lado mínimo de uma capa na grelha; o real estica para a linha acabar na borda. */
 const CAPA_MINIMA_DA_GRELHA = 150;
 
@@ -493,6 +528,7 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto, gr
             <View>
               <Artwork track={t} size={lado} />
               {selo ? <View style={ui.shelfSelo} pointerEvents="none"><Text style={ui.shelfSeloTexto}>{selo}</Text></View> : null}
+              <BotaoDoRefrao track={t} />
             </View>
             <Text numberOfLines={1} style={ui.shelfCardTitle}>{tituloDaFaixa(t)}</Text>
             <Text numberOfLines={1} style={ui.shelfCardArtista}>{displayArtist(t)}</Text>
@@ -533,6 +569,7 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto, gr
           <View>
             <Artwork track={t} size={148} />
             {selo ? <View style={ui.shelfSelo} pointerEvents="none"><Text style={ui.shelfSeloTexto}>{selo}</Text></View> : null}
+            <BotaoDoRefrao track={t} />
           </View>
           <Text numberOfLines={1} style={ui.shelfCardTitle}>{tituloDaFaixa(t)}</Text>
           <Text numberOfLines={1} style={ui.shelfCardArtista}>{displayArtist(t)}</Text>
@@ -1218,6 +1255,10 @@ export const ui = StyleSheet.create({
     borderRadius: RAIO.ctrl, backgroundColor: 'rgba(6,6,8,0.62)',
   },
   shelfSeloTexto: { fontFamily: FONT.mono, fontSize: 8, letterSpacing: 1, textTransform: 'uppercase', color: COR.textoMedio },
+  refrao: {
+    position: 'absolute', right: 6, bottom: 6, width: 26, height: 26, borderRadius: 13,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(6,6,8,0.62)',
+  },
   separadores: {
     flexDirection: 'row', alignSelf: 'flex-start', gap: 2, padding: 3, marginBottom: ESP.lg,
     borderRadius: RAIO.pilula, backgroundColor: COR.elevado, borderWidth: 1, borderColor: COR.linhaSuave,
