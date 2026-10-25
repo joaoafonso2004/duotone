@@ -41,7 +41,39 @@ export type ContextoDoCrossfade = {
    * segundos de silêncio no fim isso cruzava a seguinte com o nada.
    */
   fimMusicalSegundos?: number | null;
+  /**
+   * A seguinte continua o mesmo disco (`seguemNoMesmoDisco`, 24/10): sem
+   * passagem. Num disco ao vivo ou num álbum contínuo uma faixa entra na
+   * outra, e o fade cortava-o.
+   */
+  mesmoDisco?: boolean;
 };
+
+/** O nome comparável: sem caixa, sem o " - Topic" dos canais automáticos, sem espaços a mais. */
+const limpo = (s?: string | null) => (s ?? '').toLowerCase().replace(/\s*-\s*topic$/, '').replace(/\s+/g, ' ').trim();
+/** O primeiro artista de "A, B", "A & B", "A feat. B", "A x B". */
+const primeiroArtista = (s?: string | null) => limpo(s).split(/\s*(?:,|&|\bfeat\.?|\bft\.?|\bx\b)\s*/)[0] ?? '';
+
+/**
+ * O crossfade que respeita o disco (24/10, pedido do João): entre duas faixas
+ * seguidas do MESMO álbum não há passagem. Num disco ao vivo, num álbum
+ * contínuo ou numa intro que entra na faixa seguinte, uma faixa já foi feita
+ * para entrar na outra, e o fade estragava-o. Numa playlist ou num Mix, o
+ * crossfade de sempre.
+ *
+ * O mesmo álbum pelo nome, e o mesmo artista principal quando os dois o têm:
+ * "Greatest Hits" de dois artistas não é o mesmo disco.
+ */
+export function seguemNoMesmoDisco(
+  a: { album?: string | null; artist?: string | null } | null | undefined,
+  b: { album?: string | null; artist?: string | null } | null | undefined,
+): boolean {
+  if (!a || !b) return false;
+  const disco = limpo(a.album);
+  if (!disco || disco !== limpo(b.album)) return false;
+  const artistaA = primeiroArtista(a.artist), artistaB = primeiroArtista(b.artist);
+  return !artistaA || !artistaB || artistaA === artistaB;
+}
 
 /** Onde a passagem deve estar terminada. */
 export function fimEfectivo(c: Pick<ContextoDoCrossfade, 'duracaoSegundos' | 'fimMusicalSegundos'>): number {
@@ -65,6 +97,7 @@ export function fimEfectivo(c: Pick<ContextoDoCrossfade, 'duracaoSegundos' | 'fi
 export function podeCrossfade(c: ContextoDoCrossfade): boolean {
   if (c.duracaoDoFade <= 0) return false;
   if (!c.backendNativo || !c.temFaixaSeguinte || c.repeatUma) return false;
+  if (c.mesmoDisco) return false;
   const d = c.duracaoSegundos;
   if (d == null || !Number.isFinite(d) || d <= 0) return false;
   return d >= c.duracaoDoFade * 2;

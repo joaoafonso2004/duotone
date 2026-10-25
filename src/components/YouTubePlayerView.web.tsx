@@ -22,7 +22,7 @@ import { acertoNoPrimeiroSom, posicaoDaSalaParaFaixa } from '../lib/arranqueDaSa
 import { TOLERANCIA_MS } from '../lib/sincronizacao';
 import { registarNaFila } from '../lib/playbackDiagnostics';
 import {
-  ANTECEDENCIA_DO_PC_S, decorridoDaPassagem, deveComecarCrossfade, devePrepararSeguinte, podeCrossfade,
+  ANTECEDENCIA_DO_PC_S, decorridoDaPassagem, deveComecarCrossfade, devePrepararSeguinte, podeCrossfade, seguemNoMesmoDisco,
   volumesDoCrossfade, type ContextoDoCrossfade,
 } from '../lib/crossfade';
 
@@ -481,6 +481,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       backendNativo: true,
       seguinteCarregada: !!seguinteRef.current?.pronta,
       aDecorrer: !!passagemRef.current,
+      // Duas faixas do mesmo disco entram uma na outra sem fade (24/10).
+      mesmoDisco: seguemNoMesmoDisco(faixaRef.current, seguinte),
     };
 
     const passagem = passagemRef.current;

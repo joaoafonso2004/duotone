@@ -13,7 +13,7 @@ import { registar as registarEvento } from '../lib/eventos';
 import { baterSessao } from '../lib/sessionSync';
 import { urlsDaCapa } from '../lib/capaDoEcraBloqueado';
 import {
-  deveComecarCrossfade, podeCrossfade, volumesDoCrossfade,
+  deveComecarCrossfade, podeCrossfade, seguemNoMesmoDisco, volumesDoCrossfade,
   intervaloDaPosicao,
 } from '../lib/crossfade';
 import { acaoDoWatchdog, DESISTIR_MS, duracaoParaDetetarOFim, fimPorFaltaDeDados } from '../lib/fimDeFaixa';
@@ -752,6 +752,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         backendNativo: true,
         seguinteCarregada: false,
         aDecorrer: false,
+        // Duas faixas do mesmo disco entram uma na outra sem fade (24/10).
+        mesmoDisco: seguemNoMesmoDisco(track, seguinte),
       })
     ) {
       return;
@@ -1932,6 +1934,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
             // Onde a música acaba mesmo, quando a análise da cauda já correu.
             // Sem ela conta-se do fim do ficheiro, como sempre.
             fimMusicalSegundos: fimMusicalGuardado(track.sourceId),
+            mesmoDisco: seguemNoMesmoDisco(track, seguinte),
           })
         ) {
           comecarPassagem(seguinte);

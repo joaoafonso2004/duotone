@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { podeCrossfade, deveComecarCrossfade, volumesDoCrossfade, acaoAoInterromper, fimEfectivo, intervaloDaPosicao, devePrepararSeguinte, decorridoDaPassagem, ANTECEDENCIA_DO_PC_S } from '../src/lib/crossfade.ts';
+import { readFileSync } from 'node:fs';
+import { podeCrossfade, deveComecarCrossfade, volumesDoCrossfade, acaoAoInterromper, fimEfectivo, intervaloDaPosicao, devePrepararSeguinte, decorridoDaPassagem, ANTECEDENCIA_DO_PC_S, seguemNoMesmoDisco } from '../src/lib/crossfade.ts';
 
 const base = {
   duracaoDoFade: 6,
@@ -18,6 +19,25 @@ assert.equal(podeCrossfade({ ...base, duracaoDoFade: 0 }), false, 'desligado nas
 assert.equal(podeCrossfade({ ...base, backendNativo: false }), false, 'o embed não tem dois motores');
 assert.equal(podeCrossfade({ ...base, repeatUma: true }), false, 'repetir a mesma não é passagem');
 assert.equal(podeCrossfade({ ...base, temFaixaSeguinte: false }), false);
+
+// O crossfade que respeita o disco (24/10): entre duas faixas seguidas do
+// mesmo álbum não há passagem (ao vivo, álbuns contínuos, intros).
+assert.equal(podeCrossfade({ ...base, mesmoDisco: true }), false, 'no mesmo disco, sem fade');
+assert.equal(podeCrossfade({ ...base, mesmoDisco: false }), true);
+const faixa = (album: string | null, artist: string | null) => ({ album, artist });
+assert.equal(seguemNoMesmoDisco(faixa('Whole Lotta Red', 'Playboi Carti'), faixa('Whole Lotta Red', 'Playboi Carti')), true);
+assert.equal(seguemNoMesmoDisco(faixa('Whole Lotta Red', 'Playboi Carti - Topic'), faixa('whole lotta red ', 'Playboi Carti, Kanye West')), true, 'o canal automático e um convidado não mudam o disco');
+assert.equal(seguemNoMesmoDisco(faixa('Greatest Hits', 'Queen'), faixa('Greatest Hits', 'ABBA')), false, 'o mesmo nome de dois artistas não é o mesmo disco');
+assert.equal(seguemNoMesmoDisco(faixa('Die Lit', 'Playboi Carti'), faixa('Whole Lotta Red', 'Playboi Carti')), false, 'discos diferentes');
+assert.equal(seguemNoMesmoDisco(faixa(null, 'Playboi Carti'), faixa(null, 'Playboi Carti')), false, 'sem disco não se sabe: fade de sempre');
+assert.equal(seguemNoMesmoDisco(faixa('MUSIC', null), faixa('MUSIC', 'Playboi Carti')), true, 'sem artista de um lado, conta o disco');
+assert.equal(seguemNoMesmoDisco(null, faixa('MUSIC', 'Playboi Carti')), false);
+{
+  // Os dois motores perguntam pelo disco.
+  const ler = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  assert.match(ler('src/components/YouTubePlayerView.web.tsx'), /mesmoDisco: seguemNoMesmoDisco\(faixaRef\.current, seguinte\),/);
+  assert.equal(ler('src/components/YouTubePlayerView.tsx').match(/mesmoDisco: seguemNoMesmoDisco\(track, seguinte\),/g)?.length, 2, 'no iPhone: ao preparar e ao começar');
+}
 // A duração do YouTube mente: sem ela não se sabe onde é o fim.
 assert.equal(podeCrossfade({ ...base, duracaoSegundos: null }), false);
 assert.equal(podeCrossfade({ ...base, duracaoSegundos: 0 }), false);

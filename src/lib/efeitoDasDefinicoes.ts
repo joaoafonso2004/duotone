@@ -68,7 +68,7 @@ export function efeitoDoSmartShuffle(e: { intensidade: 'poucas' | 'normal' | 'mu
 export function efeitoDoCrossfade(e: { segundos: number; repeatUma: boolean }): string | null {
   if (!(e.segundos > 0)) return null;
   if (e.repeatUma) return 'Paused while repeat one is on';
-  return `Only when a song ends on its own · not on songs shorter than ${e.segundos * 2} s`;
+  return `Only when a song ends on its own · not within an album or shorter than ${e.segundos * 2} s`;
 }
 
 /**
