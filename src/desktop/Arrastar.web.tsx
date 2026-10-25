@@ -32,7 +32,17 @@ export type Alvo = {
   insercao?: boolean;
   /** Quer saber em que playlists a música já está ("Already in …"). */
   querPlaylistsDaFaixa?: boolean;
+  /**
+   * Um LUGAR que abre com a música em cima (25/10, como as pastas do Finder):
+   * as Playlists da lateral. Ao fim de `MOLA_MS` parado aqui, `abrir` muda de
+   * página, e devolve como voltar -- o arrasto volta lá ao largar, ou ao
+   * desistir, para quem estava a arrumar não perder o sítio.
+   */
+  mola?: { abrir: () => (() => void) | void };
 };
+
+/** Quanto tempo a música fica em cima de um lugar até ele abrir. */
+export const MOLA_MS = 600;
 
 /**
  * Arrastar uma música no PC (24/10, docs/arrastar-pc-maquete.html): pegar numa
@@ -58,8 +68,10 @@ const alvos = new Map<string, { no: HTMLElement; alvo: Alvo }>();
 /** Regista um destino pelo `ref` do elemento dele. `chave` única por destino no ecrã. */
 export function refDoAlvo(chave: string, alvo: Alvo | null): (no: any) => void {
   return (no: any) => {
-    if (no && alvo && typeof no.getBoundingClientRect === 'function') alvos.set(chave, { no, alvo });
-    else alvos.delete(chave);
+    if (no && alvo && typeof no.getBoundingClientRect === 'function') { alvos.set(chave, { no, alvo }); return; }
+    // Deixou de ser destino (as Playlists, depois de a mola as abrir): sem realce.
+    if (no && !alvo) no.removeAttribute?.('data-largar');
+    alvos.delete(chave);
   };
 }
 
@@ -69,6 +81,14 @@ export const useArrasto = create<Estado>(() => ({ ativo: null, x: 0, y: 0, porCi
 let gesto: {
   faixa: Track; origem: OrigemDoArrasto; x0: number; y0: number; soVertical: boolean;
   ativo: ArrastoAtivo | null; cancelado: boolean; x: number; y: number;
+  /** A leitura do "Already in …" já foi pedida neste arrasto. */
+  pediuPlaylists: boolean;
+  /** O lugar com a música em cima, a contar para abrir (ver `Alvo.mola`). */
+  molaChave: string | null; molaTempo: ReturnType<typeof setTimeout> | null;
+  /** Os lugares que este arrasto já abriu: não abrem outra vez. */
+  molasAbertas: Set<string>;
+  /** Como voltar para onde se estava, se uma mola abriu outra página. */
+  voltar: (() => void) | null;
 } | null = null;
 
 /** O `onPointerDown` de quem se pode arrastar. `soVertical`: num carrossel, o lado é dele. */
@@ -76,7 +96,10 @@ export function comecarArrasto(e: any, faixa: Track, origem: OrigemDoArrasto = {
   const n = e?.nativeEvent ?? e;
   if (gesto || !n || n.button !== 0 || n.pointerType === 'touch') return;
   if ((n.target as HTMLElement | null)?.closest?.('input, textarea, [contenteditable="true"]')) return;
-  gesto = { faixa, origem, x0: n.clientX, y0: n.clientY, soVertical: !!opcoes?.soVertical, ativo: null, cancelado: false, x: n.clientX, y: n.clientY };
+  gesto = {
+    faixa, origem, x0: n.clientX, y0: n.clientY, soVertical: !!opcoes?.soVertical, ativo: null, cancelado: false,
+    x: n.clientX, y: n.clientY, pediuPlaylists: false, molaChave: null, molaTempo: null, molasAbertas: new Set(), voltar: null,
+  };
   window.addEventListener('pointermove', mover, true);
   window.addEventListener('pointerup', largar, true);
   window.addEventListener('pointercancel', terminar, true);
@@ -104,20 +127,45 @@ function ativar(g: NonNullable<typeof gesto>): void {
   g.ativo = ativo;
   document.body.setAttribute('data-arrastar', '');
   try { window.getSelection?.()?.removeAllRanges(); } catch {}
-  let querPlaylists = false;
   for (const r of alvos.values()) {
-    if (!r.alvo.aceita(ativo)) continue;
-    if (!r.alvo.insercao) r.no.setAttribute('data-largar', 'pode');
-    if (r.alvo.querPlaylistsDaFaixa) querPlaylists = true;
+    if (r.alvo.aceita(ativo) && !r.alvo.insercao) r.no.setAttribute('data-largar', 'pode');
   }
-  // Uma leitura por arrasto, e só com playlists na lateral: é o "Already in …".
-  if (querPlaylists) {
-    void playlistsComAFaixa(g.faixa).then(({ ids }) => {
-      if (gesto?.ativo !== ativo) return;
-      ativo.playlistsComAFaixa = ids;
-      atualizar(gesto.x, gesto.y);
-    }).catch(() => {});
-  }
+  pedirPlaylistsSePreciso(g);
+}
+
+/**
+ * Uma leitura por arrasto, e só com playlists à vista (as fixadas na lateral,
+ * ou os cartões das Playlists depois de a mola as abrir): é o "Already in …".
+ */
+function pedirPlaylistsSePreciso(g: NonNullable<typeof gesto>): void {
+  const ativo = g.ativo;
+  if (!ativo || g.pediuPlaylists) return;
+  let quer = false;
+  for (const r of alvos.values()) if (r.alvo.querPlaylistsDaFaixa && r.alvo.aceita(ativo)) { quer = true; break; }
+  if (!quer) return;
+  g.pediuPlaylists = true;
+  void playlistsComAFaixa(g.faixa).then(({ ids }) => {
+    if (gesto?.ativo !== ativo) return;
+    ativo.playlistsComAFaixa = ids;
+    atualizar(gesto.x, gesto.y);
+  }).catch(() => {});
+}
+
+/** O tempo da mola acabou: o lugar abre (uma vez por arrasto). */
+function abrirMola(chave: string): void {
+  const g = gesto;
+  if (!g?.ativo || g.cancelado || g.molaChave !== chave) return;
+  g.molaChave = null;
+  g.molaTempo = null;
+  g.molasAbertas.add(chave);
+  const r = alvos.get(chave);
+  r?.no.removeAttribute('data-largar');
+  const voltar = r?.alvo.mola?.abrir();
+  if (typeof voltar === 'function' && !g.voltar) g.voltar = voltar;
+  // A página nova monta numa transição: os cartões dela acendem quando chegam,
+  // sem esperar que o rato se mexa.
+  const ativo = g.ativo;
+  for (const ms of [0, 250, 700]) setTimeout(() => { if (gesto?.ativo === ativo) atualizar(gesto.x, gesto.y); }, ms);
 }
 
 function atualizar(x: number, y: number): void {
@@ -130,10 +178,21 @@ function atualizar(x: number, y: number): void {
     if (r.alvo.insercao || !r.alvo.aceita(g.ativo)) { r.no.removeAttribute('data-largar'); continue; }
     if (chave !== debaixo?.chave) r.no.setAttribute('data-largar', 'pode');
   }
+  // A mola: parado em cima de um lugar que abre, conta-se o tempo; sair dele
+  // (ou chegar a outro) recomeça a conta.
+  const mola = debaixo && debaixo.alvo.mola && debaixo.alvo.aceita(g.ativo) && !g.molasAbertas.has(debaixo.chave) ? debaixo.chave : null;
+  if (mola !== g.molaChave) {
+    if (g.molaTempo) clearTimeout(g.molaTempo);
+    g.molaChave = mola;
+    g.molaTempo = mola ? setTimeout(() => abrirMola(mola), MOLA_MS) : null;
+  }
   if (debaixo && debaixo.alvo.aceita(g.ativo)) {
     porCima = debaixo.alvo.porCima(g.ativo, x, y, debaixo.no);
-    if (!debaixo.alvo.insercao) debaixo.no.setAttribute('data-largar', porCima?.faz ? 'por-cima' : 'pode');
+    if (!debaixo.alvo.insercao) {
+      debaixo.no.setAttribute('data-largar', debaixo.chave === g.molaChave ? 'mola' : porCima?.faz ? 'por-cima' : 'pode');
+    }
   }
+  pedirPlaylistsSePreciso(g);
   useArrasto.setState({ ativo: g.ativo, x, y, porCima });
 }
 
@@ -160,8 +219,12 @@ function largar(e: PointerEvent): void {
   const debaixo = alvoEm(e.clientX, e.clientY);
   const porCima = debaixo && debaixo.alvo.aceita(g.ativo) ? debaixo.alvo.porCima(g.ativo, e.clientX, e.clientY, debaixo.no) : null;
   const ativo = g.ativo;
+  // Uma mola abriu outra página: depois de largar, volta-se para onde se estava.
+  const voltar = g.voltar;
+  g.voltar = null;
   terminar();
   if (debaixo && porCima?.faz) debaixo.alvo.aoLargar(ativo, e.clientX, e.clientY, debaixo.no);
+  voltar?.();
 }
 
 function tecla(e: KeyboardEvent): void {
@@ -170,7 +233,14 @@ function tecla(e: KeyboardEvent): void {
   e.preventDefault();
   e.stopPropagation();
   gesto.cancelado = true;
+  if (gesto.molaTempo) clearTimeout(gesto.molaTempo);
+  gesto.molaTempo = null;
+  gesto.molaChave = null;
   limparVisuais();
+  // Desistir também volta para onde se estava, como as pastas do Finder.
+  const voltar = gesto.voltar;
+  gesto.voltar = null;
+  voltar?.();
 }
 
 /** O `click` que o browser manda depois de largar não pode tocar a música. */
@@ -187,6 +257,9 @@ function limparVisuais(): void {
 }
 
 function terminar(): void {
+  // Um arrasto que acaba sem largar (a janela perdeu o foco) também volta.
+  const voltar = gesto?.voltar ?? null;
+  if (gesto?.molaTempo) clearTimeout(gesto.molaTempo);
   window.removeEventListener('pointermove', mover, true);
   window.removeEventListener('pointerup', largar, true);
   window.removeEventListener('pointercancel', terminar, true);
@@ -195,6 +268,7 @@ function terminar(): void {
   window.removeEventListener('blur', terminar);
   if (gesto?.ativo) limparVisuais();
   gesto = null;
+  voltar?.();
 }
 
 /** O fantasma junto ao rato e a linha de inserção. Montado uma vez, na casca. */

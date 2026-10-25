@@ -67,6 +67,8 @@ export const ROTULOS_DO_ARRASTO = {
   jaNasGostadas: 'Already in Liked Songs',
   playlist: (nome: string) => `Add to ${nome}`,
   jaNaPlaylist: (nome: string) => `Already in ${nome}`,
+  /** Em cima das Playlists da lateral (25/10): segurar abre a página. */
+  abrirPlaylists: 'Hold to open Playlists',
   amigo: (nome: string) => `Send to ${nome}`,
   aSeguir: 'Play next',
   depoisDe: (titulo: string) => `Play after ${titulo}`,

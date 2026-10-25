@@ -105,6 +105,20 @@ export function alvoDaPlaylist(p: { id: string; nome: string }): Alvo {
   };
 }
 
+/**
+ * As Playlists da lateral (25/10, pedido do João): segurar a música em cima
+ * abre a página, e aí larga-se num cartão. Largar aqui não faz nada. Quem
+ * chama diz como abrir e como voltar (ver `Alvo.mola`).
+ */
+export function alvoQueAbreAsPlaylists(abrir: () => (() => void) | void): Alvo {
+  return {
+    aceita: () => true,
+    porCima: () => ({ texto: ROTULOS_DO_ARRASTO.abrirPlaylists, faz: false }),
+    aoLargar: () => {},
+    mola: { abrir },
+  };
+}
+
 export function alvoDoAmigo(amigo: { id: string; nome: string }): Alvo {
   return {
     aceita: () => true,

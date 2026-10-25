@@ -28,8 +28,8 @@ import { lerFaixas } from '../lib/cacheDaBiblioteca';
 import { menuDasGostadas } from '../lib/menuDaMistura';
 import { useConnectivity } from '../state/connectivity';
 import { MenuDeContexto, pontoDoEvento, type PontoNoEcra } from './MenuDeContexto.web';
-import { refDoAlvo, type Alvo } from './Arrastar.web';
-import { alvoDaBarra, alvoDasGostadas } from './alvosDeLargar.web';
+import { MOLA_MS, refDoAlvo, type Alvo } from './Arrastar.web';
+import { alvoDaBarra, alvoDasGostadas, alvoQueAbreAsPlaylists } from './alvosDeLargar.web';
 import { criarRoda, volumeComARoda } from '../lib/rodaDoRato';
 import { useShallow } from 'zustand/react/shallow';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
@@ -387,6 +387,13 @@ export function injectDesktopDocumentStyles() {
     [data-largar]{ transition: background-color var(--dt-rapido) var(--dt-curva), box-shadow var(--dt-rapido) var(--dt-curva); }
     [data-largar="pode"]{ box-shadow: inset 0 0 0 1px rgba(233,234,238,.14); border-radius: ${RAIO.cartao}px; }
     [data-largar="por-cima"]{ background-color: rgba(233,234,238,.12) !important; box-shadow: inset 0 0 0 1px rgba(233,234,238,.28); border-radius: ${RAIO.cartao}px; }
+    /* A mola (25/10): parada em cima das Playlists, a música enche o item da
+       esquerda para a direita durante o tempo que falta para ele abrir. */
+    [data-largar="mola"]{ box-shadow: inset 0 0 0 1px rgba(233,234,238,.28); border-radius: ${RAIO.cartao}px;
+      background-image: linear-gradient(rgba(233,234,238,.14), rgba(233,234,238,.14)); background-repeat: no-repeat;
+      background-size: 0% 100%; animation: dt-mola ${MOLA_MS}ms linear forwards; }
+    @keyframes dt-mola { to { background-size: 100% 100%; } }
+    @media (prefers-reduced-motion: reduce) { [data-largar="mola"]{ background-size: 100% 100%; } }
 
     /* O coracao de favoritar um artista: so com o rato no cartao, e SEMPRE em
        quem ja e favorito (o "fixo"). Um coracao apagado em cada um dos
@@ -448,7 +455,9 @@ export function TitleBar({ comPainel = false }: { comPainel?: boolean }) {
   </View>;
 }
 
-export function Sidebar({ route, navigate, notify }: { route: Route; navigate: (route: Route) => void; notify: (texto: string) => void }) {
+export function Sidebar({ route, navigate, notify, voltar }: { route: Route; navigate: (route: Route) => void; notify: (texto: string) => void;
+  /** O voltar da janela: uma música arrastada que abriu as Playlists volta por aqui (25/10). */
+  voltar?: () => void }) {
   const session = useAuth((s) => s.session);
   const tema = useTheme((s) => s.theme);
   // Uma mistura abre-se a partir da Pesquisa: e ai que o separador tem de
@@ -528,7 +537,14 @@ export function Sidebar({ route, navigate, notify }: { route: Route; navigate: (
       <Text style={styles.navLabel}>LIBRARY</Text>
       {PRIMARY.map((item) => <NavItem key={item.id} active={active === item.id} semFundo={!!realce} medicao={medicao} aoMedir={medir(item.id)} {...item} badge={item.id === 'social' && (naoLidasPorAmigo(socialReceived,socialSeen).size>0 || socialFriends.some(f=>f.status==='pending'&&!f.isSender))} onPress={() => navigate({ name: item.id })}
         aoMenu={item.id === 'songs' ? (e) => setMenuDasLiked(pontoDoEvento(e)) : undefined}
-        alvo={item.id === 'songs' ? alvoDasGostadas() : null} />)}
+        alvo={item.id === 'songs' ? alvoDasGostadas()
+          // Segurar uma música nas Playlists abre a página (25/10); largada
+          // num cartão (ou desistindo), volta-se para onde se estava.
+          : item.id === 'playlists' && route.name !== 'playlists' ? alvoQueAbreAsPlaylists(() => {
+            navigate({ name: 'playlists' });
+            return voltar;
+          })
+          : null} />)}
     </ScrollView>
     {/* O perfil é a linha com a tua cara (o item "Profile" repetia-a) e as
         Definições são a roda dentada nela (26/9, decidido com o João). */}

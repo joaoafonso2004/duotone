@@ -94,7 +94,7 @@ caso('pega-se numa linha de qualquer tabela e num cartão das prateleiras (o car
 });
 caso('os destinos: Liked Songs, a barra, as playlists e os amigos da lateral, e a fila', () => {
   const casca = ler('src/desktop/casca.web.tsx');
-  assert.match(casca, /alvo=\{item\.id === 'songs' \? alvoDasGostadas\(\) : null\}/);
+  assert.match(casca, /alvo=\{item\.id === 'songs' \? alvoDasGostadas\(\)/);
   assert.match(casca, /ref=\{refDoAlvo\('barra-do-leitor', p\.current \? alvoDaBarra\(\) : null\)\}/);
   const atalhos = ler('src/desktop/AtalhosNaLateral.web.tsx');
   assert.match(atalhos, /a\.tipo === 'playlist' \? alvoDaPlaylist\(\{ id: a\.id, nome: a\.nome \}\)\n\s+: a\.tipo === 'amigo' \? alvoDoAmigo\(\{ id: a\.id, nome: a\.nome \}\) : null/);
@@ -116,8 +116,31 @@ caso('o clique depois de largar é engolido, e Esc desiste sem fechar o diálogo
   assert.match(motor, /if \(!g\.ativo\) \{ terminar\(\); return; \}\n\s+engolirClique\(\);/);
   assert.match(motor, /e\.preventDefault\(\);\n\s+e\.stopPropagation\(\);\n\s+gesto\.cancelado = true;/);
 });
-caso('o "Already in …" custa uma leitura por arrasto, e só com playlists na lateral', () => {
-  assert.match(motor, /if \(querPlaylists\) \{\n\s+void playlistsComAFaixa\(g\.faixa\)/);
+caso('o "Already in …" custa uma leitura por arrasto, e só com playlists à vista', () => {
+  // Uma vez por arrasto (`pediuPlaylists`), e só se houver quem a queira: as
+  // fixadas na lateral, ou os cartões das Playlists depois de a mola as abrir.
+  assert.match(motor, /if \(!ativo \|\| g\.pediuPlaylists\) return;/);
+  assert.match(motor, /if \(r\.alvo\.querPlaylistsDaFaixa && r\.alvo\.aceita\(ativo\)\) \{ quer = true; break; \}/);
+  assert.match(motor, /g\.pediuPlaylists = true;\n\s+void playlistsComAFaixa\(g\.faixa\)/);
+});
+
+caso('a mola (25/10): parada nas Playlists da lateral abre a página, e larga-se num cartão', () => {
+  const casca = ler('src/desktop/casca.web.tsx');
+  // Só fora das Playlists, e abre-as pelo navegar de sempre; volta pelo voltar da janela.
+  assert.match(casca, /: item\.id === 'playlists' && route\.name !== 'playlists' \? alvoQueAbreAsPlaylists\(\(\) => \{\n\s+navigate\(\{ name: 'playlists' \}\);\n\s+return voltar;/);
+  assert.match(ler('src/navigation/RootNavigator.web.tsx'), /<Sidebar route=\{rotaDaLateral\} navigate=\{navigate\} notify=\{notify\} voltar=\{back\} \/>/);
+  // Os cartões da página das Playlists recebem a música.
+  assert.match(ler('src/desktop/paginas/PlaylistPages.web.tsx'), /ref=\{refDoAlvo\(`cartao-playlist:\$\{item\.id\}`, alvoDaPlaylist\(\{ id: item\.id, nome: item\.name \}\)\) as any\}/);
+  // O tempo conta parado em cima; sair dele recomeça. Uma vez por arrasto.
+  assert.match(motor, /g\.molaTempo = mola \? setTimeout\(\(\) => abrirMola\(mola\), MOLA_MS\) : null;/);
+  assert.match(motor, /!g\.molasAbertas\.has\(debaixo\.chave\)/);
+  // Largar, desistir (Esc) ou perder o foco: volta-se para onde se estava.
+  assert.match(motor, /if \(debaixo && porCima\?\.faz\) debaixo\.alvo\.aoLargar\(ativo, e\.clientX, e\.clientY, debaixo\.no\);\n\s+voltar\?\.\(\);/);
+  assert.match(motor, /limparVisuais\(\);\n\s+\/\/ Desistir também volta[^\n]*\n\s+const voltar = gesto\.voltar;/);
+  assert.match(motor, /gesto = null;\n\s+voltar\?\.\(\);/);
+  // O item enche-se enquanto conta, e com menos movimento aparece cheio.
+  assert.match(casca, /\[data-largar="mola"\]\{[\s\S]{0,400}?animation: dt-mola \$\{MOLA_MS\}ms linear forwards;/);
+  assert.match(casca, /@media \(prefers-reduced-motion: reduce\) \{ \[data-largar="mola"\]\{ background-size: 100% 100%; \} \}/);
 });
 caso('o Undo aparece no PC (o aviso partilhado com o botão)', () => {
   const raiz = ler('src/navigation/RootNavigator.web.tsx');
