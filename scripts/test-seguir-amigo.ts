@@ -96,7 +96,7 @@ caso('a ligação: a store não avança nem chama o rádio a seguir alguém', ()
   tem('src/components/YouTubePlayerView.web.tsx', 'ritmoDeQuemSigo() ?? velocidadeNaSessao(', 'anda-se à velocidade dele');
   tem('src/lib/presenceSync.ts', 'const aSeguir = proximasParaAPresenca(', 'as próximas são preparadas uma vez para publicação e deduplicação');
   tem('src/lib/presenceSync.ts', '          aSeguir,', 'quem ouve continua a publicar as próximas');
-  tem('src/components/QueueSheet.tsx', 'if (foraDoTelemovel || seguido) return;', 'o Up next dele é só para ler');
+  tem('src/components/QueueSheet.tsx', 'if (foraDoTelemovel || seguido || arrasto.acabouDeArrastar()) return;', 'o Up next dele é só para ler');
 });
 
 // ---- 1/10: o atraso de uns 5 s que não havia no Jam.

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Animated, type FlatList, type NativeScrollEvent, type NativeSyntheticEvent, type View } from 'react-native';
+import { Animated, Easing, type FlatList, type NativeScrollEvent, type NativeSyntheticEvent, type View } from 'react-native';
 import { destinoDoArrasto, offsetDoDeslize, velocidadeDoDeslize } from '../lib/arrastarFila';
 import { TRACK_ROW_HEIGHT } from '../components/TrackRow';
 import { hapticSelection } from '../lib/haptics';
@@ -16,6 +16,9 @@ import { segurarFluidez } from '../state/fluidez';
  * O arrasto vive aqui e não em cada linha: a linha pegada precisa de saber que
  * é ela, e as outras precisam de saber para onde se afastar.
  */
+/** Quanto a linha largada demora a assentar no sítio novo. */
+export const ASSENTAR_MS = 160;
+
 export function useArrastarLista({ chaves, aoReordenar }: {
   /** Uma chave estável por linha, pela ordem da lista (ver `chavesEstaveis`). */
   chaves: readonly string[];
@@ -40,6 +43,17 @@ export function useArrastarLista({ chaves, aoReordenar }: {
   const pegou = React.useRef(false);
   /** Os 120 Hz enquanto a linha está pegada (state/fluidez.ts). */
   const largarFluidez = React.useRef<(() => void) | null>(null);
+  /**
+   * Quando acabou o último arrasto (25/10). Segurar uma música até pegar nela
+   * e largar sem a mexer tocava-a: o `onPress` da linha chega no mesmo
+   * levantar do dedo. Quem toca ao toque pergunta ao `acabouDeArrastar`.
+   */
+  const acabouEm = React.useRef(0);
+  /** A linha a assentar no sítio depois de largada (ver `largar`). */
+  const aAssentar = React.useRef<Animated.CompositeAnimation | null>(null);
+  /** As chaves do render mais recente: o assentar acaba depois de o dedo sair. */
+  const chavesRef = React.useRef(chaves);
+  chavesRef.current = chaves;
   // Tudo o que o deslize nas bordas precisa de saber, e nada disto pode ser
   // estado: muda a cada frame do dedo e um `setState` por frame punha a lista
   // inteira a redesenhar durante o gesto.
@@ -127,6 +141,8 @@ export function useArrastarLista({ chaves, aoReordenar }: {
   const dedoAoPegar = React.useRef(Number.NaN);
 
   const comecarArrasto = (index: number) => {
+    // A anterior ainda a assentar no sítio: um arrasto de cada vez.
+    if (aAssentar.current) return;
     hapticSelection();
     largarFluidez.current?.();
     largarFluidez.current = segurarFluidez(500);
@@ -143,6 +159,7 @@ export function useArrastarLista({ chaves, aoReordenar }: {
   };
 
   const terminarArrasto = () => {
+    if (pegadaRef.current != null) acabouEm.current = Date.now();
     largarFluidez.current?.();
     largarFluidez.current = null;
     pegadaRef.current = null;
@@ -166,24 +183,54 @@ export function useArrastarLista({ chaves, aoReordenar }: {
     if (arrastar != null && chaves[arrastar] !== chaveDaPegada.current) terminarArrasto();
   });
 
+  /**
+   * Largar (25/10: "muito snappy"). A linha já não salta para o sítio novo:
+   * ASSENTA lá em ~0,16 s, e só então a lista se reordena -- no mesmo frame
+   * em que os deslocamentos voltam a zero, por isso não se vê costura. Largar
+   * no sítio de onde veio é voltar lá a deslizar.
+   */
   const largar = (dyFinal: number) => {
     // O que a lista correu conta tanto como o que o dedo andou: sem isto a
     // linha aterra onde o dedo está no ecrã, e não onde ela parece estar.
     const percorrido = dyFinal + deslizou();
     const chave = chaveDaPegada.current;
-    terminarArrasto();
     // Pela chave, e nao pelo indice com que se pegou.
     const de = chave ? chaves.indexOf(chave) : -1;
-    if (de < 0) return;
-    const para = destinoDoArrasto(de, percorrido, altura, chaves.length);
-    if (para === de || para < 0 || para >= chaves.length) return;
-    hapticSelection();
-    aoReordenar(de, para);
+    const para = de < 0 ? -1 : destinoDoArrasto(de, percorrido, altura, chaves.length);
+    const muda = de >= 0 && para !== de && para >= 0 && para < chaves.length;
+    // O deslize das bordas para: o dedo já saiu.
+    gesto.current = { dy: gesto.current.dy, dedoY: Number.NaN };
+    const assentar = Animated.timing(dy, {
+      toValue: muda ? (para - de) * altura : 0,
+      duration: ASSENTAR_MS,
+      easing: Easing.out(Easing.cubic),
+      // O `dy` não está ligado a vista nenhuma: as linhas ouvem-no e escrevem
+      // no valor delas. Por isso é do JS.
+      useNativeDriver: false,
+    });
+    aAssentar.current = assentar;
+    assentar.start(() => {
+      if (aAssentar.current !== assentar) return;
+      aAssentar.current = null;
+      // A lista pode ter mudado por baixo enquanto assentava (a música acabou):
+      // aí já se largou sem mexer em nada.
+      const ainda = chave != null && chaveDaPegada.current === chave;
+      terminarArrasto();
+      if (!ainda || !muda || chavesRef.current.indexOf(chave) !== de) return;
+      hapticSelection();
+      aoReordenar(de, para);
+    });
   };
 
   return {
     /** Qual das linhas está pegada, para o desenho. `null` = nenhuma. */
     arrastar,
+    /**
+     * Há uma linha pegada, ou acabou de ser largada. O `onPress` de uma linha
+     * que se segurou até pegar chega no mesmo levantar do dedo, antes ou
+     * depois do fim do gesto: nos dois casos não é um toque.
+     */
+    acabouDeArrastar: () => pegadaRef.current != null || Date.now() - acabouEm.current < 600,
     bloqueioRef,
     listaRef,
     molduraRef,
@@ -196,6 +243,7 @@ export function useArrastarLista({ chaves, aoReordenar }: {
       pegadaRef,
       altura,
       dy,
+      total: chaves.length,
       aoComecar: comecarArrasto,
       /**
        * O arrasto arrancou com o dedo `yNaVista` pontos abaixo do topo de

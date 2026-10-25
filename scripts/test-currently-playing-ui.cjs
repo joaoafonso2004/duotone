@@ -32,8 +32,12 @@ const React = {
   useMemo(fn) { return fn(); }, useCallback(fn) { return fn; }, useEffect() {},
 };
 const native = {
-  Animated: {Value: class {setValue() {}}}, FlatList:'FlatList', View:'View', Text:'Text', Pressable:'Pressable',
+  // O assentar da largada (25/10) acaba já: o teste não espera pelos 160 ms.
+  Animated: {Value: class {setValue() {}}, timing: () => ({start(cb){cb&&cb({finished:true});},stop(){}})},
+  Easing: {out: x => x, cubic: x => x},
+  FlatList:'FlatList', View:'View', Text:'Text', Pressable:'Pressable',
   Alert: {alert: (...args) => calls.push(['alert', ...args])}, StyleSheet: {create: s=>s, hairlineWidth:1},
+  useWindowDimensions: () => ({width: 390, height: 844}),
 };
 // Os módulos puros entram a sério (o menu e o arrasto são o que se testa aqui).
 const carregar = (ficheiro, duplos = {}) => {
@@ -68,7 +72,9 @@ const mocks = {
   './BrilhoInteligente':{EstrelaInteligente:'Star'}, '../lib/shuffle':{trackKey:t=>t.sourceId},
   '../lib/haptics':{hapticSelection(){},hapticNotification(){}}, '../lib/artistName':{tituloDaFaixa:t=>t.title,displayArtist:t=>t.artist},
   '../hooks/useOfflineMode':{useOfflineMode:()=>offline},
-  './PlayerActionsSheet':{PlayerActionsContent:'Actions',accoesDoMenu:(menu,fazer)=>menu.map(a=>({label:a.rotulo,motivo:a.indisponivel,onPress:()=>fazer(a.id)}))},
+  // O menu da fila é o `MenuFlutuante` compacto das listas (25/10).
+  './PlayerActionsSheet':{}, './MenuFlutuante':{MenuFlutuante:'MenuFlutuante'},
+  '../lib/capaDoEcraBloqueado':{capaParaLista:()=>null}, '../lib/ultimoToque': carregar('src/lib/ultimoToque.ts'),
   './AddToPlaylistSheet':{AddToPlaylistSheet:'Playlist'}, './ShareFriendSheet':{ShareFriendSheet:'Share'},
   // Guardar a fila como playlist (11/10): o pedido do nome, a API e o nome sugerido (puro).
   './PromptSheet':{PromptSheet:'Prompt'}, '../api/playlists':{createPlaylist:async()=>({id:'p'}),addTracksToPlaylist:async()=>{}},
@@ -96,22 +102,32 @@ function nodes(node) { if(typeof node==='function')return nodes(node(undefined))
 const find = (tree,type,predicate=()=>true) => nodes(tree).find(n=>n.type===type&&predicate(n.props));
 const entry = (tree,index=0) => {const list=find(tree,'FlatList'); return list.props.renderItem({item:list.props.data[index],index});};
 function openEntry() { const row=entry(render());find(row,'Pressable').props.onPress();return render(); }
-function action(tree,label) { return find(tree,'Actions').props.actions.find(a=>a.label===label); }
+const menuDe = tree => find(tree,'MenuFlutuante');
+function action(tree,label) { const m=menuDe(tree).props; return [...(m.atalhos||[]),...m.accoes].find(a=>a.label===label); }
+/** Escolher no menu: a ação corre quando ele acaba de sair (o `aoFechado`). */
+function choose(label) { action(render(),label).onPress(); assert.equal(menuDe(render()).props.visivel,false,'escolher fecha o menu'); menuDe(render()).props.aoFechado(); return render(); }
 function reset(){state.length=0;calls=[];session=null;offline=false;store.queue=[a,b,c];store.queueIndex=0;}
 
 reset();
 let tree=openEntry();
 assert.equal(calls.length,0,'Os três pontos não tocam nem removem');
-assert.equal(find(tree,'Actions').props.title,'B');
-action(tree,'Add to playlist…').onPress();tree=render();
+assert.equal(menuDe(tree).props.visivel,true,'abre o menu compacto');
+assert.equal(menuDe(tree).props.faixa.titulo,'B','o cabeçalho é a música da linha');
+assert.ok(menuDe(tree).props.ancora,'nasce junto ao dedo');
+assert.ok(!action(tree,'Back to queue'),'sem o "Back to queue": tocar fora fecha');
+tree=choose('Add to playlist…');
 assert.equal(find(tree,'Playlist').props.track,b,'A playlist recebe a faixa da linha, não a atual');
 assert.equal(find(tree,'Playlist').props.visible,true);
 find(tree,'Playlist').props.onClose();tree=render();
-action(tree,'Share with friends or groups…').onPress();tree=render();
+assert.equal(find(tree,'Playlist').props.visible,false);
+tree=openEntry();tree=choose('Share with friends or groups…');
 assert.equal(find(tree,'Share').props.item,b);
 assert.equal(find(tree,'Share').props.visible,true);
+// Fechar o menu sem escolher (um toque fora) larga a música escolhida.
+reset();tree=openEntry();menuDe(tree).props.aoFechar();menuDe(render()).props.aoFechado();
+assert.equal(menuDe(render()).props.visivel,false);assert.equal(calls.length,0);
 
-reset();tree=openEntry();action(tree,'Remove from queue').onPress();
+reset();tree=openEntry();choose('Remove from queue');
 assert.deepEqual(calls,[['remove',1]]);
 // Tirar da fila mostra o aviso, e o "Undo" repõe a fila (3/10).
 const avisoDaFila = mocks['../lib/avisoDeRemocao'].avisos.atual();
@@ -119,20 +135,24 @@ assert.equal(avisoDaFila?.texto,'Removed from queue');
 void mocks['../lib/avisoDeRemocao'].avisos.desfazer(avisoDaFila.id); // o desfazer corre já, antes do primeiro await
 assert.deepEqual(calls,[['remove',1],['repor']]);
 
-reset();tree=openEntry();store.queue=[a,c,b];action(tree,'Remove from queue').onPress();
-assert.equal(calls.length,0,'Uma fila substituída não remove por índice antigo');
+reset();tree=openEntry();store.queue=[a,c,b];
 assert.ok(action(render(),'Remove from queue').motivo,'fica à vista, apagada, a dizer porquê');
+choose('Remove from queue');
+assert.equal(calls.length,0,'Uma fila substituída não remove por índice antigo');
 
-reset();tree=openEntry();store.queueIndex=1;action(tree,'Remove from queue').onPress();
+reset();tree=openEntry();store.queueIndex=1;choose('Remove from queue');
 assert.equal(calls.length,0,'A entrada que entretanto começou a tocar não é removida');
 
-reset();tree=openEntry();session={id:'jam'};action(tree,'Remove from queue').onPress();
-assert.equal(calls.length,0,'Entrar num Jam revoga a remoção local pendente');
+reset();tree=openEntry();session={id:'jam'};
 assert.ok(action(render(),'Remove from queue').motivo,'num Jam fica apagada, com o motivo');
-action(render(),'Manage Jam queue').onPress();assert.deepEqual(calls,[['manage']]);
+choose('Remove from queue');
+assert.equal(calls.length,0,'Entrar num Jam revoga a remoção local pendente');
+tree=openEntry();choose('Manage Jam queue');assert.deepEqual(calls,[['manage']]);
 
 reset();offline=true;tree=openEntry();
-assert.ok(action(tree,'Add to playlist…').motivo,'sem rede fica apagada, a dizer porquê');
+// Sem rede (menu compacto, 16/10): a linha fica apagada e o aviso único em cima diz porquê.
+assert.equal(action(tree,'Add to playlist…').disabled,true,'sem rede fica apagada');
+assert.ok(menuDe(tree).props.aviso,'e o aviso em cima diz porquê');
 
 reset();let row=entry(render());find(row,'TrackRow').props.onPress();
 assert.equal(calls[0][0],'play');assert.equal(calls[0][1],b);
@@ -141,6 +161,12 @@ find(row,'DragRow').props.aoComecar(0);row=entry(render());
 assert.equal(find(row,'DragRow').props.arrastarIndex,0);
 find(row,'DragRow').props.aoLargar(68);
 assert.deepEqual(calls.at(-1),['reorder',0,1],'O menu mantém o gesto de arrasto');
+// Segurar até pegar e largar sem mexer não toca a música (25/10).
+reset();row=entry(render());
+find(row,'DragRow').props.aoComecar(0);row=entry(render());
+find(row,'DragRow').props.aoLargar(0);row=entry(render());
+find(row,'TrackRow').props.onPress();
+assert.deepEqual(calls,[],'o toque que vem com o largar não é um toque');
 console.log('QueueSheet: opções, seleção, playlist/partilha, offline, remoção concorrente, Jam e arrasto passaram.');
 
 // Executa também os handlers reais do Rádio. Uma troca de conta ou edição

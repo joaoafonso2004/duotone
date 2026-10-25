@@ -87,6 +87,11 @@ type Props = {
   /** A flutuação e a deriva (10/10): desligáveis na personalização. */
   aFlutuar?: boolean;
   /**
+   * O leitor aberto (25/10). A capa fica montada com o leitor fechado, para a
+   * abertura não a ter de construir; fechada não faz o recuo do skip.
+   */
+  aVista?: boolean;
+  /**
    * O cubo capa/letras. Recebe a pose quando o 3D está ligado, e desenha-se
    * então como caixa (ver `ArtworkLyricsCube`); sem ela, é o cubo de sempre.
    */
@@ -117,7 +122,7 @@ type Props = {
  * Nada aqui fica à volta do cubo numa vista que roda: no iPhone isso achatava
  * as faces antes de rodar, e a caixa perdia a profundidade.
  */
-export function CapaFlutuante3D({ size, enabled, montagem = null, transicao = null, forcaDaPose = null, aFlutuar = true, children }: Props) {
+export function CapaFlutuante3D({ size, enabled, montagem = null, transicao = null, forcaDaPose = null, aFlutuar = true, aVista = true, children }: Props) {
   const reduced = useReducedMotion();
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
   // Fases de 0 a 1, uma volta por ciclo. O 0 é o repouso: a meio e sem inclinação.
@@ -174,7 +179,8 @@ export function CapaFlutuante3D({ size, enabled, montagem = null, transicao = nu
     const recuo = recuoDaCapa({
       lado: size, sentido: transicao?.sentido ?? 0, capa3D: enabled, reduzirMovimento: reduced,
     });
-    if (!recuo || !foreground) return;
+    // Fechada não recua -- mas a chave fica vista, para não recuar ao abrir.
+    if (!recuo || !foreground || !aVista) return;
     // Skips seguidos: o que sobrava do anterior sai durante a ida deste, e a
     // caixa parte de onde estava, sem saltar. A fase do anterior sabe-se pelo
     // relógio (a animação é por tempo), sem perguntar ao motor nativo.

@@ -1,6 +1,6 @@
 import React from 'react';
 import { ICONES } from '../lib/icones';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { LinhaArrastavel } from './LinhaArrastavel';
 import { DeslizarParaTirar } from './DeslizarParaTirar';
 import { chavesEstaveis } from '../lib/arrastarFila';
@@ -19,14 +19,17 @@ import { hapticNotification, hapticSelection } from '../lib/haptics';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { useOfflineMode } from '../hooks/useOfflineMode';
 import type { Track } from '../types';
-import { accoesDoMenu, PlayerActionsContent, type PlayerAction } from './PlayerActionsSheet';
+import type { PlayerAction } from './PlayerActionsSheet';
+import { MenuFlutuante, type Ancora, type FaixaDoMenu } from './MenuFlutuante';
+import { capaParaLista } from '../lib/capaDoEcraBloqueado';
+import { ancoraDoUltimoToque } from '../lib/ultimoToque';
 import { AddToPlaylistSheet } from './AddToPlaylistSheet';
 import { PromptSheet } from './PromptSheet';
 import { addTracksToPlaylist, createPlaylist } from '../api/playlists';
 import { faixasDaFila, nomeParaAFila } from '../lib/guardarFila';
 import { ShareFriendSheet } from './ShareFriendSheet';
 import { RecommendationPreferences } from './RecommendationPreferences';
-import { menuDaFaixa, type IdDaAcao } from '../lib/menuDaFaixa';
+import { menuCompacto, menuDaFaixa, type IdDaAcao, type LinhaDoMenu } from '../lib/menuDaFaixa';
 import { alternarDownload, downloadNoMenuDe, podeDescarregar, tocaSemRede } from '../lib/descarregarFaixa';
 import { alternarGuardada, garantirGuardadas } from '../lib/guardarFaixa';
 import { avisarRemocao, contarMusicas, avisarErro, avisarFeito } from '../lib/avisoDeRemocao';
@@ -66,12 +69,17 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
   /**
    * A linha escolhida. `atual` separa a que está a TOCAR das outras: numa sessão
    * todas vêm sem índice, e o menu da que toca é o do leitor (sem "Play now"
-   * nem "Remove from queue").
+   * nem "Remove from queue"). `ancora` é o "…" dela, medido no ecrã.
    */
-  const [selection, setSelection] = React.useState<{ track: Track; index: number | null; queue: Track[]; atual: boolean } | null>(null);
+  const [selection, setSelection] = React.useState<{ track: Track; index: number | null; queue: Track[]; atual: boolean; ancora: Ancora } | null>(null);
+  /** O menu à vista. A `selection` fica depois dele, para as folhas que ele abre. */
+  const [menuAberto, setMenuAberto] = React.useState(false);
   const [panel, setPanel] = React.useState<'actions' | 'playlist' | 'share' | 'recomendacoes' | 'guardar'>('actions');
   const [aGuardarFila, setAGuardarFila] = React.useState(false);
-  React.useEffect(() => { if (!visible) { setSelection(null); setPanel('actions'); } }, [visible]);
+  React.useEffect(() => { if (!visible) { setSelection(null); setMenuAberto(false); setPanel('actions'); } }, [visible]);
+  /** O "…" de cada linha (pela chave dela) e o da que toca (`atual`), para o menu nascer dele. */
+  const botoes = React.useRef(new Map<string, View | null>());
+  const { width: larguraDoEcra, height: alturaDoEcra } = useWindowDimensions();
   const current = usePlayer((s) => s.current);
   const queue = usePlayer((s) => s.queue);
   const queueIndex = usePlayer((s) => s.queueIndex);
@@ -145,11 +153,43 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
   const arrasto = useArrastarLista({ chaves, aoReordenar: reordenarProximas });
   const arrastar = arrasto.arrastar;
 
-  const openActions = (track: Track, index: number | null, atual = false) => {
+  /**
+   * O menu de uma música da fila (25/10, pedido do João: "um menu decente como
+   * no resto da app"). É o `MenuFlutuante` compacto das listas: a capa, o
+   * nome e o coração em cima, e o resto em grupos. Era uma lista dentro da
+   * própria folha, com um "Back to queue" no fim.
+   *
+   * Nasce do "…" medido NO ECRÃ (`measureInWindow`): dentro da folha nativa,
+   * o último toque registado na raiz pode vir em coordenadas da folha, e o
+   * menu (um Modal por cima de tudo) ficava longe do dedo.
+   */
+  const openActions = (track: Track, index: number | null, atual = false, chave = 'atual') => {
     hapticSelection();
     garantirGuardadas();
-    setSelection({ track, index, queue, atual });
-    setPanel('actions');
+    const daFila = queue;
+    const abrir = (ancora: Ancora) => {
+      setSelection({ track, index, queue: daFila, atual, ancora });
+      setPanel('actions');
+      setMenuAberto(true);
+    };
+    const reserva = () => ancoraDoUltimoToque({ largura: larguraDoEcra, altura: alturaDoEcra });
+    const botao = botoes.current.get(chave);
+    if (!botao || typeof botao.measureInWindow !== 'function') { abrir(reserva()); return; }
+    botao.measureInWindow((x, y, width, height) => abrir(width > 0 && height > 0 ? { x, y, width, height } : reserva()));
+  };
+  /**
+   * A ação corre DEPOIS de o menu sair do ecrã (o `aoFechado`), como no
+   * `TrackActionsSheet`: abrir uma folha enquanto a janela do menu ainda fecha
+   * deixava uma janela órfã a engolir os toques.
+   */
+  const pendente = React.useRef<(() => void) | null>(null);
+  const escolher = (f: () => void) => { pendente.current = f; setMenuAberto(false); };
+  const aoMenuFechado = () => {
+    const f = pendente.current;
+    pendente.current = null;
+    if (f) f();
+    // Fechado sem escolha (um toque fora): a seleção vai com ele.
+    else setSelection(null);
   };
   // O menu pode ficar aberto enquanto a música termina ou a fila muda.
   // Um índice antigo nunca deve remover outra música ou uma entrada do Jam.
@@ -208,19 +248,49 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
       default: return;
     }
   };
-  const actions: PlayerAction[] = selection ? [
-    ...accoesDoMenu(menu, fazer),
+  // O menu compacto (16/10, lib/menuDaFaixa.ts): o coração no cabeçalho, as
+  // mais usadas em quadrados (só com duas ou mais), o resto em grupos.
+  const compacto = selection ? menuCompacto(menu, { semRede: offline, tocaSemRede: tocaSemRede(selection.track) }) : null;
+  const paraAccao = (a: LinhaDoMenu): PlayerAction => ({
+    label: a.rotulo, icon: a.icone as any, destructive: a.destrutiva,
+    disabled: !!a.indisponivel, motivo: a.motivoVisivel, inicioDeGrupo: a.inicioDeGrupo,
+    onPress: () => escolher(() => fazer(a.id)),
+  });
+  const actions: PlayerAction[] = compacto ? [
+    ...compacto.linhas.map(paraAccao),
     // O que é da FILA e não da faixa, num grupo à parte.
     ...(emSessao && onOpenSession
-      ? [{ label: 'Manage Jam queue', icon: `${ICONES.jam}-outline` as const, inicioDeGrupo: true, onPress: onOpenSession }]
+      ? [{ label: 'Manage Jam queue', icon: `${ICONES.jam}-outline` as const, inicioDeGrupo: true, onPress: () => escolher(onOpenSession) }]
       : []),
-    { label: 'Back to queue', icon: 'arrow-back', inicioDeGrupo: !(emSessao && onOpenSession), onPress: () => setSelection(null) },
   ] : [];
+  // O coração do cabeçalho guarda sem fechar o menu, como nas listas.
+  const faixaDoMenu: FaixaDoMenu | null = selection ? {
+    capa: capaParaLista(selection.track.artworkUrl),
+    titulo: tituloDaFaixa(selection.track),
+    artista: nomeDoArtista,
+    coracao: compacto?.guardar ? {
+      guardada: lida ? naLoja : false,
+      disponivel: !compacto.guardar.indisponivel,
+      alternar: () => alternarGuardada(selection.track)
+        .catch((e: any) => avisarErro(mensagemDeErro(e, 'Could not update your library.'))),
+    } : null,
+  } : null;
+  const menuDaLinha = (
+    <MenuFlutuante
+      visivel={visible && menuAberto && !!selection}
+      ancora={selection?.ancora ?? null}
+      accoes={actions}
+      faixa={faixaDoMenu}
+      atalhos={compacto ? compacto.atalhos.map(paraAccao) : undefined}
+      aviso={compacto?.aviso ?? null}
+      aoFechar={() => setMenuAberto(false)}
+      aoFechado={aoMenuFechado}
+    />
+  );
 
   const conteudo = (
     <>
-      {selection && <PlayerActionsContent title={tituloDaFaixa(selection.track)} actions={actions} />}
-      <View style={selection ? styles.hidden : nativa ? styles.encher : undefined}>
+      <View style={nativa ? styles.encher : undefined}>
       <View style={[styles.header, styles.headerComBotao]}>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={type.title}>Play Queue</Text>
@@ -258,9 +328,10 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
           />
           </View>
           <Pressable
+            ref={(v) => { botoes.current.set('atual', v); }}
             accessibilityRole="button"
             accessibilityLabel={`Options for ${tituloDaFaixa(current)}`}
-            onPress={() => openActions(current, null, true)}
+            onPress={() => openActions(current, null, true, 'atual')}
             style={styles.actionBtn}
           >
             <Ionicons name="ellipsis-horizontal" size={20} color={colors.textSecondary} />
@@ -373,7 +444,9 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
                     // Por extenso, e não só a estrela de 7 pt (26/9).
                     contextLabel={sugeridas.includes(trackKey(item)) ? 'Smart shuffle pick' : undefined}
                     onPress={() => {
-                      if (foraDoTelemovel || seguido) return;
+                      // Segurar até pegar na linha e largar sem a mexer não é
+                      // um toque (25/10): o arrasto abriu, e a música não toca.
+                      if (foraDoTelemovel || seguido || arrasto.acabouDeArrastar()) return;
                       playTrack(item, queue);
                     }}
                     // O toque longo que pega na linha é da própria
@@ -399,7 +472,8 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
                     return envolverPega ? envolverPega(pega) : pega;
                   })()}
                   <Pressable
-                    onPress={() => openActions(item, emSessao ? null : realIndex)}
+                    ref={(v) => { botoes.current.set(chaves[index], v); }}
+                    onPress={() => openActions(item, emSessao ? null : realIndex, false, chaves[index])}
                     accessibilityRole="button"
                     accessibilityLabel={`Options for ${tituloDaFaixa(item)}`}
                     style={({ pressed }) => [
@@ -429,13 +503,14 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
     <>
     {nativa ? (
       // A folha é do iOS: a pega, as alturas e o fechar a arrastar são dela.
-      <View style={[styles.folhaNativa, selection && { paddingTop: 0 }]}>{conteudo}</View>
+      <View style={styles.folhaNativa}>{conteudo}</View>
     ) : (
       <BottomSheet gestureBlocked={arrastar !== null} bloqueioRef={arrasto.bloqueioRef} visible={visible && panel === 'actions'} onClose={onClose}>
         {conteudo}
       </BottomSheet>
     )}
-    <AddToPlaylistSheet visible={visible && panel === 'playlist'} track={selection?.track} onClose={() => setPanel('actions')} />
+    {menuDaLinha}
+    <AddToPlaylistSheet visible={visible && panel === 'playlist'} track={selection?.track} onClose={() => { setPanel('actions'); setSelection(null); }} />
     <PromptSheet
       visible={visible && panel === 'guardar'}
       title="Save queue as playlist"
@@ -461,14 +536,13 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
         }
       }}
     />
-    <ShareFriendSheet visible={visible && panel === 'share'} itemType="track" item={selection?.track ?? null} onClose={() => setPanel('actions')} />
-    <RecommendationPreferences visible={visible && panel === 'recomendacoes'} track={selection?.track ?? null} onClose={() => setPanel('actions')} />
+    <ShareFriendSheet visible={visible && panel === 'share'} itemType="track" item={selection?.track ?? null} onClose={() => { setPanel('actions'); setSelection(null); }} />
+    <RecommendationPreferences visible={visible && panel === 'recomendacoes'} track={selection?.track ?? null} onClose={() => { setPanel('actions'); setSelection(null); }} />
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  hidden: { display: 'none' },
   header: {
     marginBottom: spacing.md,
   },

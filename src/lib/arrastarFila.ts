@@ -74,29 +74,6 @@ export function desvioDaLinha(
   return j >= destino ? altura : 0;
 }
 
-/** A largura (px) em que uma linha passa de "no sítio" a "cedeu o lugar". */
-export const BANDA_DO_DESVIO = 8;
-
-/**
- * O mesmo desvio que o `desvioDaLinha`, mas a deslizar: dentro de uma banda
- * estreita à volta do limiar a linha vai de 0 a uma posição inteira, em vez de
- * saltar. Fora da banda é exatamente o `desvioDaLinha` (o teste confirma-o),
- * por isso o que se vê e o sítio onde a música cai continuam a concordar.
- *
- * Era a `interpolate` do `dy` dentro da `LinhaArrastavel`. Saiu para aqui a
- * 20/10, quando a linha passou a escrever o seu próprio valor animado (ver lá
- * porquê), e assim fica testada.
- */
-export function desvioAnimado(
-  j: number, de: number, dy: number, altura: number, banda: number = BANDA_DO_DESVIO
-): number {
-  if (j === de || altura <= 0 || !Number.isFinite(dy)) return 0;
-  const limiar = limiarDaLinha(j, de, altura);
-  const t = Math.min(1, Math.max(0, (dy - (limiar - banda)) / (2 * banda)));
-  // Abaixo de quem se arrasta sobe ao ser alcançada; acima desce ao ser passada.
-  // O `|| 0` tira o -0 (a linha parada), que não é o 0 de quem compara.
-  return (j > de ? -altura * t : altura * (1 - t)) || 0;
-}
 
 /**
  * A faixa junto às bordas onde a lista começa a deslizar sozinha.

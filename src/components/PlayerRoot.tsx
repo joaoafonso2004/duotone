@@ -2190,14 +2190,25 @@ export function PlayerRoot() {
               letras levam a `key` da faixa (dentro do cubo). A capa da frente
               também já não (2/10): uma por faixa deixava a face preta entre
               a que saía e a que entrava (ver CapaComTransicao). */}
-          {aberto && (
-            <CapaDoLeitor
-              track={current} size={vidFull.w} capaFlutuante={capaFlutuante} capaInteira={capaInteira} montagem={montagem}
-              transicao={transicaoDaCapa.current} artSource={artSource} showLyrics={showLyrics}
-              setShowLyrics={setShowLyrics} setCapaARodar={setCapaARodar} onArtError={onArtError}
-              escurecerCapa={escurecerCapa} aoGostar={aoGostarPelaCapa} aFlutuar={ap.flutuar}
-            />
-          )}
+          {/* A capa do leitor fica MONTADA enquanto há música (25/10), e não
+              só aberta: montava-se no instante em que o leitor começava a
+              abrir -- o cubo, as quatro laterais rasterizadas, o grão e o verso
+              --, e isso prendia a thread da interface nos primeiros fotogramas.
+              As molas contam o tempo no nativo, por isso o primeiro fotograma
+              visível já vinha adiantado: era o "choppy" ao tocar numa música
+              (vídeo do João, 25/10: o fecho suave, a abertura aos saltos).
+              Fechada fica invisível, sem toques, sem flutuar, sem o recuo do
+              skip e sem letras (`aVista`). */}
+          {current ? (
+            <View pointerEvents={aberto ? 'auto' : 'none'} style={[StyleSheet.absoluteFill, { opacity: aberto ? 1 : 0 }]}>
+              <CapaDoLeitor
+                track={current} size={vidFull.w} capaFlutuante={capaFlutuante} capaInteira={capaInteira} montagem={montagem}
+                transicao={transicaoDaCapa.current} artSource={artSource} showLyrics={showLyrics}
+                setShowLyrics={setShowLyrics} setCapaARodar={setCapaARodar} onArtError={onArtError}
+                escurecerCapa={escurecerCapa} aoGostar={aoGostarPelaCapa} aFlutuar={ap.flutuar} aVista={aberto}
+              />
+            </View>
+          ) : null}
 
           {/* No modo mini, tocar no vídeo expande */}
           {!aberto ? (
@@ -2320,7 +2331,7 @@ function BarraDoLeitor(props: Pick<React.ComponentProps<typeof ProgressBar>, 'on
  */
 const CapaDoLeitor = React.memo(function CapaDoLeitor({
   track, size, capaFlutuante, capaInteira, montagem, transicao, artSource, showLyrics, setShowLyrics, setCapaARodar,
-  onArtError, escurecerCapa, aoGostar, aFlutuar,
+  onArtError, escurecerCapa, aoGostar, aFlutuar, aVista,
 }: {
   track: Track;
   size: number;
@@ -2339,11 +2350,13 @@ const CapaDoLeitor = React.memo(function CapaDoLeitor({
   aoGostar: () => void;
   /** A capa 3D a flutuar (10/10, personalização). */
   aFlutuar: boolean;
+  /** O leitor aberto. Fechado, a capa fica montada mas parada (25/10). */
+  aVista: boolean;
 }) {
   return (
-    <CapaFlutuante3D size={size} enabled={capaFlutuante} montagem={montagem} transicao={transicao} forcaDaPose={forcaDaPose} aFlutuar={aFlutuar}>
+    <CapaFlutuante3D size={size} enabled={capaFlutuante} montagem={montagem} transicao={transicao} forcaDaPose={forcaDaPose} aFlutuar={aFlutuar && aVista} aVista={aVista}>
       {(pose3D) => (
-        <ArtworkLyricsCube track={track} size={size} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar} raio={capaFlutuante ? CAPA_FLUTUANTE.raio : capaInteira ? 0 : 20}
+        <ArtworkLyricsCube track={track} size={size} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar} raio={capaFlutuante ? CAPA_FLUTUANTE.raio : capaInteira ? 0 : 20} aVista={aVista}
           front={<>{artSource?<CapaComTransicao uri={artSource} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} />{!capaFlutuante && !capaInteira && <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.arestaDaCapa]} />}<DuploToqueParaGostar aoGostar={aoGostar} /></>} pose3D={pose3D} />
       )}
     </CapaFlutuante3D>

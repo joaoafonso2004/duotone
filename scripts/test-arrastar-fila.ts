@@ -9,7 +9,6 @@ import {
   destinoDoArrasto, limiarDaLinha, desvioDaLinha, movido,
   velocidadeDoDeslize, MARGEM_DE_DESLIZE, DESLIZE_MAXIMO_PX,
   offsetDoDeslize, ALCANCE_DO_DESLIZE_EM_ECRAS, chavesEstaveis,
-  desvioAnimado, BANDA_DO_DESVIO,
 } from '../src/lib/arrastarFila.ts';
 import { readFileSync } from 'node:fs';
 
@@ -155,37 +154,28 @@ verificar('o destino conta com o que a lista deslizou', () => {
   assert.equal(destinoDoArrasto(0, H * 0.5 + H * 2, H, 10), 3);
 });
 
-verificar('o desvio a deslizar é o desvio certo fora da banda, e não salta dentro dela (20/10)', () => {
-  const total = 6;
-  for (let de = 0; de < total; de++) {
-    for (let dy = -H * total; dy <= H * total; dy += 0.5) {
-      for (let j = 0; j < total; j++) {
-        const suave = desvioAnimado(j, de, dy, H);
-        if (j === de) { assert.equal(suave, 0); continue; }
-        const limiar = limiarDaLinha(j, de, H);
-        // Fora da banda tem de ser exatamente o que o destino diz.
-        if (Math.abs(dy - limiar) >= BANDA_DO_DESVIO) {
-          assert.equal(suave, desvioDaLinha(j, de, dy, H, total), `j ${j}, de ${de}, dy ${dy}`);
-        }
-        // Dentro dela, entre 0 e uma linha inteira, e sem saltos de mais de meio pixel.
-        assert.ok(Math.abs(suave) <= H + 1e-9);
-        const seguinte = desvioAnimado(j, de, dy + 0.5, H);
-        assert.ok(Math.abs(seguinte - suave) <= (H / (2 * BANDA_DO_DESVIO)) * 0.5 + 1e-9, `salto em j ${j}, dy ${dy}`);
-      }
-    }
-  }
-});
-
 verificar('a linha escreve o seu valor animado sempre, e põe-no a 0 ao largar (20/10)', () => {
   // No Fabric, trocar o deslocamento animado por um `translateY: 0` fixo
   // deixava linhas deslocadas depois de largar (ver LinhaArrastavel).
   const linha = readFileSync(new URL('../src/components/LinhaArrastavel.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
   assert.doesNotMatch(linha, /translateY: 0 \}/, 'nada de translateY fixo');
-  assert.doesNotMatch(linha, /dy\.interpolate\(/, 'a conta é o desvioAnimado');
-  assert.match(linha, /\{ transform: \[\{ translateY: desvio \}, \{ scale: 1\.03 \}\] \}/);
-  assert.match(linha, /\{ transform: \[\{ translateY: desvio \}\] \}/);
+  assert.doesNotMatch(linha, /dy\.interpolate\(/);
+  // A mesma forma do transform sempre, com os dois valores ligados (25/10).
+  assert.match(linha, /\{ transform: \[\{ translateY: desvio \}, \{ scale: escala \}\] \}/);
   assert.match(linha, /if \(arrastarIndex == null \|\| altura <= 0\) \{ por\(0\); return; \}/);
   assert.match(linha, /React\.useLayoutEffect\(/, 'antes de pintar a lista reordenada');
+});
+
+verificar('menos seco (25/10): as vizinhas cedem o lugar a deslizar, e a largada assenta antes de reordenar', () => {
+  const linha = readFileSync(new URL('../src/components/LinhaArrastavel.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  // O sítio de cada vizinha é o do `desvioDaLinha` (o mesmo do destino), e chega lá em CEDER_MS no driver nativo.
+  assert.match(linha, /desvioDaLinha\(index, arrastarIndex, d, altura, total\)/);
+  assert.match(linha, /toValue: v, duration: CEDER_MS, easing: Easing\.out\(Easing\.cubic\), useNativeDriver: true/);
+  const hook = readFileSync(new URL('../src/hooks/useArrastarLista.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  // A pegada assenta no sítio novo, e só então a lista se reordena.
+  assert.match(hook, /toValue: muda \? \(para - de\) \* altura : 0,/);
+  const assentar = hook.indexOf('assentar.start(');
+  assert.ok(assentar > 0 && hook.indexOf('aoReordenar(de, para)', assentar) > assentar, 'reordena no fim do assentar');
 });
 
 if (falhas > 0) {

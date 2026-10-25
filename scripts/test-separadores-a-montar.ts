@@ -44,5 +44,13 @@ caso('o navegador é lazy com a vizinha pronta, e a barra monta o resto depois d
   assert.match(barra, /navigation\.preload\(/);
 });
 
+caso('o botão de um separador leva sempre à página principal dele (25/10)', () => {
+  const barra = readFileSync('src/navigation/BarraDeSeparadores.tsx', 'utf8').replace(/\r\n/g, '\n');
+  // Com páginas abertas por cima (um artista, um álbum), a pilha volta à raiz -- aqui ou noutro separador.
+  assert.match(barra, /if \(funda && pilha\?\.key\) navigation\.dispatch\(\{ \.\.\.StackActions\.popToTop\(\), target: pilha\.key \}\);/);
+  // Já na raiz do separador onde se está, a lista sobe ao topo.
+  assert.match(barra, /if \(!funda\) navigation\.emit\(\{ type: 'tabPress'/);
+});
+
 if (falhas) { console.error(`\n  ${falhas} caso(s) falharam.\n`); process.exit(1); }
 console.log('\n  Todos os casos passaram.\n');

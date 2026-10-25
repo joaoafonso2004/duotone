@@ -1,4 +1,5 @@
 import type { MaterialTopTabBarProps } from '@react-navigation/material-top-tabs';
+import { StackActions } from '@react-navigation/native';
 import { ICONES } from '../lib/icones';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React from 'react';
@@ -98,15 +99,17 @@ function SeparadorActivo({ activo, tamanho, children }: {
  *
  * ## Um detalhe que não é evidente
  *
- * O `navigate` só se chama quando o separador MUDA. Chamá-lo no que já está
- * escolhido parece inofensivo e não é: num separador com uma pilha por dentro
- * (desde 5/10, todos) volta à raiz, e quem estava a ver um álbum perdia-o por
- * ter carregado no separador onde já estava.
+ * O botão leva SEMPRE à página principal do separador (25/10, pedido do
+ * João: "dentro de um artista, clicar no botão das playlists deve ir para a
+ * página principal das playlists, em todas as abas"). Com páginas abertas por
+ * cima (um artista, um álbum), a pilha dele volta à raiz -- no separador onde
+ * se está, e também num outro para onde se vai. Até aqui, no separador onde já
+ * se estava, não fazia nada (3/10). Deslizar entre separadores não mexe nas
+ * pilhas: é o botão que quer dizer "a página principal".
  *
- * Por isso, no separador onde já se está (3/10): na raiz, leva a lista ao
- * topo, como em todas as apps do iOS (o `tabPress` que o `useScrollToTop` dos
- * ecrãs ouve); dentro de um álbum ou de uma playlist, não faz nada, como
- * antes. Mudar de separador já não vibra: vibrar a cada navegação era ruído.
+ * Já na raiz do separador onde se está, leva a lista ao topo, como em todas
+ * as apps do iOS (o `tabPress` que o `useScrollToTop` dos ecrãs ouve). Mudar
+ * de separador já não vibra: vibrar a cada navegação era ruído.
  *
  * ## Quem a desenha (3/10)
  *
@@ -193,12 +196,18 @@ export function IconesDosSeparadores({ state, navigation }: Pick<MaterialTopTabB
             accessibilityLabel={nome}
             onPress={() => {
               pedirFluidez(500);
-              // Dentro de uma pilha (um álbum aberto) não se emite: o
-              // native-stack voltava à raiz com o `tabPress`.
-              const pilha = route.state as { index?: number } | undefined;
-              if (escolhido && (pilha?.index ?? 0) > 0) return;
+              // Páginas abertas por cima: a pilha deste separador volta à
+              // raiz (25/10). Ver o cabeçalho.
+              const pilha = route.state as { key?: string; index?: number } | undefined;
+              const funda = (pilha?.index ?? 0) > 0;
+              if (funda && pilha?.key) navigation.dispatch({ ...StackActions.popToTop(), target: pilha.key });
+              if (escolhido) {
+                // Já na raiz: a lista ao topo.
+                if (!funda) navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+                return;
+              }
               const evento = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-              if (!escolhido && !evento.defaultPrevented) navigation.navigate(route.name);
+              if (!evento.defaultPrevented) navigation.navigate(route.name);
             }}
             style={styles.separador}
           >

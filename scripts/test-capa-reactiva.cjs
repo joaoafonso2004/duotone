@@ -209,7 +209,8 @@ async function run() {
   // E trocam de faixa depois do recuo (2/10), a não ser que estejam à vista.
   assert.match(cubo, /<LyricsView key=\{letras\.chave\} track=\{letras\.track\}/,
     'as letras recomeçam por faixa dentro do cubo');
-  assert.match(cubo, /const letras=showLyrics\|\|moving\?\{chave:chaveDasLetras,track\}:letrasGuardadas;/,
+  // À vista (ou a rodar), as da faixa nova logo; com o leitor fechado (25/10), nenhumas.
+  assert.match(cubo, /const letras=showLyrics\|\|moving\?\{chave:chaveDasLetras,track\}:aVista\?letrasGuardadas:null;/,
     'à vista (ou a rodar), as da faixa nova logo');
   assert.doesNotMatch(player + cubo, /blurRadius=\{(28|64)\}/,
     'os desfoques partem da miniatura pequena (desfoqueLeve), não da capa de 1280 px');

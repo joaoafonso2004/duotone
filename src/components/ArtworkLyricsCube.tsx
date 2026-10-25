@@ -37,7 +37,13 @@ type Props={track:Track;size:number;artwork?:string|null;front:React.ReactNode;s
    * com a própria capa -- e o gesto vira a caixa inteira 180° em vez de rodar um
    * cubo de 90°. Sem ela (o PC, o modo Simple) fica exatamente como era.
    */
-  pose3D?:PoseDaCapa3D|null};
+  pose3D?:PoseDaCapa3D|null;
+  /**
+   * O leitor aberto (25/10). A capa fica montada com ele fechado, e aí as
+   * letras não: liam a linha a cada verso, com o ecrã apagado. Montam-se de
+   * novo `LETRAS_DEPOIS_MS` depois de ele abrir, já com a abertura acabada.
+   */
+  aVista?:boolean};
 // Translação Z equivalente, também nos motores nativos que só expõem X e Y.
 /** Quanto as letras esperam pela faixa: o fim da abertura e do recuo do skip. */
 const LETRAS_DEPOIS_MS=900;
@@ -97,7 +103,7 @@ const LateralDaCaixa=React.memo(function LateralDaCaixa({lado,size,pose3D,virar,
 });
 
 /** Duas faces do mesmo cubo. O motor de áudio vive fora destas transformações. */
-export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,aoRodar,raio=20,pose3D}:Props){
+export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,aoRodar,raio=20,pose3D,aVista=true}:Props){
   const reduced=useReducedMotion();
   const progress=useRef(new Animated.Value(showLyrics?1:0)).current;
   const [direction,setDirection]=useState(1);
@@ -113,15 +119,17 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,
   // Quem as está a ver, ou começa a rodar a capa, tem as novas logo.
   const chaveDasLetras=`${track.source}:${track.sourceId}`;
   const [letrasGuardadas,setLetras]=useState<{chave:string;track:Track}|null>(showLyrics?{chave:chaveDasLetras,track}:null);
-  const letras=showLyrics||moving?{chave:chaveDasLetras,track}:letrasGuardadas;
+  const letras=showLyrics||moving?{chave:chaveDasLetras,track}:aVista?letrasGuardadas:null;
   const atrasadas=letrasGuardadas?.chave!==chaveDasLetras;
+  // Fechado (25/10): largam-se as guardadas, e ao abrir voltam com o atraso.
+  useEffect(()=>{if(!aVista&&!showLyrics)setLetras(null);},[aVista,showLyrics]);
   useEffect(()=>{
-    if(!atrasadas)return;
+    if(!atrasadas||(!aVista&&!showLyrics&&!moving))return;
     if(showLyrics||moving){setLetras({chave:chaveDasLetras,track});return;}
     const t=setTimeout(()=>setLetras({chave:chaveDasLetras,track}),LETRAS_DEPOIS_MS);
     return()=>clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[chaveDasLetras,atrasadas,showLyrics,moving]);
+  },[chaveDasLetras,atrasadas,showLyrics,moving,aVista]);
   useEffect(()=>{aoRodarRef.current?.(moving);},[moving]);
   const cubeRef=useRef<any>(null);
   const latest=useRef({showLyrics,onChange,size,reduced});latest.current={showLyrics,onChange,size,reduced};

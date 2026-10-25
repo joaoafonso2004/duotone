@@ -53,4 +53,6 @@ check('valor nao numerico da null', readLoudnessDb({ playerConfig: { audioConfig
 check('zero e um valor valido', readLoudnessDb({ playerConfig: { audioConfig: { loudnessDb: 0 } } }) === 0);
 
 console.log(bad ? `\n  ${bad} falha(s)` : `\n  Todos os casos passaram.`);
-process.exit(bad ? 1 : 0);
+// Sem process.exit(): sair à força no Windows, com o Node ainda a fechar um
+// handle, dava uma queda interna (UV_HANDLE_CLOSING) a meio da suite (25/10).
+process.exitCode = bad ? 1 : 0;

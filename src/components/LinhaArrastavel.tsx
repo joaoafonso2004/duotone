@@ -1,10 +1,11 @@
 import React from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { Animated, Easing, StyleSheet, View } from 'react-native';
 import {
   PanGestureHandler, State,
   type PanGestureHandlerGestureEvent, type PanGestureHandlerStateChangeEvent,
 } from 'react-native-gesture-handler';
-import { desvioAnimado } from '../lib/arrastarFila';
+import { desvioDaLinha } from '../lib/arrastarFila';
+import { pedirFluidez } from '../state/fluidez';
 import { colors } from '../theme';
 
 /** Quanto tempo de dedo parado numa linha abre o arrasto. */
@@ -39,8 +40,11 @@ export const TOQUE_LONGO_PARA_ARRASTAR_MS = 500;
  * gesto. Com uma prop, o primeiro movimento a seguir ao toque longo ainda
  * chegava antes do render que a marcava.
  */
+/** Quanto uma vizinha demora a ceder o lugar (25/10: era um salto de 16 px). */
+export const CEDER_MS = 150;
+
 export function LinhaArrastavel({
-  index, arrastarIndex, pegadaRef, podeArrastar, altura, dy,
+  index, arrastarIndex, pegadaRef, podeArrastar, altura, dy, total,
   aoComecar, aoPegar, aoMover, aoLargar, aoCancelar, children,
 }: {
   index: number;
@@ -52,6 +56,8 @@ export function LinhaArrastavel({
   podeArrastar: boolean;
   altura: number;
   dy: Animated.Value;
+  /** Quantas linhas tem a lista: o sítio onde a pegada cai nunca passa da última. */
+  total: number;
   /** O arrasto abre aqui (a pega, ou o toque longo). */
   aoComecar: (index: number) => void;
   /**
@@ -139,27 +145,60 @@ export function LinhaArrastavel({
    */
   const desvio = React.useRef(new Animated.Value(0)).current;
   const ultimoDesvio = React.useRef(0);
+  const cedencia = React.useRef<Animated.CompositeAnimation | null>(null);
   // Antes de pintar: com o `useEffect`, a lista reordenada aparecia um frame
   // com os deslocamentos do arrasto ainda postos.
   React.useLayoutEffect(() => {
+    // Já: a pegada segue o dedo, e no fim tudo volta a 0 no mesmo frame em
+    // que a lista se reordena.
     const por = (v: number) => {
+      cedencia.current?.stop();
+      cedencia.current = null;
       if (v === ultimoDesvio.current) return;
       ultimoDesvio.current = v;
       desvio.setValue(v);
     };
+    // A deslizar: uma vizinha cede o lugar (ou volta a ele) em `CEDER_MS`, em
+    // vez de saltar numa banda de 16 px do dedo -- era o "muito snappy" (25/10).
+    // No driver nativo, que não espera pelo JavaScript ocupado com o gesto.
+    const ceder = (v: number) => {
+      if (v === ultimoDesvio.current) return;
+      ultimoDesvio.current = v;
+      cedencia.current?.stop();
+      const a = Animated.timing(desvio, {
+        toValue: v, duration: CEDER_MS, easing: Easing.out(Easing.cubic), useNativeDriver: true,
+      });
+      cedencia.current = a;
+      a.start(() => { if (cedencia.current === a) cedencia.current = null; });
+    };
     if (arrastarIndex == null || altura <= 0) { por(0); return; }
-    // A pegada segue o dedo; as outras cedem o lugar a meio caminho, a
-    // deslizar numa banda estreita (`desvioAnimado`).
-    const calcular = (d: number) => (activo ? d : desvioAnimado(index, arrastarIndex, d, altura));
-    por(calcular((dy as unknown as { __getValue: () => number }).__getValue()));
-    const id = dy.addListener(({ value }) => por(calcular(value)));
+    const valor = () => (dy as unknown as { __getValue: () => number }).__getValue();
+    if (activo) {
+      por(valor());
+      const id = dy.addListener(({ value }) => por(value));
+      return () => dy.removeListener(id);
+    }
+    // As outras cedem o lugar quando a pegada passa o meio delas (`desvioDaLinha`).
+    const alvo = (d: number) => desvioDaLinha(index, arrastarIndex, d, altura, total);
+    ceder(alvo(valor()));
+    const id = dy.addListener(({ value }) => ceder(alvo(value)));
     return () => dy.removeListener(id);
-  }, [activo, arrastarIndex, altura, desvio, dy, index]);
-  // O estilo só muda quando a linha é pegada ou largada: um objeto novo a
-  // cada render refazia a ligação do Animated.
-  const estilo = React.useMemo(() => (activo
-    ? { transform: [{ translateY: desvio }, { scale: 1.03 }] }
-    : { transform: [{ translateY: desvio }] }), [activo, desvio]);
+  }, [activo, arrastarIndex, altura, desvio, dy, index, total]);
+
+  /** A pegada cresce um pouco ao pegar e encolhe ao largar, a deslizar (25/10). */
+  const escala = React.useRef(new Animated.Value(1)).current;
+  React.useEffect(() => {
+    // Ao pegar, o arrasto já segura os 120 Hz (`useArrastarLista`); ao largar,
+    // ele solta-os, e encolher ainda tem de ir a 120 Hz.
+    if (!activo) pedirFluidez(250);
+    Animated.timing(escala, {
+      toValue: activo ? 1.03 : 1, duration: activo ? 120 : 200,
+      easing: Easing.out(Easing.cubic), useNativeDriver: true,
+    }).start();
+  }, [activo, escala]);
+  // A MESMA forma sempre (os dois valores ligados), e o objeto só nasce uma
+  // vez: trocar a forma do transform refazia a ligação do Animated.
+  const estilo = React.useMemo(() => ({ transform: [{ translateY: desvio }, { scale: escala }] }), [desvio, escala]);
 
   return (
     <PanGestureHandler
