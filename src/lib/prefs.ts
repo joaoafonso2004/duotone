@@ -400,6 +400,17 @@ export async function setCrossfadeSegundos(v: DuracaoDoCrossfade): Promise<void>
   await AsyncStorage.setItem(KEY_CROSSFADE, String(v));
 }
 
+/** O AutoMix (25/10): desligado de origem, como o crossfade. */
+const KEY_AUTOMIX = 'pref:automix';
+
+export async function getAutomix(): Promise<boolean> {
+  return (await AsyncStorage.getItem(KEY_AUTOMIX)) === '1';
+}
+
+export async function setAutomix(v: boolean): Promise<void> {
+  await AsyncStorage.setItem(KEY_AUTOMIX, v ? '1' : '0');
+}
+
 /**
  * Como as playlists são ordenadas.
  *

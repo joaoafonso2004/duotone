@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import {
   efeitoDaNormalizacao, efeitoDaQualidade, efeitoDeLimparACache, efeitoDeManterOEcra,
   efeitoDoCrossfade, efeitoDoSmartShuffle, efeitoDoDiscord, efeitoDoGostoDoSpotify, efeitoDoPadrao, efeitoDoPoToken,
-  efeitoDoRadio, efeitoDoRecomendado, efeitoDoTemporizador, tamanho,
+  efeitoDoAutomix, efeitoDoRadio, efeitoDoRecomendado, efeitoDoTemporizador, tamanho,
 } from '../src/lib/efeitoDasDefinicoes.ts';
 
 let falhas = 0;
@@ -33,6 +33,12 @@ caso('sem nada a tocar, diz o que a escolha faz', () => {
 
 console.log('\no crossfade com os limites dele');
 caso('desligado não diz nada', () => assert.equal(efeitoDoCrossfade({ segundos: 0, repeatUma: false }), null));
+caso('o AutoMix diz o que faz, e que pára com o iPhone quente', () => {
+  assert.equal(efeitoDoAutomix({ ligado: false, crossfadeS: 6, aPoupar: false }), null);
+  assert.equal(efeitoDoAutomix({ ligado: true, crossfadeS: 0, aPoupar: false }), 'Mixes on the beat when the tempos match · otherwise a 6 s fade');
+  assert.equal(efeitoDoAutomix({ ligado: true, crossfadeS: 9, aPoupar: false }), 'Mixes on the beat when the tempos match · otherwise a 9 s fade');
+  assert.match(efeitoDoAutomix({ ligado: true, crossfadeS: 9, aPoupar: true })!, /^Paused while iPhone is hot/);
+});
 caso('o Recommended diz para que auscultadores está afinado, ou que fica plano', () => {
   assert.equal(efeitoDoRecomendado({ modelo: 'Sony WH-1000XM5' }), "Tuned for Sony WH-1000XM5 · follows what's connected");
   assert.equal(efeitoDoRecomendado({ modelo: null }), 'Nothing measured connected · stays flat');

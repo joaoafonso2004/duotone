@@ -47,6 +47,8 @@ const TABELA = [
     leitores: [['src/components/YouTubePlayerView.tsx', /volumeNormalization/]] },
   { opcao: 'Autoplay radio', escreve: ['setAutoplayRadio'],
     leitores: [['src/lib/radioSync.ts', /s\.autoplayRadio/]] },
+  { opcao: 'AutoMix', escreve: ['setAutomix'],
+    leitores: [['src/components/YouTubePlayerView.tsx', /st\.automix && temAutomixNativo/]] },
   { opcao: 'Keep screen awake', escreve: ['setKeepAwake'],
     leitores: [['App.tsx', /getKeepAwake\(/]] },
   { opcao: 'Show track duration', escreve: ['setShowTrackDuration', 'setShowTrackDurationCache'],

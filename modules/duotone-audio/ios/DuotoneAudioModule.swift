@@ -1,5 +1,6 @@
 import ExpoModulesCore
 import AVFoundation
+import CoreMedia
 
 /**
  * Tom e equalizador por cima dos AVPlayer que o expo-video ja esta a tocar.
@@ -142,6 +143,87 @@ public class DuotoneAudioModule: Module {
     return niveis
   }
 
+  // ------------------------------------------------- o AutoMix (25/10) ----
+
+  /** As MESMAS constantes do src/lib/ritmo.ts (o test-automix.ts compara-as). */
+  private static let amostrasPorQuadro = 512
+  private static let corteDosGravesHz = 150.0
+  private static let chaoDb = -120.0
+
+  /**
+   * A energia de cada quadro de uma janela do ficheiro, nos graves e no total,
+   * para o AutoMix saber o andamento e onde caem as batidas.
+   *
+   * Devolve `[quadros por segundo, inicio da janela em s, graves0, total0,
+   * graves1, total1, ...]`, em dB. NAO decide nada: o andamento, a fase e o
+   * tempo forte vivem no src/lib/ritmo.ts, onde ha testes, e que faz esta
+   * MESMA conta (`energiasPorQuadro`) para os poder provar. Mono (a media dos
+   * canais), dois filtros de um polo para os graves.
+   *
+   * `desde` negativo conta do fim: e a janela do fim de uma faixa. Le so a
+   * janela, em blocos, e nunca o ficheiro todo de uma vez -- 45 s de audio em
+   * float sao dezenas de MB.
+   */
+  private static func energiasDoRitmo(_ url: URL, desde: Double, segundos: Double) throws -> [Double] {
+    let ficheiro = try AVAudioFile(forReading: url)
+    let formato = ficheiro.processingFormat
+    let taxa = formato.sampleRate
+    let total = ficheiro.length
+    guard taxa > 0, total > 0, segundos > 0, desde.isFinite, segundos.isFinite else { return [] }
+
+    let quantos = AVAudioFramePosition(min(Double(total), segundos * taxa))
+    let inicio: AVAudioFramePosition = desde < 0
+      ? max(0, total - quantos)
+      : min(max(0, AVAudioFramePosition(desde * taxa)), total)
+    let fim = min(total, inicio + quantos)
+    guard fim > inicio else { return [] }
+    ficheiro.framePosition = inicio
+
+    let bloco: AVAudioFrameCount = 8192
+    guard let buffer = AVAudioPCMBuffer(pcmFormat: formato, frameCapacity: bloco) else { return [] }
+    let porQuadro = DuotoneAudioModule.amostrasPorQuadro
+    let chao = DuotoneAudioModule.chaoDb
+    let a = 1 - exp(-2 * Double.pi * DuotoneAudioModule.corteDosGravesHz / taxa)
+    let numeroDeCanais = Int(formato.channelCount)
+    var y1 = 0.0
+    var y2 = 0.0
+    var somaGraves = 0.0
+    var somaTotal = 0.0
+    var n = 0
+    var saida: [Double] = [taxa / Double(porQuadro), Double(inicio) / taxa]
+    saida.reserveCapacity(2 + Int((fim - inicio) / AVAudioFramePosition(porQuadro)) * 2)
+
+    while ficheiro.framePosition < fim {
+      let falta = AVAudioFrameCount(min(AVAudioFramePosition(bloco), fim - ficheiro.framePosition))
+      try ficheiro.read(into: buffer, frameCount: falta)
+      let quadros = Int(buffer.frameLength)
+      if quadros == 0 { break }
+      guard let canais = buffer.floatChannelData, numeroDeCanais > 0 else { break }
+      for i in 0..<quadros {
+        var x = 0.0
+        for canal in 0..<numeroDeCanais {
+          x += Double(canais[canal][i])
+        }
+        x /= Double(numeroDeCanais)
+        y1 += a * (x - y1)
+        y2 += a * (y1 - y2)
+        somaGraves += y2 * y2
+        somaTotal += x * x
+        n += 1
+        if n == porQuadro {
+          let mediaGraves = somaGraves / Double(n)
+          let mediaTotal = somaTotal / Double(n)
+          saida.append(mediaGraves > 0 ? max(chao, 10 * log10(mediaGraves)) : chao)
+          saida.append(mediaTotal > 0 ? max(chao, 10 * log10(mediaTotal)) : chao)
+          somaGraves = 0
+          somaTotal = 0
+          n = 0
+        }
+      }
+    }
+    return saida
+  }
+
   public func definition() -> ModuleDefinition {
     Name("DuotoneAudio")
 
@@ -154,6 +236,88 @@ public class DuotoneAudioModule: Module {
         // Um ficheiro que nao se le nao e um erro a propagar: quem chama fica
         // sem analise e o crossfade conta do fim, como sempre contou.
         return []
+      }
+    }
+
+    /** Ver `energiasDoRitmo`. Assincrona: le do disco, fora da thread principal. */
+    AsyncFunction("analisarRitmo") { (uri: String, desde: Double, segundos: Double) -> [Double] in
+      guard let url = URL(string: uri) else { return [] }
+      do {
+        return try DuotoneAudioModule.energiasDoRitmo(url, desde: desde, segundos: segundos)
+      } catch {
+        // Sem ritmo o AutoMix nao tem plano, e fica o crossfade de sempre.
+        return []
+      }
+    }
+
+    /**
+     * A faixa seguinte a entrar NUM INSTANTE EXATO da que sai (AutoMix, 25/10):
+     * `quandoSai` em segundos na que sai, `ondeEntra` em segundos na que entra.
+     *
+     * Pelo JS nao da. O relogio da passagem e o `timeUpdate` (de 0,25 em 0,25 s
+     * na melhor das hipoteses), e com o ecra bloqueado os temporizadores do JS
+     * param. Uma batida a 140 BPM dura 0,43 s: entrar 100 ms ao lado ouve-se.
+     * Aqui converte-se o instante da que sai para o relogio da maquina pelo
+     * `timebase` do item dela, e a que entra arranca com
+     * `setRate(_:time:atHostTime:)` -- o mecanismo da Apple para pôr dois
+     * leitores em sincronia. Depois disto o JS so mexe nos volumes.
+     *
+     * O `setRate(_:time:atHostTime:)` LANCA uma excecao, e a app cai, se a
+     * espera do buffer estiver ligada ou o item nao estiver pronto: as guardas
+     * vem antes e o `semEsperarAteParar` desliga a espera. So a 1x: com outra
+     * velocidade a grelha de uma nao e a da outra.
+     *
+     * Devolve se ficou agendado. Quem cancela e o JS, com um `pause()` no motor
+     * que entra (o ritmo zero sobrepoe-se ao agendado).
+     */
+    AsyncFunction("agendarEntrada") {
+      (saiRef: SharedRef<AVPlayer>, entraRef: SharedRef<AVPlayer>, quandoSai: Double, ondeEntra: Double, promise: Promise) in
+      let sai = saiRef.ref
+      let entra = entraRef.ref
+      DispatchQueue.main.async { [weak self] in
+        guard let self,
+              quandoSai.isFinite, ondeEntra.isFinite, ondeEntra >= 0,
+              sai.rate > 0, abs(sai.rate - 1) < 0.001,
+              let itemSai = sai.currentItem, itemSai.status == .readyToPlay,
+              let itemEntra = entra.currentItem, itemEntra.status == .readyToPlay,
+              entra.status == .readyToPlay else {
+          promise.resolve(false)
+          return
+        }
+        let alvo = CMTime(seconds: ondeEntra, preferredTimescale: 48000)
+        entra.seek(to: alvo, toleranceBefore: .zero, toleranceAfter: .zero) { feito in
+          DispatchQueue.main.async {
+            guard feito, entra.currentItem === itemEntra, sai.currentItem === itemSai,
+                  sai.rate > 0, entra.status == .readyToPlay, itemEntra.status == .readyToPlay else {
+              promise.resolve(false)
+              return
+            }
+            let relogio = CMClockGetHostTimeClock()
+            let agora = CMClockGetTime(relogio)
+            let quando: CMTime
+            if let base = itemSai.timebase {
+              quando = CMSyncConvertTime(CMTime(seconds: quandoSai, preferredTimescale: 48000), from: base, to: relogio)
+            } else {
+              let falta = (quandoSai - CMTimeGetSeconds(sai.currentTime())) / Double(sai.rate)
+              quando = CMTimeAdd(agora, CMTime(seconds: falta, preferredTimescale: 1_000_000_000))
+            }
+            let falta = CMTimeGetSeconds(CMTimeSubtract(quando, agora))
+            guard falta.isFinite, falta > 0.08, falta < 10 else {
+              promise.resolve(false)
+              return
+            }
+            self.semEsperarAteParar(entra)
+            if #available(iOS 16.0, tvOS 16.0, *) {
+              if entra.defaultRate != 1 { entra.defaultRate = 1 }
+            }
+            guard !entra.automaticallyWaitsToMinimizeStalling else {
+              promise.resolve(false)
+              return
+            }
+            entra.setRate(1, time: alvo, atHostTime: quando)
+            promise.resolve(true)
+          }
+        }
       }
     }
 
@@ -394,6 +558,29 @@ public class DuotoneAudioModule: Module {
     guard let vigia else { return }
     vigia.invalidate()
     p.automaticallyWaitsToMinimizeStalling = true
+  }
+
+  /**
+   * Como o `semEsperar`, para a entrada agendada do AutoMix: desliga a espera
+   * do buffer e so a volta a ligar quando o leitor PARAR (`.paused`). Ate a
+   * hora marcada ele nao esta a tocar -- esta a espera dela --, e a vigia do
+   * `semEsperar` (que repoe com qualquer estado que nao seja `.playing`)
+   * religava-a ali mesmo, por cima do agendamento.
+   *
+   * So se desliga o que estava ligado: quem a desligou por outra razao nao a
+   * ve religada por nos.
+   */
+  private func semEsperarAteParar(_ p: AVPlayer) {
+    guard p.automaticallyWaitsToMinimizeStalling else { return }
+    p.automaticallyWaitsToMinimizeStalling = false
+    let vigia = p.observe(\.timeControlStatus, options: [.new]) { [weak self] jogador, _ in
+      guard jogador.timeControlStatus == .paused else { return }
+      self?.reporEspera(jogador)
+    }
+    cadeadoDaVelocidade.lock()
+    let antiga = esperasSuspensas.updateValue(vigia, forKey: ObjectIdentifier(p))
+    cadeadoDaVelocidade.unlock()
+    antiga?.invalidate()
   }
 
   /** Deita fora os motores cujo AVPlayer ja morreu -- o `weak` deixou-os a nil. */

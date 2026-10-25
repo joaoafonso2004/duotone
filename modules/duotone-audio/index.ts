@@ -116,3 +116,51 @@ export function aplicarVelocidadeNativa(player: unknown, velocidade: number): bo
 export function definirTomDaVelocidade(mantemTom: boolean): void {
   try { nativo?.definirTomDaVelocidade?.(mantemTom); } catch {}
 }
+
+// ------------------------------------------------- o AutoMix (25/10) ----
+
+/**
+ * Este binário sabe agendar a entrada da faixa seguinte? Só a partir da build
+ * do AutoMix. Sem isto o AutoMix fica de fora e as passagens são o crossfade
+ * de sempre.
+ */
+export const temAutomixNativo = typeof nativo?.agendarEntrada === 'function'
+  && typeof nativo?.analisarRitmo === 'function';
+
+/**
+ * A energia de cada quadro de uma janela do ficheiro (ver `energiasDoRitmo` no
+ * Swift): `[fps, inicio, graves0, total0, ...]`. `desde` negativo conta do fim.
+ * Lista vazia sem módulo ou sem ficheiro que se leia. Quem decide o que estes
+ * números querem dizer é o `src/lib/ritmo.ts`.
+ */
+export async function analisarRitmoNativo(uri: string, desde: number, segundos: number): Promise<number[]> {
+  try {
+    if (!temAutomixNativo) return [];
+    const plano = await nativo.analisarRitmo(uri, desde, segundos);
+    return Array.isArray(plano) ? plano : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * A faixa que está no motor `entra` começa em `ondeEntra` (segundos nela) no
+ * instante exato em que o motor `sai` passar por `quandoSai` (segundos na que
+ * sai). Quem a cancela é um `pause()` no motor que entra.
+ *
+ * Falso quando não ficou agendada (sem módulo, motor sem item pronto, hora já
+ * passada): quem chama cai no crossfade de sempre.
+ */
+export async function agendarEntradaNativa(
+  sai: unknown,
+  entra: unknown,
+  quandoSai: number,
+  ondeEntra: number,
+): Promise<boolean> {
+  try {
+    if (!temAutomixNativo) return false;
+    return (await nativo.agendarEntrada(sai, entra, quandoSai, ondeEntra)) === true;
+  } catch {
+    return false;
+  }
+}

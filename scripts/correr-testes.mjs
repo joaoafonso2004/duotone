@@ -86,6 +86,8 @@ const TESTES = [
   `${TS} scripts/test-interrupcao-de-audio.ts`,
   `${TS} scripts/test-fim-da-faixa.ts`,
   `${TS} scripts/test-crossfade.ts`,
+  `${TS} scripts/test-ritmo.ts`,
+  `${RESOLVER} scripts/test-automix.ts`,
   `${TS} scripts/test-montagem-da-capa.ts`,
   `${TS} scripts/test-recuo-do-encaixe.ts`,
   `${TS} scripts/test-troca-de-fonte.ts`,

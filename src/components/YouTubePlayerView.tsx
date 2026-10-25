@@ -37,12 +37,14 @@ import { estadoDeEnergia } from '../../modules/duotone-diagnostico';
 import { preCarregarCapasGrandes } from '../state/capasGrandes';
 import type { Prioridade } from '../lib/filaDeDownloads';
 import { analisarFimDaFaixa, fimMusicalGuardado } from '../lib/caudaAnalisada';
+import { deveAgendar, descreverPlano, duracaoDaPassagem, planoDoAutomix, type PlanoDoAutomix } from '../lib/automix';
+import { analisarRitmoDaFaixa } from '../lib/ritmoGuardado';
 import { comecarArranque, marcarResolver } from '../lib/arranqueDaFaixa';
 import {
   classificar, mensagem as mensagemDaFalha, recuperacao, registar,
   registarNaFila, registarNoStream, sinalDoErro, type TipoFalha,
 } from '../lib/playbackDiagnostics';
-import { ganhosEmVigor, usePlayer } from '../state/player';
+import { baseDoEq, ganhosEmVigor, usePlayer } from '../state/player';
 import { useSaudeDaReproducao } from '../state/saudeDaReproducao';
 import { aoTocar as ajusteAoTocar, chaveDaFaixa, compensacaoLinear } from '../lib/equalizer';
 import { arredondar as arredondarRate } from '../lib/playbackRate';
@@ -92,6 +94,15 @@ let pouparNoRelatorio: string = 'nada';
 /** O mesmo, para a app escondida (3/10): só a mudança vai para o relatório. */
 let escondidaNoRelatorio = false;
 
+/**
+ * Quanto dura a passagem neste aparelho. Com o AutoMix ligado (e um binário
+ * que o saiba fazer) há sempre passagem, mesmo com o crossfade a 0
+ * (`duracaoDaPassagem`, lib/automix.ts).
+ */
+function passagemS(st: { automix: boolean; crossfadeSegundos: number }): number {
+  return duracaoDaPassagem({ automix: st.automix && temAutomixNativo, crossfadeSegundos: st.crossfadeSegundos });
+}
+
 /** Resolve e descarrega uma faixa por conta. Nunca rejeita: falhar aqui é só
  * não ganhar tempo, e a reprodução tenta por si quando chegar a vez dela. */
 async function adiantarFaixa(
@@ -112,6 +123,11 @@ async function adiantarFaixa(
     // saber onde a MÚSICA dela acaba -- que raramente é onde o ficheiro acaba.
     // É o que impede o crossfade de cruzar a seguinte com o silêncio do fim.
     if (!abandonada() && uriLocal) void analisarFimDaFaixa(faixa.sourceId, uriLocal, duracao);
+    // O AutoMix (25/10): o ritmo do início e do fim, uma vez, com tempo de
+    // sobra até ela tocar. Guardado no aparelho; quente ou a poupar, não corre.
+    if (!abandonada() && uriLocal && usePlayer.getState().automix && temAutomixNativo) {
+      void analisarRitmoDaFaixa(faixa.sourceId, uriLocal);
+    }
   } catch (err: any) {
     if (err?.message !== DOWNLOAD_ABORTED) {
       console.warn('[Smart Cache] Falha ao adiantar música:', err);
@@ -120,7 +136,10 @@ async function adiantarFaixa(
 }
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { anotarPrimeiroSom } from '../state/tempoAteAoSom';
-import { aplicarEqualizadorNativo, ligarAudioNativo, aplicarVelocidadeNativa, estadoDaVelocidadeNativa } from '../../modules/duotone-audio';
+import {
+  agendarEntradaNativa, aplicarEqualizadorNativo, ligarAudioNativo, aplicarVelocidadeNativa, estadoDaVelocidadeNativa,
+  temAutomixNativo,
+} from '../../modules/duotone-audio';
 import { marcarPausaDeFora, PAUSA_DE_FORA_MS, pausaDeFora, playDeFora } from '../lib/pausaDeFora';
 import { registarNaVelocidade } from '../lib/playbackDiagnostics';
 
@@ -425,6 +444,25 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     tetoEntra: number;
     /** Fixa no arranque: mudar a definição a meio não torce a curva. */
     duracaoDoFade: number;
+    /**
+     * AutoMix: onde a passagem começa, em segundos na que sai. A que entra foi
+     * agendada no nativo para esse instante, e a curva conta a partir dele
+     * (e não do fim, como no crossfade).
+     */
+    inicioS?: number;
+  } | null>(null);
+
+  /**
+   * O AutoMix desta passagem (25/10): o plano entre a faixa que toca (`de`) e
+   * a seguinte preparada (`para`). `a-calcular` enquanto se lê o ritmo,
+   * `agendado` com a entrada marcada no nativo, `falhou` para ficar o
+   * crossfade de sempre.
+   */
+  const automixRef = useRef<{
+    de: string;
+    para: string;
+    estado: 'a-calcular' | 'pronto' | 'agendado' | 'falhou';
+    plano: PlanoDoAutomix | null;
   } | null>(null);
 
   // Em background não há barra de progresso para animar. Dois segundos
@@ -683,6 +721,17 @@ export function YouTubePlayerView({ track }: { track: Track }) {
    * Corre também a cada `timeUpdate` (é aí que se sabe quanto falta), e só
    * escreve no motor quando o ritmo muda.
    */
+  /**
+   * A passagem que o ritmo da posição tem de apanhar: a do crossfade, ou a do
+   * AutoMix, que pode começar antes (no último tempo forte em que cabe).
+   */
+  const fadeParaORitmo = (duracao: number | null) => {
+    const st = usePlayer.getState();
+    const a = automixRef.current;
+    const plano = a?.de === track.sourceId ? a.plano : null;
+    return plano && duracao ? Math.max(passagemS(st), duracao - plano.inicioS) : passagemS(st);
+  };
+
   const reporIntervaloDeTempo = () => {
     const ponto = pontoDaPosicaoRef.current?.sourceId === track.sourceId ? pontoDaPosicaoRef.current : null;
     const passo = intervaloDaPosicao({
@@ -692,7 +741,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       posicaoSegundos: ponto?.posicao ?? null,
       duracaoSegundos: ponto?.duracao ?? null,
       fimMusicalSegundos: fimMusicalGuardado(track.sourceId),
-      duracaoDoFade: usePlayer.getState().crossfadeSegundos,
+      duracaoDoFade: fadeParaORitmo(ponto?.duracao ?? null),
     });
     const aplicado = intervaloAplicadoRef.current;
     if (aplicado && aplicado.motor === player && aplicado.sourceId === track.sourceId && aplicado.passo === passo) return;
@@ -744,7 +793,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     const duracao = track.durationSeconds || streamRef.current?.durationSeconds || null;
     if (
       !podeCrossfade({
-        duracaoDoFade: st.crossfadeSegundos,
+        duracaoDoFade: passagemS(st),
         duracaoSegundos: duracao,
         posicaoSegundos: lastProgressRef.current.time,
         temFaixaSeguinte: true,
@@ -761,7 +810,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     // Só perto do fim. Preparar no primeiro segundo deixava um AVPlayerItem
     // inteiro em memória durante a faixa toda, sem proveito nenhum.
     const falta = duracao! - lastProgressRef.current.time;
-    if (falta > st.crossfadeSegundos + 20) return;
+    // Com o AutoMix mais cedo: a passagem pode começar uns compassos antes, e
+    // o ritmo das duas tem de estar lido antes disso.
+    if (falta > passagemS(st) + (st.automix && temAutomixNativo ? 45 : 20)) return;
 
     const ficheiro = cachedAudioFile(seguinte.sourceId);
     if (!ficheiro.exists) return;
@@ -777,7 +828,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     const ajuste = ajusteAoTocar(
       st.ajustesPorFaixa,
       chaveDaFaixa(seguinte),
-      { rate: st.padraoRate, ganhos: st.padraoGanhos },
+      // A base com o Recommended (25/10): a curva dos auscultadores ligados.
+      { rate: st.padraoRate, ganhos: baseDoEq(st) },
     );
 
     aPrepararRef.current = true;
@@ -832,6 +884,13 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (!p) return;
     passagemRef.current = null;
     seguinteRef.current = null;
+    // Uma entrada do AutoMix desfeita: se ainda não tinha começado, o plano
+    // volta a valer (a seguinte prepara-se outra vez); se já tinha, a que
+    // entrava já tocou um bocado, e o fim desta faixa fica com o crossfade.
+    const a = automixRef.current;
+    if (a && p.inicioS != null && a.estado === 'agendado') {
+      a.estado = lastProgressRef.current.time >= p.inicioS - 0.05 ? 'falhou' : 'pronto';
+    }
     endedRef.current = false;
     reporIntervaloDeTempo();
     try {
@@ -903,7 +962,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       sourceId: seguinte.sourceId,
       tetoSai: ceilingRef.current,
       tetoEntra: targetVolume(getLoudnessDb(seguinte.sourceId), st.volumeNormalization),
-      duracaoDoFade: st.crossfadeSegundos,
+      duracaoDoFade: passagemS(st),
     };
     endedRef.current = true;
     if (fadeIntervalRef.current) {
@@ -924,14 +983,132 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     }
   };
 
+  /**
+   * O plano do AutoMix entre a faixa que toca e a seguinte preparada (25/10):
+   * o ritmo das duas (guardado, ou lido agora do disco) e a decisão do
+   * `planoDoAutomix`. Só a 1x nas duas: com outra velocidade a grelha de uma
+   * não é a da outra. Sem plano fica o crossfade de sempre.
+   */
+  const calcularPlanoDoAutomix = async (seguinte: Track) => {
+    const de = track.sourceId;
+    const para = seguinte.sourceId;
+    automixRef.current = { de, para, estado: 'a-calcular', plano: null };
+    let plano: PlanoDoAutomix | null = null;
+    try {
+      const st = usePlayer.getState();
+      const duracao = track.durationSeconds || streamRef.current?.durationSeconds || null;
+      const aUmX = Math.abs(st.playbackRate - 1) < 0.001 && Math.abs((seguinteRef.current?.rate ?? 1) - 1) < 0.001;
+      const ficheiroSai = cachedAudioFile(de);
+      const ficheiroEntra = cachedAudioFile(para);
+      if (duracao && aUmX && ficheiroSai.exists && ficheiroEntra.exists) {
+        const sai = await analisarRitmoDaFaixa(de, ficheiroSai.uri);
+        const entra = await analisarRitmoDaFaixa(para, ficheiroEntra.uri);
+        plano = planoDoAutomix({
+          sai: sai?.fim ?? null,
+          entra: entra?.inicio ?? null,
+          fimMusicalS: fimMusicalGuardado(de),
+          duracaoSaiS: duracao,
+          suaveS: passagemS(st),
+        });
+      }
+    } catch {
+      plano = null;
+    }
+    const a = automixRef.current;
+    if (!a || a.de !== de || a.para !== para) return;
+    automixRef.current = { de, para, estado: plano ? 'pronto' : 'falhou', plano };
+    registarNaFila(plano ? `${de}: ${descreverPlano(plano)}` : `${de}: automix without a plan (crossfade instead)`);
+    reporIntervaloDeTempo();
+  };
+
+  /**
+   * Marca a entrada da seguinte no instante do plano. Daqui em diante é como
+   * uma passagem do crossfade: os volumes cruzam-se ao ritmo do `timeUpdate`,
+   * e o fim dela entrega o lugar. Se o nativo não a agendar, desfaz-se, e o
+   * fim desta faixa fica com o crossfade de sempre.
+   */
+  const agendarAutomix = async (seguinte: Track, plano: PlanoDoAutomix) => {
+    const a = automixRef.current;
+    if (!a || a.estado !== 'pronto') return;
+    a.estado = 'agendado';
+    const st = usePlayer.getState();
+    passagemRef.current = {
+      sourceId: seguinte.sourceId,
+      tetoSai: ceilingRef.current,
+      tetoEntra: targetVolume(getLoudnessDb(seguinte.sourceId), st.volumeNormalization),
+      duracaoDoFade: plano.duracaoS,
+      inicioS: plano.inicioS,
+    };
+    // Como no crossfade: daqui em diante quem avança a fila é o fim da passagem.
+    endedRef.current = true;
+    if (fadeIntervalRef.current) {
+      clearInterval(fadeIntervalRef.current);
+      fadeIntervalRef.current = null;
+    }
+    reporIntervaloDeTempo();
+    const sai = player;
+    const entra = motorEmEspera;
+    try {
+      entra.volume = 0;
+    } catch {
+      // motor sem fonte — ignorar
+    }
+    const ok = await agendarEntradaNativa(sai, entra, plano.inicioS, plano.entraEmS);
+    const minha = passagemRef.current?.sourceId === seguinte.sourceId && passagemRef.current?.inicioS === plano.inicioS;
+    if (ok && minha) {
+      registarNaFila(`${track.sourceId}: automix scheduled (${plano.tipo})`);
+      return;
+    }
+    // Agendada depois de a passagem ter sido desfeita (uma pausa, um salto a
+    // meio do agendamento): cala-se, senão entrava sozinha à hora marcada.
+    if (ok) {
+      try {
+        entra.pause();
+        entra.volume = 0;
+      } catch {
+        // motor sem fonte — ignorar
+      }
+    }
+    if (minha) abortarPassagem();
+    if (automixRef.current === a) a.estado = 'falhou';
+    registarNaFila(`${track.sourceId}: automix not scheduled (crossfade instead)`);
+  };
+
+  /**
+   * No `timeUpdate`, com a seguinte pronta: o AutoMix trata desta passagem
+   * (ou está a preparar-se para ela), ou fica o crossfade?
+   */
+  const automixTrataDela = (seguinte: Track, posicao: number): boolean => {
+    const st = usePlayer.getState();
+    if (!st.automix || !temAutomixNativo) return false;
+    const a = automixRef.current;
+    if (!a || a.de !== track.sourceId || a.para !== seguinte.sourceId) {
+      void calcularPlanoDoAutomix(seguinte);
+      return true;
+    }
+    if (a.estado === 'a-calcular' || a.estado === 'agendado') return true;
+    if (a.estado !== 'pronto' || !a.plano) return false;
+    if (deveAgendar(a.plano, posicao)) {
+      void agendarAutomix(seguinte, a.plano);
+      return true;
+    }
+    // Ainda falta para a hora: espera por ela. Já passou (um seek, um evento
+    // atrasado): fica o crossfade.
+    return a.plano.inicioS - posicao > 0.4;
+  };
+
   /** Um passo da curva, a cada evento de tempo do motor que sai. */
   const avancarPassagem = (posicaoSegundos: number, duracaoSegundos: number) => {
     const p = passagemRef.current;
     if (!p) return;
     const duracaoDoFade = p.duracaoDoFade;
     // O decorrido lê-se da POSIÇÃO e não de um relógio: se um evento se
-    // atrasar, o passo seguinte apanha o atraso em vez de o acumular.
-    const decorrido = duracaoDoFade - (duracaoSegundos - posicaoSegundos);
+    // atrasar, o passo seguinte apanha o atraso em vez de o acumular. No
+    // AutoMix conta-se do instante marcado, e antes dele nada mexe.
+    const decorrido = p.inicioS != null
+      ? posicaoSegundos - p.inicioS
+      : duracaoDoFade - (duracaoSegundos - posicaoSegundos);
+    if (p.inicioS != null && decorrido < 0) return;
     const v = volumesDoCrossfade(decorrido, duracaoDoFade, p.tetoSai, p.tetoEntra);
     try {
       player.volume = v.sai;
@@ -1921,9 +2098,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           // A fila mudou por baixo: deixa preparar outra vez.
           seguinteRef.current = null;
           reporIntervaloDeTempo();
+        } else if (automixTrataDela(seguinte, currentTime)) {
+          // O AutoMix trata desta passagem, ou está a preparar-se para ela.
         } else if (
           deveComecarCrossfade({
-            duracaoDoFade: st.crossfadeSegundos,
+            duracaoDoFade: passagemS(st),
             duracaoSegundos: duracaoFiavel,
             posicaoSegundos: currentTime,
             temFaixaSeguinte: true,
@@ -2353,7 +2532,13 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           // `suspender`: quem pausa quer voltar, e a passagem continua de
           // onde ia. Parar o motor que sai já congela a curva, porque é o
           // `timeUpdate` dele que a faz andar.
-          if (passagemRef.current) {
+          //
+          // Menos no AutoMix: a entrada estava marcada para um instante da que
+          // sai, e com ela parada esse instante deixa de chegar a horas.
+          // Desfaz-se; ao voltar, ou se marca outra vez ou fica o crossfade.
+          if (passagemRef.current?.inicioS != null) {
+            abortarPassagem();
+          } else if (passagemRef.current) {
             try {
               motorEmEspera.pause();
             } catch {

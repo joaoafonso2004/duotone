@@ -23,8 +23,11 @@ import { clearStreamMemo, clearVisitorData, streamEmMemoria } from '../api/ytstr
 import {
   efeitoDaNormalizacao, efeitoDaQualidade, efeitoDeLimparACache, efeitoDeManterOEcra,
   efeitoDoCrossfade, efeitoDoSmartShuffle, efeitoDoGostoDoSpotify, efeitoDoPadrao, efeitoDoRadio,
-  efeitoDoRecomendado, efeitoDoTemporizador,
+  efeitoDoAutomix, efeitoDoRecomendado, efeitoDoTemporizador,
 } from '../lib/efeitoDasDefinicoes';
+import { temAutomixNativo } from '../../modules/duotone-audio';
+import { estadoDeEnergia } from '../../modules/duotone-diagnostico';
+import { quantoPoupar } from '../lib/adiantarFaixas';
 import { ErroDoSpotify, importarGostoDoSpotify, spotifyDisponivel } from '../api/spotifyConta';
 import { mensagemDoSpotify, type GostoDoSpotify } from '../lib/gostoDoSpotify';
 import { getGostoDoSpotify } from '../lib/prefs';
@@ -55,6 +58,7 @@ import {
   setShowTrackDurationCache,
   type AudioQuality,
   getCrossfadeSegundos,
+  setAutomix,
   setCrossfadeSegundos,
   setIntensidadeDoSmartShuffle,
 } from '../lib/prefs';
@@ -243,6 +247,14 @@ export function SettingsScreen({ navigation }: Props) {
     await persistVolumeNormalization(v);
   };
 
+  // O AutoMix (25/10): na store, porque o leitor lê-o a cada tique.
+  const automix = usePlayer((s) => s.automix);
+  const toggleAutomix = (v: boolean) => {
+    usePlayer.setState({ automix: v });
+    hapticSelection();
+    void setAutomix(v);
+  };
+
   const toggleAutoplayRadio = async (v: boolean) => {
     setAutoplayRadio(v);
     hapticSelection();
@@ -370,6 +382,7 @@ export function SettingsScreen({ navigation }: Props) {
       kbps: streamAgora?.kbps ?? null, codec: streamAgora?.codec ?? null,
     }),
     crossfade: efeitoDoCrossfade({ segundos: crossfade, repeatUma }),
+    automix: efeitoDoAutomix({ ligado: automix, crossfadeS: crossfade, aPoupar: quantoPoupar(estadoDeEnergia()) === 'tudo' }),
     velocidade: efeitoDoPadrao({
       tipo: 'velocidade', temFaixa: !!atual,
       temAjusteProprio: !!ajusteDaFaixa && ajusteDaFaixa.rate !== null,
@@ -475,8 +488,13 @@ export function SettingsScreen({ navigation }: Props) {
         </Grupo>
         {/* Desligado de origem. A passagem só entra em mudanças automáticas
             de faixa: num salto manual faria o botão parecer lento. */}
-        <Grupo rodape={efeitos.crossfade}>
+        <Grupo rodape={[efeitos.crossfade, efeitos.automix]}>
           <Linha icone="swap-horizontal" rotulo={ROTULOS.crossfade} valor={valorDe('crossfade')} chevron aoTocar={abrirMenu('crossfade')} />
+          {/* O AutoMix (25/10): só com o binário que sabe agendar a entrada.
+              Sem ele seria uma opção que não faz nada. */}
+          {temAutomixNativo ? (
+            <LinhaInterruptor icone="pulse" rotulo={ROTULOS.automix} valor={automix} aoMudar={toggleAutomix} />
+          ) : null}
         </Grupo>
         <Grupo rodape={efeitos.velocidade}>
           <LinhaAlta icone="speedometer-outline" rotulo={ROTULOS.velocidade}>

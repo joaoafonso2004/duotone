@@ -96,6 +96,18 @@ export function efeitoDoPadrao(e: {
 }
 
 /**
+ * O AutoMix (25/10, só iPhone): o que faz quando os andamentos batem e quando
+ * não batem, e que pára com o iPhone quente ou a poupar bateria (a análise do
+ * ritmo não corre e fica o crossfade).
+ */
+export function efeitoDoAutomix(e: { ligado: boolean; crossfadeS: number; aPoupar: boolean }): string | null {
+  if (!e.ligado) return null;
+  if (e.aPoupar) return 'Paused while iPhone is hot or saving battery · plain crossfade for now';
+  const s = e.crossfadeS > 0 ? e.crossfadeS : 6;
+  return `Mixes on the beat when the tempos match · otherwise a ${s} s fade`;
+}
+
+/**
  * O EQ padrão quando é o Recommended (25/10): para que auscultadores está
  * afinado agora, e que muda com eles. Sem medição, diz que fica plano.
  */

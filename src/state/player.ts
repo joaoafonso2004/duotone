@@ -394,6 +394,12 @@ interface PlayerState {
   /** Segundos de passagem entre faixas. 0 desliga. Vive aqui e nao so nas
    * preferencias porque o player le-o a cada tique, dentro de um intervalo. */
   crossfadeSegundos: number;
+  /**
+   * O AutoMix (25/10, só iPhone): as passagens na batida, como um DJ. Ligado,
+   * há passagem mesmo com o crossfade a 0 (ver `duracaoDaPassagem`). Vive na
+   * store pela mesma razão do crossfade: o leitor lê-o a cada tique.
+   */
+  automix: boolean;
   /** Quantas músicas novas o Smart Shuffle mete (Definições, 26/9). */
   intensidadeSmartShuffle: IntensidadeDoSmartShuffle;
   /** mostrar o botão de recuar 15s no player expandido (preferência das Definições) */
@@ -1189,6 +1195,7 @@ export const usePlayer = create<PlayerState>()(
   radioListeningSession: null,
   volumeNormalization: true,
   crossfadeSegundos: 0,
+  automix: false,
   intensidadeSmartShuffle: 'normal',
   showRewindButton: false,
   positionMs: 0,
