@@ -118,6 +118,19 @@ t('PC: os Sony pela saída do Windows', () => {
   assert.equal(recomendar(pc('Predefinição - Auscultadores (2- WH-1000XM4 Stereo)'), {}).modelo, 'Sony WH-1000XM4');
 });
 
+t('PC: um headset USB, com o id do aparelho no rótulo e a descrição no nome (25/10)', () => {
+  const rotulo = 'Default - Headset Earphone (CORSAIR VOID ELITE Wireless Gaming Headset) (1b1c:0a55)';
+  assert.deepEqual(partesDoRotuloDoWindows(rotulo), { tipo: 'Headset Earphone', nome: 'CORSAIR VOID ELITE Wireless Gaming Headset' });
+  const r = recomendar(pc(rotulo), {});
+  assert.equal(r.estado, 'medido');
+  assert.equal(r.modelo, 'Corsair Void Elite');
+  assert.equal(r.saida.classe, 'auscultadores');
+  // O nome inteiro ganha à descrição tirada: o que tem "Wireless" no modelo fica.
+  assert.equal(encontrarModelo('Sennheiser Momentum 4 Wireless')?.nome, 'Sennheiser Momentum 4 Wireless');
+  assert.equal(partesDoRotuloDoWindows('Speakers (USB Audio Device) (046d:0a44)').nome, 'USB Audio Device');
+  assert.equal(encontrarModelo('CORSAIR VOID ELITE Chat')?.nome, 'Corsair Void Elite');
+});
+
 t('PC: a ficha da placa de som pede o modelo, porque podem ser auscultadores', () => {
   const r = recomendar(pc('Default - Speakers (Realtek(R) Audio)'), {});
   assert.equal(r.estado, 'escolher');

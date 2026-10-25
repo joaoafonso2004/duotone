@@ -75,9 +75,18 @@ const PORTAS_SEM_MEDICAO = new Set(['AirPlay', 'CarAudio', 'HDMI', 'LineOut']);
 const PALAVRAS_DE_COLUNAS = /speaker|altifalante|alto-falante|coluna|lautsprecher|haut-parleur|altavoces|altoparlant/i;
 const PALAVRAS_DE_AUSCULTADORES = /headphone|headset|auscultador|auricular|fones?\b|kopfh|casque|cuffie|earphone|earbud/i;
 
-/** "Default - Headphones (2- WH-1000XM5 Stereo)" -> ["Headphones", "WH-1000XM5"]. */
+/**
+ * "Default - Headphones (2- WH-1000XM5 Stereo)" -> ["Headphones", "WH-1000XM5"].
+ *
+ * Um aparelho USB traz ainda o fabricante e o produto no fim, à parte (25/10,
+ * João: "Headset Earphone (CORSAIR VOID ELITE Wireless Gaming Headset)
+ * (1b1c:0a55)"): sai antes, senão o nome ficava com um ")" a meio.
+ */
 export function partesDoRotuloDoWindows(rotulo: string): { tipo: string; nome: string } {
-  const sem = rotulo.replace(/^\s*(default|predefini[çc][ãa]o|padr[ãa]o|communications|comunica[çc][õo]es)\s+-\s+/i, '').trim();
+  const sem = rotulo
+    .replace(/^\s*(default|predefini[çc][ãa]o|padr[ãa]o|communications|comunica[çc][õo]es)\s+-\s+/i, '')
+    .replace(/\s*\([0-9a-f]{4}:[0-9a-f]{4}\)\s*$/i, '')
+    .trim();
   const m = /^(.*?)\s*\((.*)\)\s*$/.exec(sem);
   const tipo = (m ? m[1] : '').trim();
   const nome = (m ? m[2] : sem)
@@ -148,7 +157,22 @@ const semParenteses = (s: string) => s.replace(/\s*\(.*\)\s*/g, ' ').trim();
  * isso é adivinhar, e um EQ errado é pior do que pedir para escolher.
  */
 export function encontrarModelo(nomeDoAparelho: string): ModeloMedido | null {
-  const procura = compacto(semDono(nomeDoAparelho));
+  const nome = semDono(nomeDoAparelho);
+  const inteiro = modeloPeloNome(compacto(nome));
+  if (inteiro) return inteiro;
+  // O nome que o fabricante dá ao aparelho traz o que ele é ("CORSAIR VOID
+  // ELITE Wireless Gaming Headset"), e as medições só o modelo.
+  const semDescricao = nome.replace(DESCRICAO_NO_FIM, '').trim();
+  return semDescricao !== nome ? modeloPeloNome(compacto(semDescricao)) : null;
+}
+
+/**
+ * As palavras que dizem o que o aparelho é, e não qual: só no fim do nome. O
+ * "Game" e o "Chat" são as duas saídas que alguns headsets criam no Windows.
+ */
+const DESCRICAO_NO_FIM = /(\s+(wireless|gaming|game|chat|headset|headphones?|earphones?|earbuds?|bluetooth|usb|stereo|audio|true|over-ear|on-ear|in-ear))+\s*$/i;
+
+function modeloPeloNome(procura: string): ModeloMedido | null {
   if (procura.length < 3) return null;
   const daApple = NOMES_DA_APPLE[procura];
   if (daApple) return modeloPorNome(daApple);
