@@ -9,6 +9,9 @@ import {
   criarPreset, limparNome, novoIdDePreset, podeGuardarComoPreset, presetDosGanhos, presetsVisiveis,
 } from '../lib/presetsDoEqualizador';
 import { mudarPresets, usePresets } from '../state/presets';
+import { segueABase, usePlayer } from '../state/player';
+import { escolherRecomendadoNaFaixa, useRecomendado, useRecomendadoNaFaixa } from '../state/recomendado';
+import { EscolhaDoModelo, LinhaDoRecomendado } from './RecomendadoDoEq.web';
 import { BarraVelocidade } from './BarraVelocidade.web';
 import { useVelocidadePresa } from '../hooks/useVelocidadePresa';
 import { COR, ESP, ESTADO, RAIO, TIPO } from './tokens.web';
@@ -145,6 +148,7 @@ export function BandasDoEqualizador({
   aoMudarGanhos,
   presets = PERFIS,
   semPresets = false,
+  recomendado,
 }: {
   ganhos: Ganhos;
   aoMudarGanhos: (g: Ganhos) => void;
@@ -152,12 +156,25 @@ export function BandasDoEqualizador({
   presets?: readonly { id: string; nome: string; ganhos: readonly number[] }[];
   /** Só as bandas: o editor de um preset (GestorDePresets.web.tsx). */
   semPresets?: boolean;
+  /** O Recommended (25/10): o primeiro, sempre, e a linha do que está ligado
+   * por baixo quando é o escolhido. Quem o passa decide o que o clique faz. */
+  recomendado?: { escolhido: boolean; aoEscolher: () => void; linha: React.ReactNode };
 }) {
   const g = normalizar(ganhos);
-  const perfil = presetDosGanhos(presets, g);
+  // Com o Recommended escolhido nenhum outro acende, mesmo que a curva calhe
+  // ser a de um (plana, nas colunas, é a do Flat).
+  const perfil = recomendado?.escolhido ? null : presetDosGanhos(presets, g);
   return (
     <View style={{ gap: ESP.sm }}>
       {semPresets ? null : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: ESP.xs }}>
+        {recomendado ? (
+          <SelectionPill
+            palette={pillPalette}
+            selected={recomendado.escolhido}
+            label="Recommended"
+            onPress={recomendado.aoEscolher}
+          />
+        ) : null}
         {presets.map((p) => (
           <SelectionPill
             palette={pillPalette}
@@ -168,6 +185,7 @@ export function BandasDoEqualizador({
           />
         ))}
       </View>}
+      {!semPresets && recomendado?.escolhido ? recomendado.linha : null}
       <View style={{ flexDirection: 'row', gap: 2, marginTop: semPresets ? 0 : ESP.sm }}>
         {BANDAS.map((hz, i) => (
           <DeslizadorVertical
@@ -236,6 +254,12 @@ export function PainelEqualizador({
   const memoria = usePresets((st) => st.memoria);
   const velocidadePresa = useVelocidadePresa();
   const presets = useMemo(() => presetsVisiveis(memoria), [memoria]);
+  // O Recommended (25/10): escolhido na faixa, e se ela o segue como base.
+  const recomendadoNaFaixa = useRecomendadoNaFaixa();
+  const recomendadoLigado = useRecomendado((s) => s.ligado);
+  const segue = usePlayer(segueABase);
+  const naBaseRecomendada = recomendadoLigado && segue;
+  const [aEscolherModelo, setAEscolherModelo] = useState(false);
   // Guardar a curva como preset: o campo aparece no lugar da linha de baixo.
   const [aGuardar, setAGuardar] = useState(false);
   const [nome, setNome] = useState('');
@@ -269,7 +293,17 @@ export function PainelEqualizador({
           {!activo && <Text style={[TIPO.micro, { color: COR.textoFraco }]}>WAITING FOR PLAYBACK</Text>}
         </View>
 
-        <BandasDoEqualizador ganhos={ganhos} aoMudarGanhos={aoMudarGanhos} presets={presets} />
+        {aEscolherModelo ? <EscolhaDoModelo aoFechar={() => setAEscolherModelo(false)} /> : <>
+        <BandasDoEqualizador
+          ganhos={ganhos}
+          aoMudarGanhos={aoMudarGanhos}
+          presets={presets}
+          recomendado={{
+            escolhido: recomendadoNaFaixa,
+            aoEscolher: escolherRecomendadoNaFaixa,
+            linha: <LinhaDoRecomendado aoEscolherModelo={() => setAEscolherModelo(true)} />,
+          }}
+        />
 
 <AdjustmentSyncStatus />
         {aGuardar ? (
@@ -284,16 +318,17 @@ export function PainelEqualizador({
         ) : (
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: ESP.xs }}>
             <Text style={[TIPO.micro, { color: COR.textoFraco }]}>
-              {lembrado ? 'SAVED FOR THIS TRACK' : 'DOUBLE-CLICK A BAND TO ZERO IT'}
+              {naBaseRecomendada ? 'FOR EVERY SONG WITHOUT ITS OWN EQ' : lembrado ? 'SAVED FOR THIS TRACK' : 'DOUBLE-CLICK A BAND TO ZERO IT'}
             </Text>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              {podeGuardarComoPreset(memoria, ganhos) && (
+              {!recomendadoNaFaixa && podeGuardarComoPreset(memoria, ganhos) && (
                 <AccaoPequena rotulo="SAVE AS PRESET" aoPremir={() => { setNome(''); setAGuardar(true); }} />
               )}
               <ReporEqualizador aoRepor={() => aoMudarGanhos(PLANO.slice())} />
             </View>
           </View>
         )}
+        </>}
       </View>
     </View>
   );

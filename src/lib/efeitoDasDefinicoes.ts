@@ -95,6 +95,14 @@ export function efeitoDoPadrao(e: {
   return `The song playing uses this ${coisa}`;
 }
 
+/**
+ * O EQ padrão quando é o Recommended (25/10): para que auscultadores está
+ * afinado agora, e que muda com eles. Sem medição, diz que fica plano.
+ */
+export function efeitoDoRecomendado(e: { modelo: string | null }): string {
+  return e.modelo ? `Tuned for ${e.modelo} · follows what's connected` : 'Nothing measured connected · stays flat';
+}
+
 /** O temporizador diz a hora a que para, e não só quanto falta. */
 export function efeitoDoTemporizador(e: { restanteS: number; agora: Date; noFimDaFaixa?: boolean }): string | null {
   if (e.noFimDaFaixa) return 'Stops when this song ends';

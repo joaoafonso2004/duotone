@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import {
   efeitoDaNormalizacao, efeitoDaQualidade, efeitoDeLimparACache, efeitoDeManterOEcra,
   efeitoDoCrossfade, efeitoDoSmartShuffle, efeitoDoDiscord, efeitoDoGostoDoSpotify, efeitoDoPadrao, efeitoDoPoToken,
-  efeitoDoRadio, efeitoDoTemporizador, tamanho,
+  efeitoDoRadio, efeitoDoRecomendado, efeitoDoTemporizador, tamanho,
 } from '../src/lib/efeitoDasDefinicoes.ts';
 
 let falhas = 0;
@@ -33,6 +33,10 @@ caso('sem nada a tocar, diz o que a escolha faz', () => {
 
 console.log('\no crossfade com os limites dele');
 caso('desligado não diz nada', () => assert.equal(efeitoDoCrossfade({ segundos: 0, repeatUma: false }), null));
+caso('o Recommended diz para que auscultadores está afinado, ou que fica plano', () => {
+  assert.equal(efeitoDoRecomendado({ modelo: 'Sony WH-1000XM5' }), "Tuned for Sony WH-1000XM5 · follows what's connected");
+  assert.equal(efeitoDoRecomendado({ modelo: null }), 'Nothing measured connected · stays flat');
+});
 caso('a intensidade do Smart Shuffle diz o ritmo', () => {
   assert.equal(efeitoDoSmartShuffle({ intensidade: 'muitas', ligado: true }), 'About 1 new song in every 2');
   assert.match(efeitoDoSmartShuffle({ intensidade: 'poucas', ligado: false }), /every 6 · turn on smart shuffle/);

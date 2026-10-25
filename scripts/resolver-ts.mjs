@@ -64,6 +64,9 @@ const DUPLOS = new Map([
   ['src/api/library', 'library.ts'],
   ['src/api/cache', 'cache.ts'],
   ['modules/duotone-audio', 'duotone-audio.ts'],
+  // O Recommended do EQ (25/10): a saída do iOS vem do `state/carro`, que
+  // importa o react-native.
+  ['src/state/saidaDeSom', 'saidaDeSom.ts'],
 ]);
 
 /** Pacotes, pelo nome exacto. */

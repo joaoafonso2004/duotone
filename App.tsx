@@ -51,6 +51,7 @@ import {chaveDaFaixa} from './src/lib/equalizer';
 import { startTrackAdjustmentSync } from './src/state/trackAdjustments';
 import { iniciarPresets } from './src/state/presets';
 import { iniciarModoCarro } from './src/state/carro';
+import { iniciarRecomendado } from './src/state/recomendado';
 import { definirEmSegundoPlano, definirGuardarEscutaPorEnviar, definirPodeTocarSemRede, usePlayer } from './src/state/player';
 import { guardarEscutaPorEnviar, instalarEnvioDeEscutas } from './src/state/escutasPorEnviar';
 import { tocaSemRede } from './src/lib/descarregarFaixa';
@@ -163,6 +164,8 @@ export default function App() {
   }, [adjustmentUserId]);
   // No carro (CarPlay ou o Bluetooth marcado), o preset do carro por cima.
   useEffect(() => iniciarModoCarro(), []);
+  // O Recommended do EQ (25/10): a curva medida para o que está ligado.
+  useEffect(() => iniciarRecomendado(), []);
   const [preferencesReady,setPreferencesReady]=useState(false);
   useEffect(()=>{
     if(!preferencesReady)return;

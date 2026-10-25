@@ -39,7 +39,8 @@ const TABELA = [
   { opcao: 'Playback speed (default)', escreve: [],
     leitores: [['src/state/player.ts', /rate: st\.padraoRate/]] },
   { opcao: 'Equaliser (default)', escreve: [],
-    leitores: [['src/state/player.ts', /ganhos: st\.padraoGanhos/]] },
+    // Com o Recommended (25/10) a base é a curva dele; sem ele, o padrão.
+    leitores: [['src/state/player.ts', /ganhos: baseDoEq\(st\)/]] },
   { opcao: 'Sleep timer', escreve: [],
     leitores: [['App.tsx', /sleepTimerEndsAt/]] },
   { opcao: 'Normalize volume', escreve: ['setVolumeNormalization'],

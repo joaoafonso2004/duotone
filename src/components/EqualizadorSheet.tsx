@@ -9,8 +9,10 @@ import {
 } from '../lib/presetsDoEqualizador';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
 import { useSaidaDeAudio } from '../state/carro';
+import { escolherRecomendadoNaFaixa, useRecomendado, useRecomendadoNaFaixa } from '../state/recomendado';
+import { EscolhaDoModelo, LinhaDoRecomendado } from './RecomendadoDoEq';
 import { Toque } from './Toque';
-import { ganhosEmVigor, usePlayer } from '../state/player';
+import { ganhosEmVigor, segueABase, usePlayer } from '../state/player';
 import { mudarPresets, usePresets } from '../state/presets';
 import { colors, spacing, type } from '../theme';
 import { BarraVelocidade } from './BarraVelocidade';
@@ -55,10 +57,17 @@ export function EqualizadorSheet({ visible, onClose }: { visible: boolean; onClo
   const aparelho = saida && eAparelhoComPreset(saida, memoria) ? saida.nome.trim() : null;
   const doAparelho = aparelho ? presetDoAparelho(memoria, aparelho) : null;
 
+  // O Recommended (25/10): escolhido na faixa, e se ela o segue como base.
+  const recomendadoNaFaixa = useRecomendadoNaFaixa();
+  const recomendadoLigado = useRecomendado((s) => s.ligado);
+  const segue = usePlayer(segueABase);
+  const naBaseRecomendada = recomendadoLigado && segue && !carro;
+
   const [aGuardar, setAGuardar] = useState(false);
   const [aEscolherDoAparelho, setAEscolherDoAparelho] = useState(false);
+  const [aEscolherModelo, setAEscolherModelo] = useState(false);
   const [nome, setNome] = useState('');
-  const fechar = () => { setAGuardar(false); setAEscolherDoAparelho(false); onClose(); };
+  const fechar = () => { setAGuardar(false); setAEscolherDoAparelho(false); setAEscolherModelo(false); onClose(); };
   const guardar = () => {
     const limpo = limparNome(nome);
     if (!limpo) return;
@@ -78,6 +87,8 @@ export function EqualizadorSheet({ visible, onClose }: { visible: boolean; onClo
     ? { icone: 'car-outline' as const, texto: 'In the car · using ', destaque: carro.nome }
     : !current
       ? { icone: 'musical-notes-outline' as const, texto: 'Nothing playing', destaque: null }
+      : naBaseRecomendada
+        ? { icone: 'options-outline' as const, texto: 'Using ', destaque: 'Recommended' }
       : lembrado
         ? { icone: 'checkmark-circle-outline' as const, texto: 'Saved for this song', destaque: null }
         : { icone: 'options-outline' as const, texto: 'Using your default sound', destaque: null };
@@ -115,6 +126,15 @@ export function EqualizadorSheet({ visible, onClose }: { visible: boolean; onClo
         <View style={{ marginTop: spacing.md }}>
           <PillButton label="Done" variant="ghost" onPress={() => setAEscolherDoAparelho(false)} />
         </View>
+      </BottomSheet>
+    );
+  }
+
+  // Os auscultadores à mão, quando o nome da saída não diz o modelo (25/10).
+  if (aEscolherModelo) {
+    return (
+      <BottomSheet visible={visible} onClose={fechar}>
+        <EscolhaDoModelo aoFechar={() => setAEscolherModelo(false)} />
       </BottomSheet>
     );
   }
@@ -195,7 +215,7 @@ export function EqualizadorSheet({ visible, onClose }: { visible: boolean; onClo
           <View style={styles.linhaDoTitulo}>
             <Text style={styles.titulo}>Presets</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-              {podeGuardarComoPreset(memoria, ganhos) && (
+              {!recomendadoNaFaixa && podeGuardarComoPreset(memoria, ganhos) && (
                 <BotaoGuardarPreset aoGuardar={() => { setNome(''); setAGuardar(true); }} />
               )}
               <ReporEqualizador
@@ -210,6 +230,11 @@ export function EqualizadorSheet({ visible, onClose }: { visible: boolean; onClo
                 ganhos={ganhos}
                 aoMudar={(novo) => setEqGanhos(novo)}
                 presets={presets}
+                recomendado={{
+                  escolhido: recomendadoNaFaixa,
+                  aoEscolher: escolherRecomendadoNaFaixa,
+                  linha: <LinhaDoRecomendado aoEscolherModelo={() => setAEscolherModelo(true)} />,
+                }}
                 moldura
                 sangria={spacing.lg}
                 // Dizer a verdade em vez de fingir.
@@ -226,6 +251,13 @@ export function EqualizadorSheet({ visible, onClose }: { visible: boolean; onClo
                 <Text style={styles.textoDaNota}>
                   {carro.onde === 'aparelho' ? `Changes last until ${carro.aparelho} disconnects` : 'Changes last until you leave the car'}
                 </Text>
+              </View>
+            ) : naBaseRecomendada ? (
+              // O Recommended é do aparelho, não da faixa: dizer "synced" era
+              // mentir sobre onde ele vive.
+              <View style={styles.nota}>
+                <Ionicons name="information-circle-outline" size={14} color={colors.textTertiary} />
+                <Text style={styles.textoDaNota}>For every song without its own EQ, on this iPhone</Text>
               </View>
             ) : <AdjustmentSyncStatus />}
           </View>

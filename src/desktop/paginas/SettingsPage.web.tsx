@@ -45,11 +45,13 @@ import { AtalhosDoTeclado } from '../AtalhosDoTeclado.web';
 import { BandasDoEqualizador, ReporEqualizador } from '../PainelEqualizador.web';
 import { GestorDePresets } from '../GestorDePresets.web';
 import { presetsVisiveis } from '../../lib/presetsDoEqualizador';
+import { ligarRecomendado, useRecomendado } from '../../state/recomendado';
+import { EscolhaDoModelo, LinhaDoRecomendado } from '../RecomendadoDoEq.web';
 import { usePresets } from '../../state/presets';
 import { chaveDaFaixa, PLANO } from '../../lib/equalizer';
 import { getCorNaJanela, getDiscordRichPresence, setCorNaJanela, setCrossfadeSegundos, setDiscordRichPresence, setIntensidadeDoSmartShuffle, type CorDoLeitor } from '../../lib/prefs';
 import { DURACOES_DO_CROSSFADE, type DuracaoDoCrossfade } from '../../lib/crossfade';
-import { efeitoDoCrossfade, efeitoDoDiscord, efeitoDoPadrao, efeitoDoRadio, efeitoDoSmartShuffle, efeitoDoTemporizador } from '../../lib/efeitoDasDefinicoes';
+import { efeitoDoCrossfade, efeitoDoDiscord, efeitoDoPadrao, efeitoDoRadio, efeitoDoRecomendado, efeitoDoSmartShuffle, efeitoDoTemporizador } from '../../lib/efeitoDasDefinicoes';
 import { useEstadoDoDiscord } from '../../hooks/usePresencaDoDiscord';
 import { usePrivacidade } from '../../state/privacidade';
 import { getLibrary } from '../../api/library';
@@ -178,6 +180,13 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   const memoriaDosPresets = usePresets((s) => s.memoria);
   const presetsNaFila = useMemo(() => presetsVisiveis(memoriaDosPresets), [memoriaDosPresets]);
   const setEqGanhos = usePlayer((s) => s.setEqGanhos);
+  // O Recommended como EQ padrão (25/10): mostra a curva dele, e qualquer
+  // outra escolha (um preset, uma banda, o Reset) passa a ser o padrão e
+  // desliga-o.
+  const recomendadoLigado = useRecomendado((s) => s.ligado);
+  const recomendacao = useRecomendado((s) => s.recomendacao);
+  const mudarOPadrao = (g: number[]) => { setEqGanhos(g, true); ligarRecomendado(false); };
+  const [aEscolherModelo, setAEscolherModelo] = useState(false);
   const setPlaybackRate = usePlayer((s) => s.setPlaybackRate);
   // Vem já carregado da store (App.tsx lê a preferência no arranque nas duas
   // plataformas), por isso não precisa de entrar no Promise.all acima.
@@ -215,7 +224,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
       igualAoPadrao: Math.abs(rateDaFaixa - padraoRate) < 0.005,
       valorDaFaixa: `${Number(rateDaFaixa.toFixed(2))}×`,
     }),
-    equalizador: efeitoDoPadrao({
+    equalizador: recomendadoLigado ? efeitoDoRecomendado({ modelo: recomendacao.modelo }) : efeitoDoPadrao({
       tipo: 'equalizador', temFaixa: !!atual,
       temAjusteProprio: !!ajusteDaFaixa && ajusteDaFaixa.ganhos !== null,
       igualAoPadrao: ganhosDaFaixa.length === padraoGanhos.length
@@ -419,9 +428,20 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                       <Text style={styles.settingDescription}>For songs you haven't set on their own. The one playing changes on the next song.</Text>
                       <Efeito texto={efeitos.equalizador} />
                     </View>
-                    <ReporEqualizador aoRepor={() => setEqGanhos(PLANO.slice(), true)} />
+                    <ReporEqualizador aoRepor={() => mudarOPadrao(PLANO.slice())} />
                   </View>
-                  <BandasDoEqualizador ganhos={padraoGanhos} aoMudarGanhos={(g) => setEqGanhos(g, true)} presets={presetsNaFila} />
+                  {aEscolherModelo ? <EscolhaDoModelo aoFechar={() => setAEscolherModelo(false)} /> : (
+                    <BandasDoEqualizador
+                      ganhos={recomendadoLigado ? recomendacao.ganhos : padraoGanhos}
+                      aoMudarGanhos={mudarOPadrao}
+                      presets={presetsNaFila}
+                      recomendado={{
+                        escolhido: recomendadoLigado,
+                        aoEscolher: () => ligarRecomendado(true),
+                        linha: <LinhaDoRecomendado aoEscolherModelo={() => setAEscolherModelo(true)} />,
+                      }}
+                    />
+                  )}
                 </View>
                 <GestorDePresets ganhosIniciais={padraoGanhos} />
               </SettingsCard>}

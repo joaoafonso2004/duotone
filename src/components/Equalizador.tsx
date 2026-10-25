@@ -309,6 +309,8 @@ function PerfilAMao() {
 /** Um preset como a fila o mostra. Os da app de origem, se ninguem passar
  * outros; quem tem os da pessoa passa os visiveis (lib/presetsDoEqualizador.ts). */
 export type PresetNaFila = { id: string; nome: string; ganhos: readonly number[] };
+/** Nao colide com preset nenhum: os teus comecam por `u-`, e os da app sao os do `PERFIS`. */
+const ID_DO_RECOMENDADO = 'recomendado';
 const DA_APP: readonly PresetNaFila[] = PERFIS;
 
 export function Equalizador({
@@ -328,6 +330,10 @@ export function Equalizador({
   /** Sem a fila de presets: so as bandas. E o editor de um preset, onde
    *  escolher outro a meio seria trocar o que se esta a editar. */
   semPresets = false,
+  /** O Recommended (25/10): o primeiro da fila, sempre, e a linha do que esta
+   *  ligado por baixo quando e o escolhido. Quem o passa decide o que o toque
+   *  faz (na faixa ou no padrao). */
+  recomendado,
 }: {
   ganhos: readonly number[];
   aoMudar: (ganhos: number[]) => void;
@@ -336,9 +342,14 @@ export function Equalizador({
   sangria?: number;
   presets?: readonly PresetNaFila[];
   semPresets?: boolean;
+  recomendado?: { escolhido: boolean; aoEscolher: () => void; linha: React.ReactNode };
 }) {
   const g = normalizar(ganhos);
-  const perfil = presetDosGanhos(presets, g);
+  // Com o Recommended escolhido nenhum outro acende, mesmo que a curva dele
+  // calhe ser a de um (plana, no altifalante, e a do Flat).
+  const comRecomendado = !!recomendado?.escolhido;
+  const perfil = comRecomendado ? null : presetDosGanhos(presets, g);
+  const idEscolhido = comRecomendado ? ID_DO_RECOMENDADO : perfil?.id;
   const [largura, setLargura] = useState(0);
 
   // A fila de perfis desliza, e o escolhido tem de estar a vista: ao abrir
@@ -359,7 +370,7 @@ export function Equalizador({
   // `mostrar` so le refs: nasce a cada render, e com ele nas dependencias a
   // fila mexia-se a cada ganho arrastado em vez de so quando o perfil muda.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { mostrar(perfil?.id, true); }, [perfil?.id]);
+  useEffect(() => { mostrar(idEscolhido, true); }, [idEscolhido]);
 
   const bandas = (
     <View onLayout={(e) => setLargura(e.nativeEvent.layout.width)}>
@@ -395,12 +406,26 @@ export function Equalizador({
         contentContainerStyle={{ paddingHorizontal: sangria, gap: spacing.xs }}
         onLayout={(e) => {
           visivelRef.current.largura = e.nativeEvent.layout.width;
-          mostrar(perfil?.id, false);
+          mostrar(idEscolhido, false);
         }}
         onScroll={(e) => { visivelRef.current.desvio = e.nativeEvent.contentOffset.x; }}
         scrollEventThrottle={32}
       >
-        {!perfil && <PerfilAMao />}
+        {recomendado ? (
+          <View onLayout={(e) => {
+            const { x, width } = e.nativeEvent.layout;
+            posicoesRef.current[ID_DO_RECOMENDADO] = { x, w: width };
+            if (comRecomendado) mostrar(ID_DO_RECOMENDADO, false);
+          }}>
+            <SelectionPill
+              selected={comRecomendado}
+              label="Recommended"
+              palette={PALETA_DOS_PERFIS}
+              onPress={() => { hapticSelection(); recomendado.aoEscolher(); }}
+            />
+          </View>
+        ) : null}
+        {!perfil && !comRecomendado && <PerfilAMao />}
         {presets.map((p) => (
           <View
             key={p.id}
@@ -419,6 +444,7 @@ export function Equalizador({
           </View>
         ))}
       </ScrollView>}
+      {comRecomendado && !semPresets ? recomendado!.linha : null}
 
       {moldura ? (
         <View style={{

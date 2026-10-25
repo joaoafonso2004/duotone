@@ -23,7 +23,7 @@ import { clearStreamMemo, clearVisitorData, streamEmMemoria } from '../api/ytstr
 import {
   efeitoDaNormalizacao, efeitoDaQualidade, efeitoDeLimparACache, efeitoDeManterOEcra,
   efeitoDoCrossfade, efeitoDoSmartShuffle, efeitoDoGostoDoSpotify, efeitoDoPadrao, efeitoDoRadio,
-  efeitoDoTemporizador,
+  efeitoDoRecomendado, efeitoDoTemporizador,
 } from '../lib/efeitoDasDefinicoes';
 import { ErroDoSpotify, importarGostoDoSpotify, spotifyDisponivel } from '../api/spotifyConta';
 import { mensagemDoSpotify, type GostoDoSpotify } from '../lib/gostoDoSpotify';
@@ -63,6 +63,8 @@ import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useAuth } from '../state/auth';
 import { BarraVelocidade } from '../components/BarraVelocidade';
 import { Equalizador, ReporEqualizador } from '../components/Equalizador';
+import { EscolhaDoModelo, LinhaDoRecomendado } from '../components/RecomendadoDoEq';
+import { ligarRecomendado, useRecomendado } from '../state/recomendado';
 import { BottomSheet, BottomSheetGestureGuard } from '../components/BottomSheet';
 import { Grupo, Linha, LinhaAlta, LinhaInterruptor } from '../components/ListaAgrupada';
 import { MenuFlutuante, type Ancora } from '../components/MenuFlutuante';
@@ -162,6 +164,9 @@ export function SettingsScreen({ navigation }: Props) {
   const padraoGanhos = usePlayer((s) => s.padraoGanhos);
   const setEqGanhos = usePlayer((s) => s.setEqGanhos);
   const setPlaybackRate = usePlayer((s) => s.setPlaybackRate);
+  // O Recommended como EQ padrão (25/10).
+  const recomendadoLigado = useRecomendado((s) => s.ligado);
+  const modeloRecomendado = useRecomendado((s) => s.recomendacao.modelo);
   const sleepTimerTimeLeft = usePlayer((s) => s.sleepTimerTimeLeft);
   const setSleepTimer = usePlayer((s) => s.setSleepTimer);
   const pararNoFimDaFaixa = usePlayer((s) => s.pararNoFimDaFaixa);
@@ -371,7 +376,7 @@ export function SettingsScreen({ navigation }: Props) {
       igualAoPadrao: Math.abs(rateDaFaixa - padraoRate) < 0.005,
       valorDaFaixa: `${Number(rateDaFaixa.toFixed(2))}×`,
     }),
-    equalizador: efeitoDoPadrao({
+    equalizador: recomendadoLigado ? efeitoDoRecomendado({ modelo: modeloRecomendado }) : efeitoDoPadrao({
       tipo: 'equalizador', temFaixa: !!atual,
       temAjusteProprio: !!ajusteDaFaixa && ajusteDaFaixa.ganhos !== null,
       igualAoPadrao: ganhosDaFaixa.length === padraoGanhos.length
@@ -440,7 +445,7 @@ export function SettingsScreen({ navigation }: Props) {
   // preset que ele é, se for um.
   const [eqAberto, setEqAberto] = useState(false);
   const presetDoPadrao = presetDosGanhos(presetsNaFila, padraoGanhos);
-  const valorDoEq = presetDoPadrao?.nome ?? (ePlano(padraoGanhos) ? 'Flat' : 'Custom');
+  const valorDoEq = recomendadoLigado ? 'Recommended' : presetDoPadrao?.nome ?? (ePlano(padraoGanhos) ? 'Flat' : 'Custom');
   const amostraDoDestaque = modo === 'cover' ? temaActual : STEEL;
 
   return (
@@ -646,7 +651,7 @@ export function SettingsScreen({ navigation }: Props) {
  * O equalizador padrão numa folha (4/10): vale para as faixas que não têm o
  * seu, e não mexe na que está a tocar -- por isso escreve com `padrao`.
  */
-function EqualizadorPadrao({ visivel, aoFechar, ganhos, presets, efeito }: {
+function EqualizadorPadrao({ visivel, aoFechar, ganhos: padrao, presets, efeito }: {
   visivel: boolean;
   aoFechar: () => void;
   ganhos: number[];
@@ -654,18 +659,44 @@ function EqualizadorPadrao({ visivel, aoFechar, ganhos, presets, efeito }: {
   efeito: string | null;
 }) {
   const setEqGanhos = usePlayer((s) => s.setEqGanhos);
+  // O Recommended como padrão (25/10): mostra a curva dele, e qualquer outra
+  // escolha (um preset, uma banda, o Reset) passa a ser o padrão e desliga-o.
+  const ligado = useRecomendado((s) => s.ligado);
+  const curva = useRecomendado((s) => s.recomendacao.ganhos);
+  const ganhos = ligado ? curva : padrao;
+  const mudar = (novo: number[]) => { setEqGanhos(novo, true); ligarRecomendado(false); };
+  const [aEscolherModelo, setAEscolherModelo] = useState(false);
+  const fechar = () => { setAEscolherModelo(false); aoFechar(); };
+  if (aEscolherModelo) {
+    return (
+      <BottomSheet visible={visivel} onClose={fechar}>
+        <EscolhaDoModelo aoFechar={() => setAEscolherModelo(false)} />
+      </BottomSheet>
+    );
+  }
   return (
-    <BottomSheet visible={visivel} onClose={aoFechar}>
+    <BottomSheet visible={visivel} onClose={fechar}>
       <View style={{ gap: spacing.lg, paddingBottom: spacing.xs }}>
         <View style={styles.cabecalhoDoEq}>
           <View style={{ flex: 1 }}>
             <Text accessibilityRole="header" style={type.title}>Equaliser</Text>
             <Text style={[type.caption, { marginTop: 2 }]}>For every song that has no EQ of its own</Text>
           </View>
-          <ReporEqualizador desativado={ePlano(ganhos)} aoRepor={() => setEqGanhos(PLANO.slice(), true)} />
+          <ReporEqualizador desativado={!ligado && ePlano(ganhos)} aoRepor={() => mudar(PLANO.slice())} />
         </View>
         <BottomSheetGestureGuard>
-          <Equalizador ganhos={ganhos} aoMudar={(novo) => setEqGanhos(novo, true)} presets={presets} moldura sangria={spacing.lg} />
+          <Equalizador
+            ganhos={ganhos}
+            aoMudar={mudar}
+            presets={presets}
+            recomendado={{
+              escolhido: ligado,
+              aoEscolher: () => ligarRecomendado(true),
+              linha: <LinhaDoRecomendado aoEscolherModelo={() => setAEscolherModelo(true)} />,
+            }}
+            moldura
+            sangria={spacing.lg}
+          />
         </BottomSheetGestureGuard>
         {efeito ? <Text style={type.caption}>{efeito}</Text> : null}
       </View>

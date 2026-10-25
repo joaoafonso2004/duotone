@@ -441,6 +441,15 @@ interface PlayerState {
    */
   padraoRate: number;
   padraoGanhos: Ganhos;
+  /**
+   * O Recommended (25/10): a curva medida para os auscultadores ligados, que
+   * passa a ser a BASE deste aparelho em vez do `padraoGanhos` -- vale para
+   * as faixas sem EQ próprio e muda sozinha quando se troca de aparelho.
+   * `null` com ele desligado. Quem o liga, e o recalcula a cada saída nova, é
+   * o `state/recomendado.ts`; o padrão sincronizado fica como estava, porque
+   * a curva certa no iPhone não é a do PC.
+   */
+  eqRecomendado: Ganhos | null;
   /** false quando o grafo do EQ nao pegou. A UI tem de o dizer em vez de
    * mostrar deslizadores que nao fazem nada. */
   eqAtivo: boolean;
@@ -454,6 +463,10 @@ interface PlayerState {
    */
   carro: CarroNoLeitor | null;
   _definirCarro: (preset: { id: string; nome: string; ganhos: Ganhos; onde?: 'carro' | 'aparelho'; aparelho?: string } | null) => void;
+  /** O Recommended como base, ou `null` para voltar ao padrão (`state/recomendado.ts`). */
+  _definirRecomendado: (ganhos: Ganhos | null) => void;
+  /** O Recommended carregado no leitor: a faixa deixa o EQ dela e segue a base. */
+  seguirORecomendado: () => void;
   /**
    * Sem `comoPadrao`: muda ESTA faixa e passa a lembrar-se dela.
    * Com `comoPadrao`: muda só o equalizador base das Definições, que vale para
@@ -744,12 +757,33 @@ async function aplicarEqNoMotor(ganhos: number[]): Promise<void> {
   }
 }
 
+/**
+ * A base do EQ das faixas sem ajuste próprio: o Recommended quando está
+ * ligado, senão o padrão das Definições.
+ */
+export function baseDoEq(s: { eqRecomendado: Ganhos | null; padraoGanhos: Ganhos }): Ganhos {
+  return s.eqRecomendado ?? s.padraoGanhos;
+}
+
+/** A faixa toca com a base (sem EQ próprio)? É o que o Recommended pode mudar sozinho. */
+export function segueABase(s: { current: Track | null; ajustesPorFaixa: MemoriaDeAjustes }): boolean {
+  if (!s.current) return false;
+  const linha = s.ajustesPorFaixa[chaveDaFaixa(s.current)];
+  return !linha || !linha.ganhos;
+}
+
 /** Guarda também 1×/Flat: a reposição precisa de viajar para o outro aparelho. */
-function lembrarDaFaixa(): void {
-  const { current, playbackRate, eqGanhos, ajustesPorFaixa } = usePlayer.getState();
+function lembrarDaFaixa(semGanhos = false): void {
+  const st = usePlayer.getState();
+  const { current, playbackRate, eqGanhos, ajustesPorFaixa } = st;
   if (!current) return;
   const chave = chaveDaFaixa(current);
-  const value={rate:playbackRate,ganhos:normalizarGanhos(eqGanhos),visto:Date.now()};
+  // Com o Recommended, mudar só a velocidade de uma faixa que segue a base não
+  // lhe congela a curva destes auscultadores: os ganhos ficam a null, e ela
+  // continua a seguir o que estiver ligado (25/10).
+  const continuaNaBase = semGanhos || (!!st.eqRecomendado && segueABase(st)
+    && normalizarGanhos(eqGanhos).every((v, i) => v === st.eqRecomendado![i]));
+  const value={rate:playbackRate,ganhos:continuaNaBase?null:normalizarGanhos(eqGanhos),visto:Date.now()};
   const nova=fundirAjustes(ajustesPorFaixa,{[chave]:value});
   usePlayer.setState({ajustesPorFaixa:nova});
   const auth=useAuth.getState(),userId=auth.session?.user.id??auth.offlineUserId;
@@ -1171,6 +1205,7 @@ export const usePlayer = create<PlayerState>()(
   ajustesPorFaixa: {},
   padraoRate: RATE_NORMAL,
   padraoGanhos: PLANO,
+  eqRecomendado: null,
   eqAtivo: false,
   downloadProgress: null,
   autoplayOnLoad: true,
@@ -1317,7 +1352,7 @@ export const usePlayer = create<PlayerState>()(
       const aplicar = ajusteAoTocar(
         st.ajustesPorFaixa,
         chaveDaFaixa(playableTrack),
-        { rate: st.padraoRate, ganhos: st.padraoGanhos },
+        { rate: st.padraoRate, ganhos: baseDoEq(st) },
       );
       set({ playbackRate: arredondarRate(aplicar.rate), eqGanhos: aplicar.ganhos });
       // O grafo vive dentro do frame do YouTube, que muda de video a cada
@@ -2502,6 +2537,32 @@ export const usePlayer = create<PlayerState>()(
     if (!mesmo) void aplicarEqNoMotor(carro.ganhos);
   },
 
+  _definirRecomendado: (g) => {
+    const antes = get().eqRecomendado;
+    const novo = g ? normalizarGanhos(g) : null;
+    if (antes === novo || (antes && novo && antes.every((v, i) => v === novo[i]))) return;
+    set({ eqRecomendado: novo });
+    // Trocou o aparelho (ou ligou-se/desligou-se o Recommended): a faixa que
+    // segue a base muda já, sem esperar pela seguinte. No carro e com um
+    // preset do aparelho manda o deles, e a faixa só lhes volta depois.
+    const st = get();
+    if (!segueABase(st)) return;
+    const base = baseDoEq(st);
+    if (base.every((v, i) => v === st.eqGanhos[i])) return;
+    set({ eqGanhos: base });
+    if (!st.carro) void aplicarEqNoMotor(base);
+  },
+
+  seguirORecomendado: () => {
+    const st = get();
+    if (!st.eqRecomendado) return;
+    // No carro mexe-se na curva da viagem, como nos outros presets.
+    if (st.carro) { st.setEqGanhos(st.eqRecomendado); return; }
+    set({ eqGanhos: st.eqRecomendado });
+    void aplicarEqNoMotor(st.eqRecomendado);
+    if (st.current) lembrarDaFaixa(true);
+  },
+
   /** Hidratação e atualizações remotas; aplica também à faixa já aberta. */
   _carregarAjustes: (m, ganhos, rate) => {
     // A LINHA GANHA À PREFERÊNCIA. Ela é a única das duas que atravessa
@@ -2528,8 +2589,8 @@ export const usePlayer = create<PlayerState>()(
     // guardados; o que faltava era aplica-los ao restaurar.
     const faixa = get().current;
     const aplicar = faixa
-      ? ajusteAoTocar(m, chaveDaFaixa(faixa), { rate: r, ganhos: g })
-      : { rate: r, ganhos: g };
+      ? ajusteAoTocar(m, chaveDaFaixa(faixa), { rate: r, ganhos: get().eqRecomendado ?? g })
+      : { rate: r, ganhos: get().eqRecomendado ?? g };
     const ganhosMudaram=aplicar.ganhos.some((v,i)=>v!==get().eqGanhos[i]);
     const velocidadeNova = arredondarRate(aplicar.rate);
     if (velocidadeNova !== get().playbackRate) {
@@ -2761,7 +2822,7 @@ export const usePlayer = create<PlayerState>()(
           // A cache de ajustes pode chegar antes da sessão. Aplicá-la aqui
           // cobre essa ordem sem iniciar reprodução nem alterar a posição.
           ...(() => {
-            const adjustment=ajusteAoTocar(current.ajustesPorFaixa,chaveDaFaixa(persisted.current),{rate:current.padraoRate,ganhos:current.padraoGanhos});
+            const adjustment=ajusteAoTocar(current.ajustesPorFaixa,chaveDaFaixa(persisted.current),{rate:current.padraoRate,ganhos:baseDoEq(current)});
             return {playbackRate:arredondarRate(adjustment.rate),eqGanhos:adjustment.ganhos};
           })(),
           // A maquina TEM de acompanhar o restauro. Sem isto ficava em
