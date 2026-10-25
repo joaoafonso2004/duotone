@@ -1,5 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useRef, useState } from 'react';
+import { refDoAlvo } from './Arrastar.web';
+import { alvoDaFila } from './alvosDeLargar.web';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { ROTULO_DO_RADIO, useRadioDaFila } from '../components/RadioQueueControl';
 import { MenuDoRadio, type AncoraDoMenuDoRadio } from '../components/MenuDoRadio';
@@ -93,11 +95,14 @@ export function CabecaDaFila({ fila, compacta = false }: { fila: Fila; compacta?
 }
 
 export function LinhasDaFila({ fila, compacta = false }: { fila: Fila; compacta?: boolean }) {
-  return <>
+  // Largar uma música arrastada aqui põe-na no sítio da linha (24/10). Com a
+  // fila vazia continua a haver onde a largar.
+  const chave = useRef(`fila:${Math.random().toString(36).slice(2)}`).current;
+  return <View ref={refDoAlvo(chave, alvoDaFila()) as any} style={{ minHeight: 56 }}>
     <FilaArrastavel entradas={fila.upNext.slice(0, fila.linhasDaFila)} podeArrastar={fila.podeEditar}
       aoTocar={fila.aoTocar} aoMenu={fila.aoMenu} aoMover={fila.aoMover} compacta={compacta} />
     {fila.notaDoFim && fila.upNext.length <= fila.linhasDaFila ? <Text style={styles.npFilaFim}>{fila.notaDoFim}</Text> : null}
-  </>;
+  </View>;
 }
 
 export function FilaDoLeitor({ more, notify, atual }: Pick<CommonPageProps, 'more' | 'notify'> & { atual: React.ReactNode }) {

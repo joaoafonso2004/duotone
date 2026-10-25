@@ -9,6 +9,8 @@ import { LIMIAR_ARRASTO_PX } from '../lib/reorder';
 import { BrilhoInteligente, EstrelaInteligente } from '../components/BrilhoInteligente';
 import { usePlayer } from '../state/player';
 import { useSaved } from '../state/saved';
+import { comecarArrasto, refDoAlvo, type Alvo, type ArrastoAtivo } from './Arrastar.web';
+import { destinoDaOrdem, posicaoDeInsercao, ROTULOS_DO_ARRASTO, topoDaInsercao } from '../lib/arrastar';
 import type { DiscoveryContext } from '../lib/contextoDaDescoberta';
 import type { OrigemDaFila } from '../lib/origemDaFila';
 import { COR, ESP, ESTADO, FONT, LINHA_LISTA, RAIO, TIPO } from './tokens.web';
@@ -484,6 +486,7 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto, gr
         {tracks.map((t) => (
           <P key={`${t.source}:${t.sourceId}`}
             {...marcar('cartao')}
+            onPointerDown={((e: any) => comecarArrasto(e, t)) as any}
             onPress={() => onPlay(t, tracks, contexto?.(t), { tipo: 'prateleira', nome: titulo })}
             onContextMenu={((e: any) => { e.preventDefault(); onMore?.(t, contexto?.(t)); }) as any}
             style={({ hovered, pressed }: any) => [ui.shelfCard, { width: lado }, hovered && ui.shelfCardHover, pressed && ui.pressed]}>
@@ -522,6 +525,8 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto, gr
       {tracks.map((t) => (
         <P key={`${t.source}:${t.sourceId}`}
           {...marcar('cartao')}
+          // Num carrossel, puxar para o lado desliza-o: a música só se pega puxando para cima ou para baixo.
+          onPointerDown={((e: any) => comecarArrasto(e, t, {}, { soVertical: true })) as any}
           onPress={() => { if (arrastou.current) return; onPlay(t, tracks, contexto?.(t), { tipo: 'prateleira', nome: titulo }); }}
           onContextMenu={((e: any) => { e.preventDefault(); onMore?.(t,contexto?.(t)); }) as any}
           style={({ hovered, pressed }: any) => [ui.shelfCard, hovered && ui.shelfCardHover, pressed && ui.pressed]}>
@@ -833,7 +838,36 @@ function CarregarAoChegar({ aoChegar }: { aoChegar: () => void }) {
   return <View ref={ref} style={{ height: 1 }} />;
 }
 
-export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = false, plain = false, listKey, contexto, ordenacao, colunaDoArtista = true, caraDaLinha, larguraDaCara = 34, divisoria }: {
+/** As linhas da tabela (`marcar('fila')`) dentro do destino. */
+function linhasDaTabela(no: HTMLElement): DOMRect[] {
+  return Array.from(no.querySelectorAll('[data-dt~="fila"]')).map((l) => (l as HTMLElement).getBoundingClientRect());
+}
+
+/** Reordenar na própria lista: só aceita uma música que veio desta lista (`lista`). */
+function alvoDaOrdem(lista: string, aoMover: (de: number, para: number) => void): Alvo {
+  const destino = (a: ArrastoAtivo, y: number, no: HTMLElement) => {
+    const linhas = linhasDaTabela(no);
+    const antesDe = posicaoDeInsercao(linhas, y);
+    return { linhas, antesDe, para: destinoDaOrdem(a.origem.indice!, antesDe) };
+  };
+  return {
+    aceita: (a) => a.origem.lista === lista && typeof a.origem.indice === 'number',
+    insercao: true,
+    porCima: (a, _x, y, no) => {
+      const { linhas, antesDe, para } = destino(a, y, no);
+      if (para === null) return null;
+      const caixa = no.getBoundingClientRect();
+      return { texto: ROTULOS_DO_ARRASTO.mover, faz: true,
+        linha: { esquerda: caixa.left + 6, direita: caixa.right - 6, topo: topoDaInsercao(linhas, antesDe) ?? caixa.top } };
+    },
+    aoLargar: (a, _x, y, no) => {
+      const { para } = destino(a, y, no);
+      if (para !== null) aoMover(a.origem.indice!, para);
+    },
+  };
+}
+
+export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = false, plain = false, listKey, contexto, ordenacao, colunaDoArtista = true, caraDaLinha, larguraDaCara = 34, divisoria, reordenar }: {
   tracks: Track[]; onPlay: (track: Track, discoveryContext?: DiscoveryContext) => void; onMore?: (track: Track, discoveryContext?: DiscoveryContext) => void; empty?: ReactNode;
   /** Marcar as que já estão na biblioteca. Só em listas que misturam
    * guardadas e não guardadas (pesquisa) — na tabela de Songs seria um
@@ -861,6 +895,11 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
    * e as outras de um artista). A numeração continua.
    */
   divisoria?: { antesDe: number; rotulo: string };
+  /**
+   * Arrastar uma música para outro sítio da MESMA lista (24/10): a playlist
+   * tua (ou colaborativa) na ordem dela. `para` é o índice novo.
+   */
+  reordenar?: { aoMover: (de: number, para: number) => void } | null;
 }) {
   // A coluna do artista só existe com largura para ela; numa janela estreita
   // o artista volta a ir por baixo do título.
@@ -898,6 +937,7 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
     return seguinte;
   });
   return <View style={[ui.table, plain && ui.tablePlain]} {...marcar('lista')}
+    ref={refDoAlvo(`ordem:${listKey ?? 'sem-chave'}`, reordenar && listKey ? alvoDaOrdem(listKey, reordenar.aoMover) : null)}
     onLayout={(e) => { const w = e.nativeEvent.layout.width; setLargura((antes) => (Math.abs(antes - w) > 1 ? w : antes)); }}>
     <View style={[ui.tableHeader, plain && ui.tableHeaderPlain]}>
       <Text numberOfLines={1} style={[ui.colHead, { width: 40, textAlign: 'center' }]}>#</Text>
@@ -916,6 +956,7 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
       </View> : null}
       <P onPress={() => onPlay(track,contexto?.(track))}
       onContextMenu={((event: any) => { event.preventDefault(); onMore?.(track,contexto?.(track)); }) as any}
+      onPointerDown={((event: any) => comecarArrasto(event, track, { lista: listKey, indice: index })) as any}
       {...marcar('fila')}
       style={({ hovered, pressed, focused }: any) => [ui.trackRow, plain && ui.trackRowPlain, (hovered || focused) && ui.trackHover, pressed && ui.pressed]}>
       {/* O número, o ▶ e as barrinhas ocupam o MESMO lugar: quem troca entre

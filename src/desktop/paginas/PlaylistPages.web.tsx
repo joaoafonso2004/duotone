@@ -11,8 +11,11 @@ import { menuDaPlaylist, type IdDaAcaoDaPlaylist } from '../../lib/menuDaPlaylis
 import { Image, Pressable, Text, View as NativeView } from 'react-native';
 import {
   copiasGuardadas, createPlaylist, deletePlaylist, getPlaylistTracks, getPlaylistDetails, listPlaylists, mergePlaylists,
-  renamePlaylist, savePlaylistCopy, lerPessoasDaPlaylist, quemPosNaPlaylist, relerPlaylist, sairDaPlaylist,
+  renamePlaylist, savePlaylistCopy, lerPessoasDaPlaylist, quemPosNaPlaylist, relerPlaylist, sairDaPlaylist, setPlaylistOrder,
 } from '../../api/playlists';
+import { movidaPara } from '../../lib/arrastar';
+import { avisarErro, avisarRemocao } from '../../lib/avisoDeRemocao';
+import { mensagemDeErro } from '../../lib/mensagemDeErro';
 import { usePlaylistAoVivo } from '../../hooks/usePlaylistAoVivo';
 import { usePessoasComCaras } from '../../hooks/usePessoasComCaras';
 import {
@@ -300,6 +303,28 @@ export function PlaylistPage({ id, title, back, share, navigate, abrirPessoas = 
     }
   };
 
+  /**
+   * Arrastar uma música para outro sítio da playlist (24/10): só na ordem da
+   * playlist e sem procura (senão a posição que se vê não é a dela), e só quem
+   * pode mexer nas músicas. Muda já e guarda, com "Undo".
+   */
+  const podeReordenar = canEdit && sortMode === 'default' && !query.trim();
+  const moverNaPlaylist = (de: number, para: number) => {
+    const antes = tracks;
+    const depois = movidaPara(antes, de, para);
+    const guardar = (lista: PlaylistTrack[]) => {
+      setTracks(lista);
+      const g = cacheDePlaylist.get(id);
+      if (g) cacheDePlaylist.set(id, { ...g, tracks: lista });
+      return setPlaylistOrder(id, lista.map((t) => t.id));
+    };
+    void guardar(depois).then(() => {
+      avisarRemocao({ tipo: 'feito', texto: 'Moved.', desfazer: () => guardar(antes).catch(() => {}) });
+    }).catch((e) => {
+      void guardar(antes).catch(() => {});
+      avisarErro(mensagemDeErro(e, "Couldn't move the song."));
+    });
+  };
   const filteredTracks = useMemo(() => {
     const filtradas = tracks.filter(t => correspondeAPesquisa(query, t.title, t.artist));
     if (sortMode === 'default') return filtradas;
@@ -343,7 +368,8 @@ export function PlaylistPage({ id, title, back, share, navigate, abrirPessoas = 
     void usePlayer.getState().tocarLista(filteredTracks, ligado, inteligente, { tipo: 'playlist', nome: playlistTitle, id });
   };
   const artworks = tracks.map((track) => track.artworkUrl).filter((uri): uri is string => !!uri);
-  return <><Page title="Playlist" action={<BotaoVoltar onPress={back} />}><ContentScroll scrollKey={`playlist:${id}`}>{!!loadError&&<Empty icon="alert-circle-outline" title="Playlists unavailable" body={loadError} action={<Button secondary onPress={refresh}>Try again</Button>}/>}{loading ? <View style={{ height: 350 }}><Loading /></View> : loadError ? <Empty icon="alert-circle-outline" title="Playlist unavailable" body={loadError} action={<Button onPress={refresh}>Try again</Button>}/> : <><View style={styles.detailHero}><PlaylistArtwork artworks={artworks} lado={176} /><View style={styles.detailHeroBody}><Text style={styles.detailHeroEyebrow}>PLAYLIST</Text><Text numberOfLines={2} style={styles.detailHeroTitle}>{playlistTitle}</Text><Text style={styles.detailHeroMeta}>{linhaDeMeta(tracks.length, duracaoTotal)}</Text>{eColaborativa(pessoas) ? <View style={{ marginTop: 6 }}><CarasDaPlaylist alinhar="flex-start" pessoas={pessoasVistas} onPress={() => setPessoasAbertas(true)} /></View> : null}<View style={styles.detailHeroActions}><Button icon="play" onPress={playAll}>Play</Button><Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button><BotaoDeFixar atalho={{ tipo: 'playlist', id, nome: playlistTitle, capa: artworks[0] ?? null }} />{canEdit ? <IconButton name="ellipsis-horizontal" label="More playlist actions" onPress={() => { setOndeMenuDaPagina(ultimoClique()); setMenuOpen(true); }} /> : <>{estadoGuardar !== 'escondido' && <Button secondary icon={estadoGuardar === 'abrir-copia' ? 'checkmark' : 'add'} ocupado={aGuardar} onPress={() => void guardar()}>{estadoGuardar === 'abrir-copia' ? 'Open your copy' : aGuardar ? 'Saving…' : 'Save'}</Button>}<Button secondary icon="share-social-outline" onPress={partilhar}>Share</Button></>}</View></View></View><View style={styles.detailToolbar}><View style={[styles.detailSearch, { marginBottom: 0 }]}><Field icon="search" placeholder="Search this playlist" value={query} onChangeText={setQuery} /></View><Button secondary icon="swap-vertical" onPress={() => setSortOpen(true)}>{NOMES_DA_ORDENACAO[sortMode]}</Button><IconButton name="refresh" label="Refresh playlist" active={aReler} onPress={() => void refresh({ silencioso: true })} /></View><TrackTable plain listKey={`playlist:${id}:${query}:${sortMode}`} ordenacao={{ modo: colunaAtiva, aoMudar: (m) => setSortMode(m ?? 'default') }} tracks={filteredTracks} caraDaLinha={caraDaLinha} onPlay={(t) => props.tocarMusica(t, filteredTracks, undefined, { tipo: 'playlist', nome: playlistTitle, id })} onMore={(t, contexto) => props.more(t, contexto, { playlist: { id, podeEditar: canEdit } })} empty={query ? <Empty icon="search-outline" title="No results found" body={`No playlist tracks match "${query}"`} /> : <Empty icon="add-circle-outline" title="This playlist is empty" body="Use track actions from Search or Liked Songs to add music here." />} /></>}</ContentScroll></Page>{menuOpen ? <MenuDeContexto rato={ondeMenuDaPagina} rotulo={`Options for ${playlistTitle}`}
+  return <><Page title="Playlist" action={<BotaoVoltar onPress={back} />}><ContentScroll scrollKey={`playlist:${id}`}>{!!loadError&&<Empty icon="alert-circle-outline" title="Playlists unavailable" body={loadError} action={<Button secondary onPress={refresh}>Try again</Button>}/>}{loading ? <View style={{ height: 350 }}><Loading /></View> : loadError ? <Empty icon="alert-circle-outline" title="Playlist unavailable" body={loadError} action={<Button onPress={refresh}>Try again</Button>}/> : <><View style={styles.detailHero}><PlaylistArtwork artworks={artworks} lado={176} /><View style={styles.detailHeroBody}><Text style={styles.detailHeroEyebrow}>PLAYLIST</Text><Text numberOfLines={2} style={styles.detailHeroTitle}>{playlistTitle}</Text><Text style={styles.detailHeroMeta}>{linhaDeMeta(tracks.length, duracaoTotal)}</Text>{eColaborativa(pessoas) ? <View style={{ marginTop: 6 }}><CarasDaPlaylist alinhar="flex-start" pessoas={pessoasVistas} onPress={() => setPessoasAbertas(true)} /></View> : null}<View style={styles.detailHeroActions}><Button icon="play" onPress={playAll}>Play</Button><Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button><BotaoDeFixar atalho={{ tipo: 'playlist', id, nome: playlistTitle, capa: artworks[0] ?? null }} />{canEdit ? <IconButton name="ellipsis-horizontal" label="More playlist actions" onPress={() => { setOndeMenuDaPagina(ultimoClique()); setMenuOpen(true); }} /> : <>{estadoGuardar !== 'escondido' && <Button secondary icon={estadoGuardar === 'abrir-copia' ? 'checkmark' : 'add'} ocupado={aGuardar} onPress={() => void guardar()}>{estadoGuardar === 'abrir-copia' ? 'Open your copy' : aGuardar ? 'Saving…' : 'Save'}</Button>}<Button secondary icon="share-social-outline" onPress={partilhar}>Share</Button></>}</View></View></View><View style={styles.detailToolbar}><View style={[styles.detailSearch, { marginBottom: 0 }]}><Field icon="search" placeholder="Search this playlist" value={query} onChangeText={setQuery} /></View><Button secondary icon="swap-vertical" onPress={() => setSortOpen(true)}>{NOMES_DA_ORDENACAO[sortMode]}</Button><IconButton name="refresh" label="Refresh playlist" active={aReler} onPress={() => void refresh({ silencioso: true })} /></View><TrackTable plain listKey={`playlist:${id}:${query}:${sortMode}`} ordenacao={{ modo: colunaAtiva, aoMudar: (m) => setSortMode(m ?? 'default') }} tracks={filteredTracks}
+          reordenar={podeReordenar ? { aoMover: moverNaPlaylist } : null} caraDaLinha={caraDaLinha} onPlay={(t) => props.tocarMusica(t, filteredTracks, undefined, { tipo: 'playlist', nome: playlistTitle, id })} onMore={(t, contexto) => props.more(t, contexto, { playlist: { id, podeEditar: canEdit } })} empty={query ? <Empty icon="search-outline" title="No results found" body={`No playlist tracks match "${query}"`} /> : <Empty icon="add-circle-outline" title="This playlist is empty" body="Use track actions from Search or Liked Songs to add music here." />} /></>}</ContentScroll></Page>{menuOpen ? <MenuDeContexto rato={ondeMenuDaPagina} rotulo={`Options for ${playlistTitle}`}
   linhas={menuDaPlaylist({ plataforma: 'pc', onde: 'pagina', temFaixas: tracks.length > 0, minha: souDono, colaboro: papel === 'colaborador', fixada: estaFixado(atalhosDaPagina, `playlist:${id}`) })
     .map((a) => ({ id: a.id, rotulo: a.rotulo, icone: a.icone, perigo: a.destrutiva, inicioDeGrupo: a.inicioDeGrupo }))}
   aoEscolher={(acao) => {

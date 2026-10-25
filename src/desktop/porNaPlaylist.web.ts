@@ -9,7 +9,7 @@ import { invalidarCacheDaPlaylist } from './paginas/PlaylistPages.web';
  * `EscolherPlaylist.web.tsx`): o menu de uma música e o de uma mensagem com
  * uma música partilhada usam os mesmos. Quando isto corre, o menu já fechou.
  */
-function mudouAPlaylist(id: string): void {
+export function mudouAPlaylist(id: string): void {
   invalidarCacheDaPlaylist(id);
   window.dispatchEvent(new CustomEvent('duotone:refresh-playlist', { detail: { id } }));
   window.dispatchEvent(new CustomEvent('duotone:refresh-playlists'));

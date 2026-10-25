@@ -147,7 +147,8 @@ caso('numa música partilhada, o "Add to playlist ›" é o painel do menu de um
   assert.match(raiz, /aoEscolher=\{\(p, jaLaEsta\) => void porNaPlaylist\(t, p, jaLaEsta, notify\)\}/);
 });
 caso('os avisos dos componentes partilhados chegam ao toast do PC (calavam-se)', () => {
-  assert.match(raiz, /useEffect\(\(\) => avisos\.ouvir\(\(\) => \{\n\s+const a = avisos\.atual\(\);\n\s+if \(a\) setToast\(/);
+  // Desde 24/10 um aviso com "Undo" vai para o AvisoComDesfazer; os outros, para o toast.
+  assert.match(raiz, /useEffect\(\(\) => avisos\.ouvir\(\(\) => \{\n\s+const a = avisos\.atual\(\);\n\s+if \(a\?\.desfazer\) \{[^\n]+\}\n\s+setAvisoComDesfazer\(null\);\n\s+if \(a\) setToast\(/);
 });
 
 if (falhas) { console.error(`\n  ${falhas} caso(s) a falhar.`); process.exit(1); }

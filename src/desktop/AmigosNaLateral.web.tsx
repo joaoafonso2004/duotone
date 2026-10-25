@@ -15,6 +15,8 @@ import { COR, ESP, FONT, TIPO } from './tokens.web';
 import { TextoQueRola } from './TextoQueRola.web';
 import { marcar } from './ui.web';
 import { ConfirmarRemoverAmigo, MenuDoAmigo } from './MenuDoAmigo.web';
+import { refDoAlvo } from './Arrastar.web';
+import { alvoDoAmigo } from './alvosDeLargar.web';
 
 /**
  * Os amigos que estão na app, por baixo da tua conta (26/9, pedido do João:
@@ -88,6 +90,8 @@ export function AmigosNaLateral({ navigate, notify }: { navigate: (r: Route) => 
             accessibilityLabel={faixa ? `${nome}, listening to ${tituloDaFaixa(faixa)}. Open chat` : `${nome}, online. Open chat`}
             onPress={() => navigate({ name: 'social', friendId: a.friendId })}
             onContextMenu={((e: any) => { e.preventDefault(); setMenu({ amigoId: a.friendId, rato: { x: e.clientX, y: e.clientY } }); }) as any}
+            // Largar uma música num amigo manda-lha (24/10).
+            ref={refDoAlvo(`lateral-amigo:${a.friendId}`, alvoDoAmigo({ id: a.friendId, nome })) as any}
             style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7, paddingHorizontal: ESP.sm, borderRadius: 8 }}
           >
             <View style={{ width: 32, height: 32 }}>

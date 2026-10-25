@@ -28,6 +28,8 @@ import { lerFaixas } from '../lib/cacheDaBiblioteca';
 import { menuDasGostadas } from '../lib/menuDaMistura';
 import { useConnectivity } from '../state/connectivity';
 import { MenuDeContexto, pontoDoEvento, type PontoNoEcra } from './MenuDeContexto.web';
+import { refDoAlvo, type Alvo } from './Arrastar.web';
+import { alvoDaBarra, alvoDasGostadas } from './alvosDeLargar.web';
 import { criarRoda, volumeComARoda } from '../lib/rodaDoRato';
 import { useShallow } from 'zustand/react/shallow';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
@@ -377,6 +379,15 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="cartao"][data-dt~="com-menu"]{
       transform: translateY(-3px); filter: brightness(1.08); }
 
+    /* Arrastar uma música (24/10, desktop/Arrastar.web.tsx): enquanto se
+       arrasta não se seleciona texto e o rato diz que se segura alguma coisa;
+       os destinos que servem ganham uma aresta, e o de baixo do rato acende.
+       Os atributos põe-nos o arrasto direto no DOM (não são marcas). */
+    body[data-arrastar], body[data-arrastar] *{ cursor: grabbing !important; user-select: none !important; }
+    [data-largar]{ transition: background-color var(--dt-rapido) var(--dt-curva), box-shadow var(--dt-rapido) var(--dt-curva); }
+    [data-largar="pode"]{ box-shadow: inset 0 0 0 1px rgba(233,234,238,.14); border-radius: ${RAIO.cartao}px; }
+    [data-largar="por-cima"]{ background-color: rgba(233,234,238,.12) !important; box-shadow: inset 0 0 0 1px rgba(233,234,238,.28); border-radius: ${RAIO.cartao}px; }
+
     /* O coracao de favoritar um artista: so com o rato no cartao, e SEMPRE em
        quem ja e favorito (o "fixo"). Um coracao apagado em cada um dos
        setecentos cartoes era ruido. */
@@ -516,7 +527,8 @@ export function Sidebar({ route, navigate, notify }: { route: Route; navigate: (
       {/* "LIBRARY" e não "DISCOVER" (5/10, auditoria N9): o que está por baixo é a biblioteca e os amigos. */}
       <Text style={styles.navLabel}>LIBRARY</Text>
       {PRIMARY.map((item) => <NavItem key={item.id} active={active === item.id} semFundo={!!realce} medicao={medicao} aoMedir={medir(item.id)} {...item} badge={item.id === 'social' && (naoLidasPorAmigo(socialReceived,socialSeen).size>0 || socialFriends.some(f=>f.status==='pending'&&!f.isSender))} onPress={() => navigate({ name: item.id })}
-        aoMenu={item.id === 'songs' ? (e) => setMenuDasLiked(pontoDoEvento(e)) : undefined} />)}
+        aoMenu={item.id === 'songs' ? (e) => setMenuDasLiked(pontoDoEvento(e)) : undefined}
+        alvo={item.id === 'songs' ? alvoDasGostadas() : null} />)}
     </ScrollView>
     {/* O perfil é a linha com a tua cara (o item "Profile" repetia-a) e as
         Definições são a roda dentada nela (26/9, decidido com o João). */}
@@ -534,7 +546,9 @@ export function Sidebar({ route, navigate, notify }: { route: Route; navigate: (
   </View>;
 }
 
-export function NavItem({ label, icon, active, badge, onPress, aoMenu, aoMedir, semFundo, medicao }: { label: string; icon: keyof typeof Ionicons.glyphMap; active: boolean; badge?: boolean; onPress: () => void;
+export function NavItem({ label, icon, active, badge, onPress, aoMenu, alvo = null, aoMedir, semFundo, medicao }: { label: string; icon: keyof typeof Ionicons.glyphMap; active: boolean; badge?: boolean; onPress: () => void;
+  /** Largar uma música arrastada aqui (24/10): as Liked Songs. */
+  alvo?: Alvo | null;
   /** O botão direito, nos itens que são uma coisa e não só um lugar (as Liked Songs). */
   aoMenu?: (e: any) => void;
   /** Muda para pedir outra medição (ver `medicao` na barra lateral). */
@@ -553,7 +567,8 @@ export function NavItem({ label, icon, active, badge, onPress, aoMenu, aoMedir, 
     if (el && typeof el.offsetTop === 'number') aoMedir?.(el.offsetTop, el.offsetHeight);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [medicao]);
-  return <P ref={ref} {...marcar('premir')} onPress={onPress}
+  const alvoRef = refDoAlvo(`nav:${label}`, alvo);
+  return <P ref={(n: any) => { ref.current = n; alvoRef(n); }} {...marcar('premir')} onPress={onPress}
     onContextMenu={(e: any) => { if (!aoMenu) return; e.preventDefault(); aoMenu(e); }}
     onLayout={(e: any) => aoMedir?.(e.nativeEvent.layout.y, e.nativeEvent.layout.height)}
     style={({ hovered, focused, pressed }: any) => [styles.navItem, (hovered || focused) && styles.navHover, active && !semFundo && { backgroundColor: theme.soft }, pressed && ui.pressed]}><Ionicons name={icon} size={19} color={active ? theme.color : COR.textoMedio} /><Text style={[styles.navText, active && styles.navTextActive, active && { color: theme.color }]}>{label}</Text>{badge && <BolinhaDeAviso />}</P>;
@@ -735,7 +750,8 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
   })).current;
   if (!p.current) return null;
 
-  return <V style={[styles.player,{opacity:p.closeGain*Math.max(0.2,1-dragX/swipeWidth.current),transform:[{translateX:reducedMotion?0:dragX+(1-p.closeGain)*180}]}]}>
+  // Largar uma música na barra põe-na a seguir à que toca (24/10).
+  return <V ref={refDoAlvo('barra-do-leitor', p.current ? alvoDaBarra() : null)} style={[styles.player,{opacity:p.closeGain*Math.max(0.2,1-dragX/swipeWidth.current),transform:[{translateX:reducedMotion?0:dragX+(1-p.closeGain)*180}]}]}>
     {/* O motor: se rebentar, volta a montar sozinho e retoma a faixa. */}
     <BarreiraDeErros onde="leitor" discreta><YouTubePlayerView track={p.current} /></BarreiraDeErros>
     <View style={styles.playerTrack} {...dragClose.panHandlers} onLayout={e=>{swipeWidth.current=e.nativeEvent.layout.width;}}>

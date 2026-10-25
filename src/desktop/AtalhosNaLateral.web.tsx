@@ -1,6 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { MenuDeContexto, pontoDoEvento, type LinhaDoMenu, type PontoNoEcra } from './MenuDeContexto.web';
 import { MenuDoArtista } from './MenuDoArtista.web';
+import { refDoAlvo } from './Arrastar.web';
+import { alvoDaPlaylist, alvoDoAmigo } from './alvosDeLargar.web';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { getLibrary } from '../api/library';
@@ -89,6 +91,9 @@ export function AtalhosNaLateral({ navigate, notify }: { navigate: (r: Route) =>
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 2, paddingBottom: ESP.md }}>
           {lista.map((a) => (
             <Pressable key={chaveDoAtalho(a)} {...marcar('atalho')} onPress={() => abrir(a)}
+              // Largar uma música numa playlist fixada põe-na lá; num amigo, manda-lha (24/10).
+              ref={refDoAlvo(`atalho:${chaveDoAtalho(a)}`, a.tipo === 'playlist' ? alvoDaPlaylist({ id: a.id, nome: a.nome })
+                : a.tipo === 'amigo' ? alvoDoAmigo({ id: a.id, nome: a.nome }) : null) as any}
               onContextMenu={((e: any) => { e.preventDefault(); setOndeMenu(pontoDoEvento(e)); setMenu(a); }) as any}
               accessibilityLabel={`${nomeDoAtalho(a)}, ${subtituloDoAtalho(a, online)}`}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6, paddingHorizontal: ESP.sm, borderRadius: 8 }}>
