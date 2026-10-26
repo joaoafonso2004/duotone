@@ -12,7 +12,7 @@ import {
   CORTE_DB, descreverPlano, deveAgendar, duracaoDaPassagem, estadoDaPassagem, ganhosComPassagem, impedimentoDoAutomix,
   noInstante, planoDoAutomix, preparacaoDaCurva, razaoDosAndamentos, SUAVE_POR_OMISSAO_S, type PlanoDoAutomix,
 } from '../src/lib/automix.ts';
-import { AMOSTRAS_POR_QUADRO, CHAO_DB, CORTE_DOS_GRAVES_HZ, type Ritmo } from '../src/lib/ritmo.ts';
+import { AMOSTRAS_POR_QUADRO, CHAO_DB, CORTE_DOS_AGUDOS_HZ, CORTE_DOS_GRAVES_HZ, type Ritmo } from '../src/lib/ritmo.ts';
 import { GANHO_MAXIMO } from '../src/lib/equalizer.ts';
 
 function t(nome: string, f: () => void) {
@@ -247,6 +247,62 @@ t('o Swift e o ritmo.ts usam as mesmas constantes', () => {
   assert.match(swift, new RegExp(`amostrasPorQuadro = ${AMOSTRAS_POR_QUADRO}\\b`));
   assert.match(swift, new RegExp(`corteDosGravesHz = ${CORTE_DOS_GRAVES_HZ}\\.0\\b`));
   assert.match(swift, new RegExp(`chaoDb = ${CHAO_DB}\\.0\\b`));
+  // Os agudos (26/10): o mesmo corte dos dois lados, e a mesma conta.
+  assert.match(swift, new RegExp(`corteDosAgudosHz = ${CORTE_DOS_AGUDOS_HZ}\\.0\\b`));
+  assert.match(swift, /baixo \+= b \* \(x - baixo\)\n\s+let alto = x - baixo\n\s+somaAgudos \+= alto \* alto/);
+});
+
+t('o Swift dos agudos e das notas: uma função nova, o formato que se diz, e a FFT só de 55 Hz a 2 kHz (26/10)', () => {
+  const swift = readFileSync(new URL('../modules/duotone-audio/ios/DuotoneAudioModule.swift', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  assert.match(swift, /^import Accelerate$/m);
+  assert.match(swift, /AsyncFunction\("analisarRitmoComAgudos"\)[\s\S]{0,300}energiasDoRitmo\(url, desde: desde, segundos: segundos, comAgudos: true\)/);
+  // A antiga continua lá, sem agudos, para o JS de um binário antigo.
+  assert.match(swift, /AsyncFunction\("analisarRitmo"\) \{ \(uri: String, desde: Double, segundos: Double\) -> \[Double\] in\n\s+guard let url = URL\(string: uri\) else \{ return \[\] \}\n\s+do \{\n\s+return try DuotoneAudioModule\.energiasDoRitmo\(url, desde: desde, segundos: segundos\)\n/);
+  assert.match(swift, /return \[3, saida\[0\], saida\[1\]\] \+ notas \+ Array\(saida\[2\.\.\.\]\)/);
+  assert.match(swift, /private static let tamanho = 4096/);
+  assert.match(swift, /guard f >= 55, f <= 2000 else \{ return -1 \}/);
+  assert.match(swift, /deinit \{ vDSP_destroy_fftsetup\(setup\) \}/);
+  const ponte = readFileSync(new URL('../modules/duotone-audio/index.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  assert.match(ponte, /const plano = temRitmoComAgudos\n\s+\? await nativo\.analisarRitmoComAgudos\(uri, desde, segundos\)\n\s+: await nativo\.analisarRitmo\(uri, desde, segundos\);/);
+});
+
+t('a tonalidade no plano: as que chocam passam depressa, e a que sai dobra-se até 2 semitons na cauda e no suave', () => {
+  const tom = (tonica: number, menor = false) => ({ tonica, menor, confianca: 0.9 });
+  const com = (r: Ritmo, t: { tonica: number; menor: boolean; confianca: number }) => ({ ...r, tom: t });
+  // Na batida: dó e dó casam -> 4 compassos; dó e ré chocam -> 2.
+  const compasso = (60 / 140) * 4;
+  assert.ok(Math.abs(planoDoAutomix({ sai: com(sai140, tom(0)), entra: com(entra140, tom(0)), ...base })!.duracaoS - compasso * 4) < 1e-9);
+  const choque = planoDoAutomix({ sai: com(sai140, tom(0)), entra: com(entra140, tom(2)), ...base })!;
+  assert.ok(Math.abs(choque.duracaoS - compasso * 2) < 1e-9, `${choque.duracaoS}`);
+  assert.equal(choque.semitons, 0, 'na batida não se dobra: a batida desencontrava-se');
+  assert.deepEqual([choque.tomSai, choque.tomEntra], ['8B', '10B']);
+  assert.match(descreverPlano(choque), /key 8B -> 10B/);
+  // Por cima: a intro por baixo fica em 4 s.
+  const porCima = planoDoAutomix({ sai: com(saiCom(128, 196), tom(0)), entra: com(ritmo(100, 14.2, 50, 0.2, 10, 14.2), tom(2)), ...base })!;
+  assert.equal(porCima.tipo, 'por-cima');
+  assert.ok(porCima.duracaoS <= 4 + 4 + 1e-9);
+  // Na cauda: até 2,5 s, e a que sai dobra-se +2 (dó para ré).
+  const cauda = planoDoAutomix({ sai: com(saiCom(128, 185), tom(0)), entra: com(ritmo(100, 0.4, 40, 0.3, 10, 0.4), tom(2)), ...base })!;
+  assert.deepEqual([cauda.tipo, cauda.duracaoS, cauda.semitons], ['cauda', 2.5, 2]);
+  assert.match(descreverPlano(cauda), /outgoing bent \+2 st/);
+  // Suave: 2 s, e dobra-se também.
+  const suave = planoDoAutomix({ sai: com(sai140, tom(0)), entra: com(ritmo(140, 0.35, 40, 0.3, 2), tom(2)), ...base })!;
+  assert.deepEqual([suave.tipo, suave.duracaoS, suave.semitons], ['suave', 2, 2]);
+  // Uma tonalidade pouco clara não conta, e sem ela nada muda.
+  const turva = planoDoAutomix({ sai: com(sai140, { ...tom(0), confianca: 0.3 }), entra: com(entra140, tom(2)), ...base })!;
+  assert.deepEqual([turva.tomSai, turva.semitons], [null, 0]);
+  assert.ok(Math.abs(turva.duracaoS - compasso * 4) < 1e-9);
+});
+
+t('o leitor: a dobra em três passos, só com ela no plano, e a que sai volta à velocidade dela', () => {
+  const v = readFileSync(new URL('../src/components/YouTubePlayerView.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  assert.match(v, /\.\.\.\(plano\.semitons \? \{ dobra: \{ semitons: plano\.semitons, taxa: st\.playbackRate, passos: 0 \} \} : \{\}\)/);
+  assert.match(v, /if \(d && d\.passos < 3 && decorrido >= \(p\.duracaoDoFade \* \(d\.passos \+ 1\)\) \/ 4\) \{/);
+  assert.match(v, /const taxa = d\.taxa \* Math\.pow\(2, \(d\.semitons \* d\.passos\) \/ 3 \/ 12\);/);
+  // Um binário que não muda a velocidade sem cortes: não insiste.
+  assert.match(v, /if \(!aplicarVelocidadeNativa\(player, taxa\)\) d\.passos = 3;/);
+  // No fim e ao desfazer, volta.
+  assert.match(v, /if \(p\.dobra && p\.dobra\.passos > 0\) aplicarVelocidadeNativa\(player, p\.dobra\.taxa\);/);
 });
 
 t('a entrada agendada no Swift: sem esperar pelo buffer ANTES do setRate, e com as guardas', () => {

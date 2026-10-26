@@ -1,6 +1,7 @@
 import ExpoModulesCore
 import AVFoundation
 import CoreMedia
+import Accelerate
 
 /**
  * Tom e equalizador por cima dos AVPlayer que o expo-video ja esta a tocar.
@@ -149,6 +150,8 @@ public class DuotoneAudioModule: Module {
   private static let amostrasPorQuadro = 512
   private static let corteDosGravesHz = 150.0
   private static let chaoDb = -120.0
+  /** Onde comecam os agudos (hi-hats, palmas): um filtro de um polo e o que fica acima (26/10). */
+  private static let corteDosAgudosHz = 2000.0
 
   /**
    * A energia de cada quadro de uma janela do ficheiro, nos graves e no total,
@@ -164,7 +167,7 @@ public class DuotoneAudioModule: Module {
    * janela, em blocos, e nunca o ficheiro todo de uma vez -- 45 s de audio em
    * float sao dezenas de MB.
    */
-  private static func energiasDoRitmo(_ url: URL, desde: Double, segundos: Double) throws -> [Double] {
+  private static func energiasDoRitmo(_ url: URL, desde: Double, segundos: Double, comAgudos: Bool = false) throws -> [Double] {
     // AVAudioFile usa AudioFile, que nao le Opus em MP4, embora o AVPlayer
     // o toque. AVAssetReader usa o descodificador do AVFoundation tambem aqui.
     // https://bugs.webkit.org/show_bug.cgi?id=307632
@@ -201,6 +204,11 @@ public class DuotoneAudioModule: Module {
     var somaTotal = 0.0
     var n = 0
     var saida: [Double] = []
+    // Os agudos e as notas (26/10): so no `analisarRitmoComAgudos`.
+    var b = 0.0
+    var baixo = 0.0
+    var somaAgudos = 0.0
+    var croma: CromaDaJanela? = nil
 
     while let buffer = fonte.copyNextSampleBuffer() {
       guard let formato = CMSampleBufferGetFormatDescription(buffer),
@@ -225,6 +233,8 @@ public class DuotoneAudioModule: Module {
       if taxa == 0 {
         taxa = formatoPCM.mSampleRate
         a = 1 - exp(-2 * Double.pi * DuotoneAudioModule.corteDosGravesHz / taxa)
+        b = 1 - exp(-2 * Double.pi * DuotoneAudioModule.corteDosAgudosHz / taxa)
+        if comAgudos { croma = CromaDaJanela(taxa: taxa) }
       }
       guard taxa == formatoPCM.mSampleRate else { return [] }
       for i in 0..<quadros {
@@ -241,12 +251,23 @@ public class DuotoneAudioModule: Module {
         y2 += a * (y1 - y2)
         somaGraves += y2 * y2
         somaTotal += x * x
+        if comAgudos {
+          baixo += b * (x - baixo)
+          let alto = x - baixo
+          somaAgudos += alto * alto
+          croma?.juntar(Float(x))
+        }
         n += 1
         if n == porQuadro {
           let mediaGraves = somaGraves / Double(n)
           let mediaTotal = somaTotal / Double(n)
           saida.append(mediaGraves > 0 ? max(chao, 10 * log10(mediaGraves)) : chao)
           saida.append(mediaTotal > 0 ? max(chao, 10 * log10(mediaTotal)) : chao)
+          if comAgudos {
+            let mediaAgudos = somaAgudos / Double(n)
+            saida.append(mediaAgudos > 0 ? max(chao, 10 * log10(mediaAgudos)) : chao)
+            somaAgudos = 0
+          }
           somaGraves = 0
           somaTotal = 0
           n = 0
@@ -255,7 +276,12 @@ public class DuotoneAudioModule: Module {
     }
     // Uma leitura interrompida nao passa por uma analise completa nem fica em cache.
     guard leitor.status == .completed else { return [] }
-    return saida
+    guard comAgudos else { return saida }
+    // [3 (as bandas), fps, inicio, as 12 notas, graves0, total0, agudos0, ...]
+    // -- o 3 a frente, que um fps nunca e, diz ao ritmo.ts qual dos formatos e.
+    guard saida.count >= 2 else { return [] }
+    let notas = croma?.notas() ?? [Double](repeating: 0, count: 12)
+    return [3, saida[0], saida[1]] + notas + Array(saida[2...])
   }
 
   public func definition() -> ModuleDefinition {
@@ -274,6 +300,21 @@ public class DuotoneAudioModule: Module {
     }
 
     /** Ver `energiasDoRitmo`. Assincrona: le do disco, fora da thread principal. */
+    /**
+     * O mesmo, com a energia dos agudos por quadro e as 12 notas da janela
+     * (26/10): os agudos acertam o "um" de um trap (o 808 sincopado enganava
+     * a grelha), e as notas dizem a tonalidade. Ver o `energiasDoNativo` do
+     * src/lib/ritmo.ts.
+     */
+    AsyncFunction("analisarRitmoComAgudos") { (uri: String, desde: Double, segundos: Double) -> [Double] in
+      guard let url = URL(string: uri) else { return [] }
+      do {
+        return try DuotoneAudioModule.energiasDoRitmo(url, desde: desde, segundos: segundos, comAgudos: true)
+      } catch {
+        return []
+      }
+    }
+
     AsyncFunction("analisarRitmo") { (uri: String, desde: Double, segundos: Double) -> [Double] in
       guard let url = URL(string: uri) else { return [] }
       do {
@@ -745,5 +786,77 @@ public class DuotoneAudioModule: Module {
         motor.itemDoTap = montado == nil ? nil : observado
       }
     }
+  }
+}
+
+/**
+ * O cromagrama de uma janela (AutoMix, 26/10): a forca de cada uma das 12
+ * notas, somada sobre a janela, para o src/lib/ritmo.ts adivinhar a
+ * tonalidade. FFT de 4096 amostras (vDSP), sem sobreposicao -- uma janela de
+ * 45 s sao umas 480 FFTs, nada --, e so os bins de 55 Hz a 2 kHz: o que tem
+ * altura definida, sem o sopro dos pratos.
+ */
+fileprivate final class CromaDaJanela {
+  private static let tamanho = 4096
+  private static let log2DoTamanho: vDSP_Length = 12
+  private let setup: FFTSetup
+  private var janela: [Float]
+  private var bloco: [Float] = []
+  private let classeDoBin: [Int]
+  private var somas = [Double](repeating: 0, count: 12)
+
+  init?(taxa: Double) {
+    guard taxa > 0, let s = vDSP_create_fftsetup(CromaDaJanela.log2DoTamanho, FFTRadix(kFFTRadix2)) else { return nil }
+    setup = s
+    let n = CromaDaJanela.tamanho
+    var hann = [Float](repeating: 0, count: n)
+    vDSP_hann_window(&hann, vDSP_Length(n), Int32(vDSP_HANN_NORM))
+    janela = hann
+    classeDoBin = (0..<(n / 2)).map { k -> Int in
+      let f = Double(k) * taxa / Double(n)
+      guard f >= 55, f <= 2000 else { return -1 }
+      let nota = Int((69 + 12 * log2(f / 440)).rounded())
+      return ((nota % 12) + 12) % 12
+    }
+    bloco.reserveCapacity(n)
+  }
+
+  deinit { vDSP_destroy_fftsetup(setup) }
+
+  func juntar(_ x: Float) {
+    bloco.append(x)
+    if bloco.count == CromaDaJanela.tamanho {
+      processar()
+      bloco.removeAll(keepingCapacity: true)
+    }
+  }
+
+  private func processar() {
+    let n = CromaDaJanela.tamanho
+    var dados = [Float](repeating: 0, count: n)
+    vDSP_vmul(bloco, 1, janela, 1, &dados, 1, vDSP_Length(n))
+    var real = [Float](repeating: 0, count: n / 2)
+    var imaginario = [Float](repeating: 0, count: n / 2)
+    var magnitudes = [Float](repeating: 0, count: n / 2)
+    real.withUnsafeMutableBufferPointer { r in
+      imaginario.withUnsafeMutableBufferPointer { i in
+        var complexo = DSPSplitComplex(realp: r.baseAddress!, imagp: i.baseAddress!)
+        dados.withUnsafeBytes { bytes in
+          vDSP_ctoz(bytes.bindMemory(to: DSPComplex.self).baseAddress!, 2, &complexo, 1, vDSP_Length(n / 2))
+        }
+        vDSP_fft_zrip(setup, &complexo, 1, CromaDaJanela.log2DoTamanho, FFTDirection(FFT_FORWARD))
+        vDSP_zvmags(&complexo, 1, &magnitudes, 1, vDSP_Length(n / 2))
+      }
+    }
+    for k in 1..<(n / 2) {
+      let classe = classeDoBin[k]
+      if classe >= 0 { somas[classe] += Double(magnitudes[k]).squareRoot() }
+    }
+  }
+
+  /** As 12 somas (do, do#, ..., si), a dividir pela maior: de 0 a 1. */
+  func notas() -> [Double] {
+    let maior = somas.max() ?? 0
+    return maior > 0 ? somas.map { $0 / maior } : somas
   }
 }

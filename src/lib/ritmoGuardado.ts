@@ -25,8 +25,9 @@ const CHAVE = 'automix:ritmos';
 // A 5.4.0 podia guardar janelas vazias ao tentar ler Opus com AVAudioFile.
 // A 3 (26/10) traz onde a batida começa e acaba (`batidaS`), para as
 // passagens entre andamentos diferentes. A 4 (26/10, depois do relatório da
-// 5.4.2) o andamento pela soma dos múltiplos: no trap a 3 saía errado.
-const VERSAO = 4;
+// 5.4.2) o andamento pela soma dos múltiplos: no trap a 3 saía errado. A 5
+// (26/10) a fase pelos agudos e a tonalidade, com o binário que os lê.
+const VERSAO = 5;
 const MAXIMO = 400;
 const JANELA_DO_INICIO_S = 40;
 const JANELA_DO_FIM_S = 45;

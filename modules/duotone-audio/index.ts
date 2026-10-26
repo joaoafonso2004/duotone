@@ -134,6 +134,12 @@ export const temAutomixNativo = typeof nativo?.agendarEntrada === 'function'
 export const temAutomixComVelocidade = temAutomixNativo && typeof nativo?.agendarEntradaComTaxa === 'function';
 
 /**
+ * Este binário lê também os agudos e as notas de cada janela (26/10)? Sem
+ * isto o ritmo é o de antes (graves e total), e não há tonalidade.
+ */
+export const temRitmoComAgudos = temAutomixNativo && typeof nativo?.analisarRitmoComAgudos === 'function';
+
+/**
  * A energia de cada quadro de uma janela do ficheiro (ver `energiasDoRitmo` no
  * Swift): `[fps, inicio, graves0, total0, ...]`. `desde` negativo conta do fim.
  * Lista vazia sem módulo ou sem ficheiro que se leia. Quem decide o que estes
@@ -142,7 +148,11 @@ export const temAutomixComVelocidade = temAutomixNativo && typeof nativo?.agenda
 export async function analisarRitmoNativo(uri: string, desde: number, segundos: number): Promise<number[]> {
   try {
     if (!temAutomixNativo) return [];
-    const plano = await nativo.analisarRitmo(uri, desde, segundos);
+    // Com os agudos e as notas, quando o binário os tem (26/10): o formato
+    // diz-se a si próprio (ver `energiasDoNativo` no src/lib/ritmo.ts).
+    const plano = temRitmoComAgudos
+      ? await nativo.analisarRitmoComAgudos(uri, desde, segundos)
+      : await nativo.analisarRitmo(uri, desde, segundos);
     return Array.isArray(plano) ? plano : [];
   } catch {
     return [];

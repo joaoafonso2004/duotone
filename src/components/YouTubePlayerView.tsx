@@ -482,6 +482,12 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     eqSai?: boolean;
     /** O último corte aplicado a cada uma, para não repetir a mesma escrita. */
     eqAplicado?: { sai: string; entra: string };
+    /**
+     * A dobra da que sai (26/10): os semitons do plano, a velocidade dela de
+     * antes, e quantos dos três passos já foram (um quarto, meio e três
+     * quartos da passagem). Ver `aplicarCurvaNaQueSai`.
+     */
+    dobra?: { semitons: number; taxa: number; passos: number };
   } | null>(null);
 
   /**
@@ -970,6 +976,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
    */
   const reporEqDaPassagem = (p: NonNullable<typeof passagemRef.current>) => {
     if (!p.curva) return;
+    // A que sai volta à velocidade dela, se se dobrou: uma passagem desfeita
+    // deixa-a a tocar, e mesmo calada, o motor serve a seguinte.
+    if (p.dobra && p.dobra.passos > 0) aplicarVelocidadeNativa(player, p.dobra.taxa);
     if (p.eqSai && p.ganhosSai) aplicarEqualizadorNativo(player, p.ganhosSai, compensacaoLinear(p.ganhosSai));
     if (p.ganhosEntra) aplicarEqualizadorNativo(motorEmEspera, p.ganhosEntra, compensacaoLinear(p.ganhosEntra));
   };
@@ -1168,6 +1177,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       ganhosEntra: seguinteRef.current?.ganhos,
       eqSai,
       eqAplicado: { sai: '', entra: '' },
+      ...(plano.semitons ? { dobra: { semitons: plano.semitons, taxa: st.playbackRate, passos: 0 } } : {}),
     };
     // Como no crossfade: daqui em diante quem avança a fila é o fim da passagem.
     endedRef.current = true;
@@ -1258,6 +1268,17 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const aplicarCurvaNaQueSai = (decorrido: number) => {
     const p = passagemRef.current;
     if (!p?.curva) return;
+    // A dobra (26/10): a que sai desce ou sobe até 2 semitons, como um vinil,
+    // em três passos (a um quarto, a meio e a três quartos) -- cada mudança de
+    // velocidade no AVPlayer pode dar um corte curto (30/9), e por isso
+    // poucas, e com ela já a descer de volume. Só na cauda e no suave.
+    const d = p.dobra;
+    if (d && d.passos < 3 && decorrido >= (p.duracaoDoFade * (d.passos + 1)) / 4) {
+      d.passos++;
+      const taxa = d.taxa * Math.pow(2, (d.semitons * d.passos) / 3 / 12);
+      if (!aplicarVelocidadeNativa(player, taxa)) d.passos = 3;
+      if (d.passos === 1) registarNaFila(`${track.sourceId}: automix bends the outgoing ${d.semitons > 0 ? '+' : ''}${d.semitons} st`);
+    }
     const e = estadoDaPassagem(p.curva, decorrido);
     try {
       player.volume = p.tetoSai * e.volSai;

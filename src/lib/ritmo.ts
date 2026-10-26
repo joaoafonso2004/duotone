@@ -19,6 +19,13 @@ export const AMOSTRAS_POR_QUADRO = 512;
 export const CORTE_DOS_GRAVES_HZ = 150;
 /** O chão em dB de um quadro sem som (0 em energia não atravessa a ponte). Igual no Swift. */
 export const CHAO_DB = -120;
+/**
+ * Onde começam os agudos (os hi-hats, as palmas, a tarola), em Hz: um filtro
+ * de um polo, e o que fica acima dele (26/10). Igual no Swift. No trap o 808
+ * manda nos graves e no total, e a grelha agarrava-se a um 808 sincopado; os
+ * agudos estão sempre em cima da batida.
+ */
+export const CORTE_DOS_AGUDOS_HZ = 2000;
 
 /**
  * Abaixo disto não há batida que se possa seguir. Batidas sintéticas dão 16 a
@@ -39,6 +46,10 @@ export type EnergiasDaJanela = {
   /** A energia média de cada quadro, em dB: só os graves, e tudo. */
   graves: number[];
   total: number[];
+  /** Só os agudos (26/10), quando o nativo os mandar. */
+  agudos?: number[];
+  /** A força de cada uma das 12 notas na janela (dó, dó#, ..., si), quando o nativo a mandar. */
+  croma?: number[];
 };
 
 export type Ritmo = {
@@ -63,7 +74,88 @@ export type Ritmo = {
    * diferentes (26/10). Sem valor nos ritmos guardados antes disto.
    */
   batidaS?: number;
+  /** A tonalidade da janela (26/10), quando o nativo manda as notas. */
+  tom?: Tom;
 };
+
+/**
+ * Uma tonalidade: a tónica (0 = dó, ..., 11 = si), se é menor, e quanto o
+ * perfil das notas se parece com o dela (a correlação, de -1 a 1).
+ */
+export type Tom = { tonica: number; menor: boolean; confianca: number };
+
+/** Abaixo disto a tonalidade não se usa: as notas não dizem nenhuma com clareza. */
+export const TOM_CONFIAVEL = 0.6;
+
+/**
+ * Os perfis de Krumhansl-Kessler: quanto cada grau da escala pesa numa
+ * tonalidade maior e numa menor, medido com ouvintes (1982). Comparar as 12
+ * notas de uma janela com os 24 perfis rodados dá a tonalidade mais parecida.
+ */
+const PERFIL_MAIOR = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
+const PERFIL_MENOR = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
+
+function correlacaoDePearson(a: readonly number[], b: readonly number[]): number {
+  const n = a.length;
+  const ma = a.reduce((s, x) => s + x, 0) / n;
+  const mb = b.reduce((s, x) => s + x, 0) / n;
+  let cov = 0, va = 0, vb = 0;
+  for (let i = 0; i < n; i++) {
+    cov += (a[i] - ma) * (b[i] - mb);
+    va += (a[i] - ma) ** 2;
+    vb += (b[i] - mb) ** 2;
+  }
+  return va > 0 && vb > 0 ? cov / Math.sqrt(va * vb) : 0;
+}
+
+/** A tonalidade de 12 notas (dó a si), ou `null` sem notas. */
+export function tomDoCroma(croma: readonly number[] | null | undefined): Tom | null {
+  if (!croma || croma.length !== 12 || !croma.every((x) => Number.isFinite(x)) || !(Math.max(...croma) > 0)) return null;
+  let melhor: Tom | null = null;
+  for (let tonica = 0; tonica < 12; tonica++) {
+    // A nota i, vista da tónica: o grau (i - tónica) da escala.
+    const rodada = croma.map((_, grau) => croma[(grau + tonica) % 12]);
+    for (const menor of [false, true]) {
+      const r = correlacaoDePearson(rodada, menor ? PERFIL_MENOR : PERFIL_MAIOR);
+      if (!melhor || r > melhor.confianca) melhor = { tonica, menor, confianca: r };
+    }
+  }
+  return melhor;
+}
+
+/**
+ * A roda Camelot dos DJs: as 24 tonalidades em 12 números, com as quintas
+ * lado a lado e a maior e a sua relativa menor no mesmo número (8B = dó
+ * maior, 8A = lá menor). Duas casam se forem a mesma, a relativa, ou uma
+ * quinta ao lado (o número ao lado, a mesma letra).
+ */
+export function camelot(t: Tom): { numero: number; letra: 'A' | 'B' } {
+  const maior = t.menor ? (t.tonica + 3) % 12 : t.tonica;
+  return { numero: ((maior * 7) % 12 + 7) % 12 + 1, letra: t.menor ? 'A' : 'B' };
+}
+
+/** Quantos passos na roda: 0 a mesma, 1 casam (relativa ou quinta), mais é choque. */
+export function distanciaHarmonica(a: Tom, b: Tom): number {
+  const ca = camelot(a), cb = camelot(b);
+  const d = Math.abs(ca.numero - cb.numero) % 12;
+  return Math.min(d, 12 - d) + (ca.letra === cb.letra ? 0 : 1);
+}
+
+/**
+ * Os semitons (de -maximo a +maximo) que levam a tonalidade da que sai a
+ * casar com a da que entra -- o menor que chegue --, ou `null` se nenhum
+ * chega. 0 quando já casam.
+ */
+export function semitonsParaCasar(sai: Tom, entra: Tom, maximo = 2): number | null {
+  if (distanciaHarmonica(sai, entra) <= 1) return 0;
+  for (const s of [1, -1, 2, -2].filter((x) => Math.abs(x) <= maximo)) {
+    if (distanciaHarmonica({ ...sai, tonica: (sai.tonica + s + 12) % 12 }, entra) <= 1) return s;
+  }
+  return null;
+}
+
+/** "8B", para o relatório. */
+export const nomeDoTom = (t: Tom) => { const c = camelot(t); return `${c.numero}${c.letra}`; };
 
 /** Um compasso tem batida com pelo menos isto da força dos compassos fortes. */
 const PRESENCA_DA_BATIDA = 0.35;
@@ -75,27 +167,50 @@ const PRESENCA_DA_BATIDA = 0.35;
  */
 export function energiasPorQuadro(mono: ArrayLike<number>, taxa: number, inicioS = 0): EnergiasDaJanela {
   const a = 1 - Math.exp((-2 * Math.PI * CORTE_DOS_GRAVES_HZ) / taxa);
-  let y1 = 0, y2 = 0, somaGraves = 0, somaTotal = 0, n = 0;
-  const graves: number[] = [], total: number[] = [];
+  const b = 1 - Math.exp((-2 * Math.PI * CORTE_DOS_AGUDOS_HZ) / taxa);
+  let y1 = 0, y2 = 0, baixo = 0, somaGraves = 0, somaTotal = 0, somaAgudos = 0, n = 0;
+  const graves: number[] = [], total: number[] = [], agudos: number[] = [];
   const emDb = (media: number) => (media > 0 ? Math.max(CHAO_DB, 10 * Math.log10(media)) : CHAO_DB);
   for (let i = 0; i < mono.length; i++) {
     const x = mono[i];
     y1 += a * (x - y1);
     y2 += a * (y1 - y2);
+    baixo += b * (x - baixo);
+    const alto = x - baixo;
     somaGraves += y2 * y2;
     somaTotal += x * x;
+    somaAgudos += alto * alto;
     n++;
     if (n === AMOSTRAS_POR_QUADRO) {
       graves.push(emDb(somaGraves / n));
       total.push(emDb(somaTotal / n));
-      somaGraves = 0; somaTotal = 0; n = 0;
+      agudos.push(emDb(somaAgudos / n));
+      somaGraves = 0; somaTotal = 0; somaAgudos = 0; n = 0;
     }
   }
-  return { fps: taxa / AMOSTRAS_POR_QUADRO, inicioS, graves, total };
+  return { fps: taxa / AMOSTRAS_POR_QUADRO, inicioS, graves, total, agudos };
 }
 
-/** O que o nativo devolve: [fps, inicioS, graves0, total0, graves1, total1, ...]. */
+/**
+ * O que o nativo devolve. O `analisarRitmo` da 5.4.x: [fps, inicioS, graves0,
+ * total0, graves1, total1, ...]. O `analisarRitmoComAgudos` (26/10): [3, fps,
+ * inicioS, as 12 notas, graves0, total0, agudos0, graves1, ...] -- o 3 (as
+ * bandas) à frente, que um fps nunca é.
+ */
 export function energiasDoNativo(plano: readonly number[]): EnergiasDaJanela | null {
+  if (plano[0] === 3) {
+    if (plano.length < 3 + 12 + 6) return null;
+    const fps = plano[1], inicioS = plano[2];
+    if (!(fps > 0) || !Number.isFinite(inicioS)) return null;
+    const croma = plano.slice(3, 15);
+    const graves: number[] = [], total: number[] = [], agudos: number[] = [];
+    for (let i = 15; i + 2 < plano.length; i += 3) {
+      graves.push(plano[i]);
+      total.push(plano[i + 1]);
+      agudos.push(plano[i + 2]);
+    }
+    return { fps, inicioS, graves, total, agudos, croma };
+  }
   if (plano.length < 4) return null;
   const [fps, inicioS] = plano;
   if (!(fps > 0) || !Number.isFinite(inicioS)) return null;
@@ -114,11 +229,13 @@ export function energiasDoNativo(plano: readonly number[]): EnergiasDaJanela | n
  * valer por cem batidas. Tira-se a média local para o que fica ser o que
  * salta do resto.
  */
-export function ataques(e: EnergiasDaJanela): number[] {
+export function ataques(e: EnergiasDaJanela, pesos: { graves: number; total: number; agudos: number } = { graves: 1, total: 0.5, agudos: 0 }): number[] {
   const n = Math.min(e.graves.length, e.total.length);
   const bruto = new Array<number>(n).fill(0);
   const pico = e.total.reduce((m, v) => Math.max(m, v), CHAO_DB);
   const picoDosGraves = e.graves.reduce((m, v) => Math.max(m, v), CHAO_DB);
+  const agudos = pesos.agudos > 0 && e.agudos && e.agudos.length >= n ? e.agudos : null;
+  const picoDosAgudos = agudos ? agudos.reduce((m, v) => Math.max(m, v), CHAO_DB) : CHAO_DB;
   const calado = pico - 45;
   // Uma subida em dB não diz quão alto ficou: um prato baixinho depois de um
   // silêncio sobe tanto como o bombo. Cada subida pesa pelo nível a que
@@ -128,7 +245,8 @@ export function ataques(e: EnergiasDaJanela): number[] {
     if (e.total[t] < calado) continue;
     const g = Math.min(20, Math.max(0, e.graves[t] - e.graves[t - 1])) * peso(e.graves[t], picoDosGraves);
     const s = Math.min(20, Math.max(0, e.total[t] - e.total[t - 1])) * peso(e.total[t], pico);
-    bruto[t] = g + 0.5 * s;
+    const h = agudos ? Math.min(20, Math.max(0, agudos[t] - agudos[t - 1])) * peso(agudos[t], picoDosAgudos) : 0;
+    bruto[t] = pesos.graves * g + pesos.total * s + pesos.agudos * h;
   }
   const meia = Math.max(1, Math.round(e.fps * 0.2));
   const saida = new Array<number>(n).fill(0);
@@ -231,9 +349,15 @@ export function ritmoDaJanela(e: EnergiasDaJanela, qual: 'inicio' | 'fim'): Ritm
   // finos. De uma vez só, em passos finos, eram dez vezes mais contas -- e
   // isto corre no JavaScript, que não pode ficar preso (energia-ios.md).
   let periodo = melhorAtraso, fase = 0, forca = -Infinity;
-  const provar = (bpm: number, f: number) => {
+  // A FASE grossa pelos agudos, quando os há (26/10): os hi-hats e as palmas
+  // estão sempre em cima da batida, e um 808 sincopado não -- nos graves e no
+  // total ele mandava, e a grelha caía três semicolcheias ao lado do "um". O
+  // acerto fino (±1 quadro) volta aos ataques de sempre, que se alinham com o
+  // bombo: é por eles que o tempo forte se escolhe.
+  const oFase = e.agudos ? ataques(e, { graves: 0.3, total: 0.3, agudos: 1 }) : o;
+  const provar = (bpm: number, f: number, curva = oFase) => {
     const p = (60 * e.fps) / bpm;
-    const s = pente(o, p, f) / Math.max(1, Math.floor((n - f) / p));
+    const s = pente(curva, p, f) / Math.max(1, Math.floor((n - f) / p));
     if (s > forca) { forca = s; periodo = p; fase = f; }
   };
   const bpmGrosso = (60 * e.fps) / melhorAtraso;
@@ -242,9 +366,13 @@ export function ritmoDaJanela(e: EnergiasDaJanela, qual: 'inicio' | 'fim'): Ritm
     for (let f = 0; f < p; f += 1) provar(bpm, f);
   }
   const bpmA = (60 * e.fps) / periodo, faseA = fase;
+  forca = -Infinity;
   for (let bpm = bpmA - 0.25; bpm <= bpmA + 0.25; bpm += 0.02) {
-    for (let f = Math.max(0, faseA - 1); f <= faseA + 1; f += 0.1) provar(bpm, f);
+    for (let f = Math.max(0, faseA - 1); f <= faseA + 1; f += 0.1) provar(bpm, f, o);
   }
+  // A fase vale módulo um período: quase um período inteiro é o mesmo que
+  // quase zero, e aí a grelha deixava de fora a primeira batida da janela.
+  if (fase > periodo - 1) fase -= periodo;
   // A confiança compara a grelha escolhida com a MESMA grelha em todas as
   // fases. Contra a média simples dos ataques, o ruído passava por batida: de
   // tantas grelhas provadas, alguma calha sempre em cima de picos ao acaso.
@@ -263,11 +391,12 @@ export function ritmoDaJanela(e: EnergiasDaJanela, qual: 'inicio' | 'fim'): Ritm
   for (let x = fase; x < n; x += periodo, b++) porPosicao[b % 4] += Math.min(20, bombo(x));
   const forte = porPosicao.indexOf(Math.max(...porPosicao));
   const temposFortesS: number[] = [];
-  for (let x = fase + forte * periodo; x < n; x += periodo * 4) temposFortesS.push(e.inicioS + x / e.fps);
+  for (let x = fase + forte * periodo; x < n; x += periodo * 4) temposFortesS.push(e.inicioS + Math.max(0, x) / e.fps);
 
   const bpm = (60 * e.fps) / periodo;
   const batidaS = ondeHaBatida(o, e, fase + forte * periodo, periodo, qual, somS);
-  return { bpm, periodoS: periodo / e.fps, confianca, temposFortesS, somS, batidaS };
+  const tom = tomDoCroma(e.croma);
+  return { bpm, periodoS: periodo / e.fps, confianca, temposFortesS, somS, batidaS, ...(tom ? { tom } : {}) };
 }
 
 /**
@@ -306,22 +435,26 @@ function ondeHaBatida(o: number[], e: EnergiasDaJanela, primeiro: number, period
 /**
  * Um ritmo em seis números, para o guardar no aparelho (`ritmoGuardado.ts`):
  * os tempos fortes são uma grelha certa (de compasso em compasso a partir do
- * primeiro), e por isso refazem-se em vez de se guardarem um a um.
+ * primeiro), e por isso refazem-se em vez de se guardarem um a um. O sétimo é
+ * onde há batida, e o oitavo ao décimo a tonalidade (26/10).
  */
-export type RitmoCompacto = [bpm: number, periodoS: number, confianca: number, primeiroForteS: number, fortes: number, somS: number, batidaS?: number] | null;
+export type RitmoCompacto = number[] | null;
 
 const arredondar = (x: number) => Math.round(x * 1000) / 1000;
 
 export function compactar(r: Ritmo | null): RitmoCompacto {
   if (!r) return null;
   const base: [number, number, number, number, number, number] = [arredondar(r.bpm), r.periodoS, arredondar(r.confianca), r.temposFortesS[0] ?? r.somS, r.temposFortesS.length, arredondar(r.somS)];
-  return r.batidaS != null ? [...base, arredondar(r.batidaS)] : base;
+  if (r.batidaS == null) return base;
+  const comBatida = [...base, arredondar(r.batidaS)];
+  return r.tom ? [...comBatida, r.tom.tonica, r.tom.menor ? 1 : 0, arredondar(r.tom.confianca)] : comBatida;
 }
 
 export function descompactar(c: unknown): Ritmo | null {
-  if (!Array.isArray(c) || (c.length !== 6 && c.length !== 7) || !c.every((x) => typeof x === 'number' && Number.isFinite(x))) return null;
-  const [bpm, periodoS, confianca, primeiro, fortes, somS, batidaS] = c as number[];
+  if (!Array.isArray(c) || ![6, 7, 10].includes(c.length) || !c.every((x) => typeof x === 'number' && Number.isFinite(x))) return null;
+  const [bpm, periodoS, confianca, primeiro, fortes, somS, batidaS, tonica, menor, confiancaDoTom] = c as number[];
   if (!(periodoS > 0)) return null;
   const temposFortesS = Array.from({ length: Math.max(0, Math.floor(fortes)) }, (_, k) => primeiro + k * periodoS * 4);
-  return { bpm, periodoS, confianca, temposFortesS, somS, ...(batidaS != null ? { batidaS } : {}) };
+  const tom = tonica != null ? { tonica, menor: menor === 1, confianca: confiancaDoTom } : null;
+  return { bpm, periodoS, confianca, temposFortesS, somS, ...(batidaS != null ? { batidaS } : {}), ...(tom ? { tom } : {}) };
 }

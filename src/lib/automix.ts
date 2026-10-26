@@ -35,7 +35,7 @@
  *
  * Funções puras -- ver scripts/test-automix.ts.
  */
-import { CONFIANCA_MINIMA, type Ritmo } from './ritmo';
+import { CONFIANCA_MINIMA, distanciaHarmonica, nomeDoTom, semitonsParaCasar, TOM_CONFIAVEL, type Ritmo } from './ritmo';
 
 export type TipoDePassagem = 'batida' | 'por-cima' | 'cauda' | 'corte' | 'suave';
 
@@ -73,6 +73,15 @@ export type PlanoDoAutomix = {
   confianca: number;
   confiancaSai: number;
   confiancaEntra: number;
+  /** A tonalidade de cada uma na roda Camelot ("8B"), quando se sabe (26/10). */
+  tomSai: string | null;
+  tomEntra: string | null;
+  /**
+   * Quantos semitons a que sai se dobra ao sair, como um vinil (26/10, a
+   * quarta mudança): só na cauda e no suave, só com as tonalidades a chocar,
+   * e só até 2. 0 é não mexer.
+   */
+  semitons: number;
   motivo: string;
 };
 
@@ -169,9 +178,20 @@ export function planoDoAutomix(c: {
   // Uma passagem que comece antes de meio da música já não é passagem.
   const cedoDemais = c.duracaoSaiS * 0.5;
   const confianca = Math.min(sai.confianca, entra.confianca);
+  // A tonalidade das duas (26/10), quando o nativo a leu e é clara. Duas que
+  // chocam (mais de um passo na roda Camelot) não se sobrepõem muito tempo:
+  // um DJ corta, ou passa depressa.
+  const tomSai = sai.tom && sai.tom.confianca >= TOM_CONFIAVEL ? sai.tom : null;
+  const tomEntra = entra.tom && entra.tom.confianca >= TOM_CONFIAVEL ? entra.tom : null;
+  const choque = !!tomSai && !!tomEntra && distanciaHarmonica(tomSai, tomEntra) >= 2;
+  // A quarta mudança: a que sai dobra-se até 2 semitons para casar (só na
+  // cauda e no suave, onde a que sai já não leva batida que se desencontre).
+  const dobrar = choque ? semitonsParaCasar(tomSai!, tomEntra!, 2) ?? 0 : 0;
   const base = {
     bpmSai: sai.bpm * taxaSai, bpmEntra: entra.bpm * taxaEntra, confianca,
     confiancaSai: sai.confianca, confiancaEntra: entra.confianca,
+    tomSai: tomSai ? nomeDoTom(tomSai) : null, tomEntra: tomEntra ? nomeDoTom(tomEntra) : null,
+    semitons: 0,
   };
   const seguro = confianca >= CONFIANCA_MINIMA;
   let motivo = !seguro ? `low confidence (<${CONFIANCA_MINIMA})` : 'no downbeat near the start';
@@ -195,8 +215,9 @@ export function planoDoAutomix(c: {
     if (desvio <= 0.04) {
       // Quantas batidas cabem até o desencontro chegar ao máximo.
       const batidas = desvio > 0 ? DESENCONTRO_MAXIMO / desvio : Infinity;
-      // Até 4 compassos (26/10): 8 soavam a um crossfade longo.
-      for (const compassos of [4, 2]) {
+      // Até 4 compassos (26/10): 8 soavam a um crossfade longo. Com as
+      // tonalidades a chocar, só 2.
+      for (const compassos of choque ? [2] : [4, 2]) {
         const duracaoS = compassos * compassoSai;
         if (compassos * 4 > batidas || duracaoS < BATIDA_MINIMA_S || duracaoS > BATIDA_MAXIMA_S) continue;
         // O último tempo forte da que sai em que a passagem ainda cabe antes
@@ -225,7 +246,7 @@ export function planoDoAutomix(c: {
     // Por cima: a intro sem batida da que entra por baixo do fim da que sai.
     // `a` é a intro no tempo da que entra; `aSai`, o mesmo no da que sai.
     if (intro >= SEM_BATIDA_MINIMO_S) {
-      const a = Math.min(intro, POR_CIMA_MAXIMO_S, (troca - cedoDemais) / daEntraParaASai);
+      const a = Math.min(intro, choque ? 4 : POR_CIMA_MAXIMO_S, (troca - cedoDemais) / daEntraParaASai);
       if (a >= SEM_BATIDA_MINIMO_S) {
         const aSai = a * daEntraParaASai;
         const saida = Math.min(4, Math.max(sai.periodoS, cauda));
@@ -237,10 +258,11 @@ export function planoDoAutomix(c: {
     }
     // Na cauda: a batida da que entra começa onde a da outra acaba.
     if (cauda >= SEM_BATIDA_MINIMO_S && troca >= cedoDemais) {
-      const f = Math.min(cauda, CAUDA_MAXIMA_S);
+      const f = Math.min(cauda, choque ? 2.5 : CAUDA_MAXIMA_S);
       return {
         tipo: 'cauda', inicioS: troca, entraEmS: batidaEntra, duracaoS: f,
         curva: curvaNaCauda(f, compassoEntra * daEntraParaASai), motivo: `${porque}: current outro has no beat`, ...base,
+        semitons: dobrar,
       };
     }
     // Corte no "um": a que sai perde os graves nos dois últimos compassos.
@@ -256,14 +278,17 @@ export function planoDoAutomix(c: {
 
   // Suave: com a duração do crossfade, a acabar no fim da música, e a
   // começar num tempo forte da que sai quando há batida para isso.
-  const duracaoS = Math.min(c.suaveS, SUAVE_MAXIMO_S);
+  const duracaoS = Math.min(c.suaveS, choque ? 2 : SUAVE_MAXIMO_S);
   if (!(duracaoS > 0) || fim - duracaoS < cedoDemais) return null;
   let inicioS = fim - duracaoS;
   if (sai.confianca >= CONFIANCA_MINIMA) {
     const forte = [...sai.temposFortesS].reverse().find((x) => x <= inicioS && x >= inicioS - sai.periodoS * 4);
     if (forte != null) inicioS = forte;
   }
-  return { tipo: 'suave', inicioS, entraEmS: Math.max(0, entra.somS), duracaoS, curva: curvaSuave(duracaoS), motivo, ...base };
+  return {
+    tipo: 'suave', inicioS, entraEmS: Math.max(0, entra.somS), duracaoS, curva: curvaSuave(duracaoS), motivo, ...base,
+    semitons: dobrar,
+  };
 }
 
 // ------------------------------------------------------------ as curvas ----
@@ -454,5 +479,6 @@ export function descreverPlano(p: PlanoDoAutomix): string {
   const bpm = (x: number | null) => (x == null ? '?' : x.toFixed(1));
   return `automix ${p.tipo}: from ${p.inicioS.toFixed(2)}s, next from ${p.entraEmS.toFixed(2)}s, `
     + `${p.duracaoS.toFixed(1)}s, ${bpm(p.bpmSai)} -> ${bpm(p.bpmEntra)} bpm, `
-    + `confidence ${p.confiancaSai.toFixed(1)} -> ${p.confiancaEntra.toFixed(1)} (min ${CONFIANCA_MINIMA}), ${p.motivo}`;
+    + `confidence ${p.confiancaSai.toFixed(1)} -> ${p.confiancaEntra.toFixed(1)} (min ${CONFIANCA_MINIMA}), `
+    + `key ${p.tomSai ?? '?'} -> ${p.tomEntra ?? '?'}${p.semitons ? `, outgoing bent ${p.semitons > 0 ? '+' : ''}${p.semitons} st` : ''}, ${p.motivo}`;
 }
