@@ -184,16 +184,44 @@ export function ritmoDaJanela(e: EnergiasDaJanela, qual: 'inicio' | 'fim'): Ritm
   if (somQuadro < 0) return null;
   const somS = e.inicioS + somQuadro / e.fps;
 
-  // 1. Autocorrelação nos atrasos de 70 a 180 BPM.
+  // 1. Autocorrelação nos atrasos de 70 a 180 BPM, somando os múltiplos de
+  // cada um (26/10): o dobro (meio peso) e o compasso (4x). Num trap o 808
+  // sincopado (bombos na 1.ª, 8.ª e 11.ª semicolcheia) dava mais força ao
+  // intervalo entre dois 808 do que à batida -- 140 saía 81,7 (o trap
+  // sintético do `test-ritmo.ts`; no relatório da 5.4.2 as músicas trap davam
+  // confianças baixas). A batida verdadeira repete-se no compasso; um
+  // intervalo sincopado não. É a soma de harmónicos dos detetores a sério.
+  // Dois compassos (8x) acertavam o mesmo e custavam o dobro: 45 ms por
+  // janela sem JIT, contra 21 sem harmónicos e 77 com os 8x. Só os atrasos
+  // precisos, com memória: o JavaScript não pode ficar preso (energia-ios.md).
   const menor = Math.floor((60 / BPM_MAXIMO) * e.fps);
   const maior = Math.ceil((60 / BPM_MINIMO) * e.fps);
+  const correlacoes = new Map<number, number>();
+  const correlacao = (atraso: number) => {
+    if (atraso >= n) return 0;
+    let v = correlacoes.get(atraso);
+    if (v == null) {
+      let s = 0;
+      for (let t = 0; t + atraso < n; t++) s += o[t] * o[t + atraso];
+      v = s / (n - atraso);
+      correlacoes.set(atraso, v);
+    }
+    return v;
+  };
+  // O atraso é inteiro e o período verdadeiro está a meio quadro dele: o
+  // k-ésimo múltiplo pode estar a k/2 quadros do pico, e os picos dos
+  // ataques têm um ou dois quadros. Procura-se o pico nessa folga.
+  const noPico = (centro: number, folga: number) => {
+    let m = 0;
+    for (let x = centro - folga; x <= centro + folga; x++) m = Math.max(m, correlacao(x));
+    return m;
+  };
   let melhorAtraso = 0, melhorValor = -Infinity;
   for (let atraso = menor; atraso <= maior; atraso++) {
-    let s = 0;
-    for (let t = 0; t + atraso < n; t++) s += o[t] * o[t + atraso];
     const bpm = (60 * e.fps) / atraso;
     const preferencia = Math.exp(-0.5 * (Math.log2(bpm / 120) / 0.7) ** 2);
-    const v = (s / (n - atraso)) * preferencia;
+    const forca = correlacao(atraso) + 0.5 * noPico(2 * atraso, 1) + noPico(4 * atraso, 2);
+    const v = forca * preferencia;
     if (v > melhorValor) { melhorValor = v; melhorAtraso = atraso; }
   }
   if (!(melhorValor > 0)) return null;

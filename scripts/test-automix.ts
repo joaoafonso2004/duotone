@@ -363,6 +363,20 @@ t('o leitor: a velocidade de cada uma e o EQ de cada uma, por baixo dos cortes',
   assert.match(v, /aPassarDepressa: !!passagemRef\.current\?\.curva,/);
 });
 
+t('sem duração no catálogo: o fim do som do ficheiro descodificado, e nunca o player.duration (relatório da 5.4.2)', () => {
+  const v = readFileSync(new URL('../src/components/YouTubePlayerView.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  const corpo = v.slice(v.indexOf('const duracaoDeConfianca = (): number | null => {'));
+  const funcao = corpo.slice(0, corpo.indexOf('\n  };') + 5);
+  assert.ok(funcao.length > 50, 'falta a duracaoDeConfianca');
+  assert.match(funcao, /const conhecida = track\.durationSeconds \|\| streamRef\.current\?\.durationSeconds;/);
+  // Só com o AutoMix, e da análise do fim (o áudio descodificado).
+  assert.match(funcao, /if \(!usePlayer\.getState\(\)\.automix \|\| !temAutomixNativo\) return null;/);
+  assert.match(funcao, /ritmoGuardado\(track\.sourceId\)\?\.fim\?\.somS/);
+  assert.doesNotMatch(funcao, /player\.duration/, 'o player.duration pode ser o dobro');
+  // Os três sítios que decidem a passagem usam-na: preparar, planear e o passo.
+  assert.equal((v.match(/= duracaoDeConfianca\(\);/g) ?? []).length, 3);
+});
+
 t('o plano explica a passagem suave e mostra os BPM e ambas as confiancas', () => {
   const p = planoDoAutomix({ sai: sai140, entra: ritmo(140, 0.35, 40, 0.3, 2), ...base })!;
   assert.match(descreverPlano(p), /automix suave/);

@@ -172,6 +172,45 @@ t('com batida do princípio ao fim: começa no primeiro tempo forte e acaba com 
   perto(f.batidaS!, f.somS, (60 / 140) * 4 + 0.05, 'fim');
 });
 
+/**
+ * Um trap: um 808 longo e sincopado (bombos na 1.ª, 8.ª e 11.ª semicolcheia,
+ * com deslize), palmas no 3 e hi-hats em semicolcheias com rolos.
+ */
+function trap(bpm: number, segundos: number, hats: number, semente: number): Float32Array {
+  const r = acaso(semente);
+  const s = new Float32Array(Math.round(segundos * TAXA));
+  const tempo = 60 / bpm;
+  for (let c = 0; c * tempo * 4 < segundos; c++) {
+    const t0 = c * tempo * 4;
+    for (const k of [0, 7, 10]) {
+      const ini = Math.round((t0 + (k * tempo) / 4) * TAXA);
+      for (let i = 0; i < TAXA * 0.9 && ini + i < s.length; i++) {
+        const x = i / TAXA;
+        s[ini + i] += 0.7 * Math.sin(2 * Math.PI * (50 + 30 * Math.exp(-x * 20)) * x) * Math.exp(-x * 2.5);
+      }
+    }
+    const palma = Math.round((t0 + 2 * tempo) * TAXA);
+    for (let i = 0; i < TAXA * 0.15 && palma + i < s.length; i++) s[palma + i] += 0.4 * (r() * 2 - 1) * Math.exp(-(i / TAXA) * 30);
+    for (let k = 0; k < 16; k++) {
+      const passos = c % 2 === 1 && k >= 12 ? 2 : 1;
+      for (let j = 0; j < passos; j++) {
+        const ini = Math.round((t0 + ((k + j / passos) * tempo) / 4) * TAXA);
+        for (let i = 0; i < TAXA * 0.025 && ini + i < s.length; i++) s[ini + i] += hats * (r() * 2 - 1) * Math.exp(-(i / TAXA) * 150);
+      }
+    }
+  }
+  return s;
+}
+
+t('trap: o 808 sincopado não engana o andamento (a soma dos múltiplos, 26/10)', () => {
+  // Antes: 140 saía 81,7, 150 saía 87,5, 130 saía 73,1 (o intervalo entre dois 808).
+  for (const [bpm, hats] of [[140, 0.12], [150, 0.2], [130, 0.08], [160, 0.12], [145, 0.15], [170, 0.1]] as const) {
+    const r = ritmoDaJanela(energiasPorQuadro(trap(bpm, 40, hats, bpm), TAXA), 'inicio')!;
+    pertoNaOitava(r.bpm, bpm, 0.8);
+    assert.ok(r.confianca >= CONFIANCA_MINIMA, `${bpm}: confiança ${r.confianca}`);
+  }
+});
+
 t('o onde-há-batida também se guarda, e os ritmos antigos (seis números) continuam a ler-se', () => {
   const r = ritmoDaJanela(energiasPorQuadro(juntar(tapete(12), batida(124, 28)), TAXA), 'inicio')!;
   const de = descompactar(JSON.parse(JSON.stringify(compactar(r))))!;

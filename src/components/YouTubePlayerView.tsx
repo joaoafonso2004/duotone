@@ -41,7 +41,7 @@ import {
   deveAgendar, descreverPlano, duracaoDaPassagem, estadoDaPassagem, ganhosComPassagem, impedimentoDoAutomix, planoDoAutomix,
   preparacaoDaCurva, type CurvaDaPassagem, type PlanoDoAutomix,
 } from '../lib/automix';
-import { analisarRitmoComDiagnostico, analisarRitmoDaFaixa } from '../lib/ritmoGuardado';
+import { analisarRitmoComDiagnostico, analisarRitmoDaFaixa, ritmoGuardado } from '../lib/ritmoGuardado';
 import { comecarArranque, marcarResolver } from '../lib/arranqueDaFaixa';
 import {
   classificar, mensagem as mensagemDaFalha, recuperacao, registar,
@@ -497,6 +497,26 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     plano: PlanoDoAutomix | null;
   } | null>(null);
   const avisoDoAutomixRef = useRef('');
+  /**
+   * A duração em que se confia: a do catálogo ou a do stream resolvido, e
+   * nunca a do `player.duration` (há m4a do YouTube que dizem o dobro).
+   *
+   * Sem nenhuma das duas (uma faixa sem duração no catálogo, a tocar do
+   * ficheiro), não havia passagem nenhuma: a música acabava seca (relatório
+   * da 5.4.2, 26/10: "automix waiting: duration missing", e "engine reported
+   * the end at 157.9s of ?s"). Com o AutoMix ligado há outra: onde o som
+   * acaba no ficheiro DESCODIFICADO, da análise do fim (`ritmoGuardado`).
+   * Essa não se engana com o dobro -- com ele, a janela do fim caía depois do
+   * áudio e vinha vazia, sem ritmo e sem duração.
+   */
+  const duracaoDeConfianca = (): number | null => {
+    const conhecida = track.durationSeconds || streamRef.current?.durationSeconds;
+    if (conhecida) return conhecida;
+    if (!usePlayer.getState().automix || !temAutomixNativo) return null;
+    const doAudio = ritmoGuardado(track.sourceId)?.fim?.somS;
+    return doAudio && Number.isFinite(doAudio) && doAudio > 0 ? doAudio : null;
+  };
+
   const avisarImpedimentoDoAutomix = (para: string, motivo: string) => {
     const chave = `${track.sourceId} -> ${para}: ${motivo}`;
     if (avisoDoAutomixRef.current === chave) return;
@@ -840,7 +860,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     // nunca ficaria igual nos dois telemóveis.
     if (useOuvirJuntos.getState().sessao) return;
 
-    const duracao = track.durationSeconds || streamRef.current?.durationSeconds || null;
+    const duracao = duracaoDeConfianca();
     if (st.automix && temAutomixNativo && !(duracao != null && Number.isFinite(duracao) && duracao > 0)) {
       avisarImpedimentoDoAutomix(seguinte.sourceId, 'duration missing');
     }
@@ -1075,7 +1095,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     let motivo = 'plan has no usable transition';
     try {
       const st = usePlayer.getState();
-      const duracao = track.durationSeconds || streamRef.current?.durationSeconds || null;
+      const duracao = duracaoDeConfianca();
       const ficheiroSai = cachedAudioFile(de);
       const ficheiroEntra = cachedAudioFile(para);
       const taxaSai = st.playbackRate;
@@ -2234,7 +2254,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     // A duração usada é a de CONFIANÇA, sem o `player.duration`: há m4a do
     // YouTube que reportam o dobro, e com um deles a passagem começaria a
     // meio da música.
-    const duracaoFiavel = track.durationSeconds || streamRef.current?.durationSeconds || null;
+    const duracaoFiavel = duracaoDeConfianca();
     // O ritmo dos eventos depende de quanto falta -- ver `reporIntervaloDeTempo`.
     pontoDaPosicaoRef.current = { sourceId: track.sourceId, posicao: currentTime, duracao: duracaoFiavel };
     reporIntervaloDeTempo();

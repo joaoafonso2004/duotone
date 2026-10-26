@@ -24,8 +24,9 @@ const CHAVE = 'automix:ritmos';
 /** Mudar a análise (ritmo.ts) sobe isto, e o que estava guardado deixa de valer. */
 // A 5.4.0 podia guardar janelas vazias ao tentar ler Opus com AVAudioFile.
 // A 3 (26/10) traz onde a batida começa e acaba (`batidaS`), para as
-// passagens entre andamentos diferentes.
-const VERSAO = 3;
+// passagens entre andamentos diferentes. A 4 (26/10, depois do relatório da
+// 5.4.2) o andamento pela soma dos múltiplos: no trap a 3 saía errado.
+const VERSAO = 4;
 const MAXIMO = 400;
 const JANELA_DO_INICIO_S = 40;
 const JANELA_DO_FIM_S = 45;
