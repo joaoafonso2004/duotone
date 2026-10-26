@@ -37,8 +37,8 @@ import { estadoDeEnergia } from '../../modules/duotone-diagnostico';
 import { preCarregarCapasGrandes } from '../state/capasGrandes';
 import type { Prioridade } from '../lib/filaDeDownloads';
 import { analisarFimDaFaixa, fimMusicalGuardado } from '../lib/caudaAnalisada';
-import { deveAgendar, descreverPlano, duracaoDaPassagem, planoDoAutomix, type PlanoDoAutomix } from '../lib/automix';
-import { analisarRitmoDaFaixa } from '../lib/ritmoGuardado';
+import { deveAgendar, descreverPlano, duracaoDaPassagem, impedimentoDoAutomix, planoDoAutomix, type PlanoDoAutomix } from '../lib/automix';
+import { analisarRitmoComDiagnostico, analisarRitmoDaFaixa } from '../lib/ritmoGuardado';
 import { comecarArranque, marcarResolver } from '../lib/arranqueDaFaixa';
 import {
   classificar, mensagem as mensagemDaFalha, recuperacao, registar,
@@ -313,6 +313,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   // meio de uma faixa muda qual é a faixa seguinte.
   const shuffle = usePlayer((s) => s.shuffle);
   const volumeNormalization = usePlayer((s) => s.volumeNormalization);
+  const automix = usePlayer((s) => s.automix);
   const closeGain = usePlayer(s=>s.closeGain);
   const closing = usePlayer(s=>s.closing);
   const closingVolume = useRef<number|null>(null);
@@ -465,6 +466,13 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     estado: 'a-calcular' | 'pronto' | 'agendado' | 'falhou';
     plano: PlanoDoAutomix | null;
   } | null>(null);
+  const avisoDoAutomixRef = useRef('');
+  const avisarImpedimentoDoAutomix = (para: string, motivo: string) => {
+    const chave = `${track.sourceId} -> ${para}: ${motivo}`;
+    if (avisoDoAutomixRef.current === chave) return;
+    avisoDoAutomixRef.current = chave;
+    registarNaFila(`${track.sourceId} -> ${para}: automix waiting: ${motivo}`);
+  };
 
   // Em background não há barra de progresso para animar. Dois segundos
   // continuam a verificar o sleep timer com boa precisão e reduzem para
@@ -792,6 +800,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (useOuvirJuntos.getState().sessao) return;
 
     const duracao = track.durationSeconds || streamRef.current?.durationSeconds || null;
+    if (st.automix && temAutomixNativo && !(duracao != null && Number.isFinite(duracao) && duracao > 0)) {
+      avisarImpedimentoDoAutomix(seguinte.sourceId, 'duration missing');
+    }
     if (
       !podeCrossfade({
         duracaoDoFade: passagemS(st),
@@ -816,7 +827,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (falta > passagemS(st) + (st.automix && temAutomixNativo ? 45 : 20)) return;
 
     const ficheiro = cachedAudioFile(seguinte.sourceId);
-    if (!ficheiro.exists) return;
+    if (!ficheiro.exists) {
+      if (st.automix && temAutomixNativo) avisarImpedimentoDoAutomix(seguinte.sourceId, 'next local audio missing');
+      return;
+    }
     // Um Opus que ainda não tocou neste telemóvel não entra numa passagem: se
     // o AVPlayer o recusar, a recusa acontece no motor em ESPERA, onde nada a
     // vê nem recua (lib/saudeDoOpus.ts). Entra pelo caminho normal, que recua.
@@ -993,32 +1007,49 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const calcularPlanoDoAutomix = async (seguinte: Track) => {
     const de = track.sourceId;
     const para = seguinte.sourceId;
-    automixRef.current = { de, para, estado: 'a-calcular', plano: null };
+    const pedido = { de, para, estado: 'a-calcular' as const, plano: null };
+    automixRef.current = pedido;
     let plano: PlanoDoAutomix | null = null;
+    let motivo = 'plan has no usable transition';
     try {
       const st = usePlayer.getState();
       const duracao = track.durationSeconds || streamRef.current?.durationSeconds || null;
-      const aUmX = Math.abs(st.playbackRate - 1) < 0.001 && Math.abs((seguinteRef.current?.rate ?? 1) - 1) < 0.001;
       const ficheiroSai = cachedAudioFile(de);
       const ficheiroEntra = cachedAudioFile(para);
-      if (duracao && aUmX && ficheiroSai.exists && ficheiroEntra.exists) {
-        const sai = await analisarRitmoDaFaixa(de, ficheiroSai.uri);
-        const entra = await analisarRitmoDaFaixa(para, ficheiroEntra.uri);
+      const impedimento = impedimentoDoAutomix({
+        duracaoS: duracao, rateSai: st.playbackRate, rateEntra: seguinteRef.current?.rate ?? 1,
+        localSai: ficheiroSai.exists, localEntra: ficheiroEntra.exists, hls: !!streamRef.current?.isHls,
+      });
+      if (impedimento) motivo = impedimento;
+      else if (duracao) {
+        const sai = await analisarRitmoComDiagnostico(de, ficheiroSai.uri);
+        const entra = await analisarRitmoComDiagnostico(para, ficheiroEntra.uri);
         plano = planoDoAutomix({
-          sai: sai?.fim ?? null,
-          entra: entra?.inicio ?? null,
+          sai: sai.ritmo?.fim ?? null,
+          entra: entra.ritmo?.inicio ?? null,
           fimMusicalS: fimMusicalGuardado(de),
           duracaoSaiS: duracao,
           suaveS: passagemS(st),
         });
+        const faltas: string[] = [];
+        if (!sai.ritmo?.fim) faltas.push(`current: ${sai.motivo ?? 'end has no usable rhythm (silence, steady sound or less than 8s)'}`);
+        if (!entra.ritmo?.inicio) faltas.push(`next: ${entra.motivo ?? 'start has no usable rhythm (silence, steady sound or less than 8s)'}`);
+        motivo = faltas.length ? faltas.join('; ')
+          : `no room for transition (duration ${duracao}s, musical end ${fimMusicalGuardado(de) ?? sai.ritmo?.fim?.somS}s)`;
       }
     } catch {
       plano = null;
+      motivo = 'planning failed while reading local audio';
     }
-    const a = automixRef.current;
-    if (!a || a.de !== de || a.para !== para) return;
+    // Uma resposta de uma passagem antiga nao substitui a da fila atual.
+    if (automixRef.current !== pedido) return;
+    if (usePlayer.getState().current?.sourceId !== de || usePlayer.getState().proximaFaixa()?.sourceId !== para) {
+      automixRef.current = null;
+      return;
+    }
     automixRef.current = { de, para, estado: plano ? 'pronto' : 'falhou', plano };
-    registarNaFila(plano ? `${de}: ${descreverPlano(plano)}` : `${de}: automix without a plan (crossfade instead)`);
+    registarNaFila(plano ? `${de} -> ${para}: ${descreverPlano(plano)}`
+      : `${de} -> ${para}: automix without a plan: ${motivo} (crossfade instead)`);
     reporIntervaloDeTempo();
   };
 
@@ -1095,7 +1126,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     }
     // Ainda falta para a hora: espera por ela. Já passou (um seek, um evento
     // atrasado): fica o crossfade.
-    return a.plano.inicioS - posicao > 0.4;
+    if (a.plano.inicioS - posicao > 0.4) return true;
+    a.estado = 'falhou';
+    registarNaFila(`${track.sourceId}: automix too late (${posicao.toFixed(2)}s, planned ${a.plano.inicioS.toFixed(2)}s; crossfade instead)`);
+    return false;
   };
 
   /** Um passo da curva, a cada evento de tempo do motor que sai. */
@@ -2418,6 +2452,22 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     const sub = AppState.addEventListener('change', (estado) => setAppAFrente(estado !== 'background'));
     return () => sub.remove();
   }, []);
+  // A 5.4.0 so analisava as que acabavam de descarregar. As que ja estavam
+  // em disco chegavam ao fim sem ritmo. Le a atual e so a seguinte, cedo,
+  // sem criar outro download nem antecipar o AVPlayerItem do crossfade.
+  useEffect(() => {
+    if (!automix || !temAutomixNativo || backend !== 'native' || sessaoJam) return;
+    let cancelada = false;
+    const timer = setTimeout(async () => {
+      const seguinte = usePlayer.getState().proximaFaixa();
+      for (const faixa of [track, seguinte]) {
+        if (cancelada || !faixa) continue;
+        const ficheiro = cachedAudioFile(faixa.sourceId);
+        if (ficheiro.exists) await analisarRitmoDaFaixa(faixa.sourceId, ficheiro.uri);
+      }
+    }, 1500);
+    return () => { cancelada = true; clearTimeout(timer); };
+  }, [automix, backend, track.sourceId, queue, queueIndex, shuffle, percursoDoShuffle, repeatMode, sessaoJam]);
   useEffect(() => {
     const energia = estadoDeEnergia();
     const quantas = quantasAdiantar(emDadosMoveis, energia, appAFrente);

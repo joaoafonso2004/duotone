@@ -165,44 +165,76 @@ public class DuotoneAudioModule: Module {
    * float sao dezenas de MB.
    */
   private static func energiasDoRitmo(_ url: URL, desde: Double, segundos: Double) throws -> [Double] {
-    let ficheiro = try AVAudioFile(forReading: url)
-    let formato = ficheiro.processingFormat
-    let taxa = formato.sampleRate
-    let total = ficheiro.length
-    guard taxa > 0, total > 0, segundos > 0, desde.isFinite, segundos.isFinite else { return [] }
-
-    let quantos = AVAudioFramePosition(min(Double(total), segundos * taxa))
-    let inicio: AVAudioFramePosition = desde < 0
-      ? max(0, total - quantos)
-      : min(max(0, AVAudioFramePosition(desde * taxa)), total)
+    // AVAudioFile usa AudioFile, que nao le Opus em MP4, embora o AVPlayer
+    // o toque. AVAssetReader usa o descodificador do AVFoundation tambem aqui.
+    // https://bugs.webkit.org/show_bug.cgi?id=307632
+    guard url.isFileURL, segundos > 0, desde.isFinite, segundos.isFinite else { return [] }
+    let asset = AVURLAsset(url: url, options: [AVURLAssetPreferPreciseDurationAndTimingKey: true])
+    let total = CMTimeGetSeconds(asset.duration)
+    guard total.isFinite, total > 0, let pista = asset.tracks(withMediaType: .audio).first else { return [] }
+    let quantos = min(total, min(segundos, 45))
+    let inicio = desde < 0 ? max(0, total - quantos) : min(max(0, desde), total)
     let fim = min(total, inicio + quantos)
     guard fim > inicio else { return [] }
-    ficheiro.framePosition = inicio
-
-    let bloco: AVAudioFrameCount = 8192
-    guard let buffer = AVAudioPCMBuffer(pcmFormat: formato, frameCapacity: bloco) else { return [] }
+    let leitor = try AVAssetReader(asset: asset)
+    leitor.timeRange = CMTimeRange(start: CMTime(seconds: inicio, preferredTimescale: 60000),
+                                  duration: CMTime(seconds: fim - inicio, preferredTimescale: 60000))
+    let fonte = AVAssetReaderTrackOutput(track: pista, outputSettings: [
+      AVFormatIDKey: kAudioFormatLinearPCM,
+      AVLinearPCMIsFloatKey: true,
+      AVLinearPCMBitDepthKey: 32,
+      AVLinearPCMIsBigEndianKey: false,
+      AVLinearPCMIsNonInterleaved: false
+    ])
+    fonte.alwaysCopiesSampleData = false
+    guard leitor.canAdd(fonte) else { return [] }
+    leitor.add(fonte)
+    guard leitor.startReading() else { return [] }
+    defer { leitor.cancelReading() }
     let porQuadro = DuotoneAudioModule.amostrasPorQuadro
     let chao = DuotoneAudioModule.chaoDb
-    let a = 1 - exp(-2 * Double.pi * DuotoneAudioModule.corteDosGravesHz / taxa)
-    let numeroDeCanais = Int(formato.channelCount)
+    var taxa = 0.0
+    var a = 0.0
     var y1 = 0.0
     var y2 = 0.0
     var somaGraves = 0.0
     var somaTotal = 0.0
     var n = 0
-    var saida: [Double] = [taxa / Double(porQuadro), Double(inicio) / taxa]
-    saida.reserveCapacity(2 + Int((fim - inicio) / AVAudioFramePosition(porQuadro)) * 2)
+    var saida: [Double] = []
 
-    while ficheiro.framePosition < fim {
-      let falta = AVAudioFrameCount(min(AVAudioFramePosition(bloco), fim - ficheiro.framePosition))
-      try ficheiro.read(into: buffer, frameCount: falta)
-      let quadros = Int(buffer.frameLength)
-      if quadros == 0 { break }
-      guard let canais = buffer.floatChannelData, numeroDeCanais > 0 else { break }
+    while let buffer = fonte.copyNextSampleBuffer() {
+      guard let formato = CMSampleBufferGetFormatDescription(buffer),
+            let descricao = CMAudioFormatDescriptionGetStreamBasicDescription(formato),
+            let bloco = CMSampleBufferGetDataBuffer(buffer) else { return [] }
+      let formatoPCM = descricao.pointee
+      let numeroDeCanais = Int(formatoPCM.mChannelsPerFrame)
+      let tempo = CMTimeGetSeconds(CMSampleBufferGetPresentationTimeStamp(buffer))
+      guard formatoPCM.mSampleRate > 0, numeroDeCanais > 0, tempo.isFinite,
+            formatoPCM.mBitsPerChannel == 32,
+            formatoPCM.mFormatFlags & kAudioFormatFlagIsFloat != 0,
+            formatoPCM.mFormatFlags & kAudioFormatFlagIsNonInterleaved == 0 else { return [] }
+      let bytes = CMBlockBufferGetDataLength(bloco)
+      let quadros = CMSampleBufferGetNumSamples(buffer)
+      guard quadros > 0, bytes == quadros * numeroDeCanais * MemoryLayout<Float>.size else { return [] }
+      // So o bloco atual: nunca se juntam os 40/45 segundos de PCM em memoria.
+      var amostras = [Float](repeating: 0, count: quadros * numeroDeCanais)
+      let copiou = amostras.withUnsafeMutableBytes {
+        CMBlockBufferCopyDataBytes(bloco, atOffset: 0, dataLength: bytes, destination: $0.baseAddress!)
+      }
+      guard copiou == kCMBlockBufferNoErr else { return [] }
+      if taxa == 0 {
+        taxa = formatoPCM.mSampleRate
+        a = 1 - exp(-2 * Double.pi * DuotoneAudioModule.corteDosGravesHz / taxa)
+      }
+      guard taxa == formatoPCM.mSampleRate else { return [] }
       for i in 0..<quadros {
+        let instante = tempo + Double(i) / taxa
+        if instante < inicio { continue }
+        if instante >= fim { break }
+        if saida.isEmpty { saida = [taxa / Double(porQuadro), instante] }
         var x = 0.0
         for canal in 0..<numeroDeCanais {
-          x += Double(canais[canal][i])
+          x += Double(amostras[i * numeroDeCanais + canal])
         }
         x /= Double(numeroDeCanais)
         y1 += a * (x - y1)
@@ -221,6 +253,8 @@ public class DuotoneAudioModule: Module {
         }
       }
     }
+    // Uma leitura interrompida nao passa por uma analise completa nem fica em cache.
+    guard leitor.status == .completed else { return [] }
     return saida
   }
 

@@ -18,10 +18,12 @@ import { compactar, descompactar, energiasDoNativo, ritmoDaJanela, type Ritmo, t
  * crossfade de sempre, que não precisa de análise.
  */
 export type RitmoDaFaixa = { inicio: Ritmo | null; fim: Ritmo | null };
+export type AnaliseDoRitmo = { ritmo: RitmoDaFaixa | null; motivo: string | null };
 
 const CHAVE = 'automix:ritmos';
 /** Mudar a análise (ritmo.ts) sobe isto, e o que estava guardado deixa de valer. */
-const VERSAO = 1;
+// A 5.4.0 podia guardar janelas vazias ao tentar ler Opus com AVAudioFile.
+const VERSAO = 2;
 const MAXIMO = 400;
 const JANELA_DO_INICIO_S = 40;
 const JANELA_DO_FIM_S = 45;
@@ -30,7 +32,10 @@ type Guardado = { v: number; faixas: Record<string, { i: RitmoCompacto; f: Ritmo
 
 let memoria: Guardado | null = null;
 let aLer: Promise<Guardado> | null = null;
-const emCurso = new Map<string, Promise<RitmoDaFaixa | null>>();
+const emCurso = new Map<string, Promise<AnaliseDoRitmo>>();
+// Uma falha de leitura nao fica para sempre, nem se repete a cada evento do motor.
+const falhas = new Map<string, { ate: number; resultado: AnaliseDoRitmo }>();
+let vezDeAnalisar: Promise<unknown> = Promise.resolve();
 
 function ler(): Promise<Guardado> {
   if (memoria) return Promise.resolve(memoria);
@@ -65,33 +70,54 @@ export function ritmoGuardado(id: string): RitmoDaFaixa | null {
  * ler. Nunca lança. Duas chamadas ao mesmo tempo partilham a mesma análise.
  */
 export async function analisarRitmoDaFaixa(id: string, uri: string): Promise<RitmoDaFaixa | null> {
+  return (await analisarRitmoComDiagnostico(id, uri)).ritmo;
+}
+
+/** O mesmo trabalho, com a razao local para o relatorio (nunca enviada ao servidor). */
+export async function analisarRitmoComDiagnostico(id: string, uri: string): Promise<AnaliseDoRitmo> {
   const g = await ler();
   const ja = g.faixas[id];
-  if (ja) return { inicio: descompactar(ja.i), fim: descompactar(ja.f) };
-  if (!temAutomixNativo || !uri) return null;
-  if (quantoPoupar(estadoDeEnergia()) === 'tudo') return null;
-  const corrente = emCurso.get(id);
+  if (ja) return { ritmo: { inicio: descompactar(ja.i), fim: descompactar(ja.f) }, motivo: null };
+  if (!temAutomixNativo) return { ritmo: null, motivo: 'native analysis unavailable' };
+  if (!uri) return { ritmo: null, motivo: 'local audio missing' };
+  const chave = `${id}:${uri}`;
+  const falha = falhas.get(chave);
+  if (falha && falha.ate > Date.now()) return falha.resultado;
+  const corrente = emCurso.get(chave);
   if (corrente) return corrente;
-  const trabalho = (async () => {
+  // Uma faixa de cada vez, mesmo com a atual e a seguinte a pedirem juntas.
+  const trabalho = vezDeAnalisar.then(async (): Promise<AnaliseDoRitmo> => {
+    const energia = estadoDeEnergia();
+    if (quantoPoupar(energia) === 'tudo') {
+      return { ritmo: null, motivo: `analysis paused (thermal ${energia?.termico ?? 'unknown'}, low power ${energia?.poupanca ? 'on' : 'off'})` };
+    }
     try {
       // Uma janela de cada vez: duas leituras de disco em paralelo só subiam
       // o pico de CPU, e há tempo de sobra até a passagem.
       const inicio = energiasDoNativo(await analisarRitmoNativo(uri, 0, JANELA_DO_INICIO_S));
       const fim = energiasDoNativo(await analisarRitmoNativo(uri, -1, JANELA_DO_FIM_S));
-      if (!inicio && !fim) return null;
       const r: RitmoDaFaixa = {
         inicio: inicio ? ritmoDaJanela(inicio, 'inicio') : null,
         fim: fim ? ritmoDaJanela(fim, 'fim') : null,
       };
+      if (!inicio || !fim) {
+        const resultado = { ritmo: r, motivo: `native audio unreadable (${!inicio && !fim ? 'start and end' : !inicio ? 'start' : 'end'})` };
+        falhas.set(chave, { ate: Date.now() + 60_000, resultado });
+        if (falhas.size > MAXIMO) falhas.delete(falhas.keys().next().value!);
+        return resultado;
+      }
       g.faixas[id] = { i: compactar(r.inicio), f: compactar(r.fim), visto: Date.now() };
       gravar(g);
-      return r;
+      falhas.delete(chave);
+      return { ritmo: r, motivo: null };
     } catch {
-      return null;
-    } finally {
-      emCurso.delete(id);
+      const resultado = { ritmo: null, motivo: 'rhythm analysis failed' };
+      falhas.set(chave, { ate: Date.now() + 60_000, resultado });
+      if (falhas.size > MAXIMO) falhas.delete(falhas.keys().next().value!);
+      return resultado;
     }
-  })();
-  emCurso.set(id, trabalho);
+  }).finally(() => { emCurso.delete(chave); });
+  vezDeAnalisar = trabalho;
+  emCurso.set(chave, trabalho);
   return trabalho;
 }

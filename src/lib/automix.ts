@@ -31,6 +31,9 @@ export type PlanoDoAutomix = {
   bpmSai: number | null;
   bpmEntra: number | null;
   confianca: number;
+  confiancaSai: number;
+  confiancaEntra: number;
+  motivo: string;
 };
 
 /** Quanto as batidas se podem desencontrar até ao fim da passagem, em batidas. */
@@ -57,6 +60,22 @@ export function razaoDosAndamentos(bpmSai: number, bpmEntra: number): number {
   return [r, r * 2, r / 2].reduce((melhor, x) => (Math.abs(x - 1) < Math.abs(melhor - 1) ? x : melhor));
 }
 
+/** As guardas antes de analisar, explicadas no relatorio sem fazer pedidos. */
+export function impedimentoDoAutomix(c: {
+  duracaoS: number | null; rateSai: number; rateEntra: number;
+  localSai: boolean; localEntra: boolean; hls: boolean;
+}): string | null {
+  const motivos: string[] = [];
+  if (!(c.duracaoS != null && Number.isFinite(c.duracaoS) && c.duracaoS > 0)) motivos.push('duration missing');
+  if (Math.abs(c.rateSai - 1) >= 0.001 || Math.abs(c.rateEntra - 1) >= 0.001
+    || !Number.isFinite(c.rateSai) || !Number.isFinite(c.rateEntra)) {
+    motivos.push(`speed is not 1x (${c.rateSai} -> ${c.rateEntra})`);
+  }
+  if (!c.localSai) motivos.push(c.hls ? 'current audio is HLS, no local file' : 'current local audio missing');
+  if (!c.localEntra) motivos.push('next local audio missing');
+  return motivos.length ? motivos.join('; ') : null;
+}
+
 export function planoDoAutomix(c: {
   /** O ritmo do FIM da que sai, e do INÍCIO da que entra. */
   sai: Ritmo | null;
@@ -73,7 +92,9 @@ export function planoDoAutomix(c: {
   // Uma passagem que comece antes de meio da música já não é passagem.
   const cedoDemais = c.duracaoSaiS * 0.5;
   const confianca = Math.min(sai.confianca, entra.confianca);
-  const base = { bpmSai: sai.bpm, bpmEntra: entra.bpm, confianca };
+  const base = { bpmSai: sai.bpm, bpmEntra: entra.bpm, confianca, confiancaSai: sai.confianca, confiancaEntra: entra.confianca };
+  let motivo = confianca < CONFIANCA_MINIMA ? `low confidence (<${CONFIANCA_MINIMA})`
+    : 'no downbeat near the start';
 
   // O primeiro tempo forte da que entra, se vier logo com o som (no máximo um
   // compasso depois): é aí que ela entra numa passagem na batida.
@@ -84,6 +105,7 @@ export function planoDoAutomix(c: {
   if (confianca >= CONFIANCA_MINIMA && entraNaBatida) {
     const r = razaoDosAndamentos(sai.bpm, entra.bpm);
     const desvio = Math.abs(r - 1);
+    motivo = desvio > 0.04 ? 'different tempos' : 'no aligned bars fit before the end';
     if (desvio <= 0.04) {
       // Quantas batidas cabem até o desencontro chegar ao máximo.
       const batidas = desvio > 0 ? DESENCONTRO_MAXIMO / desvio : Infinity;
@@ -94,7 +116,7 @@ export function planoDoAutomix(c: {
         // do fim da música.
         const inicio = [...sai.temposFortesS].reverse().find((x) => x + duracaoS <= fim - 0.1 && x >= cedoDemais);
         if (inicio != null) {
-          return { tipo: 'batida', inicioS: inicio, entraEmS: forteEntra!, duracaoS, ...base };
+          return { tipo: 'batida', inicioS: inicio, entraEmS: forteEntra!, duracaoS, motivo: 'matching beats', ...base };
         }
       }
     }
@@ -109,7 +131,7 @@ export function planoDoAutomix(c: {
     const forte = [...sai.temposFortesS].reverse().find((x) => x <= inicioS && x >= inicioS - sai.periodoS * 4);
     if (forte != null) inicioS = forte;
   }
-  return { tipo: 'suave', inicioS, entraEmS: Math.max(0, entra.somS), duracaoS, ...base };
+  return { tipo: 'suave', inicioS, entraEmS: Math.max(0, entra.somS), duracaoS, motivo, ...base };
 }
 
 /**
@@ -126,5 +148,6 @@ export function deveAgendar(plano: PlanoDoAutomix, posicaoS: number): boolean {
 export function descreverPlano(p: PlanoDoAutomix): string {
   const bpm = (x: number | null) => (x == null ? '?' : x.toFixed(1));
   return `automix ${p.tipo}: from ${p.inicioS.toFixed(2)}s, next from ${p.entraEmS.toFixed(2)}s, `
-    + `${p.duracaoS.toFixed(1)}s, ${bpm(p.bpmSai)} -> ${bpm(p.bpmEntra)} bpm, confidence ${p.confianca.toFixed(1)}`;
+    + `${p.duracaoS.toFixed(1)}s, ${bpm(p.bpmSai)} -> ${bpm(p.bpmEntra)} bpm, `
+    + `confidence ${p.confiancaSai.toFixed(1)} -> ${p.confiancaEntra.toFixed(1)} (min ${CONFIANCA_MINIMA}), ${p.motivo}`;
 }
