@@ -9,9 +9,11 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 import {
-  descreverPlano, deveAgendar, duracaoDaPassagem, impedimentoDoAutomix, planoDoAutomix, razaoDosAndamentos, SUAVE_POR_OMISSAO_S,
+  CORTE_DB, descreverPlano, deveAgendar, duracaoDaPassagem, estadoDaPassagem, ganhosComPassagem, impedimentoDoAutomix,
+  noInstante, planoDoAutomix, preparacaoDaCurva, razaoDosAndamentos, SUAVE_POR_OMISSAO_S, type PlanoDoAutomix,
 } from '../src/lib/automix.ts';
 import { AMOSTRAS_POR_QUADRO, CHAO_DB, CORTE_DOS_GRAVES_HZ, type Ritmo } from '../src/lib/ritmo.ts';
+import { GANHO_MAXIMO } from '../src/lib/equalizer.ts';
 
 function t(nome: string, f: () => void) {
   f();
@@ -19,11 +21,11 @@ function t(nome: string, f: () => void) {
 }
 
 /** Um ritmo com tempos fortes de `desde` a `ate`, de compasso em compasso. */
-function ritmo(bpm: number, desde: number, ate: number, somS: number, confianca = 10): Ritmo {
+function ritmo(bpm: number, desde: number, ate: number, somS: number, confianca = 10, batidaS?: number): Ritmo {
   const periodoS = 60 / bpm;
   const temposFortesS: number[] = [];
   for (let x = desde; x <= ate; x += periodoS * 4) temposFortesS.push(x);
-  return { bpm, periodoS, confianca, temposFortesS, somS };
+  return { bpm, periodoS, confianca, temposFortesS, somS, ...(batidaS != null ? { batidaS } : {}) };
 }
 
 // A que sai: 200 s, a música acaba aos 197 s; janela do fim desde os 155 s.
@@ -56,14 +58,17 @@ t('o dobro e a metade contam como o mesmo andamento', () => {
   assert.equal(planoDoAutomix({ sai: sai140, entra: ritmo(70, 0.35, 40, 0.3), ...base })!.tipo, 'batida');
 });
 
-t('andamentos que não batem: suave, com a duração do crossfade, a acabar no fim da música', () => {
+t('andamentos que não batem, as duas com batida até ao fim: corte no "um" (26/10)', () => {
   const p = planoDoAutomix({ sai: sai140, entra: ritmo(120, 0.35, 40, 0.3), ...base })!;
-  assert.equal(p.tipo, 'suave');
-  assert.equal(p.duracaoS, 6);
-  // Começa no tempo forte logo antes de 197 - 6, e a que entra no primeiro som.
-  assert.ok(p.inicioS <= 191 && p.inicioS > 191 - (60 / 140) * 4);
+  assert.equal(p.tipo, 'corte');
+  // No último tempo forte da que sai, e a que entra no primeiro tempo forte dela.
   assert.ok(sai140.temposFortesS.includes(p.inicioS));
-  assert.equal(p.entraEmS, 0.3);
+  assert.ok(p.inicioS > 196.9 - (60 / 140) * 4 && p.inicioS <= 196.9, `${p.inicioS}`);
+  assert.equal(p.entraEmS, 0.35);
+  // Sai numa batida (0,3 a 0,6 s); a que sai perde os graves nos 2 s antes.
+  assert.ok(p.duracaoS >= 0.3 && p.duracaoS <= 0.6);
+  assert.equal(preparacaoDaCurva(p.curva), 2);
+  assert.match(p.motivo, /different tempos: cut on the downbeat/);
 });
 
 t('sem batida clara numa das duas: suave', () => {
@@ -74,10 +79,13 @@ t('sem batida clara numa das duas: suave', () => {
   assert.equal(p.inicioS, 191);
 });
 
-t('uma intro longa sem batida: suave, e a que entra não perde a intro', () => {
+t('uma intro longa sem batida: por cima, a intro inteira, e a batida dela cai na troca', () => {
   const p = planoDoAutomix({ sai: sai140, entra: ritmo(140, 12.3, 50, 0.4), ...base })!;
-  assert.equal(p.tipo, 'suave');
-  assert.equal(p.entraEmS, 0.4);
+  assert.equal(p.tipo, 'por-cima');
+  assert.ok(Math.abs(p.entraEmS - 0.4) < 1e-9, 'não perde a intro');
+  // A batida da que entra (12,3 s nela) cai num tempo forte da que sai.
+  const troca = p.inicioS + (12.3 - p.entraEmS);
+  assert.ok(sai140.temposFortesS.some((x) => Math.abs(x - troca) < 1e-9), `${troca}`);
 });
 
 t('o fim da música vem da cauda quando acaba antes do que o ritmo viu', () => {
@@ -91,12 +99,115 @@ t('sem análise de uma das duas: sem plano (fica o crossfade de sempre)', () => 
 });
 
 t('nunca antes de meio da música', () => {
-  // Uma faixa de 8 s não tem onde fazer passagem nenhuma depois de meio.
+  // Uma faixa de 8 s não tem compassos para uma passagem na batida depois de
+  // meio; fica um corte, e mesmo a preparação dele não começa antes de meio.
   const curta = ritmo(140, 1, 7, 7);
-  assert.equal(planoDoAutomix({ sai: curta, entra: entra140, fimMusicalS: 7, duracaoSaiS: 8, suaveS: 6 }), null);
+  const c = planoDoAutomix({ sai: curta, entra: entra140, fimMusicalS: 7, duracaoSaiS: 8, suaveS: 6 })!;
+  assert.equal(c.tipo, 'corte');
+  assert.ok(c.inicioS - preparacaoDaCurva(c.curva) >= 4);
+  // Com 4 s não há nada que caiba.
+  assert.equal(planoDoAutomix({ sai: ritmo(140, 0.2, 3.9, 3.9), entra: entra140, fimMusicalS: 3.9, duracaoSaiS: 4, suaveS: 6 }), null);
   // Uma de 20 s ainda leva 2 compassos na batida, depois de meio.
   const p = planoDoAutomix({ sai: ritmo(140, 1, 18, 18), entra: entra140, fimMusicalS: 18, duracaoSaiS: 20, suaveS: 9 })!;
   assert.ok(p.inicioS >= 10 && p.inicioS + p.duracaoS <= 17.9);
+});
+
+// ------------------------------------------------ as passagens de DJ (26/10)
+
+/** A que sai com a batida a acabar em `batidaS` (o fim de um compasso) e o som aos 197 s. */
+const saiCom = (bpm: number, batidaS: number) => {
+  const r = ritmo(bpm, 155.2, 197, 197, 10);
+  const fortes = r.temposFortesS;
+  // O fim da batida é um tempo forte da grelha, como o `ritmo.ts` o devolve.
+  const fim = fortes.reduce((m, x) => (Math.abs(x - batidaS) < Math.abs(m - batidaS) ? x : m), fortes[0]);
+  return { ...r, batidaS: fim };
+};
+
+t('por cima: a intro da que entra (sem batida) soa por baixo, e a batida dela cai onde a da outra acaba', () => {
+  const sai = saiCom(128, 196);
+  const entra = ritmo(100, 14.2, 50, 0.2, 10, 14.2);
+  const p = planoDoAutomix({ sai, entra, ...base })!;
+  assert.equal(p.tipo, 'por-cima');
+  assert.ok(Math.abs(p.inicioS + (14.2 - p.entraEmS) - sai.batidaS) < 1e-9, 'a batida da que entra cai na troca');
+  assert.ok(Math.abs(p.entraEmS - 0.2) < 1e-9, '14 s de intro cabem todos');
+  assert.match(p.motivo, /next intro has no beat/);
+});
+
+t('na cauda: a batida da que entra começa onde a da outra acaba, e a cauda desvanece até 8 s', () => {
+  const sai = saiCom(128, 185);
+  const p = planoDoAutomix({ sai, entra: ritmo(100, 0.4, 40, 0.3, 10, 0.4), ...base })!;
+  assert.equal(p.tipo, 'cauda');
+  assert.equal(p.inicioS, sai.batidaS);
+  assert.equal(p.entraEmS, 0.4);
+  assert.equal(p.duracaoS, 8);
+});
+
+t('na batida, a passagem acaba onde a batida da que sai acaba (o fim da frase)', () => {
+  const sai = saiCom(140, 190);
+  const p = planoDoAutomix({ sai, entra: entra140, ...base })!;
+  assert.equal(p.tipo, 'batida');
+  assert.ok(Math.abs(p.inicioS + p.duracaoS - sai.batidaS) < 1e-9, `${p.inicioS + p.duracaoS} vs ${sai.batidaS}`);
+});
+
+/** Todas as passagens que o planeador sabe fazer, para as regras de DJ. */
+const todas: PlanoDoAutomix[] = [
+  planoDoAutomix({ sai: sai140, entra: entra140, ...base })!,
+  planoDoAutomix({ sai: saiCom(128, 196), entra: ritmo(100, 14.2, 50, 0.2, 10, 14.2), ...base })!,
+  planoDoAutomix({ sai: saiCom(128, 185), entra: ritmo(100, 0.4, 40, 0.3, 10, 0.4), ...base })!,
+  planoDoAutomix({ sai: sai140, entra: ritmo(120, 0.35, 40, 0.3), ...base })!,
+  planoDoAutomix({ sai: sai140, entra: ritmo(140, 0.35, 40, 0.3, 2), ...base })!,
+];
+
+t('há uma de cada tipo', () => {
+  assert.deepEqual(todas.map((p) => p.tipo), ['batida', 'por-cima', 'cauda', 'corte', 'suave']);
+});
+
+t('nunca duas linhas de baixo cheias ao mesmo tempo, em passagem nenhuma', () => {
+  for (const p of todas) {
+    for (let t = -preparacaoDaCurva(p.curva); t <= p.duracaoS; t += 0.01) {
+      const e = estadoDaPassagem(p.curva, t);
+      const duas = e.volSai > 0.3 && e.volEntra > 0.3 && e.gravesSai > -6 && e.gravesEntra > -6;
+      // Antes do instante marcado a que entra ainda não toca.
+      assert.ok(t < 0 || !duas, `${p.tipo} aos ${t.toFixed(2)} s: ${JSON.stringify(e)}`);
+    }
+  }
+});
+
+t('sem buraco: a potência das duas juntas nunca cai abaixo de metade', () => {
+  for (const p of todas) {
+    for (let t = 0; t <= p.duracaoS; t += 0.01) {
+      const e = estadoDaPassagem(p.curva, t);
+      assert.ok(e.volSai ** 2 + e.volEntra ** 2 >= 0.5, `${p.tipo} aos ${t.toFixed(2)} s: ${e.volSai} + ${e.volEntra}`);
+    }
+  }
+});
+
+t('no fim de cada passagem: a que sai calada e sem graves, a que entra cheia e sem cortes', () => {
+  for (const p of todas) {
+    const e = estadoDaPassagem(p.curva, p.duracaoS);
+    assert.equal(e.volSai, 0, p.tipo);
+    assert.equal(e.volEntra, 1, p.tipo);
+    assert.equal(e.gravesEntra, 0, p.tipo);
+    assert.equal(e.agudosEntra, 0, p.tipo);
+    assert.ok(e.gravesSai <= -14, `${p.tipo}: ${e.gravesSai}`);
+  }
+});
+
+t('a curva entre os pontos, e fora deles o extremo', () => {
+  const c = [[0, 0], [2, 1], [4, 1]] as const;
+  assert.equal(noInstante(c, -1), 0);
+  assert.equal(noInstante(c, 1), 0.5);
+  assert.equal(noInstante(c, 3), 1);
+  assert.equal(noInstante(c, 9), 1);
+  assert.equal(noInstante([], 1), 0);
+});
+
+t('os graves e os agudos vão às bandas certas do equalizador, sem passar do limite', () => {
+  assert.equal(CORTE_DB, -GANHO_MAXIMO);
+  const g = ganhosComPassagem([3, 0, 0, 0, 0, 0, 0, 0, 0, 0], -20, -12);
+  assert.deepEqual(g, [-17, -10, -7, 0, 0, 0, 0, 0, -6, -12]);
+  assert.ok(ganhosComPassagem(Array(10).fill(-15), -20, -20).every((v) => v >= -20));
+  assert.deepEqual(ganhosComPassagem([1, 2], 0, 0), [1, 2, 0, 0, 0, 0, 0, 0, 0, 0]);
 });
 
 t('agendar só nos três segundos antes, e nunca em cima da hora', () => {
@@ -179,6 +290,77 @@ t('o relatorio distingue cada impedimento, e pode mostrar varios juntos', () => 
   assert.equal(impedimentoDoAutomix({ ...c, localSai: false }), 'current local audio missing');
   assert.equal(impedimentoDoAutomix({ ...c, localEntra: false }), 'next local audio missing');
   assert.equal(impedimentoDoAutomix({ ...c, duracaoS: 0, localEntra: false }), 'duration missing; next local audio missing');
+  // Com o binário que põe a que entra à velocidade dela (26/10), a velocidade deixa de impedir.
+  assert.equal(impedimentoDoAutomix({ ...c, rateSai: 1.2, rateEntra: 0.9, comVelocidade: true }), null);
+  assert.match(impedimentoDoAutomix({ ...c, rateSai: 3, comVelocidade: true })!, /speed out of range/);
+});
+
+// ------------------------------------------------ a velocidade e o EQ (26/10)
+
+t('a velocidade conta: os andamentos comparam-se como se ouvem', () => {
+  // 116,7 BPM a 1,2x soam a 140: batem com a que sai.
+  const lenta = ritmo(116.67, 0.4, 40, 0.3);
+  assert.equal(planoDoAutomix({ sai: sai140, entra: lenta, ...base }).tipo, 'corte', 'a 1x não batem');
+  const p = planoDoAutomix({ sai: sai140, entra: lenta, ...base, taxaEntra: 1.2 })!;
+  assert.equal(p.tipo, 'batida');
+  assert.ok(Math.abs(p.bpmEntra! - 140) < 0.1, `${p.bpmEntra}`);
+  // E ao contrário: 140 a 1,2x (168) já não batem com 140.
+  assert.notEqual(planoDoAutomix({ sai: sai140, entra: entra140, ...base, taxaEntra: 1.2 })!.tipo, 'batida');
+  // A que sai também conta: 140 a 0,9x soa a 126.
+  assert.equal(planoDoAutomix({ sai: sai140, entra: ritmo(126, 0.4, 40, 0.3), ...base, taxaSai: 0.9 })!.tipo, 'batida');
+});
+
+t('por cima com velocidades diferentes: a batida da que entra cai na troca em tempo de relógio', () => {
+  const sai = saiCom(128, 196);
+  const entra = ritmo(100, 10.2, 50, 0.2, 10, 10.2);
+  for (const [taxaSai, taxaEntra] of [[1, 1.25], [0.8, 1], [1.1, 0.9]]) {
+    const p = planoDoAutomix({ sai, entra, ...base, taxaSai, taxaEntra })!;
+    assert.equal(p.tipo, 'por-cima');
+    const ateATrocaSai = (sai.batidaS! - p.inicioS) / taxaSai;
+    const ateABatidaEntra = (10.2 - p.entraEmS) / taxaEntra;
+    assert.ok(Math.abs(ateATrocaSai - ateABatidaEntra) < 1e-9, `${taxaSai}/${taxaEntra}: ${ateATrocaSai} vs ${ateABatidaEntra}`);
+  }
+});
+
+t('o Swift: a que entra arranca à velocidade dela, e a que sai pode ir a qualquer uma', () => {
+  const swift = readFileSync(new URL('../modules/duotone-audio/ios/DuotoneAudioModule.swift', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  assert.match(swift, /AsyncFunction\("agendarEntradaComTaxa"\) \{\n.*taxa: Double, promise: Promise\) in\n\s+self\.agendarEntrada\(.*taxa: taxa, promise: promise\)/);
+  // O de antes continua lá, a 1x, para o JS de um binário que só tem esse.
+  assert.match(swift, /AsyncFunction\("agendarEntrada"\) \{\n.*promise: Promise\) in\n\s+self\.agendarEntrada\(.*taxa: 1, promise: promise\)/);
+  const corpo = swift.slice(swift.indexOf('private func agendarEntrada('));
+  assert.match(corpo, /taxa\.isFinite, taxa >= 0\.5, taxa <= 2,/);
+  assert.doesNotMatch(corpo.slice(0, 2500), /abs\(sai\.rate - 1\)/, 'a que sai já não tem de ir a 1x');
+  assert.match(corpo, /if entra\.defaultRate != ritmo \{ entra\.defaultRate = ritmo \}/);
+  assert.match(corpo, /entra\.setRate\(ritmo, time: alvo, atHostTime: quando\)/);
+  // A ponte: a função nova só se houver; senão, só a 1x.
+  const ponte = readFileSync(new URL('../modules/duotone-audio/index.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  assert.match(ponte, /if \(temAutomixComVelocidade\) \{\n\s+return \(await nativo\.agendarEntradaComTaxa\(sai, entra, quandoSai, ondeEntra, taxaEntra\)\) === true;/);
+  assert.match(ponte, /if \(Math\.abs\(taxaEntra - 1\) > 0\.001\) return false;/);
+});
+
+t('o leitor: a velocidade de cada uma e o EQ de cada uma, por baixo dos cortes', () => {
+  const v = readFileSync(new URL('../src/components/YouTubePlayerView.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  // A velocidade: a da que toca e a que a seguinte vai ter, no plano e no agendamento.
+  assert.match(v, /const taxaSai = st\.playbackRate;\n\s+const taxaEntra = seguinteRef\.current\?\.rate \?\? 1;/);
+  assert.match(v, /comVelocidade: temAutomixComVelocidade,/);
+  assert.match(v, /taxaSai,\n\s+taxaEntra,\n\s+\}\);/);
+  assert.match(v, /agendarEntradaNativa\(sai, entra, plano\.inicioS, plano\.entraEmS, seguinteRef\.current\?\.rate \?\? 1\)/);
+  // O EQ: o em vigor da que sai (carro, o dela, o Recommended) e o perfil da que entra.
+  assert.match(v, /const ganhosSai = \[\.\.\.eqGanhos\];/);
+  assert.match(v, /seguinteRef\.current\.ganhos = \[\.\.\.ganhosDaSeguinte\];/);
+  assert.match(v, /ganhosComPassagem\(p\.ganhosSai, e\.gravesSai, e\.agudosSai\)/);
+  assert.match(v, /ganhosComPassagem\(p\.ganhosEntra, e\.gravesEntra, e\.agudosEntra\)/);
+  // Mudar o EQ a meio da passagem: fica por baixo dos cortes, e não os desfaz.
+  assert.match(v, /if \(p\?\.curva\) \{\n\s+p\.ganhosSai = \[\.\.\.eqGanhos\];\n\s+if \(p\.eqAplicado\) p\.eqAplicado\.sai = '';\n\s+return;/);
+  // O tap monta-se antes de a seguinte soar; só se mexe nos graves de quem o tem.
+  assert.match(v, /aplicarEqualizadorNativo\(emEspera, ganhosDaSeguinte, comAutomix \? Math\.min\(margem, MARGEM_QUE_MONTA_O_TAP\) : margem\)/);
+  assert.match(v, /const eqSai = comTapRef\.current\.get\(player\) === track\.sourceId \|\| !ePlano\(ganhosSai\);/);
+  // No fim e ao desfazer, os dois perfis voltam sem os cortes.
+  assert.match(v, /const abortarPassagem = \(\) => \{\n\s+const p = passagemRef\.current;\n\s+if \(!p\) return;\n\s+reporEqDaPassagem\(p\);/);
+  assert.match(v, /reporEqDaPassagem\(p\);\n\s+passagemRef\.current = null;\n\s+reporIntervaloDeTempo\(\);\n\s+try \{\n\s+motorEmEspera\.volume = p\.tetoEntra;/);
+  // A curva anda pelo tempo da que sai, e a que sai pode começar antes do instante (o corte).
+  assert.match(v, /if \(p\.inicioS != null && decorrido < -\(p\.preparacaoS \?\? 0\)\) return;/);
+  assert.match(v, /aPassarDepressa: !!passagemRef\.current\?\.curva,/);
 });
 
 t('o plano explica a passagem suave e mostra os BPM e ambas as confiancas', () => {

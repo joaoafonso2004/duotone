@@ -128,6 +128,12 @@ export const temAutomixNativo = typeof nativo?.agendarEntrada === 'function'
   && typeof nativo?.analisarRitmo === 'function';
 
 /**
+ * Este binário sabe pôr a que entra à velocidade dela, e agendar com a que
+ * sai fora de 1x (26/10)? Sem isto, o AutoMix só mistura a 1x nas duas.
+ */
+export const temAutomixComVelocidade = temAutomixNativo && typeof nativo?.agendarEntradaComTaxa === 'function';
+
+/**
  * A energia de cada quadro de uma janela do ficheiro (ver `energiasDoRitmo` no
  * Swift): `[fps, inicio, graves0, total0, ...]`. `desde` negativo conta do fim.
  * Lista vazia sem módulo ou sem ficheiro que se leia. Quem decide o que estes
@@ -156,9 +162,15 @@ export async function agendarEntradaNativa(
   entra: unknown,
   quandoSai: number,
   ondeEntra: number,
+  /** A velocidade da que entra (26/10). Num binário da 5.4.x, só 1x. */
+  taxaEntra = 1,
 ): Promise<boolean> {
   try {
     if (!temAutomixNativo) return false;
+    if (temAutomixComVelocidade) {
+      return (await nativo.agendarEntradaComTaxa(sai, entra, quandoSai, ondeEntra, taxaEntra)) === true;
+    }
+    if (Math.abs(taxaEntra - 1) > 0.001) return false;
     return (await nativo.agendarEntrada(sai, entra, quandoSai, ondeEntra)) === true;
   } catch {
     return false;

@@ -55,7 +55,18 @@ export type Ritmo = {
   temposFortesS: number[];
   /** Onde o som começa (janela do início) ou acaba (janela do fim), em segundos na faixa. */
   somS: number;
+  /**
+   * Onde a BATIDA começa (janela do início: o tempo forte do primeiro compasso
+   * com ataques em cima da grelha) ou acaba (janela do fim: o fim do último).
+   * Uma intro só com melodia, ou uma cauda que fica a soar, tem som mas não
+   * tem batida -- e é por aí que um DJ junta duas músicas de andamentos
+   * diferentes (26/10). Sem valor nos ritmos guardados antes disto.
+   */
+  batidaS?: number;
 };
+
+/** Um compasso tem batida com pelo menos isto da força dos compassos fortes. */
+const PRESENCA_DA_BATIDA = 0.35;
 
 /**
  * A energia de cada quadro, nos graves e no total, de amostras mono. É a conta
@@ -227,7 +238,41 @@ export function ritmoDaJanela(e: EnergiasDaJanela, qual: 'inicio' | 'fim'): Ritm
   for (let x = fase + forte * periodo; x < n; x += periodo * 4) temposFortesS.push(e.inicioS + x / e.fps);
 
   const bpm = (60 * e.fps) / periodo;
-  return { bpm, periodoS: periodo / e.fps, confianca, temposFortesS, somS };
+  const batidaS = ondeHaBatida(o, e, fase + forte * periodo, periodo, qual, somS);
+  return { bpm, periodoS: periodo / e.fps, confianca, temposFortesS, somS, batidaS };
+}
+
+/**
+ * Onde a batida começa ou acaba, de compasso em compasso: a força dos ataques
+ * em cima das quatro batidas de cada compasso, contra os compassos fortes da
+ * janela (o percentil 75). Dois compassos seguidos com batida contam -- um
+ * prato solto numa intro não é a batida a entrar. Sem nada claro, o primeiro
+ * tempo forte (início) ou o fim do som (fim).
+ */
+function ondeHaBatida(o: number[], e: EnergiasDaJanela, primeiro: number, periodo: number, qual: 'inicio' | 'fim', somS: number): number {
+  const compasso = periodo * 4;
+  const forcas: { inicio: number; forca: number }[] = [];
+  for (let x = primeiro; x + compasso <= o.length; x += compasso) {
+    let s = 0;
+    for (let j = 0; j < 4; j++) {
+      const c = x + j * periodo;
+      s += Math.max(entre(o, c - 1), entre(o, c), entre(o, c + 1));
+    }
+    forcas.push({ inicio: x, forca: s / 4 });
+  }
+  const emSegundos = (quadro: number) => e.inicioS + quadro / e.fps;
+  const ordenadas = forcas.map((f) => f.forca).sort((a, b) => a - b);
+  const referencia = ordenadas[Math.floor(ordenadas.length * 0.75)] ?? 0;
+  if (forcas.length < 2 || !(referencia > 0)) return qual === 'inicio' ? emSegundos(primeiro) : somS;
+  const tem = forcas.map((f) => f.forca >= referencia * PRESENCA_DA_BATIDA);
+  if (qual === 'inicio') {
+    const k = tem.findIndex((x, i) => x && tem[i + 1]);
+    return emSegundos(forcas[k >= 0 ? k : 0].inicio);
+  }
+  for (let k = tem.length - 1; k > 0; k--) {
+    if (tem[k] && tem[k - 1]) return Math.min(somS, emSegundos(forcas[k].inicio + compasso));
+  }
+  return somS;
 }
 
 /**
@@ -235,19 +280,20 @@ export function ritmoDaJanela(e: EnergiasDaJanela, qual: 'inicio' | 'fim'): Ritm
  * os tempos fortes são uma grelha certa (de compasso em compasso a partir do
  * primeiro), e por isso refazem-se em vez de se guardarem um a um.
  */
-export type RitmoCompacto = [bpm: number, periodoS: number, confianca: number, primeiroForteS: number, fortes: number, somS: number] | null;
+export type RitmoCompacto = [bpm: number, periodoS: number, confianca: number, primeiroForteS: number, fortes: number, somS: number, batidaS?: number] | null;
 
 const arredondar = (x: number) => Math.round(x * 1000) / 1000;
 
 export function compactar(r: Ritmo | null): RitmoCompacto {
   if (!r) return null;
-  return [arredondar(r.bpm), r.periodoS, arredondar(r.confianca), r.temposFortesS[0] ?? r.somS, r.temposFortesS.length, arredondar(r.somS)];
+  const base: [number, number, number, number, number, number] = [arredondar(r.bpm), r.periodoS, arredondar(r.confianca), r.temposFortesS[0] ?? r.somS, r.temposFortesS.length, arredondar(r.somS)];
+  return r.batidaS != null ? [...base, arredondar(r.batidaS)] : base;
 }
 
 export function descompactar(c: unknown): Ritmo | null {
-  if (!Array.isArray(c) || c.length !== 6 || !c.every((x) => typeof x === 'number' && Number.isFinite(x))) return null;
-  const [bpm, periodoS, confianca, primeiro, fortes, somS] = c as number[];
+  if (!Array.isArray(c) || (c.length !== 6 && c.length !== 7) || !c.every((x) => typeof x === 'number' && Number.isFinite(x))) return null;
+  const [bpm, periodoS, confianca, primeiro, fortes, somS, batidaS] = c as number[];
   if (!(periodoS > 0)) return null;
   const temposFortesS = Array.from({ length: Math.max(0, Math.floor(fortes)) }, (_, k) => primeiro + k * periodoS * 4);
-  return { bpm, periodoS, confianca, temposFortesS, somS };
+  return { bpm, periodoS, confianca, temposFortesS, somS, ...(batidaS != null ? { batidaS } : {}) };
 }

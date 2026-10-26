@@ -155,6 +155,8 @@ export const ANTECEDENCIA_DO_RITMO_S = 8;
 export type ContextoDoRitmo = {
   /** Há uma passagem a decorrer. */
   aPassar: boolean;
+  /** É uma passagem do AutoMix, com cortes de uma batida (26/10). */
+  aPassarDepressa?: boolean;
   /** A faixa seguinte já está carregada no motor em espera. */
   seguintePronta: boolean;
   /** A app está à frente: há barra de progresso e letras para mexer. */
@@ -179,7 +181,7 @@ export type ContextoDoRitmo = {
  * Sem saber onde a faixa vai ou onde acaba, fica o ritmo rápido: é o de sempre.
  */
 export function intervaloDaPosicao(c: ContextoDoRitmo): number {
-  if (c.aPassar) return 0.25;
+  if (c.aPassar) return c.aPassarDepressa ? 0.1 : 0.25;
   if (c.seguintePronta && (c.ativa || pertoDaPassagem(c))) return 0.5;
   return c.ativa ? 1 : 2;
 }

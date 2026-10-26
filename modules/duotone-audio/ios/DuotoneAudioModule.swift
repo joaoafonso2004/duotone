@@ -298,61 +298,26 @@ public class DuotoneAudioModule: Module {
      *
      * O `setRate(_:time:atHostTime:)` LANCA uma excecao, e a app cai, se a
      * espera do buffer estiver ligada ou o item nao estiver pronto: as guardas
-     * vem antes e o `semEsperarAteParar` desliga a espera. So a 1x: com outra
-     * velocidade a grelha de uma nao e a da outra.
+     * vem antes e o `semEsperarAteParar` desliga a espera.
+     *
+     * A VELOCIDADE (26/10): a que entra arranca a dela (`taxa`, a que o JS lhe
+     * calculou ao prepara-la), e a que sai pode ir a qualquer uma -- o instante
+     * dela passa para o relogio da maquina pelo `timebase` do item, que ja anda
+     * a velocidade dela. O plano (lib/automix.ts) compara os andamentos como
+     * se ouvem. O `agendarEntrada` sem taxa e o da 5.4.x (a 1x): o JS so o usa
+     * num binario sem o `agendarEntradaComTaxa`.
      *
      * Devolve se ficou agendado. Quem cancela e o JS, com um `pause()` no motor
      * que entra (o ritmo zero sobrepoe-se ao agendado).
      */
+    AsyncFunction("agendarEntradaComTaxa") {
+      (saiRef: SharedRef<AVPlayer>, entraRef: SharedRef<AVPlayer>, quandoSai: Double, ondeEntra: Double, taxa: Double, promise: Promise) in
+      self.agendarEntrada(sai: saiRef.ref, entra: entraRef.ref, quandoSai: quandoSai, ondeEntra: ondeEntra, taxa: taxa, promise: promise)
+    }
+
     AsyncFunction("agendarEntrada") {
       (saiRef: SharedRef<AVPlayer>, entraRef: SharedRef<AVPlayer>, quandoSai: Double, ondeEntra: Double, promise: Promise) in
-      let sai = saiRef.ref
-      let entra = entraRef.ref
-      DispatchQueue.main.async { [weak self] in
-        guard let self,
-              quandoSai.isFinite, ondeEntra.isFinite, ondeEntra >= 0,
-              sai.rate > 0, abs(sai.rate - 1) < 0.001,
-              let itemSai = sai.currentItem, itemSai.status == .readyToPlay,
-              let itemEntra = entra.currentItem, itemEntra.status == .readyToPlay,
-              entra.status == .readyToPlay else {
-          promise.resolve(false)
-          return
-        }
-        let alvo = CMTime(seconds: ondeEntra, preferredTimescale: 48000)
-        entra.seek(to: alvo, toleranceBefore: .zero, toleranceAfter: .zero) { feito in
-          DispatchQueue.main.async {
-            guard feito, entra.currentItem === itemEntra, sai.currentItem === itemSai,
-                  sai.rate > 0, entra.status == .readyToPlay, itemEntra.status == .readyToPlay else {
-              promise.resolve(false)
-              return
-            }
-            let relogio = CMClockGetHostTimeClock()
-            let agora = CMClockGetTime(relogio)
-            let quando: CMTime
-            if let base = itemSai.timebase {
-              quando = CMSyncConvertTime(CMTime(seconds: quandoSai, preferredTimescale: 48000), from: base, to: relogio)
-            } else {
-              let falta = (quandoSai - CMTimeGetSeconds(sai.currentTime())) / Double(sai.rate)
-              quando = CMTimeAdd(agora, CMTime(seconds: falta, preferredTimescale: 1_000_000_000))
-            }
-            let falta = CMTimeGetSeconds(CMTimeSubtract(quando, agora))
-            guard falta.isFinite, falta > 0.08, falta < 10 else {
-              promise.resolve(false)
-              return
-            }
-            self.semEsperarAteParar(entra)
-            if #available(iOS 16.0, tvOS 16.0, *) {
-              if entra.defaultRate != 1 { entra.defaultRate = 1 }
-            }
-            guard !entra.automaticallyWaitsToMinimizeStalling else {
-              promise.resolve(false)
-              return
-            }
-            entra.setRate(1, time: alvo, atHostTime: quando)
-            promise.resolve(true)
-          }
-        }
-      }
+      self.agendarEntrada(sai: saiRef.ref, entra: entraRef.ref, quandoSai: quandoSai, ondeEntra: ondeEntra, taxa: 1, promise: promise)
     }
 
     /**
@@ -592,6 +557,57 @@ public class DuotoneAudioModule: Module {
     guard let vigia else { return }
     vigia.invalidate()
     p.automaticallyWaitsToMinimizeStalling = true
+  }
+
+  /** O corpo dos dois `agendarEntrada` (ver o cabecalho do `agendarEntradaComTaxa`). */
+  private func agendarEntrada(sai: AVPlayer, entra: AVPlayer, quandoSai: Double, ondeEntra: Double, taxa: Double, promise: Promise) {
+    DispatchQueue.main.async { [weak self] in
+      guard let self,
+            quandoSai.isFinite, ondeEntra.isFinite, ondeEntra >= 0,
+            taxa.isFinite, taxa >= 0.5, taxa <= 2,
+            sai.rate > 0,
+            let itemSai = sai.currentItem, itemSai.status == .readyToPlay,
+            let itemEntra = entra.currentItem, itemEntra.status == .readyToPlay,
+            entra.status == .readyToPlay else {
+        promise.resolve(false)
+        return
+      }
+      let alvo = CMTime(seconds: ondeEntra, preferredTimescale: 48000)
+      entra.seek(to: alvo, toleranceBefore: .zero, toleranceAfter: .zero) { feito in
+        DispatchQueue.main.async {
+          guard feito, entra.currentItem === itemEntra, sai.currentItem === itemSai,
+                sai.rate > 0, entra.status == .readyToPlay, itemEntra.status == .readyToPlay else {
+            promise.resolve(false)
+            return
+          }
+          let relogio = CMClockGetHostTimeClock()
+          let agora = CMClockGetTime(relogio)
+          let quando: CMTime
+          if let base = itemSai.timebase {
+            quando = CMSyncConvertTime(CMTime(seconds: quandoSai, preferredTimescale: 48000), from: base, to: relogio)
+          } else {
+            let falta = (quandoSai - CMTimeGetSeconds(sai.currentTime())) / Double(sai.rate)
+            quando = CMTimeAdd(agora, CMTime(seconds: falta, preferredTimescale: 1_000_000_000))
+          }
+          let falta = CMTimeGetSeconds(CMTimeSubtract(quando, agora))
+          guard falta.isFinite, falta > 0.08, falta < 10 else {
+            promise.resolve(false)
+            return
+          }
+          let ritmo = Float(taxa)
+          self.semEsperarAteParar(entra)
+          if #available(iOS 16.0, tvOS 16.0, *) {
+            if entra.defaultRate != ritmo { entra.defaultRate = ritmo }
+          }
+          guard !entra.automaticallyWaitsToMinimizeStalling else {
+            promise.resolve(false)
+            return
+          }
+          entra.setRate(ritmo, time: alvo, atHostTime: quando)
+          promise.resolve(true)
+        }
+      }
+    }
   }
 
   /**

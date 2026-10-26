@@ -37,7 +37,10 @@ import { estadoDeEnergia } from '../../modules/duotone-diagnostico';
 import { preCarregarCapasGrandes } from '../state/capasGrandes';
 import type { Prioridade } from '../lib/filaDeDownloads';
 import { analisarFimDaFaixa, fimMusicalGuardado } from '../lib/caudaAnalisada';
-import { deveAgendar, descreverPlano, duracaoDaPassagem, impedimentoDoAutomix, planoDoAutomix, type PlanoDoAutomix } from '../lib/automix';
+import {
+  deveAgendar, descreverPlano, duracaoDaPassagem, estadoDaPassagem, ganhosComPassagem, impedimentoDoAutomix, planoDoAutomix,
+  preparacaoDaCurva, type CurvaDaPassagem, type PlanoDoAutomix,
+} from '../lib/automix';
 import { analisarRitmoComDiagnostico, analisarRitmoDaFaixa } from '../lib/ritmoGuardado';
 import { comecarArranque, marcarResolver } from '../lib/arranqueDaFaixa';
 import {
@@ -47,7 +50,7 @@ import {
 import { baseDoEq, ganhosEmVigor, usePlayer } from '../state/player';
 import { abafoDoRefrao, seguirOAbafo } from '../state/refrao';
 import { useSaudeDaReproducao } from '../state/saudeDaReproducao';
-import { aoTocar as ajusteAoTocar, chaveDaFaixa, compensacaoLinear } from '../lib/equalizer';
+import { aoTocar as ajusteAoTocar, chaveDaFaixa, compensacaoLinear, ePlano } from '../lib/equalizer';
 import { arredondar as arredondarRate } from '../lib/playbackRate';
 import { trocarFonte } from '../lib/trocaDeFonte';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
@@ -100,6 +103,14 @@ let escondidaNoRelatorio = false;
  * que o saiba fazer) há sempre passagem, mesmo com o crossfade a 0
  * (`duracaoDaPassagem`, lib/automix.ts).
  */
+/**
+ * Uma margem um nada abaixo de 1 (-0,02 dB, inaudível) obriga o nativo a
+ * montar o tap do EQ mesmo com o perfil plano -- ver o `aplicarNoItem` do
+ * DuotoneAudioModule.swift. O AutoMix precisa dele montado antes de a faixa
+ * soar, para lhe trocar os graves a meio de uma passagem sem cortes.
+ */
+const MARGEM_QUE_MONTA_O_TAP = 0.998;
+
 function passagemS(st: { automix: boolean; crossfadeSegundos: number }): number {
   return duracaoDaPassagem({ automix: st.automix && temAutomixNativo, crossfadeSegundos: st.crossfadeSegundos });
 }
@@ -138,7 +149,7 @@ async function adiantarFaixa(
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { anotarPrimeiroSom } from '../state/tempoAteAoSom';
 import {
-  agendarEntradaNativa, aplicarEqualizadorNativo, ligarAudioNativo, aplicarVelocidadeNativa, estadoDaVelocidadeNativa,
+  agendarEntradaNativa, aplicarEqualizadorNativo, ligarAudioNativo, temAutomixComVelocidade, aplicarVelocidadeNativa, estadoDaVelocidadeNativa,
   temAutomixNativo,
 } from '../../modules/duotone-audio';
 import { marcarPausaDeFora, PAUSA_DE_FORA_MS, pausaDeFora, playDeFora } from '../lib/pausaDeFora';
@@ -421,7 +432,14 @@ export function YouTubePlayerView({ track }: { track: Track }) {
    * salto de tom no instante da troca. Os ganhos não vêm aqui — esses já foram
    * entregues ao motor em espera, do lado nativo.
    */
-  const seguinteRef = useRef<{ sourceId: string; pronta: boolean; rate: number } | null>(null);
+  const seguinteRef = useRef<{ sourceId: string; pronta: boolean; rate: number; ganhos?: number[] } | null>(null);
+  /**
+   * Os motores com o tap do equalizador montado ANTES de a faixa deles soar,
+   * e para que faixa (AutoMix, 26/10). Só nesses se mexe nos graves a meio de
+   * uma passagem: montar o tap num item que já toca dá um corte curto
+   * (DuotoneEq), e uma passagem de DJ não pode ter um corte a meio.
+   */
+  const comTapRef = useRef(new WeakMap<object, string>());
   /** Onde ia a faixa no último `timeUpdate`: o ritmo da posição precisa de saber quanto falta. */
   const pontoDaPosicaoRef = useRef<{ sourceId: string; posicao: number; duracao: number | null } | null>(null);
   /** O último ritmo escrito, e em que motor e faixa: não se repete a mesma escrita a cada evento. */
@@ -452,6 +470,18 @@ export function YouTubePlayerView({ track }: { track: Track }) {
      * (e não do fim, como no crossfade).
      */
     inicioS?: number;
+    /**
+     * AutoMix (26/10): o volume e o corte de graves e agudos de cada uma, a
+     * cada instante (lib/automix.ts), e os perfis de EQ das duas faixas, por
+     * baixo dos cortes. `eqSai` diz se a que sai tem o tap montado.
+     */
+    curva?: CurvaDaPassagem;
+    preparacaoS?: number;
+    ganhosSai?: number[];
+    ganhosEntra?: number[];
+    eqSai?: boolean;
+    /** O último corte aplicado a cada uma, para não repetir a mesma escrita. */
+    eqAplicado?: { sai: string; entra: string };
   } | null>(null);
 
   /**
@@ -533,6 +563,15 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   // passagem nenhuma.
   useEffect(() => {
     if (backend !== 'native') return;
+    // A meio de uma passagem do AutoMix, o EQ novo fica por baixo dos cortes
+    // dela: o passo seguinte da curva aplica-o já com eles (26/10). Aplicado
+    // cru aqui, a que sai voltava a ter os graves a meio da troca.
+    const p = passagemRef.current;
+    if (p?.curva) {
+      p.ganhosSai = [...eqGanhos];
+      if (p.eqAplicado) p.eqAplicado.sai = '';
+      return;
+    }
     aplicarEqualizadorNativo(player, eqGanhos, compensacaoLinear(eqGanhos));
   }, [backend, player, eqGanhos]);
 
@@ -745,6 +784,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     const ponto = pontoDaPosicaoRef.current?.sourceId === track.sourceId ? pontoDaPosicaoRef.current : null;
     const passo = intervaloDaPosicao({
       aPassar: !!passagemRef.current,
+      // Os cortes do AutoMix são de uma batida: a 0,25 s ouviam-se aos degraus.
+      aPassarDepressa: !!passagemRef.current?.curva,
       seguintePronta: !!seguinteRef.current?.pronta,
       ativa: AppState.currentState === 'active',
       posicaoSegundos: ponto?.posicao ?? null,
@@ -870,7 +911,15 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         // em vez de o apanhar de repente no fim do fade.
         // No carro, quem entra também leva a curva do carro, e não a sua.
         const ganhosDaSeguinte = usePlayer.getState().carro?.ganhos ?? ajuste.ganhos;
-        aplicarEqualizadorNativo(emEspera, ganhosDaSeguinte, compensacaoLinear(ganhosDaSeguinte));
+        // Com o AutoMix, o tap monta-se JÁ, antes de ela soar, mesmo com o EQ
+        // plano: uma margem um nada abaixo de 1 (-0,02 dB) obriga o nativo a
+        // montá-lo. É ele que deixa trocar os graves a meio de uma passagem
+        // sem o corte de o montar com o som a correr (DuotoneEq).
+        const comAutomix = usePlayer.getState().automix && temAutomixNativo;
+        const margem = compensacaoLinear(ganhosDaSeguinte);
+        aplicarEqualizadorNativo(emEspera, ganhosDaSeguinte, comAutomix ? Math.min(margem, MARGEM_QUE_MONTA_O_TAP) : margem);
+        if (comAutomix) comTapRef.current.set(emEspera, seguinte.sourceId);
+        seguinteRef.current.ganhos = [...ganhosDaSeguinte];
         seguinteRef.current.pronta = true;
         // Daqui até ao fim da faixa vale a pena saber a posição mais vezes.
         reporIntervaloDeTempo();
@@ -894,9 +943,21 @@ export function YouTubePlayerView({ track }: { track: Track }) {
    * perigoso: saltar a meio de uma passagem para uma faixa que NÃO é a que
    * estava a entrar. Sem isto ficavam duas músicas a tocar ao mesmo tempo.
    */
+  /**
+   * Os perfis de EQ das duas sem os cortes da passagem (AutoMix). Quem sai
+   * pode continuar a tocar (uma passagem desfeita) e tem de voltar a ter os
+   * graves; quem entra fica com o dela.
+   */
+  const reporEqDaPassagem = (p: NonNullable<typeof passagemRef.current>) => {
+    if (!p.curva) return;
+    if (p.eqSai && p.ganhosSai) aplicarEqualizadorNativo(player, p.ganhosSai, compensacaoLinear(p.ganhosSai));
+    if (p.ganhosEntra) aplicarEqualizadorNativo(motorEmEspera, p.ganhosEntra, compensacaoLinear(p.ganhosEntra));
+  };
+
   const abortarPassagem = () => {
     const p = passagemRef.current;
     if (!p) return;
+    reporEqDaPassagem(p);
     passagemRef.current = null;
     seguinteRef.current = null;
     // Uma entrada do AutoMix desfeita: se ainda não tinha começado, o plano
@@ -940,6 +1001,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       abortarPassagem();
       return;
     }
+    reporEqDaPassagem(p);
     passagemRef.current = null;
     reporIntervaloDeTempo();
     try {
@@ -1016,9 +1078,12 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       const duracao = track.durationSeconds || streamRef.current?.durationSeconds || null;
       const ficheiroSai = cachedAudioFile(de);
       const ficheiroEntra = cachedAudioFile(para);
+      const taxaSai = st.playbackRate;
+      const taxaEntra = seguinteRef.current?.rate ?? 1;
       const impedimento = impedimentoDoAutomix({
         duracaoS: duracao, rateSai: st.playbackRate, rateEntra: seguinteRef.current?.rate ?? 1,
         localSai: ficheiroSai.exists, localEntra: ficheiroEntra.exists, hls: !!streamRef.current?.isHls,
+        comVelocidade: temAutomixComVelocidade,
       });
       if (impedimento) motivo = impedimento;
       else if (duracao) {
@@ -1030,6 +1095,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           fimMusicalS: fimMusicalGuardado(de),
           duracaoSaiS: duracao,
           suaveS: passagemS(st),
+          // A velocidade de cada uma (26/10): os andamentos comparam-se como se ouvem.
+          taxaSai,
+          taxaEntra,
         });
         const faltas: string[] = [];
         if (!sai.ritmo?.fim) faltas.push(`current: ${sai.motivo ?? 'end has no usable rhythm (silence, steady sound or less than 8s)'}`);
@@ -1064,12 +1132,22 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (!a || a.estado !== 'pronto') return;
     a.estado = 'agendado';
     const st = usePlayer.getState();
+    // Os graves da que sai só se mexem se o tap dela já estava montado antes
+    // de ela soar (ou se ela tem EQ próprio, que o monta ao carregar).
+    const ganhosSai = [...eqGanhos];
+    const eqSai = comTapRef.current.get(player) === track.sourceId || !ePlano(ganhosSai);
     passagemRef.current = {
       sourceId: seguinte.sourceId,
       tetoSai: ceilingRef.current,
       tetoEntra: targetVolume(getLoudnessDb(seguinte.sourceId), st.volumeNormalization),
       duracaoDoFade: plano.duracaoS,
       inicioS: plano.inicioS,
+      curva: plano.curva,
+      preparacaoS: preparacaoDaCurva(plano.curva),
+      ganhosSai,
+      ganhosEntra: seguinteRef.current?.ganhos,
+      eqSai,
+      eqAplicado: { sai: '', entra: '' },
     };
     // Como no crossfade: daqui em diante quem avança a fila é o fim da passagem.
     endedRef.current = true;
@@ -1080,12 +1158,12 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     reporIntervaloDeTempo();
     const sai = player;
     const entra = motorEmEspera;
-    try {
-      entra.volume = 0;
-    } catch {
-      // motor sem fonte — ignorar
-    }
-    const ok = await agendarEntradaNativa(sai, entra, plano.inicioS, plano.entraEmS);
+    // A que entra arranca já com o volume e os cortes do primeiro instante da
+    // curva: numa passagem de corte ela entra cheia, e o "um" dela não pode
+    // ficar calado à espera do primeiro evento de tempo.
+    aplicarCurvaNaQueEntra(0);
+    // A que entra arranca à velocidade dela, a que o `prepararSeguinte` lhe calculou.
+    const ok = await agendarEntradaNativa(sai, entra, plano.inicioS, plano.entraEmS, seguinteRef.current?.rate ?? 1);
     const minha = passagemRef.current?.sourceId === seguinte.sourceId && passagemRef.current?.inicioS === plano.inicioS;
     if (ok && minha) {
       registarNaFila(`${track.sourceId}: automix scheduled (${plano.tipo})`);
@@ -1132,6 +1210,48 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     return false;
   };
 
+  /**
+   * O volume e os cortes de graves e agudos da que ENTRA num instante da
+   * curva do AutoMix (antes do instante marcado, os do primeiro).
+   */
+  const aplicarCurvaNaQueEntra = (decorrido: number) => {
+    const p = passagemRef.current;
+    if (!p?.curva) {
+      try { motorEmEspera.volume = 0; } catch {}
+      return;
+    }
+    const e = estadoDaPassagem(p.curva, decorrido);
+    try {
+      motorEmEspera.volume = p.tetoEntra * e.volEntra;
+    } catch {
+      // motor sem fonte — ignorar
+    }
+    const chave = `${e.gravesEntra.toFixed(1)}|${e.agudosEntra.toFixed(1)}`;
+    if (p.ganhosEntra && p.eqAplicado && p.eqAplicado.entra !== chave) {
+      p.eqAplicado.entra = chave;
+      const g = ganhosComPassagem(p.ganhosEntra, e.gravesEntra, e.agudosEntra);
+      aplicarEqualizadorNativo(motorEmEspera, g, Math.min(compensacaoLinear(g), MARGEM_QUE_MONTA_O_TAP));
+    }
+  };
+
+  /** O volume e os cortes da que SAI num instante da curva do AutoMix. */
+  const aplicarCurvaNaQueSai = (decorrido: number) => {
+    const p = passagemRef.current;
+    if (!p?.curva) return;
+    const e = estadoDaPassagem(p.curva, decorrido);
+    try {
+      player.volume = p.tetoSai * e.volSai;
+    } catch {
+      // motor sem fonte — ignorar
+    }
+    const chave = `${e.gravesSai.toFixed(1)}|${e.agudosSai.toFixed(1)}`;
+    if (p.eqSai && p.ganhosSai && p.eqAplicado && p.eqAplicado.sai !== chave) {
+      p.eqAplicado.sai = chave;
+      const g = ganhosComPassagem(p.ganhosSai, e.gravesSai, e.agudosSai);
+      aplicarEqualizadorNativo(player, g, Math.min(compensacaoLinear(g), MARGEM_QUE_MONTA_O_TAP));
+    }
+  };
+
   /** Um passo da curva, a cada evento de tempo do motor que sai. */
   const avancarPassagem = (posicaoSegundos: number, duracaoSegundos: number) => {
     const p = passagemRef.current;
@@ -1139,10 +1259,18 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     const duracaoDoFade = p.duracaoDoFade;
     // O decorrido lê-se da POSIÇÃO e não de um relógio: se um evento se
     // atrasar, o passo seguinte apanha o atraso em vez de o acumular. No
-    // AutoMix conta-se do instante marcado, e antes dele nada mexe.
+    // AutoMix conta-se do instante marcado, e antes dele só a que sai mexe
+    // (o corte prepara-a uns segundos antes).
     const decorrido = p.inicioS != null
       ? posicaoSegundos - p.inicioS
       : duracaoDoFade - (duracaoSegundos - posicaoSegundos);
+    if (p.inicioS != null && decorrido < -(p.preparacaoS ?? 0)) return;
+    if (p.curva) {
+      aplicarCurvaNaQueSai(decorrido);
+      if (decorrido >= 0) aplicarCurvaNaQueEntra(decorrido);
+      if (decorrido >= duracaoDoFade) terminarPassagem();
+      return;
+    }
     if (p.inicioS != null && decorrido < 0) return;
     const v = volumesDoCrossfade(decorrido, duracaoDoFade, p.tetoSai, p.tetoEntra);
     try {

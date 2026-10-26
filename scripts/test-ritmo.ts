@@ -132,4 +132,52 @@ t('guardado em seis números, volta igual (a grelha refaz-se)', () => {
   assert.equal(descompactar([140, 0, 1, 0, 3, 0]), null, 'período zero');
 });
 
-console.log('O ritmo de uma janela (AutoMix): andamentos, tempos fortes, início e fim do som passaram.');
+/** Um tapete de acordes sem ataques (uma intro ou uma cauda só com melodia). */
+function tapete(segundos: number, amplitude = 0.25): Float32Array {
+  const s = new Float32Array(Math.round(segundos * TAXA));
+  for (let i = 0; i < s.length; i++) {
+    const x = i / TAXA;
+    // Entra e sai devagar: nada que pareça um bombo.
+    const env = Math.min(1, x / 2, (segundos - x) / 2);
+    s[i] = amplitude * env * (Math.sin(2 * Math.PI * 220 * x) + 0.6 * Math.sin(2 * Math.PI * 277.2 * x) + 0.5 * Math.sin(2 * Math.PI * 329.6 * x)) / 2.1;
+  }
+  return s;
+}
+const juntar = (...partes: Float32Array[]) => {
+  const s = new Float32Array(partes.reduce((n, p) => n + p.length, 0));
+  let i = 0;
+  for (const p of partes) { s.set(p, i); i += p.length; }
+  return s;
+};
+
+t('uma intro só com melodia: a batida começa depois dela, no tempo forte (26/10)', () => {
+  const r = ritmoDaJanela(energiasPorQuadro(juntar(tapete(12), batida(124, 28)), TAXA), 'inicio')!;
+  pertoNaOitava(r.bpm, 124, 0.8);
+  perto(r.somS, 0, 0.5, 'o som começa logo');
+  perto(r.batidaS!, 12, (60 / 124) * 4 + 0.1, 'a batida começa no fim da intro');
+  assert.ok(r.temposFortesS.some((x) => Math.abs(x - r.batidaS!) < 0.05), 'num tempo forte');
+});
+
+t('uma cauda só com melodia: a batida acaba antes do som', () => {
+  // Janela do fim aos 150 s: 30 s de batida e 10 s de cauda.
+  const r = ritmoDaJanela(energiasPorQuadro(juntar(batida(124, 30), tapete(10)), TAXA, 150), 'fim')!;
+  perto(r.batidaS!, 180, (60 / 124) * 4 + 0.1, 'a batida acaba aos 30 s da janela');
+  assert.ok(r.somS > 187, `o som continua (${r.somS})`);
+});
+
+t('com batida do princípio ao fim: começa no primeiro tempo forte e acaba com o som', () => {
+  const i = ritmoDaJanela(energiasPorQuadro(batida(140, 40, 1.5), TAXA), 'inicio')!;
+  perto(i.batidaS!, i.temposFortesS[0], 0.01, 'início');
+  const f = ritmoDaJanela(energiasPorQuadro(batida(140, 40, 0, 3), TAXA, 150), 'fim')!;
+  perto(f.batidaS!, f.somS, (60 / 140) * 4 + 0.05, 'fim');
+});
+
+t('o onde-há-batida também se guarda, e os ritmos antigos (seis números) continuam a ler-se', () => {
+  const r = ritmoDaJanela(energiasPorQuadro(juntar(tapete(12), batida(124, 28)), TAXA), 'inicio')!;
+  const de = descompactar(JSON.parse(JSON.stringify(compactar(r))))!;
+  assert.ok(Math.abs(de.batidaS! - r.batidaS!) < 0.001);
+  const antigo = descompactar([140, 0.43, 9, 1, 10, 0.5])!;
+  assert.equal(antigo.batidaS, undefined);
+});
+
+console.log('O ritmo de uma janela (AutoMix): andamentos, tempos fortes, início e fim do som e da batida passaram.');
