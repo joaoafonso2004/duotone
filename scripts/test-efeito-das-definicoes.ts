@@ -35,8 +35,9 @@ console.log('\no crossfade com os limites dele');
 caso('desligado não diz nada', () => assert.equal(efeitoDoCrossfade({ segundos: 0, repeatUma: false }), null));
 caso('o AutoMix diz o que faz, e que pára com o iPhone quente', () => {
   assert.equal(efeitoDoAutomix({ ligado: false, crossfadeS: 6, aPoupar: false }), null);
-  assert.equal(efeitoDoAutomix({ ligado: true, crossfadeS: 0, aPoupar: false }), 'On the beat when tempos match · otherwise at the end of a phrase · 6 s blend without a clear beat');
-  assert.equal(efeitoDoAutomix({ ligado: true, crossfadeS: 9, aPoupar: false }), 'On the beat when tempos match · otherwise at the end of a phrase · 9 s blend without a clear beat');
+  assert.equal(efeitoDoAutomix({ ligado: true, crossfadeS: 0, aPoupar: false }), 'On the beat when tempos match · otherwise a cut or a filter at the end of a phrase · 3 s without a clear beat');
+  assert.equal(efeitoDoAutomix({ ligado: true, crossfadeS: 9, aPoupar: false }), 'On the beat when tempos match · otherwise a cut or a filter at the end of a phrase · 3 s without a clear beat');
+  assert.equal(efeitoDoAutomix({ ligado: true, crossfadeS: 2, aPoupar: false }), 'On the beat when tempos match · otherwise a cut or a filter at the end of a phrase · 2 s without a clear beat');
   assert.match(efeitoDoAutomix({ ligado: true, crossfadeS: 9, aPoupar: true })!, /^Paused while iPhone is hot/);
 });
 caso('o Recommended diz para que auscultadores está afinado, ou que fica plano', () => {

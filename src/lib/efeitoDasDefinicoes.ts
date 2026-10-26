@@ -104,10 +104,10 @@ export function efeitoDoAutomix(e: { ligado: boolean; crossfadeS: number; aPoupa
   if (!e.ligado) return null;
   if (e.aPoupar) return 'Paused while iPhone is hot or saving battery · plain crossfade for now';
   // Desde 26/10 também entre andamentos que não batem: no fim de uma frase,
-  // com os graves trocados (lib/automix.ts). O fade do crossfade fica para
-  // as músicas sem batida clara.
-  const s = e.crossfadeS > 0 ? e.crossfadeS : 6;
-  return `On the beat when tempos match · otherwise at the end of a phrase · ${s} s blend without a clear beat`;
+  // com os graves trocados e um filtro (lib/automix.ts). Sem batida clara,
+  // um filtro de no máximo 3 s: o crossfade só conta se for mais curto.
+  const s = Math.min(e.crossfadeS > 0 ? e.crossfadeS : 6, 3);
+  return `On the beat when tempos match · otherwise a cut or a filter at the end of a phrase · ${s} s without a clear beat`;
 }
 
 /**

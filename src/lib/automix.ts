@@ -46,9 +46,15 @@ export type CurvaDaPassagem = {
   /** O volume de cada uma, de 0 a 1 do teto dela. */
   volSai: Pontos;
   volEntra: Pontos;
-  /** O corte dos graves e dos agudos de cada uma, em dB (0 ou negativo). */
+  /**
+   * O corte dos graves, dos médios e dos agudos de cada uma, em dB (0 ou
+   * negativo): a troca dos graves, e o filtro de DJ -- a que sai fecha (os
+   * graves e depois os médios), a que entra abre (os agudos).
+   */
   gravesSai: Pontos;
   gravesEntra: Pontos;
+  mediosSai: Pontos;
+  mediosEntra: Pontos;
   agudosSai: Pontos;
   agudosEntra: Pontos;
 };
@@ -74,15 +80,21 @@ export type PlanoDoAutomix = {
 const DESENCONTRO_MAXIMO = 0.15;
 /** Uma passagem na batida dura entre isto, em segundos. */
 const BATIDA_MINIMA_S = 3;
-const BATIDA_MAXIMA_S = 16;
+const BATIDA_MAXIMA_S = 10;
 /** Sem crossfade nas Definições, a passagem suave dura isto. */
 export const SUAVE_POR_OMISSAO_S = 6;
 /** Uma intro ou uma cauda sem batida conta a partir disto. */
 const SEM_BATIDA_MINIMO_S = 3;
 /** Quanto da intro da que entra soa por baixo da que sai, no máximo. */
-const POR_CIMA_MAXIMO_S = 16;
+const POR_CIMA_MAXIMO_S = 8;
 /** Quanto da cauda da que sai fica a desvanecer por baixo, no máximo. */
-const CAUDA_MAXIMA_S = 8;
+const CAUDA_MAXIMA_S = 4;
+/**
+ * A passagem suave dura no máximo isto (26/10, João: "muitas vezes parece
+ * ser só um crossfade mais longo"): um DJ não cruza 6 s de duas músicas sem
+ * batida; passa-as com um filtro, depressa.
+ */
+const SUAVE_MAXIMO_S = 3;
 /**
  * O corte dos graves e dos agudos, em dB: o limite do equalizador
  * (`GANHO_MAXIMO` do lib/equalizer.ts). Na prateleira dos 105 Hz, -20 dB é o
@@ -183,7 +195,8 @@ export function planoDoAutomix(c: {
     if (desvio <= 0.04) {
       // Quantas batidas cabem até o desencontro chegar ao máximo.
       const batidas = desvio > 0 ? DESENCONTRO_MAXIMO / desvio : Infinity;
-      for (const compassos of [8, 4, 2]) {
+      // Até 4 compassos (26/10): 8 soavam a um crossfade longo.
+      for (const compassos of [4, 2]) {
         const duracaoS = compassos * compassoSai;
         if (compassos * 4 > batidas || duracaoS < BATIDA_MINIMA_S || duracaoS > BATIDA_MAXIMA_S) continue;
         // O último tempo forte da que sai em que a passagem ainda cabe antes
@@ -243,7 +256,7 @@ export function planoDoAutomix(c: {
 
   // Suave: com a duração do crossfade, a acabar no fim da música, e a
   // começar num tempo forte da que sai quando há batida para isso.
-  const duracaoS = c.suaveS;
+  const duracaoS = Math.min(c.suaveS, SUAVE_MAXIMO_S);
   if (!(duracaoS > 0) || fim - duracaoS < cedoDemais) return null;
   let inicioS = fim - duracaoS;
   if (sai.confianca >= CONFIANCA_MINIMA) {
@@ -267,38 +280,44 @@ function igualPotencia(d: number): { volSai: Pontos; volEntra: Pontos } {
 }
 
 /**
- * Na batida (o "rolling" de Vande Veire): a que entra sobe sem graves e com
- * os agudos baixos até meio; no compasso do meio os graves trocam -- os da que
- * sai vão-se, os da que entra chegam --, e daí em diante a que sai desce, a
- * perder os agudos.
+ * Na batida (o "rolling" de Vande Veire), num máximo de 4 compassos: a que
+ * entra chega abafada (sem graves, os médios e os agudos baixos) e vai
+ * abrindo até meio; no compasso do meio os graves trocam -- os da que sai
+ * vão-se, os da que entra chegam --, e daí em diante a que sai fecha como um
+ * filtro a subir (os médios e depois os agudos) enquanto desce.
  */
 function curvaNaBatida(d: number, compasso: number): CurvaDaPassagem {
   const meio = d / 2;
-  const troca = Math.min(compasso, d / 8);
-  const resto = meio + (d - meio) / 2;
+  const troca = Math.min(compasso, d / 4);
   return {
-    volEntra: [[0, 0], [troca, 0.45], [meio / 2, 0.85], [meio, 0.85], [meio + troca, 1]],
+    volEntra: [[0, 0], [Math.min(troca, d / 8), 0.6], [meio, 0.85], [meio + troca, 1]],
     gravesEntra: [[0, CORTE_DB], [meio, CORTE_DB], [meio + troca, 0]],
-    agudosEntra: [[0, -10], [meio / 2, -10], [meio, -4], [meio + troca, 0]],
-    volSai: [[0, 1], [meio, 1], [meio + troca, 0.9], [resto, 0.9], [d, 0]],
+    mediosEntra: [[0, -6], [meio, 0]],
+    agudosEntra: [[0, -14], [meio, -4], [meio + troca, 0]],
+    volSai: [[0, 1], [meio, 1], [meio + troca, 0.85], [d, 0]],
     gravesSai: [[0, 0], [meio, 0], [meio + troca, CORTE_DB]],
-    agudosSai: [[0, 0], [meio, 0], [meio + troca, -6], [resto, -14], [d, CORTE_DB]],
+    mediosSai: [[0, 0], [meio + troca, 0], [d, -14]],
+    agudosSai: [[0, 0], [meio + troca, 0], [d, -10]],
   };
 }
 
 /**
- * Por cima: a intro da que entra sobe por baixo (sem graves) durante `a`
- * segundos; a que sai perde os graves no último quarto, e no instante em que
- * a batida da que entra cai (`a`) sai em `saida` segundos.
+ * Por cima: a intro da que entra sobe por baixo durante `a` segundos, sem
+ * graves e a abrir os agudos; a que sai fecha nesse tempo como um filtro a
+ * subir (os graves a meio, depois os médios), e no instante em que a batida
+ * da que entra cai (`a`) sai em `saida` segundos.
  */
 function curvaPorCima(a: number, saida: number, batida: number): CurvaDaPassagem {
   const d = a + saida;
+  const entrada = a + Math.min(batida, saida);
   return {
-    volEntra: [[0, 0], [a * 0.3, 0.4], [a * 0.75, 0.7], [a, 0.8], [a + Math.min(batida, saida), 1]],
-    gravesEntra: [[0, CORTE_DB], [a, CORTE_DB], [a + Math.min(batida, saida), 0]],
-    agudosEntra: [[0, 0]],
-    volSai: [[0, 1], [a * 0.75, 1], [a, 0.85], [d, 0]],
-    gravesSai: [[0, 0], [a * 0.75, 0], [a, CORTE_DB]],
+    volEntra: [[0, 0], [a * 0.4, 0.45], [a * 0.8, 0.7], [a, 0.85], [entrada, 1]],
+    gravesEntra: [[0, CORTE_DB], [a, CORTE_DB], [entrada, 0]],
+    mediosEntra: [[0, 0]],
+    agudosEntra: [[0, -14], [a, -3], [entrada, 0]],
+    volSai: [[0, 1], [a * 0.6, 1], [a, 0.8], [d, 0]],
+    gravesSai: [[0, 0], [a * 0.5, 0], [a, CORTE_DB]],
+    mediosSai: [[0, 0], [a * 0.6, 0], [a, -8], [d, -16]],
     agudosSai: [[0, 0], [a, 0], [d, -12]],
   };
 }
@@ -306,43 +325,53 @@ function curvaPorCima(a: number, saida: number, batida: number): CurvaDaPassagem
 /**
  * Na cauda: a que entra começa quase cheia, no tempo forte dela; a cauda da
  * que sai perde os graves logo (um baixo a soar por baixo de um bombo novo é
- * o que se ouve como confusão) e os agudos ao desvanecer.
+ * o que se ouve como confusão) e fecha os médios e os agudos ao desvanecer.
  */
 function curvaNaCauda(f: number, compassoEntra: number): CurvaDaPassagem {
   return {
     volEntra: [[0, 0.9], [Math.min(f, compassoEntra), 1]],
     gravesEntra: [[0, 0]],
+    mediosEntra: [[0, 0]],
     agudosEntra: [[0, 0]],
-    volSai: [[0, 1], [f * 0.5, 0.6], [f, 0]],
-    gravesSai: [[0, -8], [Math.min(1, f), CORTE_DB]],
+    volSai: [[0, 1], [f * 0.5, 0.55], [f, 0]],
+    gravesSai: [[0, -8], [Math.min(0.5, f), CORTE_DB]],
+    mediosSai: [[0, -4], [f, -16]],
     agudosSai: [[0, 0], [f, -14]],
   };
 }
 
 /**
- * Corte no "um": nos `preparacao` segundos antes, a que sai perde os graves
- * (fica mais fina, como um filtro a fechar); no tempo forte sai em `saida`
- * segundos, e a que entra começa cheia.
+ * Corte no "um": nos `preparacao` segundos antes, a que sai fecha como um
+ * filtro a subir (perde os graves, depois os médios); no tempo forte sai em
+ * `saida` segundos, e a que entra começa cheia.
  */
 function curvaDeCorte(saida: number, preparacao: number): CurvaDaPassagem {
   return {
     volEntra: [[0, 0.92], [saida, 1]],
     gravesEntra: [[0, 0]],
+    mediosEntra: [[0, 0]],
     agudosEntra: [[0, 0]],
     volSai: [[-preparacao, 1], [0, 1], [saida, 0]],
-    gravesSai: [[-preparacao, 0], [0, -14], [saida, CORTE_DB]],
-    agudosSai: [[-preparacao, 0], [0, -3], [saida, -6]],
+    gravesSai: [[-preparacao, 0], [-preparacao * 0.4, -14], [0, CORTE_DB]],
+    mediosSai: [[-preparacao, 0], [-preparacao * 0.5, 0], [0, -10], [saida, -14]],
+    agudosSai: [[-preparacao, 0], [0, 0], [saida, -6]],
   };
 }
 
-/** Suave: igual potência, com os graves trocados a meio, num instante curto. */
+/**
+ * Suave (sem batida clara, até 3 s): igual potência, com os graves trocados a
+ * meio, a que entra a abrir os agudos e a que sai a fechar os médios -- um
+ * filtro a passar de uma para a outra, e não um volume a cruzar.
+ */
 function curvaSuave(d: number): CurvaDaPassagem {
   return {
     ...igualPotencia(d),
     gravesEntra: [[0, CORTE_DB], [d * 0.45, CORTE_DB], [d * 0.6, 0]],
-    agudosEntra: [[0, 0]],
+    mediosEntra: [[0, 0]],
+    agudosEntra: [[0, -12], [d * 0.6, 0]],
     gravesSai: [[0, 0], [d * 0.45, 0], [d * 0.6, CORTE_DB]],
-    agudosSai: [[0, 0]],
+    mediosSai: [[0, 0], [d * 0.5, 0], [d, -12]],
+    agudosSai: [[0, 0], [d, -8]],
   };
 }
 
@@ -363,6 +392,7 @@ export function noInstante(p: Pontos, t: number): number {
 export type EstadoDaPassagem = {
   volSai: number; volEntra: number;
   gravesSai: number; gravesEntra: number;
+  mediosSai: number; mediosEntra: number;
   agudosSai: number; agudosEntra: number;
 };
 
@@ -372,28 +402,38 @@ export function estadoDaPassagem(c: CurvaDaPassagem, t: number): EstadoDaPassage
   return {
     volSai: noInstante(c.volSai, t), volEntra: noInstante(c.volEntra, depois),
     gravesSai: noInstante(c.gravesSai, t), gravesEntra: noInstante(c.gravesEntra, depois),
+    mediosSai: noInstante(c.mediosSai, t), mediosEntra: noInstante(c.mediosEntra, depois),
     agudosSai: noInstante(c.agudosSai, t), agudosEntra: noInstante(c.agudosEntra, depois),
   };
 }
 
 /** Quantos segundos antes do instante marcado a que sai já começa a mudar. */
 export function preparacaoDaCurva(c: CurvaDaPassagem): number {
-  return Math.max(0, -Math.min(c.volSai[0]?.[0] ?? 0, c.gravesSai[0]?.[0] ?? 0, c.agudosSai[0]?.[0] ?? 0));
+  return Math.max(0, -Math.min(
+    c.volSai[0]?.[0] ?? 0, c.gravesSai[0]?.[0] ?? 0, c.mediosSai[0]?.[0] ?? 0, c.agudosSai[0]?.[0] ?? 0,
+  ));
 }
 
 /**
  * Os dez ganhos do equalizador (lib/equalizer.ts: a prateleira dos 105 Hz, os
- * 64 e os 125; ... ; os 8 kHz e a prateleira dos 10 kHz) com o corte da
- * passagem por cima do perfil da faixa. Os graves vão sobretudo à prateleira;
- * os agudos, à dos 10 kHz.
+ * 64, 125, 250, 500 Hz, 1, 2, 4 e 8 kHz, e a prateleira dos 10 kHz) com o
+ * corte da passagem por cima do perfil da faixa. Os graves vão sobretudo à
+ * prateleira de baixo; os médios aos 250 e 500 Hz (e um pouco ao 1 kHz); os
+ * agudos à prateleira de cima, e menos aos 8, 4 e 2 kHz -- um corte que desce
+ * de cima para baixo soa a um filtro a fechar.
  */
-export function ganhosComPassagem(ganhos: readonly number[], gravesDb: number, agudosDb: number): number[] {
+export function ganhosComPassagem(ganhos: readonly number[], gravesDb: number, mediosDb: number, agudosDb: number): number[] {
   const g = ganhos.slice(0, 10);
   while (g.length < 10) g.push(0);
   g[0] += gravesDb;
   g[1] += gravesDb * 0.5;
   g[2] += gravesDb * 0.35;
-  g[8] += agudosDb * 0.5;
+  g[3] += mediosDb;
+  g[4] += mediosDb * 0.7;
+  g[5] += mediosDb * 0.3;
+  g[6] += agudosDb * 0.2;
+  g[7] += agudosDb * 0.4;
+  g[8] += agudosDb * 0.7;
   g[9] += agudosDb;
   return g.map((v) => Math.round(Math.max(CORTE_DB, Math.min(-CORTE_DB, v)) * 10) / 10);
 }

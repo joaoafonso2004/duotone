@@ -33,11 +33,11 @@ const sai140 = ritmo(140, 155.2, 197, 197);
 const entra140 = ritmo(140, 0.35, 40, 0.3);
 const base = { fimMusicalS: 197, duracaoSaiS: 200, suaveS: 6 };
 
-t('andamentos iguais: na batida, 8 compassos, a que entra no primeiro tempo forte', () => {
+t('andamentos iguais: na batida, 4 compassos (26/10: 8 soavam a crossfade), a que entra no primeiro tempo forte', () => {
   const p = planoDoAutomix({ sai: sai140, entra: entra140, ...base })!;
   assert.equal(p.tipo, 'batida');
   const compasso = (60 / 140) * 4;
-  assert.ok(Math.abs(p.duracaoS - compasso * 8) < 1e-9);
+  assert.ok(Math.abs(p.duracaoS - compasso * 4) < 1e-9);
   assert.equal(p.entraEmS, 0.35);
   // Começa num tempo forte da que sai, e acaba antes do fim da música.
   assert.ok(sai140.temposFortesS.includes(p.inicioS));
@@ -75,14 +75,16 @@ t('sem batida clara numa das duas: suave', () => {
   assert.equal(planoDoAutomix({ sai: sai140, entra: ritmo(140, 0.35, 40, 0.3, 2), ...base })!.tipo, 'suave');
   const p = planoDoAutomix({ sai: ritmo(140, 155.2, 197, 197, 2), entra: entra140, ...base })!;
   assert.equal(p.tipo, 'suave');
-  // Sem batida na que sai, começa à conta certa, sem procurar tempo forte.
-  assert.equal(p.inicioS, 191);
+  // Sem batida na que sai, começa à conta certa, sem procurar tempo forte, e
+  // dura no máximo 3 s mesmo com o crossfade a 6 (26/10).
+  assert.equal(p.duracaoS, 3);
+  assert.equal(p.inicioS, 194);
 });
 
-t('uma intro longa sem batida: por cima, a intro inteira, e a batida dela cai na troca', () => {
+t('uma intro longa sem batida: por cima, os últimos 8 s dela, e a batida dela cai na troca', () => {
   const p = planoDoAutomix({ sai: sai140, entra: ritmo(140, 12.3, 50, 0.4), ...base })!;
   assert.equal(p.tipo, 'por-cima');
-  assert.ok(Math.abs(p.entraEmS - 0.4) < 1e-9, 'não perde a intro');
+  assert.ok(Math.abs(p.entraEmS - (12.3 - 8)) < 1e-9, `${p.entraEmS}`);
   // A batida da que entra (12,3 s nela) cai num tempo forte da que sai.
   const troca = p.inicioS + (12.3 - p.entraEmS);
   assert.ok(sai140.temposFortesS.some((x) => Math.abs(x - troca) < 1e-9), `${troca}`);
@@ -129,17 +131,17 @@ t('por cima: a intro da que entra (sem batida) soa por baixo, e a batida dela ca
   const p = planoDoAutomix({ sai, entra, ...base })!;
   assert.equal(p.tipo, 'por-cima');
   assert.ok(Math.abs(p.inicioS + (14.2 - p.entraEmS) - sai.batidaS) < 1e-9, 'a batida da que entra cai na troca');
-  assert.ok(Math.abs(p.entraEmS - 0.2) < 1e-9, '14 s de intro cabem todos');
+  assert.ok(Math.abs(p.entraEmS - (14.2 - 8)) < 1e-9, 'dos 14 s de intro, os últimos 8');
   assert.match(p.motivo, /next intro has no beat/);
 });
 
-t('na cauda: a batida da que entra começa onde a da outra acaba, e a cauda desvanece até 8 s', () => {
+t('na cauda: a batida da que entra começa onde a da outra acaba, e a cauda desvanece até 4 s', () => {
   const sai = saiCom(128, 185);
   const p = planoDoAutomix({ sai, entra: ritmo(100, 0.4, 40, 0.3, 10, 0.4), ...base })!;
   assert.equal(p.tipo, 'cauda');
   assert.equal(p.inicioS, sai.batidaS);
   assert.equal(p.entraEmS, 0.4);
-  assert.equal(p.duracaoS, 8);
+  assert.equal(p.duracaoS, 4);
 });
 
 t('na batida, a passagem acaba onde a batida da que sai acaba (o fim da frase)', () => {
@@ -188,9 +190,24 @@ t('no fim de cada passagem: a que sai calada e sem graves, a que entra cheia e s
     assert.equal(e.volSai, 0, p.tipo);
     assert.equal(e.volEntra, 1, p.tipo);
     assert.equal(e.gravesEntra, 0, p.tipo);
+    assert.equal(e.mediosEntra, 0, p.tipo);
     assert.equal(e.agudosEntra, 0, p.tipo);
     assert.ok(e.gravesSai <= -14, `${p.tipo}: ${e.gravesSai}`);
   }
+});
+
+t('o filtro de DJ: a que sai fecha (graves e médios a sair) e a que entra abre, em todas (26/10)', () => {
+  for (const p of todas) {
+    // A que sai acaba mais fina do que começou, nos graves e nos médios.
+    const fim = estadoDaPassagem(p.curva, p.duracaoS);
+    assert.ok(fim.mediosSai <= -10, `${p.tipo}: médios da que sai ${fim.mediosSai}`);
+    // A que entra, se começa a meio volume, começa abafada ou sem graves -- e
+    // nunca fica com um corte no fim.
+    const inicio = estadoDaPassagem(p.curva, 0);
+    if (inicio.volEntra < 0.9) assert.ok(inicio.agudosEntra <= -10 || inicio.gravesEntra <= -14, p.tipo);
+  }
+  // Nenhuma dura o que durava um crossfade longo.
+  for (const p of todas) assert.ok(p.duracaoS <= 12, `${p.tipo}: ${p.duracaoS} s`);
 });
 
 t('a curva entre os pontos, e fora deles o extremo', () => {
@@ -202,12 +219,12 @@ t('a curva entre os pontos, e fora deles o extremo', () => {
   assert.equal(noInstante([], 1), 0);
 });
 
-t('os graves e os agudos vão às bandas certas do equalizador, sem passar do limite', () => {
+t('os graves, os médios e os agudos vão às bandas certas do equalizador, sem passar do limite', () => {
   assert.equal(CORTE_DB, -GANHO_MAXIMO);
-  const g = ganhosComPassagem([3, 0, 0, 0, 0, 0, 0, 0, 0, 0], -20, -12);
-  assert.deepEqual(g, [-17, -10, -7, 0, 0, 0, 0, 0, -6, -12]);
-  assert.ok(ganhosComPassagem(Array(10).fill(-15), -20, -20).every((v) => v >= -20));
-  assert.deepEqual(ganhosComPassagem([1, 2], 0, 0), [1, 2, 0, 0, 0, 0, 0, 0, 0, 0]);
+  const g = ganhosComPassagem([3, 0, 0, 0, 0, 0, 0, 0, 0, 0], -20, -10, -12);
+  assert.deepEqual(g, [-17, -10, -7, -10, -7, -3, -2.4, -4.8, -8.4, -12]);
+  assert.ok(ganhosComPassagem(Array(10).fill(-15), -20, -20, -20).every((v) => v >= -20));
+  assert.deepEqual(ganhosComPassagem([1, 2], 0, 0, 0), [1, 2, 0, 0, 0, 0, 0, 0, 0, 0]);
 });
 
 t('agendar só nos três segundos antes, e nunca em cima da hora', () => {
@@ -348,8 +365,8 @@ t('o leitor: a velocidade de cada uma e o EQ de cada uma, por baixo dos cortes',
   // O EQ: o em vigor da que sai (carro, o dela, o Recommended) e o perfil da que entra.
   assert.match(v, /const ganhosSai = \[\.\.\.eqGanhos\];/);
   assert.match(v, /seguinteRef\.current\.ganhos = \[\.\.\.ganhosDaSeguinte\];/);
-  assert.match(v, /ganhosComPassagem\(p\.ganhosSai, e\.gravesSai, e\.agudosSai\)/);
-  assert.match(v, /ganhosComPassagem\(p\.ganhosEntra, e\.gravesEntra, e\.agudosEntra\)/);
+  assert.match(v, /ganhosComPassagem\(p\.ganhosSai, e\.gravesSai, e\.mediosSai, e\.agudosSai\)/);
+  assert.match(v, /ganhosComPassagem\(p\.ganhosEntra, e\.gravesEntra, e\.mediosEntra, e\.agudosEntra\)/);
   // Mudar o EQ a meio da passagem: fica por baixo dos cortes, e não os desfaz.
   assert.match(v, /if \(p\?\.curva\) \{\n\s+p\.ganhosSai = \[\.\.\.eqGanhos\];\n\s+if \(p\.eqAplicado\) p\.eqAplicado\.sai = '';\n\s+return;/);
   // O tap monta-se antes de a seguinte soar; só se mexe nos graves de quem o tem.

@@ -1246,10 +1246,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     } catch {
       // motor sem fonte — ignorar
     }
-    const chave = `${e.gravesEntra.toFixed(1)}|${e.agudosEntra.toFixed(1)}`;
+    const chave = `${e.gravesEntra.toFixed(1)}|${e.mediosEntra.toFixed(1)}|${e.agudosEntra.toFixed(1)}`;
     if (p.ganhosEntra && p.eqAplicado && p.eqAplicado.entra !== chave) {
       p.eqAplicado.entra = chave;
-      const g = ganhosComPassagem(p.ganhosEntra, e.gravesEntra, e.agudosEntra);
+      const g = ganhosComPassagem(p.ganhosEntra, e.gravesEntra, e.mediosEntra, e.agudosEntra);
       aplicarEqualizadorNativo(motorEmEspera, g, Math.min(compensacaoLinear(g), MARGEM_QUE_MONTA_O_TAP));
     }
   };
@@ -1264,10 +1264,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     } catch {
       // motor sem fonte — ignorar
     }
-    const chave = `${e.gravesSai.toFixed(1)}|${e.agudosSai.toFixed(1)}`;
+    const chave = `${e.gravesSai.toFixed(1)}|${e.mediosSai.toFixed(1)}|${e.agudosSai.toFixed(1)}`;
     if (p.eqSai && p.ganhosSai && p.eqAplicado && p.eqAplicado.sai !== chave) {
       p.eqAplicado.sai = chave;
-      const g = ganhosComPassagem(p.ganhosSai, e.gravesSai, e.agudosSai);
+      const g = ganhosComPassagem(p.ganhosSai, e.gravesSai, e.mediosSai, e.agudosSai);
       aplicarEqualizadorNativo(player, g, Math.min(compensacaoLinear(g), MARGEM_QUE_MONTA_O_TAP));
     }
   };
