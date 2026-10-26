@@ -153,5 +153,14 @@ caso('nenhum cabeçalho diz "0 songs" ou "0 saved tracks"', () => {
   assert.match(ler('src/components/CabecalhoDaPlaylist.tsx'), /\{meta === null \? null : <Text style=\{styles\.meta\}>/);
 });
 
+caso('a foto do cabeçalho abre a cobrir, e não num quadrado ao centro (26/10)', () => {
+  // A foto pequena da grelha segura o lugar enquanto a grande chega; o
+  // `placeholderContentFit` do expo-image é 'scale-down' de origem, e ela
+  // ficava um quadrado ao centro até a grande "ampliar".
+  const capa = ler('src/components/SeccoesDoArtista.tsx');
+  const imagem = capa.slice(capa.indexOf('placeholder={{ uri: fotoNoTamanho(foto, 250) }}'));
+  assert.match(imagem.slice(0, 300), /contentFit="cover"[\s\S]*placeholderContentFit="cover"/);
+});
+
 if (falhas) { console.error(`\n  ${falhas} caso(s) falharam.\n`); process.exit(1); }
 console.log('\n  Todos os casos passaram.\n');

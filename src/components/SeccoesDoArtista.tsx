@@ -77,7 +77,13 @@ export function CapaDoArtista({ nome, foto, fas, tuas, accoes, aoMedirNome }: {
           // Uma troca de imagem é um fundido lento (23/10): a página abre com a
           // capa que se tocou e passa para a foto quando ela se souber. A foto
           // pequena da grelha (já em cache) segura o lugar enquanto a grande chega.
+          //
+          // E segura-o a COBRIR, como a grande (26/10, João: "há umas frações de
+          // segundo em que a imagem fica um quadrado e depois amplia"). O
+          // `placeholderContentFit` do expo-image é 'scale-down' de origem: os
+          // 250 px da grelha ficavam um quadrado ao centro até a grande chegar.
           <Image source={{ uri: foto }} placeholder={{ uri: fotoNoTamanho(foto, 250) }} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top"
+            placeholderContentFit="cover"
             transition={{ duration: 450, effect: 'cross-dissolve', timing: 'ease-in-out' }} />
         ) : (
           <View style={[StyleSheet.absoluteFill, styles.semFoto]}>
