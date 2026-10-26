@@ -294,6 +294,28 @@ t('a tonalidade no plano: as que chocam passam depressa, e a que sai dobra-se at
   assert.ok(Math.abs(turva.duracaoS - compasso * 4) < 1e-9);
 });
 
+t('andamentos quase iguais: a que entra acerta-se pela velocidade, e cabem 4 compassos (relatório da 5.4.3)', () => {
+  // 140 e 137 (2,2 %): sem acerto nem 2 compassos cabiam, e ficava o corte.
+  const quase = ritmo(137, 0.35, 40, 0.3);
+  assert.equal(planoDoAutomix({ sai: sai140, entra: quase, ...base })!.tipo, 'corte');
+  const p = planoDoAutomix({ sai: sai140, entra: quase, ...base, podeAcertar: true })!;
+  assert.equal(p.tipo, 'batida');
+  assert.ok(Math.abs(p.acertoEntra - 140 / 137) < 1e-9, `${p.acertoEntra}`);
+  assert.ok(Math.abs(p.duracaoS - (60 / 140) * 4 * 4) < 1e-9);
+  assert.match(descreverPlano(p), /next nudged \+2\.2%/);
+  // Iguais, não se mexe; a mais de 4 %, também não (não é uma batida).
+  assert.equal(planoDoAutomix({ sai: sai140, entra: entra140, ...base, podeAcertar: true })!.acertoEntra, 1);
+  assert.equal(planoDoAutomix({ sai: sai140, entra: ritmo(130, 0.35, 40, 0.3), ...base, podeAcertar: true })!.acertoEntra, 1);
+});
+
+t('a zona cinzenta: confiança 2,6 com o andamento estável já não cai no suave', () => {
+  const cinzenta = (r: Ritmo, estavel: boolean) => ({ ...r, confianca: 2.6, estavel });
+  assert.equal(planoDoAutomix({ sai: cinzenta(sai140, true), entra: cinzenta(entra140, true), ...base })!.tipo, 'batida');
+  const p = planoDoAutomix({ sai: cinzenta(sai140, false), entra: entra140, ...base })!;
+  assert.equal(p.tipo, 'suave');
+  assert.match(p.motivo, /without a steady tempo/);
+});
+
 t('o leitor: a dobra em três passos, só com ela no plano, e a que sai volta à velocidade dela', () => {
   const v = readFileSync(new URL('../src/components/YouTubePlayerView.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
   assert.match(v, /\.\.\.\(plano\.semitons \? \{ dobra: \{ semitons: plano\.semitons, taxa: st\.playbackRate, passos: 0 \} \} : \{\}\)/);
@@ -416,8 +438,9 @@ t('o leitor: a velocidade de cada uma e o EQ de cada uma, por baixo dos cortes',
   // A velocidade: a da que toca e a que a seguinte vai ter, no plano e no agendamento.
   assert.match(v, /const taxaSai = st\.playbackRate;\n\s+const taxaEntra = seguinteRef\.current\?\.rate \?\? 1;/);
   assert.match(v, /comVelocidade: temAutomixComVelocidade,/);
-  assert.match(v, /taxaSai,\n\s+taxaEntra,\n\s+\}\);/);
-  assert.match(v, /agendarEntradaNativa\(sai, entra, plano\.inicioS, plano\.entraEmS, seguinteRef\.current\?\.rate \?\? 1\)/);
+  assert.match(v, /taxaSai,\n\s+taxaEntra,\n\s+podeAcertar: temAutomixComVelocidade,\n\s+\}\);/);
+  // A que entra arranca à velocidade dela, acertada ao andamento da que sai (26/10).
+  assert.match(v, /agendarEntradaNativa\(sai, entra, plano\.inicioS, plano\.entraEmS, \(seguinteRef\.current\?\.rate \?\? 1\) \* plano\.acertoEntra\)/);
   // O EQ: o em vigor da que sai (carro, o dela, o Recommended) e o perfil da que entra.
   assert.match(v, /const ganhosSai = \[\.\.\.eqGanhos\];/);
   assert.match(v, /seguinteRef\.current\.ganhos = \[\.\.\.ganhosDaSeguinte\];/);

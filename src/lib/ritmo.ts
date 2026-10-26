@@ -34,6 +34,22 @@ export const CORTE_DOS_AGUDOS_HZ = 2000;
  */
 export const CONFIANCA_MINIMA = 3;
 
+/**
+ * Entre isto e a `CONFIANCA_MINIMA`, a batida vale se o andamento for ESTÁVEL
+ * (26/10, relatório da 5.4.3: rap a 90-100 BPM com confiança 2,5 a 3,1, e 4
+ * das 6 passagens a cair no "suave"). Uma confiança sozinha não separa uma
+ * música com muita voz de ruído (o ruído chega a 2,6, e com volume variável
+ * a 3,1); a estabilidade sim: as duas metades da janela, medidas sem a
+ * preferência pelos 120 BPM (que alinhava o ruído nos 120), têm de dar o
+ * mesmo andamento entre si e com a janela inteira. Em 80 amostras de ruído,
+ * 0 passam (a fasquia de 3 sozinha deixa passar 1).
+ */
+export const CONFIANCA_COM_ESTABILIDADE = 2.3;
+
+/** A batida desta janela serve para misturar? */
+export const batidaSegura = (r: Pick<Ritmo, 'confianca' | 'estavel'>): boolean =>
+  r.confianca >= CONFIANCA_MINIMA || (r.confianca >= CONFIANCA_COM_ESTABILIDADE && r.estavel === true);
+
 /** O andamento procura-se entre estes dois valores. */
 const BPM_MINIMO = 70;
 const BPM_MAXIMO = 180;
@@ -76,6 +92,8 @@ export type Ritmo = {
   batidaS?: number;
   /** A tonalidade da janela (26/10), quando o nativo manda as notas. */
   tom?: Tom;
+  /** O andamento é o mesmo nas duas metades da janela (só se mede na zona cinzenta da confiança). */
+  estavel?: boolean;
 };
 
 /**
@@ -285,7 +303,7 @@ function pente(o: number[], p: number, fase: number): number {
  * num pente fino. A fase é a do pente com mais força, e o tempo forte é, das
  * quatro batidas de cada compasso, a que tem mais bombo.
  */
-export function ritmoDaJanela(e: EnergiasDaJanela, qual: 'inicio' | 'fim'): Ritmo | null {
+export function ritmoDaJanela(e: EnergiasDaJanela, qual: 'inicio' | 'fim', semPreferencia = false): Ritmo | null {
   const o = ataques(e);
   const n = o.length;
   if (n < e.fps * 8) return null;
@@ -337,7 +355,7 @@ export function ritmoDaJanela(e: EnergiasDaJanela, qual: 'inicio' | 'fim'): Ritm
   let melhorAtraso = 0, melhorValor = -Infinity;
   for (let atraso = menor; atraso <= maior; atraso++) {
     const bpm = (60 * e.fps) / atraso;
-    const preferencia = Math.exp(-0.5 * (Math.log2(bpm / 120) / 0.7) ** 2);
+    const preferencia = semPreferencia ? 1 : Math.exp(-0.5 * (Math.log2(bpm / 120) / 0.7) ** 2);
     const forca = correlacao(atraso) + 0.5 * noPico(2 * atraso, 1) + noPico(4 * atraso, 2);
     const v = forca * preferencia;
     if (v > melhorValor) { melhorValor = v; melhorAtraso = atraso; }
@@ -396,7 +414,33 @@ export function ritmoDaJanela(e: EnergiasDaJanela, qual: 'inicio' | 'fim'): Ritm
   const bpm = (60 * e.fps) / periodo;
   const batidaS = ondeHaBatida(o, e, fase + forte * periodo, periodo, qual, somS);
   const tom = tomDoCroma(e.croma);
-  return { bpm, periodoS: periodo / e.fps, confianca, temposFortesS, somS, batidaS, ...(tom ? { tom } : {}) };
+  // A estabilidade só se mede onde decide: na zona cinzenta da confiança.
+  const bpmDaJanela = (60 * e.fps) / periodo;
+  const estavel = !semPreferencia && confianca >= CONFIANCA_COM_ESTABILIDADE && confianca < CONFIANCA_MINIMA
+    ? andamentoEstavel(e, qual, bpmDaJanela) : undefined;
+  return {
+    bpm, periodoS: periodo / e.fps, confianca, temposFortesS, somS, batidaS,
+    ...(tom ? { tom } : {}), ...(estavel != null ? { estavel } : {}),
+  };
+}
+
+/** O mesmo andamento, contando o dobro e a metade, a menos de 1,5 %. */
+const mesmoAndamento = (a: number, b: number) => [a / b, (a * 2) / b, a / (2 * b)].some((r) => Math.abs(r - 1) < 0.015);
+
+/**
+ * As duas metades da janela, sem a preferência pelos 120 BPM, dão o mesmo
+ * andamento entre si e com a janela inteira? Ver `CONFIANCA_COM_ESTABILIDADE`.
+ */
+function andamentoEstavel(e: EnergiasDaJanela, qual: 'inicio' | 'fim', bpm: number): boolean {
+  const n = Math.min(e.graves.length, e.total.length), m = Math.floor(n / 2);
+  const metade = (desde: number, ate: number): EnergiasDaJanela => ({
+    fps: e.fps, inicioS: e.inicioS + desde / e.fps,
+    graves: e.graves.slice(desde, ate), total: e.total.slice(desde, ate),
+    ...(e.agudos ? { agudos: e.agudos.slice(desde, ate) } : {}),
+  });
+  const a = ritmoDaJanela(metade(0, m), qual, true);
+  const b = ritmoDaJanela(metade(m, n), qual, true);
+  return !!a && !!b && mesmoAndamento(a.bpm, b.bpm) && mesmoAndamento(a.bpm, bpm) && mesmoAndamento(b.bpm, bpm);
 }
 
 /**
@@ -447,14 +491,19 @@ export function compactar(r: Ritmo | null): RitmoCompacto {
   const base: [number, number, number, number, number, number] = [arredondar(r.bpm), r.periodoS, arredondar(r.confianca), r.temposFortesS[0] ?? r.somS, r.temposFortesS.length, arredondar(r.somS)];
   if (r.batidaS == null) return base;
   const comBatida = [...base, arredondar(r.batidaS)];
-  return r.tom ? [...comBatida, r.tom.tonica, r.tom.menor ? 1 : 0, arredondar(r.tom.confianca)] : comBatida;
+  // A tonalidade (sem ela, -1) e a estabilidade (1, 0, ou -1 sem medir).
+  const tom = r.tom ? [r.tom.tonica, r.tom.menor ? 1 : 0, arredondar(r.tom.confianca)] : [-1, 0, 0];
+  return [...comBatida, ...tom, r.estavel == null ? -1 : r.estavel ? 1 : 0];
 }
 
 export function descompactar(c: unknown): Ritmo | null {
-  if (!Array.isArray(c) || ![6, 7, 10].includes(c.length) || !c.every((x) => typeof x === 'number' && Number.isFinite(x))) return null;
-  const [bpm, periodoS, confianca, primeiro, fortes, somS, batidaS, tonica, menor, confiancaDoTom] = c as number[];
+  if (!Array.isArray(c) || ![6, 7, 10, 11].includes(c.length) || !c.every((x) => typeof x === 'number' && Number.isFinite(x))) return null;
+  const [bpm, periodoS, confianca, primeiro, fortes, somS, batidaS, tonica, menor, confiancaDoTom, estavel] = c as number[];
   if (!(periodoS > 0)) return null;
   const temposFortesS = Array.from({ length: Math.max(0, Math.floor(fortes)) }, (_, k) => primeiro + k * periodoS * 4);
-  const tom = tonica != null ? { tonica, menor: menor === 1, confianca: confiancaDoTom } : null;
-  return { bpm, periodoS, confianca, temposFortesS, somS, ...(batidaS != null ? { batidaS } : {}), ...(tom ? { tom } : {}) };
+  const tom = tonica != null && tonica >= 0 ? { tonica, menor: menor === 1, confianca: confiancaDoTom } : null;
+  return {
+    bpm, periodoS, confianca, temposFortesS, somS, ...(batidaS != null ? { batidaS } : {}), ...(tom ? { tom } : {}),
+    ...(estavel === 1 || estavel === 0 ? { estavel: estavel === 1 } : {}),
+  };
 }

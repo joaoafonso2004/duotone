@@ -1127,6 +1127,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           // A velocidade de cada uma (26/10): os andamentos comparam-se como se ouvem.
           taxaSai,
           taxaEntra,
+          podeAcertar: temAutomixComVelocidade,
         });
         const faltas: string[] = [];
         if (!sai.ritmo?.fim) faltas.push(`current: ${sai.motivo ?? 'end has no usable rhythm (silence, steady sound or less than 8s)'}`);
@@ -1192,8 +1193,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     // curva: numa passagem de corte ela entra cheia, e o "um" dela não pode
     // ficar calado à espera do primeiro evento de tempo.
     aplicarCurvaNaQueEntra(0);
-    // A que entra arranca à velocidade dela, a que o `prepararSeguinte` lhe calculou.
-    const ok = await agendarEntradaNativa(sai, entra, plano.inicioS, plano.entraEmS, seguinteRef.current?.rate ?? 1);
+    // A que entra arranca à velocidade dela, a que o `prepararSeguinte` lhe
+    // calculou -- acertada ao andamento da que sai numa passagem na batida
+    // (`acertoEntra`). No fim da passagem a loja muda de faixa e o motor volta
+    // a pôr a velocidade dela.
+    const ok = await agendarEntradaNativa(sai, entra, plano.inicioS, plano.entraEmS, (seguinteRef.current?.rate ?? 1) * plano.acertoEntra);
     const minha = passagemRef.current?.sourceId === seguinte.sourceId && passagemRef.current?.inicioS === plano.inicioS;
     if (ok && minha) {
       registarNaFila(`${track.sourceId}: automix scheduled (${plano.tipo})`);

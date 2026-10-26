@@ -35,7 +35,7 @@
  *
  * Funções puras -- ver scripts/test-automix.ts.
  */
-import { CONFIANCA_MINIMA, distanciaHarmonica, nomeDoTom, semitonsParaCasar, TOM_CONFIAVEL, type Ritmo } from './ritmo';
+import { batidaSegura, CONFIANCA_COM_ESTABILIDADE, CONFIANCA_MINIMA, distanciaHarmonica, nomeDoTom, semitonsParaCasar, TOM_CONFIAVEL, type Ritmo } from './ritmo';
 
 export type TipoDePassagem = 'batida' | 'por-cima' | 'cauda' | 'corte' | 'suave';
 
@@ -82,6 +82,13 @@ export type PlanoDoAutomix = {
    * e só até 2. 0 é não mexer.
    */
   semitons: number;
+  /**
+   * A velocidade da que entra, a multiplicar pela dela, durante a passagem na
+   * batida (26/10): andamentos a menos de 4 % acertam-se como num fader de
+   * pitch, em vez de as batidas se desencontrarem. 1 é não mexer. No fim da
+   * passagem ela volta à dela.
+   */
+  acertoEntra: number;
   motivo: string;
 };
 
@@ -167,6 +174,8 @@ export function planoDoAutomix(c: {
    */
   taxaSai?: number;
   taxaEntra?: number;
+  /** O binário põe a que entra a uma velocidade dada (`agendarEntradaComTaxa`): pode acertar o andamento. */
+  podeAcertar?: boolean;
 }): PlanoDoAutomix | null {
   const { sai, entra } = c;
   if (!sai || !entra || !(c.duracaoSaiS > 0)) return null;
@@ -192,9 +201,11 @@ export function planoDoAutomix(c: {
     confiancaSai: sai.confianca, confiancaEntra: entra.confianca,
     tomSai: tomSai ? nomeDoTom(tomSai) : null, tomEntra: tomEntra ? nomeDoTom(tomEntra) : null,
     semitons: 0,
+    acertoEntra: 1,
   };
-  const seguro = confianca >= CONFIANCA_MINIMA;
-  let motivo = !seguro ? `low confidence (<${CONFIANCA_MINIMA})` : 'no downbeat near the start';
+  // Segura: confiança alta, ou na zona cinzenta com o andamento estável (26/10).
+  const seguro = batidaSegura(sai) && batidaSegura(entra);
+  let motivo = !seguro ? `low confidence (<${CONFIANCA_MINIMA}, or <${CONFIANCA_COM_ESTABILIDADE} without a steady tempo)` : 'no downbeat near the start';
   const compassoSai = sai.periodoS * 4;
 
   // O primeiro tempo forte da que entra, se vier logo com o som (no máximo um
@@ -213,8 +224,13 @@ export function planoDoAutomix(c: {
     const desvio = Math.abs(r - 1);
     motivo = desvio > 0.04 ? 'different tempos' : 'no aligned bars fit before the end';
     if (desvio <= 0.04) {
+      // Com o binário que o sabe fazer, a que entra acerta o andamento pela
+      // velocidade (r: até 4 %, como o fader de pitch de um DJ) e as batidas
+      // não se desencontram (26/10, relatório da 5.4.3: 100 e 102 BPM davam
+      // um corte, porque nem 2 compassos cabiam).
+      const acertoEntra = c.podeAcertar && desvio > 0.002 ? r : 1;
       // Quantas batidas cabem até o desencontro chegar ao máximo.
-      const batidas = desvio > 0 ? DESENCONTRO_MAXIMO / desvio : Infinity;
+      const batidas = desvio > 0 && acertoEntra === 1 ? DESENCONTRO_MAXIMO / desvio : Infinity;
       // Até 4 compassos (26/10): 8 soavam a um crossfade longo. Com as
       // tonalidades a chocar, só 2.
       for (const compassos of choque ? [2] : [4, 2]) {
@@ -227,7 +243,8 @@ export function planoDoAutomix(c: {
         if (inicio != null) {
           return {
             tipo: 'batida', inicioS: inicio, entraEmS: forteEntra!, duracaoS,
-            curva: curvaNaBatida(duracaoS, compassoSai), motivo: 'matching beats', ...base,
+            curva: curvaNaBatida(duracaoS, compassoSai), motivo: acertoEntra !== 1 ? 'matching beats (tempo nudged)' : 'matching beats', ...base,
+            acertoEntra,
           };
         }
       }
@@ -281,7 +298,7 @@ export function planoDoAutomix(c: {
   const duracaoS = Math.min(c.suaveS, choque ? 2 : SUAVE_MAXIMO_S);
   if (!(duracaoS > 0) || fim - duracaoS < cedoDemais) return null;
   let inicioS = fim - duracaoS;
-  if (sai.confianca >= CONFIANCA_MINIMA) {
+  if (batidaSegura(sai)) {
     const forte = [...sai.temposFortesS].reverse().find((x) => x <= inicioS && x >= inicioS - sai.periodoS * 4);
     if (forte != null) inicioS = forte;
   }
@@ -480,5 +497,6 @@ export function descreverPlano(p: PlanoDoAutomix): string {
   return `automix ${p.tipo}: from ${p.inicioS.toFixed(2)}s, next from ${p.entraEmS.toFixed(2)}s, `
     + `${p.duracaoS.toFixed(1)}s, ${bpm(p.bpmSai)} -> ${bpm(p.bpmEntra)} bpm, `
     + `confidence ${p.confiancaSai.toFixed(1)} -> ${p.confiancaEntra.toFixed(1)} (min ${CONFIANCA_MINIMA}), `
-    + `key ${p.tomSai ?? '?'} -> ${p.tomEntra ?? '?'}${p.semitons ? `, outgoing bent ${p.semitons > 0 ? '+' : ''}${p.semitons} st` : ''}, ${p.motivo}`;
+    + `key ${p.tomSai ?? '?'} -> ${p.tomEntra ?? '?'}${p.semitons ? `, outgoing bent ${p.semitons > 0 ? '+' : ''}${p.semitons} st` : ''}`
+    + `${p.acertoEntra !== 1 ? `, next nudged ${p.acertoEntra > 1 ? '+' : ''}${((p.acertoEntra - 1) * 100).toFixed(1)}%` : ''}, ${p.motivo}`;
 }

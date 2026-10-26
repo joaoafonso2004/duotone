@@ -10,8 +10,8 @@
  */
 import assert from 'node:assert/strict';
 import {
-  ataques, camelot, compactar, CONFIANCA_MINIMA, descompactar, distanciaHarmonica, energiasDoNativo, energiasPorQuadro,
-  nomeDoTom, ritmoDaJanela, semitonsParaCasar, TOM_CONFIAVEL, tomDoCroma,
+  ataques, batidaSegura, camelot, compactar, CONFIANCA_COM_ESTABILIDADE, CONFIANCA_MINIMA, descompactar, distanciaHarmonica,
+  energiasDoNativo, energiasPorQuadro, nomeDoTom, ritmoDaJanela, semitonsParaCasar, TOM_CONFIAVEL, tomDoCroma,
 } from '../src/lib/ritmo.ts';
 
 function t(nome: string, f: () => void) {
@@ -223,6 +223,30 @@ t('trap: com os agudos, o "um" cai no compasso e não no 808 sincopado (26/10)',
     const resto = ((r.temposFortesS[0] % compasso) + compasso) % compasso;
     assert.ok(Math.min(resto, compasso - resto) < 0.05, `${bpm}: o primeiro tempo forte aos ${r.temposFortesS[0]}`);
   }
+});
+
+t('a zona cinzenta da confiança: só com o andamento estável, e o ruído não passa (relatório da 5.4.3)', () => {
+  assert.equal(batidaSegura({ confianca: 3.1 }), true);
+  assert.equal(batidaSegura({ confianca: 2.5, estavel: true }), true);
+  assert.equal(batidaSegura({ confianca: 2.5, estavel: false }), false);
+  assert.equal(batidaSegura({ confianca: 2.5 }), false, 'sem medir não conta');
+  assert.equal(batidaSegura({ confianca: CONFIANCA_COM_ESTABILIDADE - 0.01, estavel: true }), false);
+  // Ruído branco e ruído com o volume a mudar: nenhum passa a regra.
+  for (let semente = 1; semente <= 12; semente++) {
+    const r0 = acaso(semente);
+    const branco = new Float32Array(TAXA * 40).map(() => 0.2 * (r0() * 2 - 1));
+    const a = ritmoDaJanela(energiasPorQuadro(branco, TAXA), 'inicio');
+    assert.ok(!a || !batidaSegura(a), `ruído branco ${semente}: ${a?.confianca} ${a?.estavel}`);
+    const r1 = acaso(semente + 1000);
+    const variavel = new Float32Array(TAXA * 40);
+    let amp = 0.1;
+    for (let i = 0; i < variavel.length; i++) { if (i % 2205 === 0) amp = 0.05 + 0.3 * r1(); variavel[i] = amp * (r1() * 2 - 1); }
+    const b = ritmoDaJanela(energiasPorQuadro(variavel, TAXA), 'inicio');
+    assert.ok(!b || !batidaSegura(b), `ruído variável ${semente}: ${b?.confianca} ${b?.estavel}`);
+  }
+  // A estabilidade guarda-se com o ritmo.
+  const r = { bpm: 95, periodoS: 60 / 95, confianca: 2.6, temposFortesS: [1], somS: 0.5, batidaS: 1, estavel: true };
+  assert.equal(descompactar(JSON.parse(JSON.stringify(compactar(r))))!.estavel, true);
 });
 
 t('as 12 notas dão a tonalidade, e a roda Camelot diz quais casam (26/10)', () => {
