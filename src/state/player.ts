@@ -2469,7 +2469,18 @@ export const usePlayer = create<PlayerState>()(
 
   _setIsPlaying: (v) => set(passo(get().maquina, v ? 'quer-tocar' : 'quer-parar')),
 
-  _setBuffering: (v) => set(passo(get().maquina, v ? 'a-encher' : 'motor-pronto')),
+  _setBuffering: (v) => {
+    const antes = get();
+    const novo = passo(antes.maquina, v ? 'a-encher' : 'motor-pronto');
+    // O motor confirma "pronto" a cada posição, até 20 vezes por segundo
+    // numa passagem. Um aviso igual não volta a notificar a interface nem a
+    // preparar uma escrita da sessão. A confirmação de som é independente:
+    // entrar em buffering ainda a limpa, mesmo com a mesma fase.
+    if (novo.maquina === antes.maquina && novo.isPlaying === antes.isPlaying
+      && novo.buffering === antes.buffering
+      && (novo.playbackConfirmed === undefined || novo.playbackConfirmed === antes.playbackConfirmed)) return;
+    set(novo);
+  },
 
   setSleepTimer: (minutes) => {
     const { fimEm, restanteS } = prazoDoTemporizador(minutes, Date.now());

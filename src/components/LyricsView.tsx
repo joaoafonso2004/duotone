@@ -1,4 +1,4 @@
-import React,{memo,useCallback,useEffect,useRef,useState} from 'react';
+import React,{memo,useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {ActivityIndicator,Animated,Pressable,ScrollView,StyleSheet,Text,View} from 'react-native';
 import {usePlayer} from '../state/player';
 import {ensureLyrics,lyricsCacheKey,useLyrics} from '../state/lyrics';
@@ -8,10 +8,10 @@ import type {Track} from '../types';
 import {tamanhoDasLetras} from '../lib/aparencia';
 import {useAparencia} from '../state/aparencia';
 
-const Line=memo(function Line({text,active,onPress,onLayout,reduced,visible,tamanho}:{visible:boolean;text:string;active:boolean;onPress:()=>void;onLayout:(y:number)=>void;reduced:boolean;tamanho:{fontSize:number;lineHeight:number}}){
+const Line=memo(function Line({text,timeMs,index,active,onPress,onLayout,reduced,visible,tamanho}:{visible:boolean;text:string;timeMs:number;index:number;active:boolean;onPress:(timeMs:number)=>void;onLayout:(index:number,y:number)=>void;reduced:boolean;tamanho:{fontSize:number;lineHeight:number}}){
   const opacity=useRef(new Animated.Value(active?1:0.4)).current;
   useEffect(()=>{const animation=Animated.timing(opacity,{toValue:active?1:0.4,duration:reduced?0:220,useNativeDriver:true});animation.start();return()=>animation.stop();},[active,reduced]);
-  return <Pressable disabled={!visible} onLayout={e=>onLayout(e.nativeEvent.layout.y)} accessibilityRole="button" accessibilityLabel={text?`Play from: ${text}`:'Instrumental break'} accessibilityState={{selected:active}} onPress={onPress} style={styles.line}>
+  return <Pressable disabled={!visible} onLayout={e=>onLayout(index,e.nativeEvent.layout.y)} accessibilityRole="button" accessibilityLabel={text?`Play from: ${text}`:'Instrumental break'} accessibilityState={{selected:active}} onPress={()=>onPress(timeMs)} style={styles.line}>
     <Animated.Text style={[styles.words,tamanho,{opacity}]}>{text||'♪'}</Animated.Text>
   </Pressable>;
 });
@@ -24,9 +24,14 @@ export function LyricsView({track,visible}:{track:Track;visible:boolean}){
   const seek=usePlayer(s=>s.seekTo);
   const reduced=useReducedMotion(),scroll=useRef<ScrollView>(null),offsets=useRef<Record<number,number>>({});
   // O tamanho escolhido (10/10, personalização: S, M -- o de sempre -- ou L).
-  const tamanho=tamanhoDasLetras(useAparencia(s=>s.tamanhoDasLetras));
+  const tamanhoEscolhido=useAparencia(s=>s.tamanhoDasLetras);
+  const tamanho=useMemo(()=>tamanhoDasLetras(tamanhoEscolhido),[tamanhoEscolhido]);
   const [height,setHeight]=useState(220),[revision,setRevision]=useState(0),[manual,setManual]=useState(false);
   const resume=useRef<ReturnType<typeof setTimeout>|undefined>(undefined),previous=useRef(-1);
+  // As mesmas funções para todas as linhas. Funções novas dentro do map e
+  // um tamanho novo desfaziam o memo: toda a letra redesenhava a cada verso.
+  const guardarAltura=useCallback((i:number,y:number)=>{offsets.current[i]=y;},[]);
+  const tocarDaLinha=useCallback((timeMs:number)=>{seek(timeMs);setManual(false);},[seek]);
   const data=entry?.data,lines=data?.parsedLines??SEM_LINHAS,synced=!!data?.timingAvailable;
   // A LINHA, não a posição (1/10): lida a posição, as letras redesenhavam-se a
   // cada aviso do motor -- também com o leitor fechado e o ecrã desligado, que
@@ -53,7 +58,7 @@ export function LyricsView({track,visible}:{track:Track;visible:boolean}){
       </View>:
       <>
         <View style={{flex:1,overflow:'hidden'}}><ScrollView ref={scroll} onLayout={e=>setHeight(e.nativeEvent.layout.height)} onContentSizeChange={()=>setRevision(v=>v+1)} {...({onWheel:pauseFollowing,style:{touchAction:'pan-y'}} as any)} onScrollBeginDrag={pauseFollowing} onTouchStart={pauseFollowing} showsVerticalScrollIndicator={false} contentContainerStyle={{paddingHorizontal:24,paddingTop:height*0.28,paddingBottom:height*0.65}}>
-          {synced?lines.map((line,i)=><Line key={`${key}:${i}`} text={line.text} active={i===index} reduced={reduced} visible={visible} tamanho={tamanho.linha} onLayout={y=>{offsets.current[i]=y;}} onPress={()=>{seek(line.timeMs);setManual(false);}} />):<Text style={[styles.words,tamanho.texto]}>{data?.plainLyrics}</Text>}
+          {synced?lines.map((line,i)=><Line key={`${key}:${i}`} text={line.text} timeMs={line.timeMs} index={i} active={i===index} reduced={reduced} visible={visible} tamanho={tamanho.linha} onLayout={guardarAltura} onPress={tocarDaLinha} />):<Text style={[styles.words,tamanho.texto]}>{data?.plainLyrics}</Text>}
         </ScrollView>
         </View>
         {/* Só aparece rodapé quando há mesmo o que dizer. O "LYRICS" em cima e

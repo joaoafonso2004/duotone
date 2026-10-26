@@ -43,6 +43,8 @@ const TESTES = [
   'scripts/test-poupanca-em-segundo-plano.cjs',
   'scripts/test-play-aba-artista.cjs',
   'scripts/test-ux-responsiveness.cjs',
+  'scripts/test-leitor-alocacoes-ui.cjs',
+  `${DUPLOS} scripts/test-leitor-sem-avisos-repetidos.ts`,
   'scripts/test-desktop-messages.cjs',
   'scripts/test-artist-favorites-sync.cjs',
   'scripts/test-queue-drop.cjs',

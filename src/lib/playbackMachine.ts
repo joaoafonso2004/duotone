@@ -80,20 +80,22 @@ export function transicao(estado: EstadoDeReproducao, evento: Evento): EstadoDeR
 
     case 'motor-pronto':
       // Sem faixa não há motor que valha; ignora-se.
-      if (fase === 'sem-faixa') return estado;
+      // O timeUpdate confirma isto a cada posição. Manter a referência quando
+      // já está pronto evita redesenhar quem observa a máquina inteira.
+      if (fase === 'sem-faixa' || fase === 'pronto') return estado;
       return { intencao, fase: 'pronto' };
 
     case 'a-encher':
-      if (fase === 'sem-faixa' || fase === 'falhou') return estado;
+      if (fase === 'sem-faixa' || fase === 'falhou' || fase === 'a-carregar') return estado;
       return { intencao, fase: 'a-carregar' };
 
     // Confirmações DO MOTOR: mexem na fase, nunca na intenção.
     case 'a-tocar':
-      if (fase === 'sem-faixa') return estado;
+      if (fase === 'sem-faixa' || fase === 'pronto') return estado;
       return { intencao, fase: 'pronto' };
 
     case 'em-pausa':
-      if (fase === 'sem-faixa') return estado;
+      if (fase === 'sem-faixa' || fase === 'pronto') return estado;
       return { intencao, fase: 'pronto' };
 
     // Ordens DO UTILIZADOR: mexem na intenção. A fase é do motor.

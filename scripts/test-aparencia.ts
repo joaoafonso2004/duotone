@@ -190,7 +190,8 @@ assert.match(leitor, /aEsquerda=\{!tituloAoCentro\}/, 'à esquerda, o título va
 assert.match(ler('src/components/TextoQueCabe.tsx'), /aEsquerda && styles\.conteudoAEsquerda/, 'o que cabe encosta à esquerda');
 assert.match(leitor, /abrirJaNasLetras\(ap\.abrirNasLetras, expanded, letrasDaMusica\)/, 'abrir nas letras');
 assert.match(ler('src/components/Screen.tsx'), /fonteDosTitulos\(useAparencia\(\(s\) => s\.titulos\)\)/, 'os títulos das páginas');
-assert.match(ler('src/components/LyricsView.tsx'), /tamanhoDasLetras\(useAparencia\(s=>s\.tamanhoDasLetras\)\)/, 'o tamanho das letras');
+assert.match(ler('src/components/LyricsView.tsx'), /tamanhoEscolhido=useAparencia\(s=>s\.tamanhoDasLetras\)/, 'o tamanho das letras acompanha a preferência');
+assert.match(ler('src/components/LyricsView.tsx'), /tamanhoDasLetras\(tamanhoEscolhido\)/, 'o tamanho das letras usa a escala comum');
 const home = ler('src/screens/SearchScreen.tsx');
 assert.match(home, /useAparencia\(useShallow\(\(s\) => secoesVisiveis\(s\)\)\)/, 'a Home lê as secções');
 assert.match(home, /secoesDaHome\.map\(\(secao\) => <React\.Fragment key=\{secao\}>\{blocoDaHome\(secao\)\}<\/React\.Fragment>\)/);

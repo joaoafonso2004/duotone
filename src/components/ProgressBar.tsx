@@ -354,13 +354,15 @@ export function ProgressBar({ positionMs, durationMs, aTocar = false, ritmo = 1,
     }).start();
   }, [aArrastar, agarrado]);
 
-  const espessura = reduzido
-    ? 1
-    : agarrado.interpolate({ inputRange: [0, 1], outputRange: [1, BARRA_A_ARRASTAR] });
-  const tamanhoDoBotao = agarrado.interpolate({
-    inputRange: [0, 1],
-    outputRange: [BOTAO_DA_BARRA.repouso, 1],
-  });
+  // A posição muda continuamente; a geometria do gesto não. Recriar estes
+  // nós a cada segundo desmontava e voltava a ligar parte da animação nativa.
+  const { espessura, tamanhoDoBotao } = useMemo(() => ({
+    espessura: reduzido ? 1
+      : agarrado.interpolate({ inputRange: [0, 1], outputRange: [1, BARRA_A_ARRASTAR] }),
+    tamanhoDoBotao: agarrado.interpolate({
+      inputRange: [0, 1], outputRange: [BOTAO_DA_BARRA.repouso, 1],
+    }),
+  }), [agarrado, reduzido]);
 
   const shownMs = segundoArrastado != null ? segundoArrastado * 1000 : positionMs;
   const nomeDoRitmo = RITMOS[ritmoVisto].nome;
