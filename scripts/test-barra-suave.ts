@@ -55,11 +55,11 @@ assert.equal(ondeVai({ de: 0, para: 1, inicio: 0, duracao: 1000 }, 5000), 1);
 assert.equal(ondeVai(null, 0), null);
 
 // A barra anima pela transformação (nativa), e só com o leitor aberto e à frente.
-const barra = readFileSync(new URL('../src/components/ProgressBar.tsx', import.meta.url), 'utf8');
+const barra = readFileSync(new URL('../src/components/ProgressBar.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 assert.match(barra, /useNativeDriver: true,\s*\}\)\.start\(\);\s*\}\s*\}, \[positionMs/, 'a animação da posição é nativa');
 assert.doesNotMatch(barra, /width: `\$\{fraction \* 100\}%`/, 'a largura por percentagem não volta');
-const leitor = readFileSync(new URL('../src/components/PlayerRoot.tsx', import.meta.url), 'utf8');
-assert.match(leitor, /s\.isPlaying && s\.expanded\) && AppState\.currentState === 'active'/,
-  'fechado ou em segundo plano não anima: o ecrã não fica a redesenhar-se');
+const leitor = readFileSync(new URL('../src/components/PlayerRoot.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+assert.match(leitor, /s\.isPlaying && s\.expanded\) && !filaAberta && AppState\.currentState === 'active'/,
+  'fechado, atrás da fila ou em segundo plano não anima');
 
 console.log('Barra suave: passou.');
