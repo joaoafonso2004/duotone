@@ -1,3 +1,8 @@
+import { create } from 'zustand';
+
+/** A folha tapa o leitor: parar o movimento que continuava a correr atrás dela. */
+export const useFilaNativa = create<{ aberta: boolean }>(() => ({ aberta: false }));
+
 /**
  * A fila numa folha NATIVA do iOS (3/10, item 7 de `docs/barra-home-folhas.html`):
  * é um ecrã do stack (`Fila`, `presentation: 'formSheet'`), e não um filho do

@@ -50,6 +50,7 @@ const TESTES = [
   'scripts/test-queue-drop.cjs',
   'scripts/test-saida-do-leitor.cjs',
   'scripts/test-currently-playing-ui.cjs',
+  'scripts/test-arrastar-fila-rolada.cjs',
   'scripts/test-security-hardening.mjs',
   'scripts/test-mp4fixer.mjs',
   'scripts/test-mp4-ao-vivo.mjs',

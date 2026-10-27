@@ -13,7 +13,7 @@ function caso(nome: string, fn: () => void): void {
   try { fn(); console.log(`  ok - ${nome}`); }
   catch (e) { falhas++; console.error(`  FALHOU - ${nome}\n    ${(e as Error).message}`); }
 }
-const ler = (f: string) => readFileSync(f, 'utf8');
+const ler = (f: string) => readFileSync(f, 'utf8').replace(/\r\n/g, '\n');
 
 caso('a fila é um ecrã do stack apresentado como folha nativa, a meio e inteira', () => {
   const nav = ler('src/navigation/RootNavigator.tsx');
@@ -46,8 +46,14 @@ caso('o toque longo já não passa pelo TrackRow, e deslizar não põe na fila',
     assert.doesNotMatch(c, /onLongPress=\{[^}]*comecarArrasto/, `${f} ainda pega pelo toque longo do TrackRow`);
     // Desde 6/10 nenhuma linha tem o deslizar para a fila (test-deslizar-para-a-fila.ts).
     assert.doesNotMatch(c, /deslizarParaAFila/, `${f}: o gesto saiu de todas as linhas`);
-    assert.match(c, /envolverPega \? envolverPega\(pega\) : pega/);
   }
+});
+caso('a fila só reordena por pressão longa, sem as três barras', () => {
+  const fila = ler('src/components/QueueSheet.tsx');
+  assert.doesNotMatch(fila, /reorder-three-outline|envolverPega|styles\.pega/);
+  assert.match(fila, /podeArrastar=\{canReorder\}/);
+  assert.match(ler('src/screens/PlaylistDetailScreen.tsx'), /envolverPega \? envolverPega\(pega\) : pega/,
+    'a pega da edição de uma playlist continua independente');
 });
 caso('a base de baixo não muda por baixo da folha', () => {
   // A `Folha` é a rota das outras folhas nativas (4/10).

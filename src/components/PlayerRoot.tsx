@@ -75,7 +75,7 @@ import { YouTubePlayerView } from './YouTubePlayerView';
 import {ArtworkLyricsCube} from './ArtworkLyricsCube';
 import { DuploToqueParaGostar } from './DuploToqueParaGostar';
 import { deveGuardar } from '../lib/duploToque';
-import { registarAccoesDaFila } from '../state/filaNativa';
+import { registarAccoesDaFila, useFilaNativa } from '../state/filaNativa';
 import { PlayerControlRow } from './PlayerControlRow';
 import { accoesDoMenu, PlayerActionsSheet, type PlayerAction } from './PlayerActionsSheet';
 import { mandarComando, useAparelhos } from '../lib/connectSync';
@@ -188,6 +188,7 @@ export function PlayerRoot() {
   const queueIndex = usePlayer((s) => s.queueIndex);
   const isPlaying = usePlayer((s) => s.isPlaying);
   const expanded = usePlayer((s) => s.expanded);
+  const filaAberta = useFilaNativa((s) => s.aberta);
   const repeatMode = usePlayer((s) => s.repeatMode);
   const shuffle = usePlayer((s) => s.shuffle);
   const autoplayRadio = usePlayer((s) => s.autoplayRadio);
@@ -2206,7 +2207,7 @@ export function PlayerRoot() {
                 track={current} size={vidFull.w} capaFlutuante={capaFlutuante} capaInteira={capaInteira} montagem={montagem}
                 transicao={transicaoDaCapa.current} artSource={artSource} showLyrics={showLyrics}
                 setShowLyrics={setShowLyrics} setCapaARodar={setCapaARodar} onArtError={onArtError}
-                escurecerCapa={escurecerCapa} aoGostar={aoGostarPelaCapa} aFlutuar={ap.flutuar} aVista={aberto}
+                escurecerCapa={escurecerCapa} aoGostar={aoGostarPelaCapa} aFlutuar={ap.flutuar} aVista={aberto && !filaAberta}
               />
             </View>
           ) : null}
@@ -2314,9 +2315,10 @@ function BarraDoLeitor(props: Pick<React.ComponentProps<typeof ProgressBar>, 'on
   const ritmo = usePlayer((s) => s.playbackRate);
   // Desliza só com o leitor ABERTO e a app à frente: fechado, ninguém a vê, e
   // uma animação a correr mantinha o ecrã a redesenhar-se (lib/barraSuave.ts).
-  const aVista = usePlayer((s) => s.isPlaying && s.expanded) && AppState.currentState === 'active';
+  const filaAberta = useFilaNativa((s) => s.aberta);
+  const aVista = usePlayer((s) => s.isPlaying && s.expanded) && !filaAberta && AppState.currentState === 'active';
   // Fechar o leitor ou mudar de faixa larga um arrasto preso (6/10).
-  const aberto = usePlayer((s) => s.expanded);
+  const aberto = usePlayer((s) => s.expanded) && !filaAberta;
   const faixa = usePlayer((s) => s.current?.sourceId ?? null);
   // A risca do refrão (25/10): só com a opção ligada, e só pede com o leitor aberto.
   const refraoS = usePontoNaBarra(usePlayer((s) => s.current), aberto);

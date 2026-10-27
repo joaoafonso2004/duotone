@@ -3,7 +3,7 @@ import React from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { QueueSheet } from '../components/QueueSheet';
 import type { RootStackParamList } from '../navigation/RootNavigator';
-import { accoesDaFila } from '../state/filaNativa';
+import { accoesDaFila, useFilaNativa } from '../state/filaNativa';
 import { FundoDaFolha } from '../components/FundoDaFolha';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Fila'>;
@@ -18,6 +18,10 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Fila'>;
  * precisam de uma raiz do Gesture Handler por cima deles.
  */
 export function FilaScreen({ navigation }: Props) {
+  React.useEffect(() => {
+    useFilaNativa.setState({ aberta: true });
+    return () => { useFilaNativa.setState({ aberta: false }); };
+  }, []);
   const fechar = () => { if (navigation.canGoBack()) navigation.goBack(); };
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

@@ -274,7 +274,7 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,
       {verso?<ImagemDaCapa source={{uri:verso.uri}} cachePolicy="memory-disk" contentFit="cover" blurRadius={verso.raio} style={[StyleSheet.absoluteFill,{opacity:0.6,transform:[{scale:1.12}]}]} />:null}
       <View style={[StyleSheet.absoluteFill,{backgroundColor:'rgba(8,8,15,0.5)'}]} />
       {/* As letras recomeçam por faixa; o cubo à volta delas fica montado. */}
-      {letras?<LyricsView key={letras.chave} track={letras.track} visible={showLyrics&&!moving} />:null}
+      {letras?<LyricsView key={letras.chave} track={letras.track} visible={aVista&&showLyrics&&!moving} />:null}
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill,{backgroundColor:'#000',opacity:nos.veuDoVerso}]} />
     </Animated.View>
   </View>;

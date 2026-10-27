@@ -77,6 +77,11 @@ export function useArrastarLista({ chaves, aoReordenar }: {
   // não começou a ser arrastada. Antes começava em zero, que é sempre acima
   // da lista, e o auto-scroll puxava-a imediatamente para cima sozinho.
   const gesto = React.useRef({ dy: 0, dedoY: Number.NaN });
+  // Segurar, mesmo junto à borda, não é mandar a lista andar. O dedo tem de
+  // se deslocar primeiro; depois pode ficar parado na borda para continuar.
+  const moveu = React.useRef(false);
+  // Uma medição atrasada de outro arrasto não pode posicionar este dedo.
+  const geracao = React.useRef(0);
 
   /** Quanto a lista correu por baixo do dedo desde que ele pegou na linha. */
   const deslizou = () => offset.current - offsetAoPegar.current;
@@ -97,6 +102,7 @@ export function useArrastarLista({ chaves, aoReordenar }: {
   React.useEffect(() => {
     if (arrastar == null) return;
     const passo = setInterval(() => {
+      if (!moveu.current) return;
       const v = velocidadeDoDeslize(gesto.current.dedoY, limites.current.topo, limites.current.fundo);
       if (v === 0) return;
       const maximo = Math.max(0, alturaDoConteudo.current - alturaVisivel.current);
@@ -131,8 +137,9 @@ export function useArrastarLista({ chaves, aoReordenar }: {
    */
   const medirLimites = () => {
     limites.current = { topo: Number.NaN, fundo: Number.NaN };
+    const desta = geracao.current;
     molduraRef.current?.measure((_x, _y, _l, h) => {
-      if (pegadaRef.current == null) return; // o arrasto ja acabou
+      if (pegadaRef.current == null || desta !== geracao.current) return;
       alturaVisivel.current = h;
       limites.current = { topo: 0, fundo: h };
     });
@@ -143,6 +150,7 @@ export function useArrastarLista({ chaves, aoReordenar }: {
   const comecarArrasto = (index: number) => {
     // A anterior ainda a assentar no sítio: um arrasto de cada vez.
     if (aAssentar.current) return;
+    geracao.current++;
     hapticSelection();
     largarFluidez.current?.();
     largarFluidez.current = segurarFluidez(500);
@@ -150,15 +158,19 @@ export function useArrastarLista({ chaves, aoReordenar }: {
     chaveDaPegada.current = chaves[index] ?? null;
     bloqueioRef.current = true;
     pegou.current = false;
+    moveu.current = false;
     gesto.current = { dy: 0, dedoY: Number.NaN };
     offsetAoPegar.current = offset.current;
     dy.setValue(0);
+    // Parar também a inércia de um scroll anterior, antes de bloquear o dedo.
+    listaRef.current?.scrollToOffset({ offset: offset.current, animated: false });
     travarLista(true);
     medirLimites();
     setArrastar(index);
   };
 
   const terminarArrasto = () => {
+    geracao.current++;
     if (pegadaRef.current != null) acabouEm.current = Date.now();
     largarFluidez.current?.();
     largarFluidez.current = null;
@@ -166,6 +178,7 @@ export function useArrastarLista({ chaves, aoReordenar }: {
     chaveDaPegada.current = null;
     bloqueioRef.current = false;
     pegou.current = false;
+    moveu.current = false;
     gesto.current = { dy: 0, dedoY: Number.NaN };
     limites.current = { topo: Number.NaN, fundo: Number.NaN };
     travarLista(false);
@@ -175,6 +188,17 @@ export function useArrastarLista({ chaves, aoReordenar }: {
     // o proximo arrasto poe-no a zero ao comecar.
     setArrastar(null);
   };
+
+  React.useEffect(() => () => {
+    geracao.current++;
+    pegadaRef.current = null;
+    chaveDaPegada.current = null;
+    largarFluidez.current?.();
+    largarFluidez.current = null;
+    const assentar = aAssentar.current;
+    aAssentar.current = null;
+    assentar?.stop();
+  }, []);
 
   // A lista pode mudar por baixo do dedo -- na fila, a musica acaba e o
   // `queueIndex` avanca, e as linhas sobem uma posicao. Continuar a arrastar
@@ -258,15 +282,21 @@ export function useArrastarLista({ chaves, aoReordenar }: {
         gesto.current = { dy: 0, dedoY: Number.NaN };
         const moldura = molduraRef.current;
         if (!vista || !moldura) return;
+        const desta = geracao.current;
         try {
           vista.measureLayout(moldura as never, (_x, y) => {
-            if (pegadaRef.current == null) return;
-            dedoAoPegar.current = y + yNaVista;
+            if (pegadaRef.current == null || desta !== geracao.current) return;
+            // O measureLayout do Fabric exclui o contentOffset do ScrollView
+            // (includeTransform=false). Depois de rolar, y ainda é a posição
+            // no CONTEÚDO: sem descontar o scroll, qualquer hold a meio da
+            // fila parecia estar abaixo do fundo e fazia-a descer sozinha.
+            dedoAoPegar.current = y + yNaVista - offset.current;
             gesto.current = { dy: gesto.current.dy, dedoY: dedoAoPegar.current + gesto.current.dy };
           }, () => { /* sem medida não há deslize nas bordas, e mais nada muda */ });
         } catch { /* idem */ }
       },
       aoMover: (d: number) => {
+        if (Math.abs(d) >= 8) moveu.current = true;
         gesto.current = { dy: d, dedoY: dedoAoPegar.current + d };
         escreverDy();
       },

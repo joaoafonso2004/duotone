@@ -148,7 +148,7 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
     () => chavesEstaveis(upNext.map((entry) => trackKey(entry.track))),
     [upNext]
   );
-  // O arrasto (a pega, o toque longo, o deslize nas bordas e onde a linha
+  // O arrasto (o toque longo, o deslize nas bordas e onde a linha
   // aterra) vive em `useArrastarLista`, partilhado com a edição de uma playlist.
   const arrasto = useArrastarLista({ chaves, aoReordenar: reordenarProximas });
   const arrastar = arrasto.arrastar;
@@ -382,9 +382,8 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
       {upNext.length > 0 ? (
         <View
           ref={arrasto.molduraRef}
-          // Os limites medem-se NO ECRÃ, porque é em coordenadas de ecrã que o
-          // gesto diz onde o dedo está -- e medem-se ao pegar numa linha, com a
-          // folha já assente. Ver `limites`.
+          // A altura mede-se ao pegar; o dedo fica relativo a esta moldura,
+          // descontando o que a lista já rolou (useArrastarLista).
           collapsable={false}
           style={nativa ? styles.encher : undefined}
         >
@@ -413,7 +412,7 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
                 {...arrasto.propsDaLinha(index)}
                 podeArrastar={canReorder}
               >
-              {(envolverPega) => (
+              {() => (
               // Deslizar para a esquerda tira a música da fila (26/9). Num Jam
               // a fila é de todos, e com uma linha pegada o dedo é do arrasto.
               <DeslizarParaTirar
@@ -454,23 +453,6 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
                   />
                 </View>
                 <View style={styles.actionButtons}>
-                  {canReorder && (() => {
-                    // A pega pega LOGO, sem o toque longo -- e o que ela
-                    // promete. Ver `LinhaArrastavel`.
-                    const pega = (
-                      <View
-                        accessibilityLabel={`Reorder ${tituloDaFaixa(item)}`}
-                        style={styles.pega}
-                      >
-                        <Ionicons
-                          name="reorder-three-outline"
-                          size={18}
-                          color={arrastar === index ? colors.text : colors.textTertiary}
-                        />
-                      </View>
-                    );
-                    return envolverPega ? envolverPega(pega) : pega;
-                  })()}
                   <Pressable
                     ref={(v) => { botoes.current.set(chaves[index], v); }}
                     onPress={() => openActions(item, emSessao ? null : realIndex, false, chaves[index])}
@@ -598,14 +580,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
     paddingRight: spacing.sm,
-  },
-  // Um alvo de dedo e nao so um desenho: era 28 x 28 e so decorativo. A altura
-  // e a da linha quase toda, para a pega se apanhar sem pontaria.
-  pega: {
-    width: 36,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   actionBtn: {
     width: 44,
