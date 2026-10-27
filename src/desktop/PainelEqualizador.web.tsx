@@ -3,7 +3,7 @@ import {SelectionPill} from '../components/SelectionPill';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import {
-  BANDAS, ETIQUETAS_BANDAS, GANHO_MAXIMO, normalizar, PERFIS, PLANO, type Ganhos,
+  BANDAS, ETIQUETAS_BANDAS, GANHO_MAXIMO, chaveDaFaixa, normalizar, PERFIS, PLANO, type Ganhos,
 } from '../lib/equalizer';
 import {
   criarPreset, limparNome, novoIdDePreset, podeGuardarComoPreset, presetDosGanhos, presetsVisiveis,
@@ -14,6 +14,8 @@ import { escolherRecomendadoNaFaixa, useRecomendado, useRecomendadoNaFaixa } fro
 import { EscolhaDoModelo, LinhaDoRecomendado } from './RecomendadoDoEq.web';
 import { BarraVelocidade } from './BarraVelocidade.web';
 import { useVelocidadePresa } from '../hooks/useVelocidadePresa';
+import { useEdicaoDoPreset } from '../hooks/useEdicaoDoPreset';
+import { avisarFeito } from '../lib/avisoDeRemocao';
 import { COR, ESP, ESTADO, RAIO, TIPO } from './tokens.web';
 import { Button, Field, ui } from './ui.web';
 
@@ -147,6 +149,7 @@ export function BandasDoEqualizador({
   ganhos,
   aoMudarGanhos,
   presets = PERFIS,
+  aoEscolherPreset,
   semPresets = false,
   recomendado,
 }: {
@@ -154,6 +157,7 @@ export function BandasDoEqualizador({
   aoMudarGanhos: (g: Ganhos) => void;
   /** Os presets da fila; os da app se ninguém passar os da pessoa. */
   presets?: readonly { id: string; nome: string; ganhos: readonly number[] }[];
+  aoEscolherPreset?: (id: string) => void;
   /** Só as bandas: o editor de um preset (GestorDePresets.web.tsx). */
   semPresets?: boolean;
   /** O Recommended (25/10): o primeiro, sempre, e a linha do que está ligado
@@ -181,7 +185,7 @@ export function BandasDoEqualizador({
             key={p.id}
             selected={perfil?.id === p.id}
             label={p.nome}
-            onPress={() => aoMudarGanhos(normalizar(p.ganhos))}
+            onPress={() => { aoEscolherPreset?.(p.id); aoMudarGanhos(normalizar(p.ganhos)); }}
           />
         ))}
       </View>}
@@ -259,6 +263,12 @@ export function PainelEqualizador({
   const recomendadoLigado = useRecomendado((s) => s.ligado);
   const segue = usePlayer(segueABase);
   const naBaseRecomendada = recomendadoLigado && segue;
+  const current = usePlayer((s) => s.current);
+  const edicao = useEdicaoDoPreset({
+    memoria, ganhos, bloqueado: recomendadoNaFaixa,
+    contexto: current ? chaveDaFaixa(current) : 'sem-faixa',
+  });
+  const mudarGanhos = (novos: Ganhos) => { edicao.preservarOrigem(); aoMudarGanhos(novos); };
   const [aEscolherModelo, setAEscolherModelo] = useState(false);
   // Guardar a curva como preset: o campo aparece no lugar da linha de baixo.
   const [aGuardar, setAGuardar] = useState(false);
@@ -266,7 +276,9 @@ export function PainelEqualizador({
   const guardar = () => {
     const limpo = limparNome(nome);
     if (!limpo) return;
-    mudarPresets((m, agora) => criarPreset(m, novoIdDePreset(agora, Math.random()), limpo, ganhos, agora));
+    const id = novoIdDePreset(Date.now(), Math.random());
+    mudarPresets((m, agora) => criarPreset(m, id, limpo, ganhos, agora));
+    edicao.escolher(id);
     setAGuardar(false);
   };
 
@@ -296,14 +308,21 @@ export function PainelEqualizador({
         {aEscolherModelo ? <EscolhaDoModelo aoFechar={() => setAEscolherModelo(false)} /> : <>
         <BandasDoEqualizador
           ganhos={ganhos}
-          aoMudarGanhos={aoMudarGanhos}
+          aoMudarGanhos={mudarGanhos}
+          aoEscolherPreset={edicao.escolher}
           presets={presets}
           recomendado={{
             escolhido: recomendadoNaFaixa,
-            aoEscolher: escolherRecomendadoNaFaixa,
+            aoEscolher: () => { edicao.escolher(null); escolherRecomendadoNaFaixa(); },
             linha: <LinhaDoRecomendado aoEscolherModelo={() => setAEscolherModelo(true)} />,
           }}
         />
+
+        {edicao.alterado && edicao.preset ? (
+          <Button onPress={() => { if (edicao.atualizar()) avisarFeito('Preset updated'); }}>
+            {`Update “${edicao.preset.nome}”`}
+          </Button>
+        ) : null}
 
 <AdjustmentSyncStatus />
         {aGuardar ? (
@@ -324,7 +343,7 @@ export function PainelEqualizador({
               {!recomendadoNaFaixa && podeGuardarComoPreset(memoria, ganhos) && (
                 <AccaoPequena rotulo="SAVE AS PRESET" aoPremir={() => { setNome(''); setAGuardar(true); }} />
               )}
-              <ReporEqualizador aoRepor={() => aoMudarGanhos(PLANO.slice())} />
+              <ReporEqualizador aoRepor={() => mudarGanhos(PLANO.slice())} />
             </View>
           </View>
         )}

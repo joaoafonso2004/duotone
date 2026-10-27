@@ -17,6 +17,8 @@ import { mudarPresets, usePresets } from '../state/presets';
 import { colors, spacing, type } from '../theme';
 import { BarraVelocidade } from './BarraVelocidade';
 import { useVelocidadePresa } from '../hooks/useVelocidadePresa';
+import { useEdicaoDoPreset } from '../hooks/useEdicaoDoPreset';
+import { avisarFeito } from '../lib/avisoDeRemocao';
 import { BottomSheet, BottomSheetGestureGuard, BottomSheetScrollView } from './BottomSheet';
 import { BotaoGuardarPreset, Equalizador, ReporEqualizador } from './Equalizador';
 import { Input } from './Input';
@@ -62,6 +64,11 @@ export function EqualizadorSheet({ visible, onClose }: { visible: boolean; onClo
   const recomendadoLigado = useRecomendado((s) => s.ligado);
   const segue = usePlayer(segueABase);
   const naBaseRecomendada = recomendadoLigado && segue && !carro;
+  const edicao = useEdicaoDoPreset({
+    memoria, ganhos, bloqueado: recomendadoNaFaixa,
+    contexto: JSON.stringify([visible, current ? chaveDaFaixa(current) : null, carro?.presetId, carro?.aparelho]),
+  });
+  const mudarGanhos = (novos: number[]) => { edicao.preservarOrigem(); setEqGanhos(novos); };
 
   const [aGuardar, setAGuardar] = useState(false);
   const [aEscolherDoAparelho, setAEscolherDoAparelho] = useState(false);
@@ -71,7 +78,9 @@ export function EqualizadorSheet({ visible, onClose }: { visible: boolean; onClo
   const guardar = () => {
     const limpo = limparNome(nome);
     if (!limpo) return;
-    mudarPresets((m, agora) => criarPreset(m, novoIdDePreset(agora, Math.random()), limpo, ganhos, agora));
+    const id = novoIdDePreset(Date.now(), Math.random());
+    mudarPresets((m, agora) => criarPreset(m, id, limpo, ganhos, agora));
+    edicao.escolher(id);
     hapticNotification();
     setAGuardar(false);
   };
@@ -220,7 +229,7 @@ export function EqualizadorSheet({ visible, onClose }: { visible: boolean; onClo
               )}
               <ReporEqualizador
                 desativado={ePlano(ganhos)}
-                aoRepor={() => setEqGanhos(PLANO.slice())}
+                aoRepor={() => mudarGanhos(PLANO.slice())}
               />
             </View>
           </View>
@@ -228,11 +237,12 @@ export function EqualizadorSheet({ visible, onClose }: { visible: boolean; onClo
             <BottomSheetGestureGuard>
               <Equalizador
                 ganhos={ganhos}
-                aoMudar={(novo) => setEqGanhos(novo)}
+                aoMudar={mudarGanhos}
+                aoEscolherPreset={edicao.escolher}
                 presets={presets}
                 recomendado={{
                   escolhido: recomendadoNaFaixa,
-                  aoEscolher: escolherRecomendadoNaFaixa,
+                  aoEscolher: () => { edicao.escolher(null); escolherRecomendadoNaFaixa(); },
                   linha: <LinhaDoRecomendado aoEscolherModelo={() => setAEscolherModelo(true)} />,
                 }}
                 moldura
@@ -242,6 +252,13 @@ export function EqualizadorSheet({ visible, onClose }: { visible: boolean; onClo
               />
             </BottomSheetGestureGuard>
           </View>
+          {edicao.alterado && edicao.preset ? (
+            <View style={{ marginTop: spacing.sm }}>
+              <PillButton small label={`Update “${edicao.preset.nome}”`} onPress={() => {
+                if (edicao.atualizar()) { hapticNotification(); avisarFeito('Preset updated'); }
+              }} />
+            </View>
+          ) : null}
           <View style={{ marginTop: spacing.xs }}>
             {carro ? (
               // No carro nada disto se guarda na faixa: dizer que sincroniza

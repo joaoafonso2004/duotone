@@ -327,6 +327,7 @@ export function Equalizador({
   sangria = 0,
   /** Os presets da fila, pela ordem em que aparecem. */
   presets = DA_APP,
+  aoEscolherPreset,
   /** Sem a fila de presets: so as bandas. E o editor de um preset, onde
    *  escolher outro a meio seria trocar o que se esta a editar. */
   semPresets = false,
@@ -341,6 +342,8 @@ export function Equalizador({
   moldura?: boolean;
   sangria?: number;
   presets?: readonly PresetNaFila[];
+  /** Distingue escolher um preset de ajustar uma banda. */
+  aoEscolherPreset?: (id: string) => void;
   semPresets?: boolean;
   recomendado?: { escolhido: boolean; aoEscolher: () => void; linha: React.ReactNode };
 }) {
@@ -439,7 +442,7 @@ export function Equalizador({
               selected={perfil?.id === p.id}
               label={p.nome}
               palette={PALETA_DOS_PERFIS}
-              onPress={() => { hapticSelection(); aoMudar(normalizar(p.ganhos)); }}
+              onPress={() => { hapticSelection(); aoEscolherPreset?.(p.id); aoMudar(normalizar(p.ganhos)); }}
             />
           </View>
         ))}
