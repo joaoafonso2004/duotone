@@ -134,8 +134,6 @@ export type AmostraDaMemoria = {
 };
 export const ENTRE_AMOSTRAS_MS = 60_000;
 export const MAXIMO_DE_AMOSTRAS = 30;
-/** Quantas amostras do fim entram no ritmo "agora". */
-const AMOSTRAS_RECENTES = 6;
 
 export function lerAmostra(stats: unknown, em: number, visivel: boolean): AmostraDaMemoria | null {
   const s = (stats ?? {}) as Record<string, unknown>;
@@ -153,13 +151,24 @@ export function juntarAmostra(lista: readonly AmostraDaMemoria[], a: AmostraDaMe
 
 export type RitmoDaMemoria = { minutos: number; recolhasPorMin: number; msPorMin: number; mbPorMin: number | null };
 
-/** O ritmo somado dos pares seguidos, só com a app à frente nas duas pontas. */
+/**
+ * Um par entre amostras seguidas conta se começou com a app à frente. Ao sair
+ * para segundo plano tira-se uma amostra (`visivel: false`) NO MOMENTO da saída,
+ * por isso o troço até lá é todo à frente: exigir as duas pontas visíveis
+ * deitava fora o fim de cada visita (29/10: com a app a ir para trás de 1 em 4
+ * min, a linha saía "not measured"). Entre duas amostras de minuto (as duas à
+ * frente) um intervalo muito maior que o minuto é uma app suspensa sem aviso.
+ */
+const MAIOR_INTERVALO_ENTRE_MINUTOS_MS = 1.5 * ENTRE_AMOSTRAS_MS;
+
+/** O ritmo somado dos pares seguidos que começaram com a app à frente. */
 export function ritmoDosPares(lista: readonly AmostraDaMemoria[]): RitmoDaMemoria | null {
   let ms = 0, recolhas = 0, gcMs = 0, mb = 0, semAlocado = false;
   for (let i = 1; i < lista.length; i++) {
     const a = lista[i - 1], b = lista[i];
     const dt = b.em - a.em;
-    if (!a.visivel || !b.visivel || dt <= 0 || b.recolhas < a.recolhas) continue;
+    if (!a.visivel || dt <= 0 || b.recolhas < a.recolhas) continue;
+    if (b.visivel && dt > MAIOR_INTERVALO_ENTRE_MINUTOS_MS) continue;
     ms += dt;
     recolhas += b.recolhas - a.recolhas;
     gcMs += b.recolhasMs - a.recolhasMs;
@@ -181,7 +190,9 @@ export function textoDaMemoria(lista: readonly AmostraDaMemoria[]): string[] {
   const fmt = (r: RitmoDaMemoria) =>
     `${r.recolhasPorMin} collections/min, ${r.msPorMin} ms/min${r.mbPorMin === null ? '' : `, ${r.mbPorMin} MB allocated/min`} (over ${r.minutos} min)`;
   const arranque = lista.length >= 2 ? ritmoDosPares(lista.slice(0, 2)) : null;
-  const depois = ritmoDosPares(lista.slice(1).slice(-AMOSTRAS_RECENTES));
+  // Todas as amostras guardadas (até 30), e não só as 6 últimas: com a app a
+  // ir e voltar, as 6 últimas podiam não ter um único par à frente.
+  const depois = ritmoDosPares(lista.slice(1));
   return [
     `memory rate, first minute after opening: ${arranque ? fmt(arranque) : 'not measured'}`,
     `memory rate, last minutes with the app open: ${depois ? fmt(depois) : 'not measured yet (needs a few minutes with the app open)'}`,

@@ -85,8 +85,25 @@ caso('o arranque e o resto ficam separados', () => {
 caso('o tempo em segundo plano não entra (o par que o atravessa fica de fora)', () => {
   const lista = [am(0, 0, 0), am(1, 100, 10), am(2, 160, 16, false), am(30, 200, 20), am(31, 220, 22)];
   const r = ritmoDosPares(lista.slice(1));
-  assert.equal(r?.minutos, 1, 'só o minuto 30-31: o 1-2 acaba na saída e o 2-30 atravessa o segundo plano');
+  assert.equal(r?.minutos, 2, 'o 1-2 acaba na saída (à frente até ao fim) e o 30-31; o 2-30 atravessa o segundo plano');
   assert.equal(ritmoDosPares([am(0, 0, 0), am(0.2, 5, 1)]), null, 'menos de meio minuto não diz nada');
+});
+caso('a app a ir e voltar de 1 em 4 min mede na mesma (29/10)', () => {
+  // Visitas: volta (T) -> sai (F), sem nenhuma amostra de minuto no meio.
+  const lista = [
+    am(0, 0, 0), am(8, 700, 100, false),
+    am(10, 710, 101), am(13, 1000, 700, false),
+    am(14, 1010, 701), am(18, 1500, 1400, false),
+  ];
+  const r = ritmoDosPares(lista.slice(1));
+  assert.equal(r?.minutos, 7, '3 + 4 min à frente; os troços em segundo plano não entram');
+  assert.equal(r?.mbPorMin, 185.4, '(599 + 699) MB em 7 min');
+  assert.match(textoDaMemoria(lista)[1], /MB allocated\/min \(over 7 min\)/);
+});
+caso('uma app suspensa sem aviso (dois minutos seguidos muito afastados) não conta', () => {
+  const lista = [am(0, 0, 0), am(1, 60, 6), am(20, 900, 900), am(21, 960, 906)];
+  const r = ritmoDosPares(lista.slice(1));
+  assert.equal(r?.minutos, 1, 'só o 20-21; o 1-20 passou-se com a app suspensa');
 });
 caso('sem o alocado, diz só as recolhas; e a lista tem teto', () => {
   assert.doesNotMatch(textoDaMemoria([am(0, 0, null), am(1, 60, null), am(2, 90, null)])[1], /allocated/);
