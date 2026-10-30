@@ -57,23 +57,20 @@ caso('o cabeçalho já leva o nome (é o que parte) e o cartão só o ganha ao c
   assert.ok(!/origem/.test(voltar), 'a volta não nomeia nenhuma origem: o cabeçalho tem o nome desde sempre');
   assert.match(voltar, /destino\?\.style\.setProperty\('view-transition-name', NOME_DO_RETRATO\);/);
 });
-caso('espera uns fotogramas pela grelha voltar ao scroll onde estava, antes de escolher o cartão', () => {
-  assert.match(VIAGEM, /export const QUADROS_DE_ASSENTO = 3;/);
-  assert.match(voltar, /void depoisDeQuadros\(QUADROS_DE_ASSENTO\)\.then\(\(\) => \{/);
-  assert.match(VIAGEM, /requestAnimationFrame\(\(\) => passo\(k - 1\)\)/);
+caso('NUNCA espera por fotogramas dentro da transição: com a promessa pendente a janela não os corre (a volta ficava presa ~3 s, na 5.5.0)', () => {
+  assert.ok(!/requestAnimationFrame|depoisDeQuadros|QUADROS_DE_ASSENTO/.test(VIAGEM.replace(/\/\*[\s\S]*?\*\//g, '')), 'um fotograma esperado dentro do callback nunca chega');
+  assert.ok(!/requestAnimationFrame/.test(voltar));
 });
-caso('só um cartão montado e à vista: um retrato a voar para fora da janela era pior do que nenhum', () => {
-  assert.match(voltar, /if \(no && estaAVista\(no\)\) \{ destino = no; break; \}/);
-  assert.match(VIAGEM, /r\.bottom > 0 && r\.top < window\.innerHeight && r\.right > 0 && r\.left < window\.innerWidth/);
+caso('nomeia o cartão logo à chegada, o primeiro montado, e cumpre a promessa na hora', () => {
+  assert.match(voltar, /aChegar = \(\) => \{\n\s+clearTimeout\(prazo\);\n\s+for \(const chave of chaves\) \{\n\s+const no = retratoDe\(chave\);\n\s+if \(no\) \{ destino = no; break; \}\n\s+\}\n\s+destino\?\.style\.setProperty\('view-transition-name', NOME_DO_RETRATO\);\n\s+cumprir\(\);/);
 });
 caso('a mesma porta e os mesmos cuidados da ida: prazo, sem API ou "menos movimento" navega como sempre', () => {
   assert.match(voltar, /if \(!chaves \|\| aChegar \|\| !podeViajar\(\)\) \{ mudar\(\); return; \}/);
-  assert.match(voltar, /prazo = setTimeout\(acabar, ESPERA_MAXIMA_MS\);/);
+  assert.match(voltar, /const prazo = setTimeout\(cumprir, ESPERA_MAXIMA_MS\);/);
   assert.match(voltar, /void t\.finished\.then\(limpar, limpar\);/);
   assert.match(voltar, /\} catch \{\n\s+limpar\(\);\n\s+mudar\(\);/);
 });
-caso('acaba uma vez só, e o nome e a marca saem aconteça o que acontecer', () => {
-  assert.match(voltar, /const acabar = \(\) => \{ if \(acabou\) return; acabou = true; clearTimeout\(prazo\); cumprir\(\); \};/);
+caso('o nome e a marca saem aconteça o que acontecer', () => {
   assert.match(voltar, /const limpar = \(\) => \{ destino\?\.style\.removeProperty\('view-transition-name'\); raiz\.removeAttribute\('data-viagem'\); aChegar = null; \};/);
 });
 caso('o `viagemChegou` da casca é o que acorda a volta, como na ida', () => {

@@ -19,10 +19,12 @@
  * `portrait` (é o que parte), e o cartão da grelha onde se chega só o ganha ao
  * chegar -- dois elementos com o mesmo nome ao mesmo tempo abortam a viagem. A
  * grelha acaba de montar e ainda não voltou ao scroll onde estava (o
- * `ContentScroll` restaura-o ao fotograma seguinte), por isso espera-se uns
- * fotogramas antes de escolher o cartão, e só se o cartão estiver à vista: um
- * retrato a voar para fora da janela era pior do que nenhum. Sem cartão (não
- * está montado, ou foi filtrado), o cabeçalho esbate-se sozinho.
+ * `ContentScroll` restaura-o num `requestAnimationFrame`): o cartão nomeia-se
+ * logo à chegada e o fotograma que a transição captura já traz o scroll certo.
+ * **Nunca esperar por `requestAnimationFrame` dentro do callback da transição**
+ * (30/10, a 5.5.0): enquanto a promessa está pendente a janela não corre
+ * fotogramas, e a volta ficava presa até ao prazo (~3 s). Sem cartão (não está
+ * montado, ou foi filtrado), o cabeçalho esbate-se sozinho.
  *
  * Sem a API, com "menos movimento" ou com a janela escondida, não viaja: navega-se
  * como sempre.
@@ -30,9 +32,6 @@
 
 export const NOME_DO_RETRATO = 'portrait';
 export const ESPERA_MAXIMA_MS = 2500;
-/** Fotogramas a esperar, depois de a grelha montar, para ela voltar ao scroll onde estava. */
-export const QUADROS_DE_ASSENTO = 3;
-
 let aChegar: (() => void) | null = null;
 
 type ComViagem = Document & { startViewTransition?: (cb: () => Promise<void>) => { finished: Promise<unknown>; skipTransition: () => void } };
@@ -84,22 +83,10 @@ export function viajar(origem: HTMLElement | null, mudar: () => void): void {
   }
 }
 
-function depoisDeQuadros(n: number): Promise<void> {
-  return new Promise((resolver) => {
-    const passo = (k: number) => { if (k <= 0) resolver(); else requestAnimationFrame(() => passo(k - 1)); };
-    passo(n);
-  });
-}
-
-function estaAVista(no: HTMLElement): boolean {
-  const r = no.getBoundingClientRect();
-  return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < window.innerHeight && r.right > 0 && r.left < window.innerWidth;
-}
-
 /**
  * A volta de uma página à grelha dela: o cabeçalho (que já leva o nome) parte
- * e chega ao primeiro cartão de `chaves` que esteja montado e à vista. Sem
- * chaves (a volta não é para a grelha dele), ou sem poder viajar, é só `mudar()`.
+ * e chega ao primeiro cartão de `chaves` que esteja montado. Sem chaves (a
+ * volta não é para a grelha dele), ou sem poder viajar, é só `mudar()`.
  */
 export function voltarViajando(chaves: readonly string[] | null, mudar: () => void): void {
   if (!chaves || aChegar || !podeViajar()) { mudar(); return; }
@@ -109,20 +96,15 @@ export function voltarViajando(chaves: readonly string[] | null, mudar: () => vo
   raiz.setAttribute('data-viagem', '');
   try {
     const t = (document as ComViagem).startViewTransition!(() => new Promise<void>((cumprir) => {
-      let acabou = false;
-      let prazo: ReturnType<typeof setTimeout> | undefined;
-      const acabar = () => { if (acabou) return; acabou = true; clearTimeout(prazo); cumprir(); };
-      prazo = setTimeout(acabar, ESPERA_MAXIMA_MS);
+      const prazo = setTimeout(cumprir, ESPERA_MAXIMA_MS);
       aChegar = () => {
-        void depoisDeQuadros(QUADROS_DE_ASSENTO).then(() => {
-          if (acabou) return;
-          for (const chave of chaves) {
-            const no = retratoDe(chave);
-            if (no && estaAVista(no)) { destino = no; break; }
-          }
-          destino?.style.setProperty('view-transition-name', NOME_DO_RETRATO);
-          acabar();
-        });
+        clearTimeout(prazo);
+        for (const chave of chaves) {
+          const no = retratoDe(chave);
+          if (no) { destino = no; break; }
+        }
+        destino?.style.setProperty('view-transition-name', NOME_DO_RETRATO);
+        cumprir();
       };
       mudar();
     }));
