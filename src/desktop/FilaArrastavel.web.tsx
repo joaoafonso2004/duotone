@@ -10,6 +10,7 @@ import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { EstrelaInteligente } from '../components/BrilhoInteligente';
 import { trackKey } from '../lib/shuffle';
 import { chavesEstaveis } from '../lib/arrastarFila';
+import { atrasoDaLinha, PASSO_DA_ENTRADA_MS, PASSO_DA_SAIDA_MS } from '../lib/leitorDoPc';
 import { usePlayer } from '../state/player';
 
 /**
@@ -55,6 +56,8 @@ export function FilaArrastavel({
   aoMenu,
   aoMover,
   compacta = false,
+  saida = null,
+  entrada: entradaDaLista = null,
 }: {
   entradas: Entrada[];
   /** Num Jam a fila é de todos: não se reordena daqui. */
@@ -69,6 +72,10 @@ export function FilaArrastavel({
    */
   aoMover: (deVisivel: number, paraVisivel: number) => void;
   compacta?: boolean;
+  /** As linhas a sair (30/10): `limpar` em cascata, `vira` quando a Radio troca a fila. Sem arrastar nem cliques enquanto saem. */
+  saida?: 'limpar' | 'vira' | null;
+  /** A fila nova da Radio: as linhas entram a virar. */
+  entrada?: 'vira' | null;
 }) {
   const sugeridas = usePlayer((s) => s.sugeridas);
   const [arrasto, setArrasto] = useState<Arrasto | null>(null);
@@ -122,7 +129,8 @@ export function FilaArrastavel({
         return (
           <div
             key={chaves[i]}
-            className="np-fila-linha"
+            className={saida === 'limpar' ? 'np-fila-linha np-fila-sai' : saida === 'vira' ? 'np-fila-linha np-fila-vira'
+              : entradaDaLista ? 'np-fila-linha np-fila-entra' : 'np-fila-linha'}
             onDragStart={e => e.preventDefault()}
             onPointerDown={(e: any) => {
               if (!podeArrastar || e.button !== 0 || ref.current?.aPousar || aConfirmar) return;
@@ -212,6 +220,8 @@ export function FilaArrastavel({
               // linha acesa lia-se como "a que está a tocar", e essa é a capa.
               background: arrastada ? COR.elevado : undefined,
               boxShadow: arrastada ? '0 10px 28px rgba(0,0,0,.55)' : undefined,
+              ...(saida || entradaDaLista
+                ? { animationDelay: `${atrasoDaLinha(i, saida ? PASSO_DA_SAIDA_MS : PASSO_DA_ENTRADA_MS)}ms` } : {}),
             } as any}
           >
             {/* Ao passar o rato a capa mostra o ▶ (tocar esta), como nas

@@ -119,6 +119,8 @@ export function useRadioDaFila() {
     tipo: tipoMostrado, menuAberto, fecharMenu: () => setMenuAberto(false), escolher,
     /** O que a pastilha diz ligada: "Radio on" ou "Mix on" (num Jam sem a migração, sempre "Radio on"). */
     rotuloLigado: emJam && !tipoDoJam ? ROTULO_DO_RADIO.ligado : ROTULO_LIGADO[tipoMostrado],
+    /** Há tipo para escolher (Songs like this one / Mix)? Num Jam, só com o tipo na sala (a migração). */
+    comTipo: !emJam || !!tipoDoJam,
     /** Carregar agora abre o menu (e não liga nem desliga logo). Num Jam, só com o tipo na sala. */
     abreMenu: (!emJam || !!tipoDoJam) && mode === 'off' && !reason,
     /** Num Jam sem a migração (a sessão não traz o Radio) não há pastilha. */

@@ -57,3 +57,47 @@ export function fimDaFila(c: {
   if (c.autoplayRadio) return "Then: radio based on what you're playing";
   return c.vazia ? 'Queue ends after this track' : 'Queue ends here';
 }
+
+/**
+ * O grupo da Radio no fim da fila (30/10, passo 1 de `docs/PLANO-ELEVAR-PC.md`).
+ *
+ * O Radio põe as suas músicas em `doRadio` e a fila fica "o que escolheste, e
+ * depois o que a Radio juntou". Devolve onde começa essa cauda: a posição da
+ * primeira de uma sequência, até ao fim, só de músicas da Radio; -1 se a fila
+ * não acaba em nenhuma (ou está vazia). Uma da Radio no meio do que escolheste
+ * não abre grupo: o grupo é só o que vem seguido até ao fim.
+ */
+export function inicioDoGrupoDaRadio(chaves: readonly string[], doRadio: readonly string[]): number {
+  if (!chaves.length || !doRadio.length) return -1;
+  const radio = new Set(doRadio);
+  let inicio = -1;
+  for (let i = chaves.length - 1; i >= 0 && radio.has(chaves[i]); i--) inicio = i;
+  return inicio;
+}
+
+/** O que o separador do grupo diz, por tipo de Radio. */
+export const ROTULO_DO_GRUPO: Record<'musica' | 'mix', string> = {
+  musica: 'Radio · songs like this one',
+  mix: 'Mix · everything you play',
+};
+
+/**
+ * As animações da fila: as linhas saem em cascata (Clear) ou viram (a Radio a
+ * trocar a fila) e a nova entra a virar. Só as primeiras `LINHAS_ANIMADAS` se
+ * escalonam (uma fila de cem linhas não demora dois segundos a sair); as outras
+ * saem com a última.
+ */
+export const LINHAS_ANIMADAS = 14;
+export const PASSO_DA_SAIDA_MS = 26;
+export const DURACAO_DA_SAIDA_MS = 460;
+export const PASSO_DA_ENTRADA_MS = 55;
+
+/** O atraso de uma linha, em ms, numa cascata de `passo` ms. */
+export function atrasoDaLinha(i: number, passo: number): number {
+  return Math.max(0, Math.min(i, LINHAS_ANIMADAS)) * passo;
+}
+
+/** Quanto esperar até a última linha ter saído, para só então mexer na fila. */
+export function esperaDaSaida(linhas: number): number {
+  return DURACAO_DA_SAIDA_MS + atrasoDaLinha(Math.max(0, linhas - 1), PASSO_DA_SAIDA_MS) + 60;
+}

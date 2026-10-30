@@ -121,15 +121,18 @@ caso('iPhone: nasce da pastilha no thread da interface, com os 120 Hz e o Modal 
   assert.match(q, /setMenuAberto\(true\);/, 'desligado, carregar abre o menu');
   assert.match(q, /if\(usePlayer\.getState\(\)\.radioMode!=='off'\)\{setUndo\(null\);usePlayer\.getState\(\)\.stopRadio\(\);return;\}/, 'ligado, desliga como antes');
 });
-caso('PC: o mesmo menu, sem desfoque nem className, e fecha com Esc', () => {
+caso('PC: o menu continua sem desfoque nem className e fecha com Esc (a fila já não o abre: as opções estão à vista)', () => {
   const m = ler('src/components/MenuDoRadio.web.tsx');
   assert.doesNotMatch(m, /backdrop-filter|backdropFilter|className/);
   assert.match(m, /e\.key === 'Escape'/);
   assert.match(m, /pausarAtalhosDaJanela\(true\)/);
   assert.match(m, /prefers-reduced-motion: reduce/);
+  // 30/10: o PC trocou a pastilha + menu por Off / Like this / Mix à vista
+  // (`RadioEmTresEstados`, ver `test-fila-animada.ts`); o menu fica para o
+  // `RadioQueueControl` partilhado, que o PC já só usa pelo hook.
   const fila = ler('src/desktop/FilaDoLeitor.web.tsx');
-  assert.match(fila, /pastilha\.current\?\.getBoundingClientRect/);
-  assert.match(fila, /<MenuDoRadio ancora=\{ancora\} visivel=\{radio\.menuAberto\}/);
+  assert.doesNotMatch(fila, /<MenuDoRadio /);
+  assert.match(fila, /<RadioEmTresEstados \/>/);
 });
 
 console.log(falhas ? `\n  ${falhas} caso(s) a falhar.\n` : '\n  Todos os casos passaram.\n');

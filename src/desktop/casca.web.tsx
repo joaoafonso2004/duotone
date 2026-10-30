@@ -463,6 +463,37 @@ export function injectDesktopDocumentStyles() {
       background: radial-gradient(220px circle at var(--mx, 50%) var(--my, 50%), rgba(255,255,255,.16), transparent 62%); }
     [data-dt~="brilho"]:hover::after{ opacity: 1; }
 
+    /* A fila a sair e a entrar (30/10, passo 1 do PC elevado). Clear: as linhas
+       saem em cascata (o atraso de cada uma vai inline, atrasoDaLinha). A Radio
+       a trocar a fila: as linhas viram e saem enquanto ela procura, e as novas
+       entram a virar. Transform e opacidade, e a altura a fechar (as linhas tem
+       min-height inline, por isso fecha-se tambem). Sem cliques enquanto saem. */
+    .np-fila-sai{ pointer-events: none; overflow: hidden; animation: dt-fila-sai 460ms var(--dt-curva) both; }
+    @keyframes dt-fila-sai{
+      0%{ opacity: 1; transform: none; max-height: 64px; }
+      50%{ opacity: 0; transform: translateX(52px) scale(.97); max-height: 64px; min-height: 0; }
+      100%{ opacity: 0; transform: translateX(52px); max-height: 0; min-height: 0; padding-top: 0; padding-bottom: 0; }
+    }
+    .np-fila-vira{ pointer-events: none; overflow: hidden; transform-origin: 50% 0;
+      animation: dt-fila-vira 460ms cubic-bezier(.5, 0, .75, 0) both; }
+    @keyframes dt-fila-vira{
+      0%{ opacity: 1; transform: perspective(900px) rotateX(0); max-height: 64px; }
+      55%{ opacity: 0; transform: perspective(900px) rotateX(-88deg); max-height: 64px; min-height: 0; }
+      100%{ opacity: 0; transform: perspective(900px) rotateX(-88deg); max-height: 0; min-height: 0; padding-top: 0; padding-bottom: 0; }
+    }
+    .np-fila-entra{ transform-origin: 50% 0; animation: dt-fila-entra 620ms var(--dt-curva) backwards; }
+    @keyframes dt-fila-entra{ from{ opacity: 0; transform: perspective(900px) rotateX(88deg); } to{ opacity: 1; transform: none; } }
+    /* O separador do grupo da Radio entra com a fila e apaga-se quando ela sai. */
+    [data-dt~="grupo-radio"]{ animation: dt-linha 260ms var(--dt-curva) backwards; }
+    [data-dt~="grupo-radio"][data-dt~="grupo-sai"]{ opacity: 0; transition: opacity 240ms var(--dt-curva); }
+    /* O Radio ligado: os arcos respiram (quietos com a musica em pausa), e um
+       anel abre-se quando a fila nova chega. */
+    [data-dt~="radio-onda"]{ animation: dt-radio-onda 1.8s ease-in-out infinite; }
+    [data-dt~="radio-onda"][data-dt~="radio-parado"]{ animation-play-state: paused; }
+    @keyframes dt-radio-onda{ 50%{ opacity: .35; } }
+    [data-dt~="radio-anel"]{ animation: dt-radio-anel 950ms ease-out both; }
+    @keyframes dt-radio-anel{ from{ box-shadow: 0 0 0 0 rgba(233,234,238,.4); } to{ box-shadow: 0 0 0 14px rgba(233,234,238,0); } }
+
     /* Quem pediu menos movimento no Windows nao leva nada disto. O estado
        final e o mesmo: aqui so morre o caminho ate la. */
     @media (prefers-reduced-motion: reduce){
@@ -471,7 +502,10 @@ export function injectDesktopDocumentStyles() {
       [data-dt~="fila"], [data-dt~="dialogo"], [data-dt~="veu"], [data-dt~="aviso"],
       [data-dt~="menu-amigo"], [data-dt~="aviso-msg"],
       [data-dt~="pagina"], [data-dt~="pagina"] [data-dt~="cartao"], [data-dt~="carregar"],
-      [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]{ animation: none !important; }
+      [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"],
+      .np-fila-sai, .np-fila-vira, .np-fila-entra, [data-dt~="grupo-radio"],
+      [data-dt~="radio-onda"], [data-dt~="radio-anel"]{ animation: none !important; }
+      [data-dt~="grupo-radio"][data-dt~="grupo-sai"]{ transition: none !important; }
       [data-dt~="premir"], [data-dt~="desliza"], [data-dt~="campo"], [data-dt~="fila"] [data-dt~="toca"],
       [data-dt~="fila"] [data-dt~="mais"], [data-dt~="fila"] [data-dt~="numero"],
       [data-dt~="cartao"], [data-dt~="coracaoDoCartao"], [data-dt~="a-sair"], [data-dt~="main-a-voltar"],

@@ -6,6 +6,7 @@ const ts = require('typescript');
 const track = (id) => ({ source: 'youtube', sourceId: id, title: id });
 const a = track('a'), b = track('b'), c = track('c');
 const calls = [];
+const avisos = [];
 const player = {
   current: a, queue: [a, b, c], queueIndex: 0, shuffle: true, shuffleOrder: [0, 2, 1],
   repeatMode: 'off', autoplayRadio: true, radioError: null, origemDaFila: null,
@@ -13,6 +14,10 @@ const player = {
   playTrack: (...args) => calls.push(['play', ...args]),
   reordenarProximas: (...args) => calls.push(['move', ...args]),
   limparProximas: () => { calls.push(['clear']); return 2; },
+  // O grupo da Radio e as animações (30/10): o que a store diz da Radio e o Undo do Clear.
+  doRadio: [], radioTipo: 'musica', radioMode: 'off',
+  fotografiaDaFila: () => ({ foto: 'antes' }),
+  reporFila: (foto) => { calls.push(['repor', foto.foto]); return true; },
 };
 const jam = { sessao: null, fila: [{ track: b }] };
 const amigo = { seguindo: null, aSeguir: [c] };
@@ -21,6 +26,12 @@ usePlayer.getState = () => player;
 let cursor = 0, state = [];
 const react = {
   useMemo: (f) => f(), useEffect() {},
+  // Uma referência por posição, como o estado: a mesma de render para render.
+  useRef(initial) {
+    const i = cursor++;
+    if (!(i in state)) state[i] = { current: initial };
+    return state[i];
+  },
   useState(initial) {
     const i = cursor++;
     if (!(i in state)) state[i] = initial;
@@ -36,11 +47,17 @@ function carregar(file, mocks = {}) {
   } });
   return exports;
 }
+const leitorDoPc = carregar('src/lib/leitorDoPc.ts');
 const { useFilaDoLeitor } = carregar('src/desktop/useFilaDoLeitor.web.ts', {
   react, '../state/player': { usePlayer },
+  '../lib/shuffle': { trackKey: (t) => `${t.source}:${t.sourceId}` },
+  '../lib/avisoDeRemocao': {
+    avisarRemocao: (aviso) => { calls.push(['aviso', aviso.texto, aviso.detalhe]); avisos.push(aviso); },
+    contarMusicas: (n) => (n === 1 ? '1 song' : `${n} songs`),
+  },
   '../state/ouvirJuntos': { useOuvirJuntos: (select) => select(jam) },
   '../state/seguirAmigo': { useSeguirAmigo: (select) => select(amigo) },
-  '../lib/leitorDoPc': carregar('src/lib/leitorDoPc.ts'),
+  '../lib/leitorDoPc': leitorDoPc,
   '../lib/grelhaQueCresce': carregar('src/lib/grelhaQueCresce.ts'),
   // Guardar a fila como playlist (11/10): a API é um duplo; o nome e as faixas são puros.
   '../api/playlists': {
@@ -64,8 +81,30 @@ assert.ok(!calls.some((x) => x[0] === 'clear'), 'Clear pede confirmação');
 fila = render();
 assert.equal(fila.aConfirmarLimpar, true);
 fila.limpar();
-assert.equal(calls.at(-2)[0], 'clear');
-assert.equal(calls.at(-1)[0], 'notice');
+// As linhas saem primeiro, em cascata (30/10): a fila só muda DEPOIS, e um
+// segundo clique durante a saída não faz nada.
+assert.ok(!calls.some((x) => x[0] === 'clear'), 'a fila só muda depois de as linhas saírem');
+fila = render();
+assert.equal(fila.saida, 'limpar');
+assert.equal(fila.aLimpar, true);
+fila.limpar();
+assert.ok(!calls.some((x) => x[0] === 'clear'));
+
+// O grupo da Radio: a cauda da fila feita só de músicas da Radio (as chaves vêm do `trackKey`).
+state = [];
+player.doRadio = ['youtube:b'];
+assert.equal(render().inicioDoGrupo, 1, 'a Radio juntou a última: o grupo começa nela');
+player.doRadio = ['youtube:c'];
+assert.equal(render().inicioDoGrupo, -1, 'uma da Radio no meio do que escolheste não abre grupo');
+player.doRadio = ['youtube:b', 'youtube:c'];
+assert.equal(render().inicioDoGrupo, 0);
+player.doRadio = [];
+// Enquanto a Radio procura, as linhas viram e saem; quando a nova chega, entra a virar.
+player.radioMode = 'preparing';
+assert.equal(render().saida, 'vira');
+player.radioMode = 'off';
+assert.equal(render().saida, null);
+state = [];
 
 jam.sessao = { id: 'jam' };
 fila = render();
@@ -115,6 +154,12 @@ assert.doesNotMatch(painel, /position: 'absolute', right: 16, top: 12/, 'a seta 
 
 // Guardar a fila (11/10): a que toca e as próximas, sem repetidas, com o nome escolhido.
 (async () => {
+  // Passada a saída, a fila muda e o aviso deixa desfazer (como no iPhone).
+  await new Promise((resolve) => setTimeout(resolve, leitorDoPc.esperaDaSaida(2) + 150));
+  assert.equal(calls.filter((x) => x[0] === 'clear').length, 1, 'a fila mudou uma vez, depois da saída');
+  assert.deepEqual(calls.find((x) => x[0] === 'aviso'), ['aviso', 'Cleared 2 songs', 'from Up next']);
+  avisos[0].desfazer();
+  assert.deepEqual(calls.find((x) => x[0] === 'repor'), ['repor', 'antes'], 'o Undo repõe a fotografia tirada antes');
   player.upcomingQueue = () => [{ track: c, index: 2 }, { track: a, index: 0 }, { track: b, index: 1 }];
   state = [];
   fila = render();

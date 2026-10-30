@@ -4,7 +4,7 @@ let hooks=[],index=0,effects=[],timers=[],frames=[],listeners={},moves=[],plays=
 const react={createElement:(type,props,...children)=>({type,props:props??{},children}),useState:init=>{const i=index++;if(!(i in hooks))hooks[i]=typeof init==='function'?init():init;return [hooks[i],v=>hooks[i]=typeof v==='function'?v(hooks[i]):v];},useRef:init=>{const i=index++;return hooks[i]??(hooks[i]={current:init});},useCallback:fn=>{index++;return fn;},useEffect:fn=>{index++;effects.push(fn);}};react.default=react;
 const {FilaArrastavel}=load('src/desktop/FilaArrastavel.web.tsx',{
  react,'react-native':{Text:'text',View:'view'},'@expo/vector-icons/Ionicons':()=>null,
- '../lib/reorder':load('src/lib/reorder.ts'),'../lib/arrastarFila':load('src/lib/arrastarFila.ts'),
+ '../lib/leitorDoPc':load('src/lib/leitorDoPc.ts'), '../lib/reorder':load('src/lib/reorder.ts'),'../lib/arrastarFila':load('src/lib/arrastarFila.ts'),
  './estilos.web':{styles:{}},'./tokens.web':{COR:{},ESP:{}},'./ui.web':{Artwork:'art',formatTime:()=>'',ui:{}},
  '../lib/artistName':{displayArtist:t=>t.artist,tituloDaFaixa:t=>t.title},'../components/BrilhoInteligente':{EstrelaInteligente:()=>null},
  '../lib/shuffle':{trackKey:t=>t.sourceId},'../state/player':{usePlayer:f=>f({sugeridas:[]})},
