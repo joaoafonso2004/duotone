@@ -1,5 +1,6 @@
 import { PainelDoLeitor } from '../desktop/PainelDoLeitor.web';
 import { TransicaoDePagina } from '../desktop/TransicaoDePagina.web';
+import { viagemChegou } from '../desktop/viagem.web';
 import { MenuDeContexto, ultimoClique, type PontoNoEcra } from '../desktop/MenuDeContexto.web';
 import { RetrospetivaPage } from '../desktop/paginas/RetrospetivaPage.web';
 import { VocesOsDoisPage } from '../desktop/paginas/VocesOsDoisPage.web';
@@ -109,6 +110,8 @@ function DesktopShell() {
   const [route, setRoute] = useState<Route>({ name: 'search' }); const history = useRef<Route[]>([]); const [toast, setToast] = useState('');
   // Só o nome da página: os parâmetros (ids, nomes de artistas) são conteúdo.
   useEffect(() => { anotarEcra(route.name); }, [route.name]);
+  // Uma rota nova acabou de entrar: se havia uma viagem a meio (o mosaico de uma playlist), cumpre-se (30/10).
+  useEffect(() => { viagemChegou(); }, [route]);
   const [nowPlayingOpen, setNowPlayingOpen] = useState(false);
   const [jamOpen, setJamOpen] = useState(false);
   // O Now Playing também SAI (20/10): fica montado a apagar-se enquanto a

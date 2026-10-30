@@ -498,6 +498,16 @@ export function injectDesktopDocumentStyles() {
     /* O atalho para a faixa que toca (30/10, TrackTable): sobe de leve ao aparecer. */
     [data-dt~="salto-atual"]{ animation: dt-linha 220ms var(--dt-curva) backwards; }
 
+    /* A viagem partilhada (30/10, desktop/viagem.web.ts): o mosaico de uma playlist voa da
+       grelha para o cabeçalho da página. Enquanto dura, a página nova não entra a subir
+       (o esbater da raiz já a traz) e a raiz esbate-se depressa. */
+    ::view-transition-group(portrait){ animation-duration: 560ms; animation-timing-function: var(--dt-curva); }
+    ::view-transition-old(root), ::view-transition-new(root){ animation-duration: 220ms; }
+    html[data-viagem] [data-dt~="pagina"]{ animation: none; }
+    @media (prefers-reduced-motion: reduce){
+      ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*){ animation: none !important; }
+    }
+
     /* Os ícones da barra do leitor que mudam de estado (30/10, passo 8,
        desktop/IconesDeEstado.web.tsx): cada um com a sua animação, só de
        movimento e opacidade e de traços que se desenham (pathLength 1). A mola
