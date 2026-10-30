@@ -44,7 +44,7 @@ caso('o resumo conta as músicas e soma só as que têm duração', () => {
   assert.equal(resumoDaLista([]), '0 songs');
 });
 caso('o título leva "Playlist" por cima e o resumo da lista TODA por baixo', () => {
-  assert.match(PAGINA, /<Page title="Liked Songs" eyebrow="Playlist" lavagem="rgba\(108,92,255,\.34\)" subtitle=\{resumo\}/);
+  assert.match(PAGINA, /<Page title="Liked Songs" eyebrow="Playlist" lavagem="rgba\(200,205,218,\.2\)" subtitle=\{resumo\}/);
   assert.match(PAGINA, /const resumo = data\.loading \|\| data\.semLista \? undefined : resumoDaLista\(data\.tracks\);/);
 });
 caso('a barra só conta enquanto se pesquisa ("12 of 73 songs")', () => {

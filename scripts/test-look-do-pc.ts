@@ -52,7 +52,7 @@ caso('o artista da grelha toca as músicas dele da biblioteca, e a mistura da Ho
 
 console.log('\nas Liked Songs');
 caso('o topo leva uma lavagem de violeta que se esbate para baixo, atrás do cabeçalho', () => {
-  assert.match(BIBLIOTECA, /<Page title="Liked Songs" eyebrow="Playlist" lavagem="rgba\(108,92,255,\.34\)" subtitle=\{resumo\}/);
+  assert.match(BIBLIOTECA, /<Page title="Liked Songs" eyebrow="Playlist" lavagem="rgba\(200,205,218,\.2\)" subtitle=\{resumo\}/);
   assert.match(UI, /\{lavagem \? <View pointerEvents="none" aria-hidden style=\{\[ui\.lavagem, \{ backgroundImage: `linear-gradient\(180deg, \$\{lavagem\}, rgba\(6,6,8,0\)\)` \} as any\]\} \/> : null\}/);
   assert.match(UI, /lavagem: \{ position: 'absolute', top: 0, left: 0, right: 0, height: 300 \}/);
 });
