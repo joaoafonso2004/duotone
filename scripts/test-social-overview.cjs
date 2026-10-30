@@ -41,40 +41,48 @@ const React = { createElement: (type, props, ...children) => ({ type, props: { .
 // O PC (9/10): o iPhone tem a sua, testada em test-social-ios.cjs.
 const { SocialOverview } = load('src/components/SocialOverview.web.tsx', {
   '../lib/previaDaConversa': load('src/lib/previaDaConversa.ts'),
-  react: React, 'react-native': { Pressable: 'Pressable', ScrollView: 'ScrollView', Text: 'Text', TextInput: 'TextInput', View: 'View', StyleSheet: { create: x => x } },
-  'expo-image': { Image: 'Image' }, '@expo/vector-icons/Ionicons': 'Icon', '../lib/socialActivity': core,
+  react: React, 'react-native': { Pressable: 'Pressable', Text: 'Text', TextInput: 'TextInput', View: 'View', StyleSheet: { create: x => x } },
+  '../desktop/duotone.web': { CapaDuotone: 'CapaDuotone' }, '../desktop/ui.web': { marcar: (...m) => ({ 'data-dt': m.join(' ') }) },
+  '../state/jamsDosAmigos': { jamsDosAmigos: async () => new Map([['f0', 'jam-f0']]) },
+  '../state/ouvirComAmigo': { ouvirComAmigo: async (amigo, sessao) => { juntados.push([amigo.friendId, sessao]); } },
+  '../lib/socialActivity': core,
   '../lib/socialPresence': { ultimaAtividade: () => 'Last seen' }, '../lib/social': { haQuantoTempo: () => 'now' },
   '../lib/ordemDasConversas': load('src/lib/ordemDasConversas.ts'), '../lib/artistName': { tituloDaFaixa: t => t.title, displayArtist: t => t.artist },
   '../lib/capaDoEcraBloqueado': { capaParaLista: x => x }, './socialTokens': { colors: {}, radii: {} }, '../theme': { ESCALA_MAXIMA: { lista: 1.4 } },
   './socialUI': { AvatarDeConversa: 'Avatar', SocialIconButton: 'ChatButton' }, './GroupChat': { GroupAvatar: 'GroupAvatar' },
 });
-const opened = [], profiles = [], songs = [];
+const opened = [], profiles = [], songs = [], juntados = [];
 const friends = Array.from({ length: 7 }, (_, i) => ({ friendId: `f${i}`, name: `Friend ${i}`, avatarUrl: null,
   status: 'accepted', online: false, lastSeenAt: null, musicActivity: i < 4 ? core.musicActivity(presence, now) : null }));
 const props = { friends, groups: [], contacts: [], previews: { f0: read.friend }, activity: { f0: now }, unread: new Map(),
   now, myId: 'me', loading: false, requests: null, onOpen: (...args) => opened.push(args), onProfile: id => profiles.push(id),
   onTrack: t => songs.push(t), onRemoveFriend() {}, onDeleteConversation() {}, onStart() {} };
 const render = () => { hook = 0; return SocialOverview(props); };
-function nodes(tree) { if (!tree || typeof tree !== 'object') return []; return [tree, ...(tree.props?.children ?? []).flat(Infinity).flatMap(nodes)]; }
+// Os componentes de função (o cartão de quem ouve, sem hooks) abrem-se para se ver o que desenham.
+function nodes(tree) { if (!tree || typeof tree !== 'object') return []; if (typeof tree.type === 'function') return [tree, ...nodes(tree.type(tree.props))]; return [tree, ...(tree.props?.children ?? []).flat(Infinity).flatMap(nodes)]; }
 function text(tree) { return (tree.props?.children ?? []).flat(Infinity).filter(c => typeof c === 'string').join(''); }
 let tree = render(), n = nodes(tree);
 const headers = n.filter(x => x.props.accessibilityRole === 'header');
 assert.equal(headers.length, 2); assert.equal(headers[0].props.style, headers[1].props.style, 'identical section typography');
-assert.equal(text(headers[0]), 'Music activity'); assert.equal(text(headers[1]), 'Friends');
+assert.equal(text(headers[0]), 'Listening now · 4'); assert.equal(text(headers[1]), 'Conversations');
 assert.equal(headers[0].props.children.length, 1, 'no icon beside the music heading');
-const shelf = n.find(x => x.type === 'ScrollView'); assert.equal(shelf.props.horizontal, true);
-const cards = nodes(shelf).filter(x => x.props.accessibilityRole === 'button'); assert.equal(cards.length, 4);
-tree.props.onLayout({ nativeEvent: { layout: { width: 294 } } }); tree = render(); n = nodes(tree);
+const cartoes = n.filter(x => x['props']['data-dt'] === 'cartao-ouvir'); assert.equal(cartoes.length, 4, 'one card per friend who is listening');
+assert.equal(n.filter(x => x.type === 'ScrollView').length, 0, 'a list of cards, not a shelf');
 const firstCard = n.find(x => x.props.accessibilityLabel?.endsWith('Song options'));
-assert.ok(firstCard.props.style({ pressed: false })[1].width * 3 + 16 <= 294.1, 'three cards fit in one shelf');
 firstCard.props.onPress(); assert.equal(songs[0].sourceId, 'a');
-assert.equal(n.filter(x => x.type === 'ChatButton').length, 7, 'all friends appear without See all');
+const capas = n.filter(x => x.type === 'CapaDuotone'); assert.equal(capas.length, 4);
+assert.ok(capas.every(c => c.props.viva === true), 'who is listening has the cover in colour');
+assert.equal(n.filter(x => x.props['data-dt'] === 'eq').length, 4, 'the bars move while someone listens');
+const ouvir = n.filter(x => x.props['data-dt'] === 'ouvir-ja'); assert.equal(ouvir.length, 4, 'Listen along on each card');
+assert.equal(ouvir[0].props.accessibilityLabel, 'Listen along with Friend 0');
+assert.equal(n.filter(x => x.type === 'ChatButton').length, 0, 'no chat bubble on every row: the whole row opens the chat');
+assert.equal(n.filter(x => x.props['data-dt'] === 'conversa').length, 7, 'all friends appear without See all');
 assert.equal(n.filter(x => x.props.accessibilityRole === 'tab').length, 0, 'one unified view');
 props.activity = { f0: now - 6000, f6: now - 1000, f4: now - 3000 };
 props.friends[1].online = true;
 n = nodes(render());
-assert.deepEqual(n.filter(x => x.type === 'ChatButton').map(x => x.props.label),
-  ['Chat with Friend 6','Chat with Friend 4','Chat with Friend 0','Chat with Friend 1','Chat with Friend 2','Chat with Friend 3','Chat with Friend 5'],
+assert.deepEqual(n.filter(x => x.props['data-dt'] === 'conversa').map(row => nodes(row).find(x => x.props.accessibilityLabel?.startsWith('View '))?.props.accessibilityLabel),
+  ['View Friend 6','View Friend 4','View Friend 0','View Friend 1','View Friend 2','View Friend 3','View Friend 5'],
   'latest interaction wins over presence, and friends without messages remain visible');
 n.find(x => x.props.accessibilityLabel === 'View Friend 6').props.onPress();
 assert.equal(profiles.at(-1), 'f6');
@@ -83,6 +91,9 @@ assert.ok(chat, 'read messages still have previews'); chat.props.onPress(); asse
 assert.ok(n.some(x => x.type === 'Text' && text(x) === 'Song · Artist'), 'last message survives marking read');
 
 async function main() {
+  ouvir[0].props.onPress(); ouvir[1].props.onPress();
+  await new Promise(r => setTimeout(r, 10));
+  assert.deepEqual(juntados, [['f0', 'jam-f0'], ['f1', null]], 'Listen along joins his Jam when he has one, and follows him otherwise');
   let calls = [], error = null;
   const row = { outro: 'room', is_group: true, ultima: iso(0), sender_id: 'me', item_type: 'track', message: null, track_title: 'Song', track_artist: 'Artist' };
   const api = load('src/api/conversationPreviews.ts', { '../lib/supabase': { supabase: { rpc: async name => {

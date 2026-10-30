@@ -471,6 +471,20 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="vinil"]{ transition: transform 800ms var(--dt-curva); }
     [data-dt~="cartao"]:hover [data-dt~="vinil"], [data-dt~="cartao"]:focus-within [data-dt~="vinil"]{ transform: translateX(38%) rotate(120deg); }
 
+    /* O Social (30/10, passo 7, components/SocialOverview.web.tsx). Um amigo a
+       ouvir: as barrinhas mexem-se, e o "Listen along" aparece com o rato no
+       cartao (ou com o foco la dentro, para o teclado o encontrar). A linha de
+       uma conversa acende com o rato. So opacidade, transform e fundo. */
+    [data-dt~="eq"] > *{ transform-origin: bottom; animation: dt-eq 1s ease-in-out infinite; }
+    [data-dt~="eq"] > *:nth-child(2){ animation-delay: 250ms; }
+    [data-dt~="eq"] > *:nth-child(3){ animation-delay: 500ms; }
+    @keyframes dt-eq{ 0%, 100%{ transform: scaleY(.3); } 50%{ transform: scaleY(1); } }
+    [data-dt~="ouvir-ja"]{ opacity: 0; transform: translateX(6px);
+      transition: opacity var(--dt-rapido) var(--dt-curva), transform var(--dt-normal) var(--dt-curva); }
+    [data-dt~="cartao-ouvir"]:hover [data-dt~="ouvir-ja"], [data-dt~="cartao-ouvir"]:focus-within [data-dt~="ouvir-ja"]{ opacity: 1; transform: none; }
+    [data-dt~="conversa"]{ transition: background-color var(--dt-rapido) var(--dt-curva); }
+    [data-dt~="conversa"]:hover{ background-color: rgba(233,234,238,.05); }
+
     /* A fila a sair e a entrar (30/10, passo 1 do PC elevado). Clear: as linhas
        saem em cascata (o atraso de cada uma vai inline, atrasoDaLinha). A Radio
        a trocar a fila: as linhas viram e saem enquanto ela procura, e as novas

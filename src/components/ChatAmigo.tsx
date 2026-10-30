@@ -4,6 +4,7 @@ import { BlurView } from 'expo-blur';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { BotaoGuardar } from './BotaoGuardar';
+import { CapaDaFaixaPartilhada, EtiquetaDaFaixaPartilhada } from './CapaDaFaixaPartilhada';
 import { FriendAvatar } from './FriendAvatar';
 import { SocialIconButton } from './socialUI';
 import { Toque } from './Toque';
@@ -135,14 +136,10 @@ export function FaixaPartilhada({
       accessibilityLabel={`Play ${tituloDaFaixa(faixa)}`}
       style={[styles.faixa, minha && styles.faixaMinha]}
     >
-      {capa ? (
-        <Image source={{ uri: capa }} style={styles.capa} contentFit="cover" />
-      ) : (
-        <View style={[styles.capa, styles.semCapa]}>
-          <Ionicons name="musical-notes" size={15} color={colors.textTertiary} />
-        </View>
-      )}
+      {/* A capa e a etiqueta têm uma variante do PC (a dois tons, 30/10); no iPhone é a de sempre. */}
+      <CapaDaFaixaPartilhada faixa={faixa} capa={capa} estilo={styles.capa} estiloVazio={[styles.capa, styles.semCapa]} />
       <View style={{ flex: 1, minWidth: 0 }}>
+        <EtiquetaDaFaixaPartilhada faixa={faixa} />
         <Text numberOfLines={1} style={styles.faixaTitulo}>{tituloDaFaixa(faixa)}</Text>
         <Text numberOfLines={1} style={styles.faixaArtista}>{displayArtist(faixa)}</Text>
       </View>
