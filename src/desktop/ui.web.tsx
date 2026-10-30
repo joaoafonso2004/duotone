@@ -144,8 +144,12 @@ export function Button({ children, onPress, icon, iconNode, secondary = false, d
   ]}>{brilho ? <BrilhoInteligente /> : null}{ocupado ? <ActivityIndicator size={16} color={corDoTexto} /> : iconNode ?? (icon && <Ionicons name={icon} size={16} color={corDoTexto} />)}<Text style={[ui.buttonText, secondary && ui.buttonTextSec, danger && ui.buttonTextDanger]}>{children}</Text></P>;
 }
 
-export const Field = React.forwardRef<any, React.ComponentProps<typeof TextInput> & { icon?: keyof typeof Ionicons.glyphMap }>(function Field(props, ref) {
-  const { icon, style, onSubmitEditing, ...rest } = props;
+export const Field = React.forwardRef<any, React.ComponentProps<typeof TextInput> & {
+  icon?: keyof typeof Ionicons.glyphMap;
+  /** A barra de comando (30/10): em pílula, com o atalho que a abre escrito à direita enquanto está vazia. */
+  pilula?: boolean; atalho?: string;
+}>(function Field(props, ref) {
+  const { icon, style, onSubmitEditing, pilula, atalho, ...rest } = props;
   // Pelo `onKeyPress`: o RNW põe o seu próprio `onKeyDown` por cima e este
   // nunca corria (o Esc não limpava). O Enter não passa por aqui: o RNW já
   // chama o `onSubmitEditing` num campo de uma linha, e chamá-lo também aqui
@@ -160,8 +164,9 @@ export const Field = React.forwardRef<any, React.ComponentProps<typeof TextInput
   // So nas lupas: um X num campo de mensagem nao quer dizer nada, e este
   // componente serve os dois. Aparece so quando ha o que limpar.
   const limpavel = icon === 'search' && !!rest.value && !!(rest as any).onChangeText;
-  return <View style={ui.fieldWrap} {...marcar('campo')}>{icon && <Ionicons name={icon} size={18} color={COR.textoFraco} />}<TextInput
+  return <View style={[ui.fieldWrap, pilula && ui.fieldPilula]} {...marcar('campo')}>{icon && <Ionicons name={icon} size={18} color={COR.textoFraco} />}<TextInput
     ref={ref} placeholderTextColor={COR.textoFraco} selectionColor={COR.metalClaro} onSubmitEditing={onSubmitEditing} {...(rest as any)} onKeyPress={handleKeyDown} style={[ui.field, style]} />
+    {atalho && !rest.value ? <Text style={ui.fieldAtalho} accessibilityElementsHidden importantForAccessibility="no">{atalho}</Text> : null}
     {limpavel && <P accessibilityRole="button" accessibilityLabel="Clear search"
       onPress={() => { (rest as any).onChangeText?.(''); (ref as any)?.current?.focus?.(); }}
       style={({ hovered }: any) => [ui.fieldLimpar, hovered && { backgroundColor: COR.hover }]}>
@@ -271,11 +276,18 @@ export function formatTime(seconds: number | null) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-export function Artwork({ track, size = 44 }: { track: Track; size?: number }) {
-  // Sem `artworkUrl` há quase sempre capa na mesma: uma faixa do YouTube tem a
-  // miniatura no próprio id. O quadrado vazio ficava para quem não tem nenhuma.
-  const capa = track.artworkUrl
+/**
+ * A capa de uma faixa. Sem `artworkUrl` há quase sempre capa na mesma: uma faixa
+ * do YouTube tem a miniatura no próprio id. O quadrado vazio fica para quem não
+ * tem nenhuma. Quem a desenha de outra maneira (a dois tons) usa esta.
+ */
+export function capaDaFaixa(track: Track): string | null {
+  return track.artworkUrl
     ?? (track.source === 'youtube' && track.sourceId ? `https://i.ytimg.com/vi/${track.sourceId}/mqdefault.jpg` : null);
+}
+
+export function Artwork({ track, size = 44 }: { track: Track; size?: number }) {
+  const capa = capaDaFaixa(track);
   if (!capa) return <View style={[ui.artFallback, { width: size, height: size }]}><Ionicons name="musical-note" size={Math.max(16, size * .35)} color={COR.textoFraco} /></View>;
   const quadro = { width: size, height: size, borderRadius: RAIO.ctrl, backgroundColor: COR.elevado };
   // As miniaturas 4:3 do YouTube (`hqdefault` e companhia) trazem o vídeo 16:9
@@ -480,7 +492,7 @@ function BotaoDoRefrao({ track }: { track: Track }) {
 /** O lado mínimo de uma capa na grelha; o real estica para a linha acabar na borda. */
 const CAPA_MINIMA_DA_GRELHA = 150;
 
-export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto, grelha }: {
+export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto, grelha, capa }: {
   titulo: string; nota?: string; tracks: Track[];
   onPlay: (track: Track, fila: Track[], discoveryContext?: DiscoveryContext, origem?: OrigemDaFila) => void; onMore?: (track: Track, discoveryContext?: DiscoveryContext) => void;
   /** Uma etiqueta por cima de cada capa ("New to you"). Só onde é uma promessa cumprida. */
@@ -498,6 +510,12 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto, gr
    * a lista do `renderRecommendationSection`.
    */
   grelha?: boolean;
+  /**
+   * Como se desenha a capa de cada faixa da grelha (30/10): a Home põe-na a dois
+   * tons nas descobertas (`CapaDuotone`), e quem vem do ficheiro do componente
+   * é que sabe isso -- daqui não se importa, porque o `duotone.web` importa isto.
+   */
+  capa?: (track: Track, lado: number) => ReactNode;
 }) {
   const { ref, podeEsquerda, podeDireita, deslizar, arrastou } = useCarrossel();
   const [larguraDaGrelha, setLarguraDaGrelha] = useState(0);
@@ -526,7 +544,7 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto, gr
             onContextMenu={((e: any) => { e.preventDefault(); onMore?.(t, contexto?.(t)); }) as any}
             style={({ hovered, pressed }: any) => [ui.shelfCard, { width: lado }, hovered && ui.shelfCardHover, pressed && ui.pressed]}>
             <View>
-              <Artwork track={t} size={lado} />
+              {capa ? capa(t, lado) : <Artwork track={t} size={lado} />}
               {selo ? <View style={ui.shelfSelo} pointerEvents="none"><Text style={ui.shelfSeloTexto}>{selo}</Text></View> : null}
               <BotaoDoRefrao track={t} />
             </View>
@@ -1295,6 +1313,8 @@ export const ui = StyleSheet.create({
 
   fieldWrap: { height: 42, borderRadius: RAIO.cartao, borderWidth: 1, borderColor: COR.linha, backgroundColor: COR.elevado, flexDirection: 'row', alignItems: 'center', paddingHorizontal: ESP.md, gap: ESP.sm },
   field: { flex: 1, minWidth: 0, ...TIPO.corpo, color: COR.texto, outlineStyle: 'none' } as any,
+  fieldPilula: { height: 44, borderRadius: 22, paddingLeft: 16, paddingRight: 10 },
+  fieldAtalho: { fontFamily: FONT.mono, fontSize: 10.5, color: COR.textoMedio, borderWidth: 1, borderColor: COR.linha, borderRadius: 6, paddingVertical: 3, paddingHorizontal: 7 },
 
   empty: { minHeight: 330, alignItems: 'center', justifyContent: 'center', padding: ESP.xxl },
   emptyIcon: { width: 60, height: 60, borderRadius: RAIO.superficie, backgroundColor: COR.elevado, borderWidth: 1, borderColor: COR.linhaSuave, alignItems: 'center', justifyContent: 'center', marginBottom: ESP.lg },

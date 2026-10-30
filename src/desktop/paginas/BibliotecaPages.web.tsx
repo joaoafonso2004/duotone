@@ -36,6 +36,9 @@ import { ordenarArtistas, ordenarFaixas } from '../../lib/ordenacao';
 import { useAuth } from '../../state/auth';
 import { correspondeAPesquisa } from '../../lib/searchText';
 import { resumoDaLista } from '../../lib/duracaoTotal';
+import { resumoDasOutras } from '../../lib/entradasDaHome';
+import { EntradasDaHome } from '../EntradasDaHome.web';
+import { CapaDuotone } from '../duotone.web';
 import { useMusicSearch } from '../../hooks/useMusicSearch';
 import { estadoDaPesquisa, FRASES_DA_PESQUISA } from '../../lib/estadoDaPesquisa';
 import { useArtistaEmDestaque, usePesquisaPorTipo, type SeparadorDaPesquisa } from '../../hooks/usePesquisaPorTipo';
@@ -48,7 +51,7 @@ import { crescer, faltaMostrar, PRIMEIRO_LOTE, quantosMostrar } from '../../lib/
 import { styles } from '../estilos.web';
 import { BotaoVoltar,
   Artwork, Button, ContentScroll, Dialog, Empty, Field, IconButton, Loading, marcar, Page,
-  Chips, PrateleiraDeMisturas, Separadores, Shelf, ShelfDeLancamentos, TrackTable, type ColunaOrdenavel,
+  capaDaFaixa, Chips, PrateleiraDeMisturas, Separadores, Shelf, ShelfDeLancamentos, TrackTable, type ColunaOrdenavel,
 } from '../ui.web';
 import { useMisturaDoDia } from '../../state/misturaDoDia';
 import { marcarArtistaAberto, useNovosLancamentos } from '../../state/novosLancamentos';
@@ -66,7 +69,12 @@ import { useLibraryData } from './comum.web';
 import { contextoDaMistura, contextoDaPrateleira, contextoParaAnalytics, notaDaPrateleira } from '../../lib/contextoDaDescoberta';
 import { registar } from '../../lib/eventos';
 
+/** As prateleiras menos usadas ficam atrás de um botão, e a escolha fica entre visitas (30/10). */
+let outrasPrateleirasAbertas = false;
+
 export function SearchPage({ play, tocarMusica, notify, more, navigate }: CommonPageProps & { navigate: NavegarFn }) {
+  const [outras, setOutras] = useState(outrasPrateleirasAbertas);
+  const alternarOutras = () => setOutras((v) => { outrasPrateleirasAbertas = !v; return !v; });
   const [query, setQuery] = useState(''); const [history, setHistory] = useState<string[]>([]); const input = useRef<any>(null);
   // As pesquisas recentes só com a caixa em foco (20/10), como no iPhone: na
   // Home, sempre à vista, eram uma fila de etiquetas por cima de tudo. Carregar
@@ -190,10 +198,17 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
     setAAbrirMix(false);
     if (!ok) notify('Could not load the mix.');
   };
+  // As prateleiras menos usadas, atrás de um botão (30/10): o que têm e quantas são.
+  const outrasPrateleiras = resumoDasOutras([
+    { nome: 'Daily mix', quantas: misturaDoDiaFaixas.length }, { nome: 'Radio', quantas: radios.length },
+    { nome: 'Your genres', quantas: generos.length }, { nome: 'Playlists', quantas: playlists.length },
+    { nome: "Friends' favourites", quantas: amigos.length }, { nome: 'Heavy rotation', quantas: maisTocadas.length },
+    { nome: 'Forgotten favourites', quantas: esquecidas.length },
+  ]);
   return <><Page title="Home"
     action={<IconButton name="refresh" label="Refresh recommendations"
       onPress={() => { void recs.carregar(true); }} active={recs.estado === 'a-carregar'} />}>
-    <View style={styles.searchBar}><Field ref={input} icon="search" placeholder="Search songs, artists, playlists" value={query} onChangeText={setQuery} onSubmitEditing={() => run()} onFocus={() => setComFoco(true)} onBlur={() => setComFoco(false)} /><Button onPress={() => run()}>Search</Button></View>
+    <View style={styles.searchBar}><Field ref={input} pilula atalho="Ctrl F" icon="search" placeholder="Search songs, artists, playlists" value={query} onChangeText={setQuery} onSubmitEditing={() => run()} onFocus={() => setComFoco(true)} onBlur={() => setComFoco(false)} /><Button onPress={() => run()}>Search</Button></View>
     {comFoco && query.trim().length < 2 && !loading && history.length > 0 && <View style={styles.history} {...({ onMouseDown: (e: any) => e.preventDefault() } as any)}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recent searches</Text><Pressable onPress={async () => { await clearSearchHistory(); setHistory([]); }}><Text style={styles.textAction}>Clear</Text></Pressable></View><View style={styles.chips}>{history.map((item) => <Pressable key={item} onPress={() => run(item)} style={({ hovered }) => [styles.chip, hovered && styles.chipHover]}><Ionicons name="time-outline" size={14} color={COR.textoFraco} /><Text style={styles.chipText}>{item}</Text></Pressable>)}</View></View>}
     {!semPesquisa ? <View style={styles.vistasDaPesquisa}><Separadores opcoes={[['musicas', 'Songs'], ['artistas', 'Artists'], ['albuns', 'Albums'], ['playlists', 'Playlists']] as const}
       valor={tipo} aoMudar={setTipo} /></View> : null}
@@ -242,8 +257,10 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
       : estado.tipo === 'sem-resultados' ? <Empty icon="search-outline" title={FRASES_DA_PESQUISA.semResultados} body={FRASES_DA_PESQUISA.semResultadosCorpo} />
       : temRecomendacoes(recs) ? <>
           {/* Os sítios de onde se ouviu, como na Home do iPhone (5/10). */}
+          <EntradasDaHome misturaDoDia={misturaDoDiaFaixas} />
           <VoltarAOuvir />
-          <Shelf grelha titulo="Discover daily" nota={notaDaPrateleira('descobrir')} tracks={descobrir} onPlay={tocarMusica} onMore={more} contexto={contextoPrateleira('descobrir')} />
+          <Shelf grelha titulo="Discover daily" nota={notaDaPrateleira('descobrir')} tracks={descobrir} onPlay={tocarMusica} onMore={more} contexto={contextoPrateleira('descobrir')}
+            capa={(t, lado) => <CapaDuotone uri={capaDaFaixa(t)} brilho viva={savedKeys.has(`${t.source}:${t.sourceId}`)} style={{ width: lado, height: lado, borderRadius: RAIO.ctrl }} />} />
           {/* Ao lado do Discover, e a dizer o contrário: esse vai buscar aos
               vizinhos o que saiu, esta vai buscar aos teus o que nunca saiu. */}
           {/* A Daily mix: a MESMA lista o dia inteiro, e a mesma no iPhone
@@ -251,7 +268,7 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
               "Daily flow", que era quase a mesma coisa refeita a cada
               arranque e só existia aqui -- duas listas "do dia" lado a lado
               era uma a mais. */}
-          <Shelf titulo="Daily mix" nota="new every day, from what you listen to" tracks={misturaDoDiaFaixas} onPlay={tocarMusica} onMore={more} contexto={contextoPrateleira('flow')} />
+          {outras ? <Shelf titulo="Daily mix" nota="new every day, from what you listen to" tracks={misturaDoDiaFaixas} onPlay={tocarMusica} onMore={more} contexto={contextoPrateleira('flow')} /> : null}
           {/* Os novos lançamentos dos teus artistas (10/10, state/novosLancamentos.ts):
               abrem a pré-visualização do álbum, como na página do artista. */}
           <ShelfDeLancamentos titulo="New releases" nota="from the artists you listen to"
@@ -269,20 +286,25 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
               Ver `lib/estilos.ts`, `radiosDeArtista` e `lib/decadas.ts`. */}
           <PrateleiraDeMisturas titulo="Your styles" misturas={estilos} aoAbrir={abrirMistura}
             aoMenu={(m, e) => setMenuDaMist({ id: m.id, ponto: pontoDoEvento(e) })} escolhido={menuDaMist?.id ?? null} />
-          <PrateleiraDeMisturas titulo="Radio" nota="three new tracks for every one of yours" misturas={radios} aoAbrir={abrirMistura}
-            aoMenu={(m, e) => setMenuDaMist({ id: m.id, ponto: pontoDoEvento(e) })} escolhido={menuDaMist?.id ?? null} />
-          <PrateleiraDeMisturas titulo="Your genres" nota="your library, by genre" misturas={generos} aoAbrir={abrirMistura}
-            aoMenu={(m, e) => setMenuDaMist({ id: m.id, ponto: pontoDoEvento(e) })} escolhido={menuDaMist?.id ?? null} />
+          {outras ? <PrateleiraDeMisturas titulo="Radio" nota="three new tracks for every one of yours" misturas={radios} aoAbrir={abrirMistura}
+            aoMenu={(m, e) => setMenuDaMist({ id: m.id, ponto: pontoDoEvento(e) })} escolhido={menuDaMist?.id ?? null} /> : null}
+          {outras ? <PrateleiraDeMisturas titulo="Your genres" nota="your library, by genre" misturas={generos} aoAbrir={abrirMistura}
+            aoMenu={(m, e) => setMenuDaMist({ id: m.id, ponto: pontoDoEvento(e) })} escolhido={menuDaMist?.id ?? null} /> : null}
           <PrateleiraDeMisturas titulo="Decades" nota="your music from that era" misturas={decadas} aoAbrir={abrirMistura}
             aoMenu={(m, e) => setMenuDaMist({ id: m.id, ponto: pontoDoEvento(e) })} escolhido={menuDaMist?.id ?? null} />
-          <PrateleiraDeMisturas titulo="Playlists" misturas={playlists} aoAbrir={abrirMistura}
-            aoMenu={(m, e) => setMenuDaMist({ id: m.id, ponto: pontoDoEvento(e) })} escolhido={menuDaMist?.id ?? null} />
+          {outras ? <PrateleiraDeMisturas titulo="Playlists" misturas={playlists} aoAbrir={abrirMistura}
+            aoMenu={(m, e) => setMenuDaMist({ id: m.id, ponto: pontoDoEvento(e) })} escolhido={menuDaMist?.id ?? null} /> : null}
           {/* A unica prateleira desta pagina que nao sai do teu proprio
               historico. Fica entre a descoberta e o que ja e teu. */}
-          <Shelf titulo="Your friends' favourites" nota={notaDaPrateleira('amigos')} tracks={amigos} onPlay={tocarMusica} onMore={more} contexto={contextoPrateleira('amigos')} />
+          {outras ? <Shelf titulo="Your friends' favourites" nota={notaDaPrateleira('amigos')} tracks={amigos} onPlay={tocarMusica} onMore={more} contexto={contextoPrateleira('amigos')} /> : null}
           <Shelf titulo="Listen again" nota={notaDaPrateleira('ouvirDeNovo')} tracks={ouvirDeNovo} onPlay={tocarMusica} onMore={more} contexto={contextoPrateleira('ouvirDeNovo')} />
-          <Shelf titulo="Heavy rotation" nota={notaDaPrateleira('maisTocadas')} tracks={maisTocadas} onPlay={tocarMusica} onMore={more} contexto={contextoPrateleira('maisTocadas')} />
-          <Shelf titulo="Forgotten favourites" nota={notaDaPrateleira('esquecidas')} tracks={esquecidas} onPlay={tocarMusica} onMore={more} contexto={contextoPrateleira('esquecidas')} />
+          {outras ? <Shelf titulo="Heavy rotation" nota={notaDaPrateleira('maisTocadas')} tracks={maisTocadas} onPlay={tocarMusica} onMore={more} contexto={contextoPrateleira('maisTocadas')} /> : null}
+          {outras ? <Shelf titulo="Forgotten favourites" nota={notaDaPrateleira('esquecidas')} tracks={esquecidas} onPlay={tocarMusica} onMore={more} contexto={contextoPrateleira('esquecidas')} /> : null}
+          {outrasPrateleiras ? <Pressable {...marcar('premir')} accessibilityRole="button" accessibilityState={{ expanded: outras }} onPress={alternarOutras}
+            style={({ hovered }: any) => [styles.maisPrateleiras, hovered && { backgroundColor: ESTADO.hover }]}>
+            <Text numberOfLines={1} style={styles.maisPrateleirasTexto}>{outras ? 'Show fewer shelves' : outrasPrateleiras.texto}</Text>
+            <Ionicons name={outras ? 'chevron-up' : 'chevron-down'} size={14} color={COR.textoMedio} />
+          </Pressable> : null}
         </>
       : <Empty icon={recsCarregadas ? 'search-outline' : 'sparkles-outline'}
           title={recsCarregadas ? 'Nothing to recommend yet' : 'Preparing recommendations…'}
