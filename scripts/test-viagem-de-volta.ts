@@ -1,0 +1,106 @@
+/**
+ * A viagem de volta (30/10, a continuação dos passos 2 e 4 de
+ * `docs/PLANO-ELEVAR-PC.md`): do cabeçalho de uma playlist ou de um artista de
+ * volta ao cartão dele na grelha. A conta das chaves é pura
+ * (`lib/retratosQueViajam.ts`); a ponte (`desktop/viagem.web.ts`) e a casca
+ * lêem-se como TEXTO.
+ *
+ * Correr: node --experimental-strip-types --import ./scripts/registar-resolver.mjs scripts/test-viagem-de-volta.ts
+ */
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { RETRATO, retratosDaVolta } from '../src/lib/retratosQueViajam.ts';
+
+let falhas = 0;
+function caso(nome: string, fn: () => void): void {
+  try { fn(); console.log(`  ok    ${nome}`); }
+  catch (e) { falhas++; console.log(`  FALHA ${nome}\n        ${(e as Error).message}`); }
+}
+// Os finais de linha do Windows (o CI faz checkout com CRLF): tudo em LF.
+const ler = (f: string) => readFileSync(f, 'utf8').replace(/\r\n/g, '\n');
+const VIAGEM = ler('src/desktop/viagem.web.ts');
+const NAVEGADOR = ler('src/navigation/RootNavigator.web.tsx');
+const PLAYLISTS = ler('src/desktop/paginas/PlaylistPages.web.tsx');
+const BIBLIOTECA = ler('src/desktop/paginas/BibliotecaPages.web.tsx');
+const voltar = VIAGEM.slice(VIAGEM.indexOf('export function voltarViajando('), VIAGEM.indexOf('export function viagemChegou('));
+
+console.log('\npara onde volta cada retrato');
+caso('a página de uma playlist volta ao cartão dela nas Playlists, e mais nenhum', () => {
+  assert.deepEqual(retratosDaVolta({ name: 'playlist', id: 'p1' }, { name: 'playlists' }), ['playlist:p1']);
+});
+caso('a página de um artista volta ao cartão dele nos Artists, e a seguir ao do destaque', () => {
+  const chaves = retratosDaVolta({ name: 'artist', value: 'Juice WRLD' }, { name: 'artists' })!;
+  assert.equal(chaves.length, 2);
+  assert.match(chaves[0], /^artista:[^:]+$/);
+  assert.equal(chaves[1], `${chaves[0]}:destaque`);
+});
+caso('o mesmo artista escrito de outra maneira volta ao mesmo cartão (a chave canónica)', () => {
+  assert.deepEqual(retratosDaVolta({ name: 'artist', value: 'JUICE WRLD' }, { name: 'artists' }),
+    retratosDaVolta({ name: 'artist', value: 'juice wrld' }, { name: 'artists' }));
+});
+caso('qualquer outro caminho volta como sempre, sem viagem', () => {
+  assert.equal(retratosDaVolta({ name: 'playlist', id: 'p1' }, { name: 'search' }), null);
+  assert.equal(retratosDaVolta({ name: 'artist', value: 'Drake' }, { name: 'playlists' }), null);
+  assert.equal(retratosDaVolta({ name: 'songs' }, { name: 'playlists' }), null);
+  assert.equal(retratosDaVolta({ name: 'playlist' }, { name: 'playlists' }), null, 'sem id não há cartão');
+  assert.equal(retratosDaVolta({ name: 'artist', value: '' }, { name: 'artists' }), null);
+});
+caso('quem parte e quem chega escrevem a chave da mesma maneira', () => {
+  assert.equal(RETRATO.playlist('x'), 'playlist:x');
+  assert.equal(RETRATO.artista('k'), 'artista:k');
+  assert.equal(RETRATO.artistaEmDestaque('k'), 'artista:k:destaque');
+});
+
+console.log('\na ponte');
+caso('o cabeçalho já leva o nome (é o que parte) e o cartão só o ganha ao chegar: nunca dois ao mesmo tempo', () => {
+  assert.equal((voltar.match(/setProperty\('view-transition-name'/g) ?? []).length, 1, 'só se nomeia o destino');
+  assert.ok(!/origem/.test(voltar), 'a volta não nomeia nenhuma origem: o cabeçalho tem o nome desde sempre');
+  assert.match(voltar, /destino\?\.style\.setProperty\('view-transition-name', NOME_DO_RETRATO\);/);
+});
+caso('espera uns fotogramas pela grelha voltar ao scroll onde estava, antes de escolher o cartão', () => {
+  assert.match(VIAGEM, /export const QUADROS_DE_ASSENTO = 3;/);
+  assert.match(voltar, /void depoisDeQuadros\(QUADROS_DE_ASSENTO\)\.then\(\(\) => \{/);
+  assert.match(VIAGEM, /requestAnimationFrame\(\(\) => passo\(k - 1\)\)/);
+});
+caso('só um cartão montado e à vista: um retrato a voar para fora da janela era pior do que nenhum', () => {
+  assert.match(voltar, /if \(no && estaAVista\(no\)\) \{ destino = no; break; \}/);
+  assert.match(VIAGEM, /r\.bottom > 0 && r\.top < window\.innerHeight && r\.right > 0 && r\.left < window\.innerWidth/);
+});
+caso('a mesma porta e os mesmos cuidados da ida: prazo, sem API ou "menos movimento" navega como sempre', () => {
+  assert.match(voltar, /if \(!chaves \|\| aChegar \|\| !podeViajar\(\)\) \{ mudar\(\); return; \}/);
+  assert.match(voltar, /prazo = setTimeout\(acabar, ESPERA_MAXIMA_MS\);/);
+  assert.match(voltar, /void t\.finished\.then\(limpar, limpar\);/);
+  assert.match(voltar, /\} catch \{\n\s+limpar\(\);\n\s+mudar\(\);/);
+});
+caso('acaba uma vez só, e o nome e a marca saem aconteça o que acontecer', () => {
+  assert.match(voltar, /const acabar = \(\) => \{ if \(acabou\) return; acabou = true; clearTimeout\(prazo\); cumprir\(\); \};/);
+  assert.match(voltar, /const limpar = \(\) => \{ destino\?\.style\.removeProperty\('view-transition-name'\); raiz\.removeAttribute\('data-viagem'\); aChegar = null; \};/);
+});
+caso('o `viagemChegou` da casca é o que acorda a volta, como na ida', () => {
+  assert.match(NAVEGADOR, /useEffect\(\(\) => \{ viagemChegou\(\); \}, \[route\]\);/);
+  assert.match(voltar, /aChegar = \(\) => \{/);
+});
+
+console.log('\nonde se liga');
+caso('o voltar da casca é o único sítio: todas as portas (botão, rato, Esc) passam por ele', () => {
+  assert.match(NAVEGADOR, /const para: Route = history\.current\.pop\(\) \|\| \{ name: 'playlists' \};/);
+  assert.match(NAVEGADOR, /voltarViajando\(retratosDaVolta\(de, para\), \(\) => mudarRota\(para\)\);/);
+  assert.equal((NAVEGADOR.match(/voltarViajando\(/g) ?? []).length, 1);
+});
+caso('fechar o Now Playing e avançar não viajam (o `back` do leitor sai antes)', () => {
+  const back = NAVEGADOR.slice(NAVEGADOR.indexOf('const back = useCallback('), NAVEGADOR.indexOf('const voltarPeloRato'));
+  assert.ok(back.indexOf('if (nowPlayingOpen)') < back.indexOf('voltarViajando('), 'o leitor fecha-se antes de qualquer viagem');
+  assert.ok(!/voltarViajando|viajar\(/.test(NAVEGADOR.slice(NAVEGADOR.indexOf('const avancar = useCallback('), NAVEGADOR.indexOf('// Os botões laterais do rato'))));
+});
+caso('as duas grelhas registam o cartão pela mesma ponte (já não cada uma o seu mapa)', () => {
+  assert.ok(!/mosaicos\s*=\s*useRef|retratos\s*=\s*useRef/.test(PLAYLISTS + BIBLIOTECA), 'sobrou um mapa por página');
+  assert.match(PLAYLISTS, /ref=\{guardarRetrato\(RETRATO\.playlist\(item\.id\)\) as any\}/);
+  assert.match(BIBLIOTECA, /aoMontar=\{guardarRetrato\(RETRATO\.artista\(chave\)\)\}/);
+  assert.match(BIBLIOTECA, /aoMontar=\{guardarRetrato\(RETRATO\.artistaEmDestaque\(destaque\.grupo\.chave\)\)\}/);
+});
+caso('nenhum pedido novo, nenhum temporizador a correr: só fotogramas durante a volta', () => {
+  assert.ok(!/fetch\(|supabase|setInterval/.test(VIAGEM));
+});
+
+if (falhas) { console.log(`\n${falhas} falha(s)`); process.exit(1); }
+console.log('\ntudo certo');

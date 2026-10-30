@@ -1,6 +1,7 @@
 import { PainelDoLeitor } from '../desktop/PainelDoLeitor.web';
 import { TransicaoDePagina } from '../desktop/TransicaoDePagina.web';
-import { viagemChegou } from '../desktop/viagem.web';
+import { viagemChegou, voltarViajando } from '../desktop/viagem.web';
+import { retratosDaVolta } from '../lib/retratosQueViajam';
 import { MenuDeContexto, ultimoClique, type PontoNoEcra } from '../desktop/MenuDeContexto.web';
 import { RetrospetivaPage } from '../desktop/paginas/RetrospetivaPage.web';
 import { VocesOsDoisPage } from '../desktop/paginas/VocesOsDoisPage.web';
@@ -321,8 +322,12 @@ function DesktopShell() {
   }, [mudarRota]);
   const back = useCallback(() => {
     if (nowPlayingOpen) { setNowPlayingOpen(false); futuro.current.push('leitor'); return; }
-    futuro.current.push(rotaRef.current);
-    mudarRota(history.current.pop() || { name: 'playlists' });
+    const de = rotaRef.current;
+    futuro.current.push(de);
+    const para: Route = history.current.pop() || { name: 'playlists' };
+    // Da página de uma playlist ou de um artista de volta à grelha dele (30/10): o cabeçalho
+    // voa para o cartão. Qualquer outro caminho volta como sempre.
+    voltarViajando(retratosDaVolta(de, para), () => mudarRota(para));
   }, [nowPlayingOpen, mudarRota]);
   /** O botão de trás do rato: como o `back`, mas sem histórico não faz nada
    * (o `back` das páginas cai nas Playlists, que é o que o botão delas diz). */

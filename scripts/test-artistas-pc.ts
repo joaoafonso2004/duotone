@@ -108,8 +108,8 @@ caso('o Play do destaque toca as músicas dele da biblioteca, com a origem "arti
   assert.match(grelha, /void leitor\.tocarLista\(\[\.\.\.faixas\], leitor\.shuffle, leitor\.shuffleInteligente, \{ tipo: 'artista', nome \}\);/);
 });
 caso('cada cartão é um retrato que viaja para a página, e o coração e o ponto de novidade ficam lá dentro', () => {
-  assert.match(grelha, /<Pressable key=\{chave\} onPress=\{\(\) => viajar\(retratos\.current\.get\(chave\) \?\? null, \(\) => navigate\(\{ name: 'artist', value: nome \}\)\)\}/);
-  assert.match(grelha, /<RetratoDoArtista nome=\{nome\} faixas=\{faixas\} aoMontar=\{guardarRetrato\(chave\)\}>/);
+  assert.match(grelha, /<Pressable key=\{chave\} onPress=\{\(\) => viajar\(retratoDe\(RETRATO\.artista\(chave\)\), \(\) => navigate\(\{ name: 'artist', value: nome \}\)\)\}/);
+  assert.match(grelha, /<RetratoDoArtista nome=\{nome\} faixas=\{faixas\} aoMontar=\{guardarRetrato\(RETRATO\.artista\(chave\)\)\}>/);
   assert.match(grelha, /<\/RetratoDoArtista>/);
   assert.match(grelha, /\{\.\.\.\(favorito \? marcar\('coracaoDoCartao', 'fixo'\) : marcar\('coracaoDoCartao'\)\)\}/);
 });
@@ -146,12 +146,12 @@ caso('nada de className nem de backdrop-filter', () => {
 
 console.log('\na viagem do retrato para a foto da página');
 caso('a foto da página é onde o retrato chega: leva o mesmo nome, e o CSS faz a imagem cobrir o grupo', () => {
-  assert.match(PAGINAS, /import \{ NOME_DO_RETRATO, viajar \} from '\.\.\/viagem\.web';/);
+  assert.match(PAGINAS, /import \{ guardarRetrato, NOME_DO_RETRATO, retratoDe, viajar \} from '\.\.\/viagem\.web';/);
   assert.match(PAGINAS, /pointerEvents: 'none', viewTransitionName: NOME_DO_RETRATO,/);
   assert.match(CASCA, /::view-transition-old\(portrait\), ::view-transition-new\(portrait\)\{ height: 100%; object-fit: cover; \}/);
 });
 caso('o destaque também viaja, com o retrato dele', () => {
-  assert.match(grelha, /aoAbrir=\{\(\) => viajar\(retratos\.current\.get\('destaque'\) \?\? null, \(\) => navigate\(\{ name: 'artist', value: destaque\.grupo\.nome \}\)\)\}/);
+  assert.match(grelha, /aoAbrir=\{\(\) => viajar\(retratoDe\(RETRATO\.artistaEmDestaque\(destaque\.grupo\.chave\)\), \(\) => navigate\(\{ name: 'artist', value: destaque\.grupo\.nome \}\)\)\}/);
 });
 
 console.log('\na cor do artista na janela inteira');

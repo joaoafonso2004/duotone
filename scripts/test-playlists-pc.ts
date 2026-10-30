@@ -83,8 +83,8 @@ caso('os cartões continuam a ser alvos de largar e a levar o menu do botão dir
 
 console.log('\na viagem partilhada');
 caso('o cartão abre a playlist com o mosaico a viajar, e o cabeçalho é onde ele chega', () => {
-  assert.match(grelha, /onPress=\{\(\) => viajar\(mosaicos\.current\.get\(item\.id\) \?\? null, \(\) => navigate\(\{ name: 'playlist', id: item\.id, title: item\.name \}\)\)\}/);
-  assert.match(grelha, /<View ref=\{\(n: any\) => \{ if \(n\) mosaicos\.current\.set\(item\.id, n\); else mosaicos\.current\.delete\(item\.id\); \}\}><PlaylistArtwork/);
+  assert.match(grelha, /onPress=\{\(\) => viajar\(retratoDe\(RETRATO\.playlist\(item\.id\)\), \(\) => navigate\(\{ name: 'playlist', id: item\.id, title: item\.name \}\)\)\}/);
+  assert.match(grelha, /<View ref=\{guardarRetrato\(RETRATO\.playlist\(item\.id\)\) as any\}><PlaylistArtwork/);
   assert.match(PAGINA, /<View style=\{\{ viewTransitionName: NOME_DO_RETRATO \} as any\}><PlaylistArtwork artworks=\{artworks\} lado=\{176\} \/><\/View>/);
 });
 caso('só viaja com a API, com a janela à vista e sem "menos movimento"; senão navega como sempre', () => {
@@ -97,7 +97,7 @@ caso('a promessa da viagem espera pela rota nova (a transição do React é ass�
   assert.match(VIAGEM, /export const ESPERA_MAXIMA_MS = 2500;/);
   assert.match(VIAGEM, /const prazo = setTimeout\(cumprir, ESPERA_MAXIMA_MS\);/);
   assert.match(NAVEGADOR, /useEffect\(\(\) => \{ viagemChegou\(\); \}, \[route\]\);/);
-  assert.match(NAVEGADOR, /import \{ viagemChegou \} from '\.\.\/desktop\/viagem\.web';/);
+  assert.match(NAVEGADOR, /import \{ viagemChegou, voltarViajando \} from '\.\.\/desktop\/viagem\.web';/);
 });
 caso('o nome sai do cartão e a marca da raiz também, aconteça o que acontecer', () => {
   assert.match(VIAGEM, /origem\.style\.removeProperty\('view-transition-name'\); raiz\.removeAttribute\('data-viagem'\); aChegar = null;/);

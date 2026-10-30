@@ -39,7 +39,8 @@ import { resumoDaLista } from '../../lib/duracaoTotal';
 import { resumoDasOutras } from '../../lib/entradasDaHome';
 import { EntradasDaHome } from '../EntradasDaHome.web';
 import { ArtistaEmRepeticao, RetratoDoArtista } from '../RetratosDosArtistas.web';
-import { NOME_DO_RETRATO, viajar } from '../viagem.web';
+import { guardarRetrato, NOME_DO_RETRATO, retratoDe, viajar } from '../viagem.web';
+import { RETRATO } from '../../lib/retratosQueViajam';
 import { artistaEmDestaque, OPCOES_DOS_ARTISTAS, ordenarGrelhaDeArtistas, posicoesDaBiblioteca, resumoDosArtistas, type OrdemDosArtistas } from '../../lib/grelhaDeArtistas';
 import { CapaDuotone } from '../duotone.web';
 import { useMusicSearch } from '../../hooks/useMusicSearch';
@@ -598,9 +599,8 @@ export function ArtistsPage({ navigate, notify }: { navigate: (route: Route) => 
   const [jogadas, setJogadas] = useState<Map<string, number>>(() => { const g = rankingGuardado; return g && g.conta === conta ? g.jogadas : new Map(); });
   // A ordem da grelha (30/10): não se guarda entre visitas, como a das Playlists.
   const [ordemDaGrelha, setOrdemDaGrelha] = useState<OrdemDosArtistas>('plays');
-  // O retrato de cada cartão: o que parte quando se abre um artista (`viajar`).
-  const retratos = useRef(new Map<string, HTMLElement>());
-  const guardarRetrato = (chave: string) => (no: HTMLElement | null) => { if (no) retratos.current.set(chave, no); else retratos.current.delete(chave); };
+  // O retrato de cada cartão regista-se em `viagem.web.ts`: é o que parte quando se
+  // abre um artista (`viajar`) e onde chega a volta (`voltarViajando`).
   useEffect(() => {
     const g = rankingGuardado;
     if (g && g.conta === conta && Date.now() - g.em < 5 * 60_000) return;
@@ -666,13 +666,13 @@ export function ArtistsPage({ navigate, notify }: { navigate: (route: Route) => 
     </View>
     <ContentScroll scrollKey="artists" aoChegarAoFim={mostrarMais}>{data.loading ? <View style={{ height: 350 }}><Loading /></View> : data.semLista ? <Empty icon="alert-circle-outline" title="Couldn't load your library" body="Check your connection. Nothing was removed: your songs are still saved." action={<Button onPress={() => void data.refresh()}>Try again</Button>} /> : filteredArtists.length ? <>
       {!query && ordemDaGrelha === 'plays' && destaque ? <ArtistaEmRepeticao nome={destaque.grupo.nome} faixas={destaque.grupo.faixas} jogadas={destaque.jogadas}
-        aoTocar={() => tocarArtista(destaque.grupo.nome, destaque.grupo.faixas)} aoMontar={guardarRetrato('destaque')}
-        aoAbrir={() => viajar(retratos.current.get('destaque') ?? null, () => navigate({ name: 'artist', value: destaque.grupo.nome }))} /> : null}
+        aoTocar={() => tocarArtista(destaque.grupo.nome, destaque.grupo.faixas)} aoMontar={guardarRetrato(RETRATO.artistaEmDestaque(destaque.grupo.chave))}
+        aoAbrir={() => viajar(retratoDe(RETRATO.artistaEmDestaque(destaque.grupo.chave)), () => navigate({ name: 'artist', value: destaque.grupo.nome }))} /> : null}
       <View style={styles.playlistGrid}>{visiveis.map(({ nome, chave, faixas }) => { const favorito = favoritos.has(chave); return (
-      <Pressable key={chave} onPress={() => viajar(retratos.current.get(chave) ?? null, () => navigate({ name: 'artist', value: nome }))}
+      <Pressable key={chave} onPress={() => viajar(retratoDe(RETRATO.artista(chave)), () => navigate({ name: 'artist', value: nome }))}
         {...({ onContextMenu: (e: any) => abrirMenuDoArtista({ nome, capa: faixas[0]?.artworkUrl ?? null }, e) } as any)}
         {...marcar('cartao', ...(artistaDoMenu === chave ? ['com-menu'] : []))} style={styles.playlistCard}>
-        <RetratoDoArtista nome={nome} faixas={faixas} aoMontar={guardarRetrato(chave)}>
+        <RetratoDoArtista nome={nome} faixas={faixas} aoMontar={guardarRetrato(RETRATO.artista(chave))}>
           {/* Um lançamento novo que ainda não se foi ver (10/10). */}
           {comNovidade.has(chave) ? <View accessibilityLabel="New release" style={styles.pontoNovo} /> : null}
           {/* É o MESMO coração das músicas, e não uma estrela: guardar é o
