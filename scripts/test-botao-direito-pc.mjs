@@ -64,7 +64,8 @@ caso('nos álbuns e nas playlists da pesquisa', () => {
 console.log('\numa mistura e as Liked Songs');
 caso('as cinco prateleiras de misturas da Home', () => {
   assert.equal(home.match(/aoMenu=\{\(m, e\) => setMenuDaMist\(\{ id: m\.id, ponto: pontoDoEvento\(e\) \}\)\}/g)?.length, 5);
-  const prateleira = ui.slice(ui.indexOf('export function PrateleiraDeMisturas('));
+  // O cartão de uma mistura (30/10) tem o menu do botão direito; a prateleira passa-lhe o `aoMenu`.
+  const prateleira = ui.slice(ui.indexOf('function CartaoDeMistura('));
   assert.match(prateleira, /onContextMenu=\{\(\(e: any\) => \{ if \(!aoMenu\) return; e\.preventDefault\(\); aoMenu\(m, e\); \}\) as any\}/);
 });
 caso('baralhar é o playShuffled (Fisher-Yates), e guardar cria a playlist com as faixas de hoje', () => {

@@ -524,7 +524,9 @@ export function PlayDoCartao({ aoTocar, rotulo, lado = 'direita', tamanho = 36 }
  * a da primeira capa dele (`useCorDoAmbiente`, a mesma do iPhone: lê-se uma vez e fica
  * em memória). Abrir é o clique no cartão; tocar é o play.
  */
-function CartaoDeMistura({ m, escolhido, arrastou, aoAbrir, aoMenu, aoTocar }: {
+function CartaoDeMistura({ m, escolhido, arrastou, aoAbrir, aoMenu, aoTocar, decada = false }: {
+  /** Uma década (30/10): o nome é um número grande só em contorno, que se enche com o rato. */
+  decada?: boolean;
   m: { id: string; nome: string; faixas: Track[] }; escolhido: boolean; arrastou: { current: boolean };
   aoAbrir: (m: { id: string; nome: string }) => void; aoMenu?: (m: { id: string; nome: string }, e: any) => void; aoTocar?: (m: { id: string; nome: string; faixas: Track[] }) => void;
 }) {
@@ -537,7 +539,7 @@ function CartaoDeMistura({ m, escolhido, arrastou, aoAbrir, aoMenu, aoTocar }: {
       { backgroundImage: `linear-gradient(135deg, color-mix(in oklab, ${cor} 58%, #0b0b0d), color-mix(in oklab, ${cor} 14%, #0b0b0d))` } as any,
       hovered && ui.shelfCardHover, pressed && ui.pressed]}>
     <Text style={ui.misturaEtiqueta}>MIX · {m.faixas.length} {m.faixas.length === 1 ? 'SONG' : 'SONGS'}</Text>
-    <Text numberOfLines={2} style={ui.misturaNome}>{m.nome}</Text>
+    <Text numberOfLines={decada ? 1 : 2} {...(decada ? marcar('decada-nome') : {})} style={decada ? ui.misturaDecada : ui.misturaNome}>{m.nome}</Text>
     <View style={{ flex: 1 }} />
     <View style={ui.misturaPilha}>
       {capas.map((u, i) => <Image key={u} source={{ uri: u }} style={[ui.misturaCirculo, i > 0 && { marginLeft: -14 }]} resizeMode="cover" />)}
@@ -549,7 +551,7 @@ function CartaoDeMistura({ m, escolhido, arrastou, aoAbrir, aoMenu, aoTocar }: {
 /** O lado mínimo de uma capa na grelha; o real estica para a linha acabar na borda. */
 const CAPA_MINIMA_DA_GRELHA = 150;
 
-export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto, grelha, capa }: {
+export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto, grelha, capa, lado: ladoDoCarrossel = 148 }: {
   titulo: string; nota?: string; tracks: Track[];
   onPlay: (track: Track, fila: Track[], discoveryContext?: DiscoveryContext, origem?: OrigemDaFila) => void; onMore?: (track: Track, discoveryContext?: DiscoveryContext) => void;
   /** Uma etiqueta por cima de cada capa ("New to you"). Só onde é uma promessa cumprida. */
@@ -573,6 +575,8 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto, gr
    * é que sabe isso -- daqui não se importa, porque o `duotone.web` importa isto.
    */
   capa?: (track: Track, lado: number) => ReactNode;
+  /** O lado das capas do CARROSSEL (30/10): a Home põe a descoberta num carrossel de capas grandes, em vez de uma parede de quadrados iguais. */
+  lado?: number;
 }) {
   const { ref, podeEsquerda, podeDireita, deslizar, arrastou } = useCarrossel();
   const [larguraDaGrelha, setLarguraDaGrelha] = useState(0);
@@ -641,9 +645,9 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto, gr
           onPointerDown={((e: any) => comecarArrasto(e, t, {}, { soVertical: true })) as any}
           onPress={() => { if (arrastou.current) return; onPlay(t, tracks, contexto?.(t), { tipo: 'prateleira', nome: titulo }); }}
           onContextMenu={((e: any) => { e.preventDefault(); onMore?.(t,contexto?.(t)); }) as any}
-          style={({ hovered, pressed }: any) => [ui.shelfCard, hovered && ui.shelfCardHover, pressed && ui.pressed]}>
+          style={({ hovered, pressed }: any) => [ui.shelfCard, { width: ladoDoCarrossel }, hovered && ui.shelfCardHover, pressed && ui.pressed]}>
           <View>
-            <Artwork track={t} size={148} />
+            {capa ? capa(t, ladoDoCarrossel) : <Artwork track={t} size={ladoDoCarrossel} />}
             {selo ? <View style={ui.shelfSelo} pointerEvents="none"><Text style={ui.shelfSeloTexto}>{selo}</Text></View> : null}
             <BotaoDoRefrao track={t} />
             <PlayDoCartao lado="esquerda" />
@@ -718,12 +722,14 @@ export function ShelfDeLancamentos({ titulo, nota, itens, onOpen, onMenu }: {
  * O clique ABRE, nao toca. Uma mistura e uma lista, e uma lista abre-se; o
  * `onPlay` fica para quem quiser tocar a coisa inteira a partir de dentro.
  */
-export function PrateleiraDeMisturas({ titulo, nota, misturas, aoAbrir, aoMenu, aoTocar, escolhido }: {
+export function PrateleiraDeMisturas({ titulo, nota, misturas, aoAbrir, aoMenu, aoTocar, escolhido, variante }: {
   titulo: string; nota?: string;
   misturas: readonly { id: string; nome: string; faixas: Track[] }[];
   aoAbrir: (mistura: { id: string; nome: string }) => void;
   /** O botão direito num cartão (24/10): o menu de uma mistura. */
   aoMenu?: (mistura: { id: string; nome: string }, e: any) => void;
+  /** `decada`: os nomes são números grandes em contorno (30/10). */
+  variante?: 'decada';
   /** O play do cartão (30/10): toca a mistura. Sem ele, o cartão só abre. */
   aoTocar?: (mistura: { id: string; nome: string; faixas: Track[] }) => void;
   /** O id com o menu aberto: o cartão fica levantado. */
@@ -750,7 +756,7 @@ export function PrateleiraDeMisturas({ titulo, nota, misturas, aoAbrir, aoMenu, 
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={{ gap: ESP.lg, paddingRight: ESP.xxxl }}>
       {misturas.map((m) => (
-        <CartaoDeMistura key={m.id} m={m} escolhido={escolhido === m.id} arrastou={arrastou} aoAbrir={aoAbrir} aoMenu={aoMenu} aoTocar={aoTocar} />
+        <CartaoDeMistura key={m.id} decada={variante === 'decada'} m={m} escolhido={escolhido === m.id} arrastou={arrastou} aoAbrir={aoAbrir} aoMenu={aoMenu} aoTocar={aoTocar} />
       ))}
     </ScrollView>
   </View>;
@@ -1370,11 +1376,10 @@ export const ui = StyleSheet.create({
   table: { borderWidth: 1, borderColor: COR.linhaSuave, borderRadius: RAIO.cartao, overflow: 'hidden', backgroundColor: COR.painel },
   tablePlain: { borderWidth: 0, borderRadius: 0, backgroundColor: 'transparent', overflow: 'visible' },
   tableHeader: { height: 38, paddingHorizontal: ESP.md, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: COR.linhaSuave },
-  // Preso ao rolar (30/10): a lista corre por baixo e as colunas ficam à vista.
-  // Quase opaco, e não transparente: a lista passava por trás das letras. Só dá
-  // com `overflow: visible` na tabela (a `tablePlain`) e o scroll da página por cima.
-  tableHeaderPlain: { paddingHorizontal: ESP.sm, borderTopWidth: 1, borderTopColor: COR.linhaSuave,
-    position: 'sticky', top: 0, zIndex: 4, backgroundColor: 'rgba(12,12,16,0.96)' } as any,
+  // Sem a faixa escura e sem ficar preso (30/10, o João: "não pertence", em toda a app): o cabeçalho
+  // de uma tabela aberta é só as letras e um fio, e rola com a lista. Preso, precisava de um fundo
+  // quase opaco para a lista não passar por trás das letras, e via-se como um bloco preto no meio da cor.
+  tableHeaderPlain: { paddingHorizontal: ESP.sm, borderTopWidth: 1, borderTopColor: COR.linhaSuave, backgroundColor: 'transparent' } as any,
   chips: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 3, borderRadius: 16, borderWidth: 1, borderColor: COR.linha, backgroundColor: 'rgba(233,234,238,0.04)' },
   chip: { height: 24, paddingHorizontal: 12, borderRadius: 12, justifyContent: 'center' },
   chipTexto: { fontFamily: FONT.body, fontSize: 12, fontWeight: '600', color: COR.textoMedio },
@@ -1422,6 +1427,7 @@ export const ui = StyleSheet.create({
   cartaoDeMistura: { width: 232, height: 148, borderRadius: RAIO.superficie, padding: ESP.lg, borderWidth: 1, borderColor: COR.linhaSuave, overflow: 'hidden', backgroundColor: COR.elevado },
   misturaEtiqueta: { ...TIPO.micro, color: 'rgba(233,234,238,.62)' },
   misturaNome: { fontFamily: FONT.display, fontSize: 22, fontWeight: '800' as any, letterSpacing: -0.6, color: COR.texto, marginTop: ESP.xs, lineHeight: 24 },
+  misturaDecada: { fontFamily: FONT.display, fontSize: 44, fontWeight: '900' as any, letterSpacing: -1.5, color: 'transparent', WebkitTextStroke: '1.2px rgba(233,234,238,.55)', lineHeight: 46, marginTop: ESP.xs } as any,
   misturaPilha: { flexDirection: 'row', alignItems: 'center' },
   misturaCirculo: { width: 32, height: 32, borderRadius: 16, borderWidth: 2, borderColor: 'rgba(11,11,13,.85)', backgroundColor: COR.elevado },
   // Antes era `opacity: .82`: passar o rato APAGAVA a capa. Agora aproxima-se

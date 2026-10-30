@@ -483,6 +483,10 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="bloco"]:nth-child(6){ animation-delay: 300ms; }
     [data-dt~="bloco"]:nth-child(n+7){ animation-delay: 360ms; }
 
+    /* A decada (30/10): o numero e so contorno, e enche-se com o rato no cartao. */
+    [data-dt~="decada-nome"]{ transition: color 500ms var(--dt-curva), -webkit-text-stroke-color 500ms var(--dt-curva); }
+    [data-dt~="cartao"]:hover [data-dt~="decada-nome"], [data-dt~="cartao"]:focus-within [data-dt~="decada-nome"]{ color: ${COR.texto}; -webkit-text-stroke-color: ${COR.texto}; }
+
     /* O play que sobe no canto de um cartao (30/10): aparece com o rato no cartao ou com o foco la dentro. */
     [data-dt~="play-cartao"]{ opacity: 0; transform: translateY(8px) scale(.92);
       transition: opacity var(--dt-rapido) var(--dt-curva), transform var(--dt-normal) var(--dt-curva); }

@@ -260,7 +260,12 @@ export const styles = StyleSheet.create({
   npTitulo: { fontFamily: FONT.display, color: COR.texto, fontSize: 30, fontWeight: '700' as any, letterSpacing: -.5, lineHeight: 36 },
   // A fila e uma coluna editorial aberta, nao outra caixa dentro da pagina.
   // As linhas e o destaque da proxima faixa chegam para lhe dar estrutura.
-  npFila: { flex: 1, minWidth: 300, minHeight: 0 },
+  // A fila é um cartão (30/10, da maquete): redondo, com uma borda fina e um fundo de vidro, em vez de uma lista solta.
+  npFila: { flex: 1, minWidth: 300, minHeight: 0, borderRadius: 22, borderWidth: 1, borderColor: COR.linhaSuave,
+    backgroundColor: 'rgba(8,8,12,.5)', paddingHorizontal: ESP.lg, paddingTop: ESP.md, overflow: 'hidden' } as any,
+  // A que toca, à cabeça da fila e em destaque (30/10, da maquete): as barrinhas, a capa, o nome e o fundo aceso.
+  npAtual: { flexDirection: 'row', alignItems: 'center', gap: ESP.md, padding: ESP.sm, marginBottom: ESP.sm, borderRadius: RAIO.superficie,
+    backgroundColor: 'rgba(233,234,238,.09)' },
   npFilaCabeca: { flexDirection: 'row', alignItems: 'baseline', gap: ESP.md, paddingHorizontal: ESP.sm, paddingTop: ESP.sm, paddingBottom: ESP.md },
   npFilaHeading: { ...TIPO.seccao, fontSize: 18, color: COR.texto },
   npFilaContagem: { ...TIPO.numero, color: COR.textoFraco },

@@ -34,7 +34,12 @@ import { savePlaylistCopy, unsavePlaylistCopy } from '../api/playlists';
 import { useDestinos } from '../navigation/destinos';
 import { useMenuDoAmigoNoPc } from './MenuDoAmigoNoPc';
 
-export function SocialProfileView({userId,onBack,active=true,scrollRef}:{userId:string;onBack?:()=>void;active?:boolean;
+export function SocialProfileView({userId,onBack,active=true,scrollRef,aoMenuDaFaixa}:{userId:string;onBack?:()=>void;active?:boolean;
+  /**
+   * O PC (30/10): o menu de uma música da app (o do botão direito de qualquer lista), nas reticências
+   * e no botão direito de cada linha. Sem ela (o iPhone) fica a folha de sempre, `SocialTrackActions`.
+   */
+  aoMenuDaFaixa?:(track:Track)=>void;
   /** A lista do perfil, para o separador do iPhone a levar ao topo (3/10). */
   scrollRef?:React.RefObject<any>}) {
   const web=Platform.OS==='web';
@@ -231,7 +236,8 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef}:{userId:
   const aoRolar=useRef(Animated.event([{nativeEvent:{contentOffset:{y:rolagem}}}],{useNativeDriver:true})).current;
   const [fimDoNome,setFimDoNome]=useState(330);
 
-  const row=(entry:ProfileTrack,index:number,recentes=false)=><View key={`${entry.source}:${entry.sourceId}`} style={[s.row,{gap:12,minHeight:58}]}>
+  const row=(entry:ProfileTrack,index:number,recentes=false)=><View key={`${entry.source}:${entry.sourceId}`} style={[s.row,{gap:12,minHeight:58}]}
+    {...(aoMenuDaFaixa?({onContextMenu:(e:any)=>{e.preventDefault?.();aoMenuDaFaixa(entry);}} as any):{})}>
     {!recentes&&<Text style={[s.muted,{width:20,textAlign:'center',fontVariant:['tabular-nums']}]}>{index+1}</Text>}
     <Pressable accessibilityRole="button" accessibilityLabel={`Play ${entry.title}`} onPress={()=>void usePlayer.getState().tocarMusica(entry,recentes?recent:most)}
       style={({pressed,hovered}:any)=>[s.row,{flex:1,minWidth:0,borderRadius:radii.md,gap:12},(pressed||hovered)&&{backgroundColor:colors.surfacePressed}]}>
@@ -242,7 +248,7 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef}:{userId:
       {/* Nas mais tocadas o número é a contagem e diz alguma coisa; nas
           recentes a data não acrescentava nada. */}
       {!recentes&&<Text style={[s.muted,{fontVariant:['tabular-nums']}]}>{entry.count}</Text>}
-    </Pressable><SocialIconButton label={`Options for ${entry.title}`} icon="ellipsis-horizontal" onPress={()=>setTrack(entry)}/>
+    </Pressable><SocialIconButton label={`Options for ${entry.title}`} icon="ellipsis-horizontal" onPress={()=>aoMenuDaFaixa?aoMenuDaFaixa(entry):setTrack(entry)}/>
   </View>;
   const visiblePlaylists=playlists.filter(p=>!own||p.visibleOnProfile);
   const playlistsOrdenadas=[...visiblePlaylists].sort((a,b)=>{
@@ -383,7 +389,7 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef}:{userId:
               </View>
               <View style={estilos.play}>{aTirarMoment?<ActivityIndicator size="small" color={colors.bg}/>:<Ionicons name="play" size={20} color={colors.bg} style={{marginLeft:2}}/>}</View>
             </Pressable>
-            <SocialIconButton label={`Options for ${highlights.moment.title}`} icon="ellipsis-horizontal" onPress={()=>{setTrackDoMomento(true);setTrack(highlights.moment);}}/>
+            <SocialIconButton label={`Options for ${highlights.moment.title}`} icon="ellipsis-horizontal" onPress={()=>{if(aoMenuDaFaixa&&!own&&highlights.moment){aoMenuDaFaixa(highlights.moment);return;}setTrackDoMomento(true);setTrack(highlights.moment);}}/>
             </View>
           </View>}
           {playlistsSection}

@@ -1,4 +1,5 @@
-import { CabecaDaFila, LinhasDaFila } from '../FilaDoLeitor.web';
+import { AbaDaFila, CabecaDaFila, LinhasDaFila } from '../FilaDoLeitor.web';
+import { LyricsView } from '../../components/LyricsView';
 import { useFilaDoLeitor } from '../useFilaDoLeitor.web';
 import {ArtworkLyricsCube} from '../../components/ArtworkLyricsCube';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -19,7 +20,7 @@ import { avisoDoPedido, type TipoDePedido } from '../../lib/duotoneConnect';
 import { extrapolatedPositionMs } from '../../lib/handoff';
 import { takeOverSession } from '../../lib/sessionSync';
 import { styles } from '../estilos.web';
-import { COR, ESP } from '../tokens.web';
+import { COR, ESP, TIPO } from '../tokens.web';
 import { BotaoVoltar, Artwork, Button, Dialog, Empty, IconButton, marcar, Page, ui } from '../ui.web';
 import { FundoDaCapa } from '../FundoDaCapa.web';
 import { preCarregarCapaGrande, useCapaGrande } from '../useCapaGrande.web';
@@ -385,6 +386,8 @@ export function NowPlayingPage({
   );
 
   const cabecaDaFila = <CabecaDaFila fila={fila} />;
+  // O cartão da fila tem duas abas (30/10, da maquete): a fila e a letra, no mesmo sítio.
+  const [abaDaFila, setAbaDaFila] = useState<'fila' | 'letra'>('fila');
   const linhas = <LinhasDaFila fila={fila} />;
 
   return (
@@ -431,11 +434,30 @@ export function NowPlayingPage({
           {coluna}
           {/* A fila rola sozinha; a capa fica onde está. */}
           <View style={styles.npFila}>
-            {cabecaDaFila}
+            {abaDaFila === 'letra' ? <>
+              <View style={[styles.npFilaCabeca, { alignItems: 'flex-end', borderBottomWidth: 1, borderBottomColor: COR.linhaSuave, marginBottom: ESP.sm }]}>
+                <AbaDaFila rotulo="Up next" ativa={false} aoCarregar={() => setAbaDaFila('fila')} />
+                <AbaDaFila rotulo="Lyrics" ativa aoCarregar={() => setAbaDaFila('letra')} />
+              </View>
+              <View style={{ flex: 1, minHeight: 0 }}><LyricsView key={`${track.source}:${track.sourceId}`} track={track} visible /></View>
+            </> : <>
+            <CabecaDaFila fila={fila} abas={{ aba: abaDaFila, aoMudar: setAbaDaFila }} />
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: ESP.xl }}
               scrollEventThrottle={100} onScroll={fila.aoRolar}>
+              {/* A que toca, à cabeça e em destaque (30/10, da maquete). */}
+              <View style={styles.npAtual} accessibilityLabel={`Now playing: ${tituloDaFaixa(track)}`}>
+                <View {...marcar('eq')} aria-hidden style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 12, width: 14 }}>
+                  <View style={{ width: 3, height: 12, borderRadius: 2, backgroundColor: COR.texto }} /><View style={{ width: 3, height: 12, borderRadius: 2, backgroundColor: COR.texto }} /><View style={{ width: 3, height: 12, borderRadius: 2, backgroundColor: COR.texto }} />
+                </View>
+                <Artwork track={track} size={40} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text numberOfLines={1} style={{ ...TIPO.corpo, color: COR.texto, fontWeight: '700' as any }}>{tituloDaFaixa(track)}</Text>
+                  <Text numberOfLines={1} style={{ ...TIPO.legenda, color: COR.textoMedio }}>{displayArtist(track)} · playing now</Text>
+                </View>
+              </View>
               {linhas}
             </ScrollView>
+            </>}
           </View>
         </View>
       ) : (

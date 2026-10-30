@@ -723,10 +723,10 @@ function DesktopShell() {
     case 'stats': page = <StatsPage key={route.userId} back={back} play={play} userId={route.userId} />; break;
     case 'retrospetiva': page = <RetrospetivaPage key={`${route.userId}:${route.ano}`} back={back} play={play} userId={route.userId} ano={route.ano} />; break;
     case 'voces-os-dois': page = <VocesOsDoisPage key={route.userId} userId={route.userId} nome={route.nome} back={back} play={play} />; break;
-    case 'import': page = <ImportPage back={back} notify={notify} />; break; case 'spotify-import': page = <SpotifyImportPage back={back} notify={notify} />; break; case 'profile': page = <ProfilePage />; break; case 'settings': page = <SettingsPage notify={notify} navigate={navigate} />; break;
+    case 'import': page = <ImportPage back={back} notify={notify} />; break; case 'spotify-import': page = <SpotifyImportPage back={back} notify={notify} />; break; case 'profile': page = <ProfilePage aoMenuDaFaixa={(t) => void more(t)} />; break; case 'settings': page = <SettingsPage notify={notify} navigate={navigate} />; break;
     case 'library-check': page = <LibraryCheckPage back={back} play={play} />; break;
-    case 'social': page = <SocialPage friendId={route.friendId} groupId={route.groupId} visible={!nowPlayingOpen && !jamOpen} />; break;
-    case 'friend-profile': page = <ProfilePage userId={route.userId} back={back} />; break;
+    case 'social': page = <SocialPage friendId={route.friendId} groupId={route.groupId} visible={!nowPlayingOpen && !jamOpen} aoMenuDaFaixa={(t) => void more(t)} />; break;
+    case 'friend-profile': page = <ProfilePage userId={route.userId} back={back} aoMenuDaFaixa={(t) => void more(t)} />; break;
     case 'now-playing': page = <NowPlayingPage fundoNaJanela={corNaJanela} share={openShareDialog} play={play} tocarMusica={tocarMusica} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={abrirPlaylistsSozinhas} />; break;
   }
 

@@ -106,5 +106,55 @@ caso('nada de className nem de backdrop-filter', () => {
   }
 });
 
+console.log('\no look da conversa no PC (a maquete)');
+caso('o dia é uma pílula pequena em maiúsculas no PC, e o texto de sempre no iPhone', () => {
+  assert.match(HUB, /const estiloDoSeparador=web\n\s+\?\{alignSelf:'center' as const,fontSize:11,[^}]*textTransform:'uppercase' as const[^}]*borderRadius:999[^}]*\}\n\s+:\{alignSelf:'center' as const,fontSize:12,fontWeight:'600' as const,color:colors\.textTertiary,marginBottom:8,marginTop:4\};/);
+});
+caso('o que escreves é um balão claro com letra escura, só no PC e só quando é só texto (sem música, playlist nem resposta)', () => {
+  assert.match(HUB, /const claro=web&&minha&&!m\.trackData&&!m\.playlistId&&!cit;/);
+  assert.match(HUB, /backgroundColor:claro\?colors\.text:\(minha\?tema\.soft:colors\.surface\),/);
+  assert.match(HUB, /claro&&\{color:colors\.bg\}\]\}>\{m\.message\}<\/Text>/);
+});
+caso('os balões não passam dos 62 % no PC, e dos 92 % de sempre no iPhone', () => {
+  assert.match(HUB, /maxWidth:web\?'62%':'92%'/);
+});
+caso('o cabeçalho da conversa tem "Start a Jam" (ou "Listen along" se ele está a ouvir), pela mesma porta do iPhone', () => {
+  assert.match(HUB, /onPress=\{\(\)=>ouvirJuntosCom\(friend\)\}\n\s+style=\{\(\{pressed\}:any\)=>\[\{flexDirection:'row',alignItems:'center',gap:8,height:34/);
+  assert.match(HUB, /\{friend\.currentlyPlaying\?'Listen along':'Start a Jam'\}/);
+});
+caso('o compositor no PC: o campo em pílula e o enviar redondo e branco com a seta; no iPhone o botão "Send" de sempre', () => {
+  assert.match(HUB, /web&&\{borderRadius:22,minHeight:44,paddingHorizontal:18\}\]\} editable=\{!busy\}/);
+  assert.match(HUB, /<Ionicons name="arrow-up" size=\{20\} color=\{colors\.bg\}\/><\/Pressable>\n\s+:<SocialButton primary disabled=\{busy\|\|!draft\.trim\(\)\} onPress=\{\(\)=>void send\(\)\}>Send<\/SocialButton>\)/);
+});
+caso('o painel da conversa é mais redondo, e o cartão de quem ouve leva a cor da capa (só enquanto ouve)', () => {
+  assert.match(HUB, /borderColor:colors\.borderStrong,borderRadius:22,overflow:'hidden'/);
+  assert.match(LISTA, /const cor = useCorDoAmbiente\(a\.listening \? cover : null\);/);
+  assert.match(LISTA, /linear-gradient\(90deg, color-mix\(in oklab, \$\{cor\} 30%, transparent\), \$\{colors\.surface\} 75%\)/);
+});
+
+console.log('\no menu de uma música da app no perfil e no Social (PC)');
+const PERFIL = ler('src/components/SocialProfileView.tsx');
+const PAGINA_PERFIL = ler('src/desktop/paginas/ProfilePage.web.tsx');
+const NAVEGADOR = ler('src/navigation/RootNavigator.web.tsx');
+caso('as reticências do perfil abrem o menu novo no PC e a folha de sempre no iPhone (que não passa a prop)', () => {
+  assert.match(PERFIL, /onPress=\{\(\)=>aoMenuDaFaixa\?aoMenuDaFaixa\(entry\):setTrack\(entry\)\}\/>/);
+  assert.match(PERFIL, /aoMenuDaFaixa\?:\(track:Track\)=>void;/);
+});
+caso('o botão direito numa música do perfil abre o mesmo menu', () => {
+  assert.match(PERFIL, /\{\.\.\.\(aoMenuDaFaixa\?\(\{onContextMenu:\(e:any\)=>\{e\.preventDefault\?\.\(\);aoMenuDaFaixa\(entry\);\}\} as any\):\{\}\)\}>/);
+});
+caso('a música do momento de um amigo usa o menu novo; a tua mantém o "Remove from profile" da folha antiga', () => {
+  assert.match(PERFIL, /if\(aoMenuDaFaixa&&!own&&highlights\.moment\)\{aoMenuDaFaixa\(highlights\.moment\);return;\}setTrackDoMomento\(true\);setTrack\(highlights\.moment\);/);
+});
+caso('a casca passa-lhe o `more` (o menu de qualquer lista), no perfil, no de um amigo e no Social', () => {
+  assert.match(NAVEGADOR, /<ProfilePage aoMenuDaFaixa=\{\(t\) => void more\(t\)\} \/>/);
+  assert.match(NAVEGADOR, /<ProfilePage userId=\{route\.userId\} back=\{back\} aoMenuDaFaixa=\{\(t\) => void more\(t\)\} \/>/);
+  assert.match(NAVEGADOR, /<SocialPage friendId=\{route\.friendId\} groupId=\{route\.groupId\} visible=\{!nowPlayingOpen && !jamOpen\} aoMenuDaFaixa=\{\(t\) => void more\(t\)\} \/>/);
+  assert.match(PAGINA_PERFIL, /aoMenuDaFaixa=\{aoMenuDaFaixa\}\/>/);
+});
+caso('no Social, o cartão de quem ouve, a música de uma mensagem e as de um grupo abrem o menu novo', () => {
+  assert.equal((HUB.match(/aoMenuDaFaixa\?aoMenuDaFaixa\(/g) ?? []).length, 3);
+});
+
 if (falhas) { console.log(`\n${falhas} falha(s)`); process.exit(1); }
 console.log('\ntudo certo');

@@ -60,6 +60,57 @@ caso('o cabeçalho de toda a página entra por blocos, como as prateleiras', () 
   assert.match(UI, /<View \{\.\.\.marcar\('bloco'\)\} style=\{\[ui\.pageHeader, rolado && ui\.pageHeaderCurto\]\}>/);
 });
 
+console.log('\na Home com formas diferentes');
+caso('a descoberta é um carrossel de capas grandes (a dois tons), e não uma parede de quadrados iguais', () => {
+  assert.match(BIBLIOTECA, /<Shelf lado=\{184\} titulo="Discover daily"/);
+  assert.ok(!/<Shelf grelha titulo="Discover daily"/.test(BIBLIOTECA));
+  assert.match(UI, /\{capa \? capa\(t, ladoDoCarrossel\) : <Artwork track=\{t\} size=\{ladoDoCarrossel\} \/>\}/);
+  assert.match(UI, /\[ui\.shelfCard, \{ width: ladoDoCarrossel \}, hovered && ui\.shelfCardHover, pressed && ui\.pressed\]/);
+});
+caso('as décadas são números grandes em contorno, que se enchem com o rato', () => {
+  assert.match(BIBLIOTECA, /<PrateleiraDeMisturas titulo="Decades" nota="your music from that era" variante="decada"/);
+  assert.match(UI, /misturaDecada: \{[^}]*fontSize: 44[^}]*color: 'transparent', WebkitTextStroke: '1\.2px rgba\(233,234,238,\.55\)'/);
+  assert.match(CASCA, /\[data-dt~="cartao"\]:hover \[data-dt~="decada-nome"\], \[data-dt~="cartao"\]:focus-within \[data-dt~="decada-nome"\]\{ color: \$\{COR\.texto\}; -webkit-text-stroke-color: \$\{COR\.texto\}; \}/);
+});
+
+console.log('\nas tabelas');
+caso('o cabeçalho de nenhuma tabela leva a faixa escura nem fica preso (com a cor na janela via-se como um bloco preto)', () => {
+  assert.match(UI, /tableHeaderPlain: \{ paddingHorizontal: ESP\.sm, borderTopWidth: 1, borderTopColor: COR\.linhaSuave, backgroundColor: 'transparent' \}/);
+  assert.ok(!/cabecalhoSolto|tableHeaderSolto/.test(UI + BIBLIOTECA), 'a opção só da página do artista saiu: é assim em toda a app');
+  assert.ok(!/rgba\(12,12,16,0\.96\)/.test(UI));
+});
+
+console.log('\no Now Playing (a fila como cartão)');
+const NP = ler('src/desktop/paginas/NowPlayingPage.web.tsx');
+const ESTILOS = ler('src/desktop/estilos.web.ts');
+caso('a fila é um cartão redondo de vidro, com uma borda fina (como na maquete)', () => {
+  assert.match(ESTILOS, /npFila: \{ flex: 1, minWidth: 300, minHeight: 0, borderRadius: 22, borderWidth: 1, borderColor: COR\.linhaSuave,/);
+  assert.match(ESTILOS, /backgroundColor: 'rgba\(8,8,12,\.5\)', paddingHorizontal: ESP\.lg, paddingTop: ESP\.md, overflow: 'hidden'/);
+});
+caso('a que toca vem à cabeça da fila, em destaque, com as barrinhas a mexer', () => {
+  assert.match(NP, /<View style=\{styles\.npAtual\} accessibilityLabel=\{`Now playing: \$\{tituloDaFaixa\(track\)\}`\}>/);
+  assert.ok(NP.indexOf('styles.npAtual') < NP.indexOf('              {linhas}'), 'antes das próximas');
+  assert.match(NP, /<View \{\.\.\.marcar\('eq'\)\} aria-hidden/);
+  assert.match(ESTILOS, /npAtual: \{[^}]*backgroundColor: 'rgba\(233,234,238,\.09\)'/);
+});
+caso('o cartão tem duas abas, "Up next" e "Lyrics", no mesmo sítio (a letra é a do painel do leitor)', () => {
+  assert.match(NP, /const \[abaDaFila, setAbaDaFila\] = useState<'fila' \| 'letra'>\('fila'\);/);
+  assert.match(NP, /<CabecaDaFila fila=\{fila\} abas=\{\{ aba: abaDaFila, aoMudar: setAbaDaFila \}\} \/>/);
+  assert.match(NP, /<LyricsView key=\{`\$\{track\.source\}:\$\{track\.sourceId\}`\} track=\{track\} visible \/>/);
+  const fila = ler('src/desktop/FilaDoLeitor.web.tsx');
+  assert.match(fila, /<AbaDaFila rotulo="Up next" ativa=\{abas\.aba === 'fila'\}/);
+  assert.match(fila, /<AbaDaFila rotulo="Lyrics" ativa=\{abas\.aba === 'letra'\}/);
+  assert.match(fila, /borderBottomWidth: 2, borderBottomColor: ativa \? COR\.texto : 'transparent'/);
+});
+caso('a que toca diz "playing now", e o painel e o ecrã estreito ficam sem abas', () => {
+  assert.match(NP, /\{displayArtist\(track\)\} · playing now/);
+  assert.match(NP, /const cabecaDaFila = <CabecaDaFila fila=\{fila\} \/>;/);
+});
+caso('só no ecrã largo (duas colunas): no estreito a fila fica como estava', () => {
+  const estreito = NP.slice(NP.indexOf('<ScrollView style={{ flex: 1 }} contentContainerStyle={styles.npEstreito}'));
+  assert.ok(!/npAtual/.test(estreito.slice(0, 400)));
+});
+
 console.log('\no cartão de mistura');
 caso('um cartão de cor: a da primeira capa, com a etiqueta, o nome grande e três círculos que se sobrepõem', () => {
   assert.match(UI, /const cor = useCorDoAmbiente\(m\.faixas\[0\]\?\.artworkUrl \?\? null\) \?\? '#3a3a46';/);

@@ -48,7 +48,9 @@ import type { Playlist,Track } from '../types';
  * um artista, a conversa no iPhone) é o `irPara` da app (5/10, lib/destinos.ts):
  * os ecrãs que o montam já não escolhem ligar uma função e esquecer outra.
  */
-export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,novaConversa,procurar,conversationTarget,onCloseConversation}:{visible?:boolean;initialFriend?:string;initialGroup?:string;
+export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,novaConversa,procurar,conversationTarget,onCloseConversation,aoMenuDaFaixa}:{visible?:boolean;initialFriend?:string;initialGroup?:string;
+  /** O PC (30/10): o menu de uma música da app, em vez da folha `SocialTrackActions`. */
+  aoMenuDaFaixa?:(track:Track)=>void;
   /** A lupa do cabeçalho do Social no iPhone (9/10). */
   procurar?: boolean;
   conversationTarget?: {kind:'friend'|'group';id:string};
@@ -337,7 +339,7 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
       {social.loading&&!accepted.length&&<SkeletonDeConversas/>}
       <SocialOverview key={myId??'signed-out'} friends={accepted} groups={social.groups} contacts={social.contacts}
         activity={social.activity} previews={social.conversationPreviews} unread={unread} now={social.now} myId={myId}
-        loading={social.loading} requests={requests} onOpen={open} onProfile={onProfile} onTrack={setTrack}
+        loading={social.loading} requests={requests} onOpen={open} onProfile={onProfile} onTrack={t=>aoMenuDaFaixa?aoMenuDaFaixa(t):setTrack(t)}
         pedidos={pending.filter(f=>!f.isSender).length} procurar={web?undefined:procurar} gutter={web?SOCIAL_GUTTER:24}
         onRemoveFriend={id=>setConfirm({id,group:false})}
         onFriendMenu={web?(id,_ancora,e)=>abrirMenuDoAmigo(id,e):(id,ancora)=>setMenuDoAmigo({id,ancora})}
@@ -348,7 +350,10 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
   // O nome aparecia TRES vezes: na barra, na linha de perfil, e dentro de cada
   // mensagem recebida. Numa conversa a dois so ha duas pessoas -- e o lado do
   // balao ja diz quem falou. Fica uma vez, com a cara e o estado.
-  const estiloDoSeparador={alignSelf:'center' as const,fontSize:12,fontWeight:'600' as const,color:colors.textTertiary,marginBottom:8,marginTop:4};
+  // No PC o dia é uma pílula pequena em maiúsculas (30/10, da maquete); no iPhone fica o texto de sempre.
+  const estiloDoSeparador=web
+    ?{alignSelf:'center' as const,fontSize:11,fontWeight:'600' as const,letterSpacing:1.3,textTransform:'uppercase' as const,color:colors.textTertiary,backgroundColor:colors.surface,paddingHorizontal:13,paddingVertical:5,borderRadius:999,overflow:'hidden' as const,marginBottom:8,marginTop:4}
+    :{alignSelf:'center' as const,fontSize:12,fontWeight:'600' as const,color:colors.textTertiary,marginBottom:8,marginTop:4};
   const estiloDeSistema={fontSize:type.caption.fontSize,fontWeight:'600' as const,color:colors.textTertiary,textAlign:'center' as const};
   const amigoHeader=friend?<CabecalhoDoAmigo
     nome={friend.name} avatarUrl={friend.avatarUrl}
@@ -379,7 +384,7 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
     if(group){
       corpo=<GroupMessage message={m} own={m.sender.id===myId} showSender={!seguida(m,index)} citacao={citacao(m)} onResponder={()=>responderA(m)} destacada={destacada===m.id}
           onMenu={abrirMenuDaMensagem?e=>abrirMenuDaMensagem(m,e):undefined} playlist={m.playlistId?playlistsDoChat.get(m.playlistId):undefined}
-          reactions={reacoes.get(m.id)??[]} myId={myId} aReagir={aReagir===m.id} onReagir={emoji=>void reagir(m.id,emoji)} onAbrirReacoes={()=>setAReagir(a=>a===m.id?null:m.id)} onFecharReacoes={()=>setAReagir(null)} onProfile={onProfile} onTrack={setTrack} onPlaylist={onPlaylist}/>;
+          reactions={reacoes.get(m.id)??[]} myId={myId} aReagir={aReagir===m.id} onReagir={emoji=>void reagir(m.id,emoji)} onAbrirReacoes={()=>setAReagir(a=>a===m.id?null:m.id)} onFecharReacoes={()=>setAReagir(null)} onProfile={onProfile} onTrack={t=>aoMenuDaFaixa?aoMenuDaFaixa(t):setTrack(t)} onPlaylist={onPlaylist}/>;
     }else if(m.itemType==='sessao'&&m.sessionId){
       corpo=<ConviteDeSessao id={m.sessionId} mensagem={m.message} minha={minha} quem={m.sender.name}/>;
     }else if(m.playlistId&&m.message?.trim()===MENSAGEM_DO_CONVITE){
@@ -390,7 +395,11 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
         </View>
       </View>;
     }else{
-      corpo=<View style={{flexDirection:'row',alignItems:'flex-end',gap:6,alignSelf:minha?'flex-end':'flex-start',maxWidth:'92%'}}>
+      // No PC (30/10, da maquete) o que escreves é um balão CLARO com letra escura, e os balões não passam dos 62 %.
+      // Com uma música, uma playlist ou uma resposta lá dentro fica o balão de sempre (a letra desses é clara).
+      const cit=citacao(m);
+      const claro=web&&minha&&!m.trackData&&!m.playlistId&&!cit;
+      corpo=<View style={{flexDirection:'row',alignItems:'flex-end',gap:6,alignSelf:minha?'flex-end':'flex-start',maxWidth:web?'62%':'92%'}}>
         {/* A cara de quem falou, ao lado do balão: só do lado dele, e só na
             última de um grupo -- nas outras fica o espaço, para alinharem. */}
         {!minha?(fimDoGrupo?<Pressable onPress={()=>onProfile(m.sender.id)} accessibilityLabel={`View ${m.sender.name}`} style={{marginBottom:2}}>
@@ -404,7 +413,7 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
           style={{
             // `theme.soft` e nao `accent` puro: o accent pode ser CLARO (o do
             // Joao e branco), e texto branco num balao branco nao se le.
-            backgroundColor:minha?tema.soft:colors.surface,
+            backgroundColor:claro?colors.text:(minha?tema.soft:colors.surface),
             // Sem borda (9/10): era o balão com uma moldura e o cartão com outra.
             borderWidth:destacada===m.id?1:0,
             borderColor:accent,
@@ -412,9 +421,9 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
             // O canto cortado do lado de quem fala, só na última do grupo.
             ...(fimDoGrupo?{[minha?'borderBottomRightRadius':'borderBottomLeftRadius']:6}:{}),
           }}>
-        {citacao(m)}
-        {!!m.message&&<Text selectable style={[s.text,{flexShrink:1,paddingHorizontal:m.trackData||m.playlistId?3:0}]}>{m.message}</Text>}
-        {m.trackData&&<FaixaPartilhada faixa={m.trackData} minha={minha} onPress={()=>setTrack(m.trackData)}
+        {cit}
+        {!!m.message&&<Text selectable style={[s.text,{flexShrink:1,paddingHorizontal:m.trackData||m.playlistId?3:0},claro&&{color:colors.bg}]}>{m.message}</Text>}
+        {m.trackData&&<FaixaPartilhada faixa={m.trackData} minha={minha} onPress={()=>aoMenuDaFaixa?aoMenuDaFaixa(m.trackData!):setTrack(m.trackData)}
           onTocar={()=>void usePlayer.getState().tocarMusica(m.trackData!,undefined,true)}/>}
         {m.playlistId&&<SharedPlaylistCard semFundo playlist={playlistsDoChat.get(m.playlistId)} onPress={()=>onPlaylist(m.playlistId!)}/>}
         </MessageBubble>
@@ -453,6 +462,9 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
               </Text>:null}
             </View>
           </Pressable>
+          {friend?<Pressable accessibilityRole="button" accessibilityLabel={friend.currentlyPlaying?`Listen along with ${title}`:`Start a Jam with ${title}`} onPress={()=>ouvirJuntosCom(friend)}
+            style={({pressed}:any)=>[{flexDirection:'row',alignItems:'center',gap:8,height:34,paddingHorizontal:14,borderRadius:17,borderWidth:1,borderColor:colors.borderStrong},pressed&&{opacity:0.7}]}>
+            <Ionicons name="headset-outline" size={15} color={colors.text}/><Text style={{color:colors.text,fontSize:13,fontWeight:'600'}}>{friend.currentlyPlaying?'Listen along':'Start a Jam'}</Text></Pressable>:null}
           <SocialIconButton label="Back to chats" icon={split?'close':'chevron-back'} onPress={closeChat}/>
         </View>}
         {!!error&&<Text style={s.error}>{error}</Text>}{chatLoading&&<ActivityIndicator color={accent}/>}
@@ -469,8 +481,12 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
         {group?<GroupComposer campoRef={campo} value={draft} onChange={setDraft} busy={busy} onSend={()=>void send()}/>:
           <View style={[s.row,{alignItems:'flex-end'}]}><Pressable accessibilityRole="button" accessibilityLabel="Send music" onPress={()=>setEnviarMusica(true)}
             style={({pressed}:any)=>[{width:40,height:40,borderRadius:20,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(255,255,255,0.08)'},pressed&&{opacity:0.7}]}>
-            <Ionicons name="add" size={22} color={colors.text}/></Pressable><TextInput ref={campo} accessibilityLabel="Message" placeholder="Message…" placeholderTextColor={colors.textSecondary} value={draft} onChangeText={setDraft} multiline maxLength={4000} style={[s.input,{flex:1,maxHeight:90}]} editable={!busy}
-            {...({onKeyPress:(e:any)=>{const evento=e?.nativeEvent??e;if(!web||evento?.key!=='Enter'||evento?.shiftKey||evento?.isComposing)return;e.preventDefault?.();evento.preventDefault?.();if(!busy&&draft.trim())void send();}} as any)}/>{draft.trim()||!aTocar?<SocialButton primary disabled={busy||!draft.trim()} onPress={()=>void send()}>Send</SocialButton>
+            <Ionicons name="add" size={22} color={colors.text}/></Pressable><TextInput ref={campo} accessibilityLabel="Message" placeholder="Message…" placeholderTextColor={colors.textSecondary} value={draft} onChangeText={setDraft} multiline maxLength={4000} style={[s.input,{flex:1,maxHeight:90},web&&{borderRadius:22,minHeight:44,paddingHorizontal:18}]} editable={!busy}
+            {...({onKeyPress:(e:any)=>{const evento=e?.nativeEvent??e;if(!web||evento?.key!=='Enter'||evento?.shiftKey||evento?.isComposing)return;e.preventDefault?.();evento.preventDefault?.();if(!busy&&draft.trim())void send();}} as any)}/>{draft.trim()||!aTocar?(web
+              ?<Pressable accessibilityRole="button" accessibilityLabel="Send" disabled={busy||!draft.trim()} onPress={()=>void send()}
+                style={({pressed}:any)=>[{width:44,height:44,borderRadius:22,alignItems:'center',justifyContent:'center',backgroundColor:colors.text,opacity:busy||!draft.trim()?0.4:1},pressed&&{opacity:0.75}]}>
+                <Ionicons name="arrow-up" size={20} color={colors.bg}/></Pressable>
+              :<SocialButton primary disabled={busy||!draft.trim()} onPress={()=>void send()}>Send</SocialButton>)
             :<Pressable accessibilityRole="button" accessibilityLabel={`Send what you're playing: ${tituloDaFaixa(aTocar)}`} disabled={busy} onPress={()=>void enviarItem('track',aTocar)}
               style={({pressed}:any)=>[{width:40,height:40,borderRadius:20,alignItems:'center',justifyContent:'center',backgroundColor:accent},pressed&&{opacity:0.75}]}>
               <Ionicons name="musical-note" size={18} color={textoSobre(accent)}/></Pressable>}</View>}
@@ -482,7 +498,7 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
       {chat}
     </View> : <View style={{flex:1,minHeight:0,flexDirection:split?'row':'column',paddingHorizontal:web?SOCIAL_GUTTER:24,gap:split?24:0,paddingBottom:web?24:0}}>
       {(!web||split||!conversation)&&<View style={{flex:split?undefined:1,width:split?300:undefined,minHeight:0}}>{list}</View>}
-      {web&&(split||!!conversation)&&<View style={{flex:1,minWidth:0,minHeight:0,borderWidth:1,borderColor:colors.borderStrong,borderRadius:14,overflow:'hidden'}}>
+      {web&&(split||!!conversation)&&<View style={{flex:1,minWidth:0,minHeight:0,borderWidth:1,borderColor:colors.borderStrong,borderRadius:22,overflow:'hidden'}}>
         {conversation?chat:<View style={{flex:1,alignItems:'center',justifyContent:'center',padding:24,gap:12}}><Ionicons name="chatbubbles-outline" size={36} color={colors.textSecondary}/><Text style={s.title}>Your conversations</Text><Text style={[s.muted,{textAlign:'center'}]}>Choose a friend or group to open a conversation.</Text></View>}
       </View>}
     </View>}

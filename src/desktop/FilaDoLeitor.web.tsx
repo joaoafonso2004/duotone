@@ -41,11 +41,32 @@ function NumeroQueAnda({ valor }: { valor: number }) {
   return <Text style={styles.npFilaContagem}>{mostrado}</Text>;
 }
 
-export function CabecaDaFila({ fila, compacta = false }: { fila: Fila; compacta?: boolean }) {
+/**
+ * Uma aba da cabeça da fila (30/10, da maquete): o nome, e um traço por baixo na que está
+ * aberta. "Up next" leva o número da fila ao lado (`filhos`).
+ */
+export function AbaDaFila({ rotulo, ativa, aoCarregar, filhos }: { rotulo: string; ativa: boolean; aoCarregar: () => void; filhos?: React.ReactNode }) {
+  return <Pressable accessibilityRole={'tab' as any} accessibilityState={{ selected: ativa }} accessibilityLabel={rotulo} onPress={aoCarregar}
+    style={{ flexDirection: 'row', alignItems: 'baseline', gap: ESP.sm, paddingBottom: ESP.xs, borderBottomWidth: 2, borderBottomColor: ativa ? COR.texto : 'transparent' }}>
+    <Text style={[styles.npFilaHeading, !ativa && { color: COR.textoMedio }]}>{rotulo}</Text>
+    {filhos}
+  </Pressable>;
+}
+
+export function CabecaDaFila({ fila, compacta = false, abas }: {
+  fila: Fila; compacta?: boolean;
+  /** As abas "Up next" e "Lyrics" no cartão da fila do Now Playing grande. */
+  abas?: { aba: 'fila' | 'letra'; aoMudar: (aba: 'fila' | 'letra') => void };
+}) {
   return <View>
-    <View style={[styles.npFilaCabeca, compacta && { flexWrap: 'wrap', gap: ESP.sm }]}>
-      <Text style={[styles.npFilaHeading, compacta && { fontSize: 14 }]}>Up next</Text>
-      <NumeroQueAnda valor={fila.saida ? 0 : fila.upNext.length} />
+    <View style={[styles.npFilaCabeca, compacta && { flexWrap: 'wrap', gap: ESP.sm }, abas && { alignItems: 'flex-end', borderBottomWidth: 1, borderBottomColor: COR.linhaSuave, marginBottom: ESP.sm }]}>
+      {abas ? <>
+        <AbaDaFila rotulo="Up next" ativa={abas.aba === 'fila'} aoCarregar={() => abas.aoMudar('fila')} filhos={<NumeroQueAnda valor={fila.saida ? 0 : fila.upNext.length} />} />
+        <AbaDaFila rotulo="Lyrics" ativa={abas.aba === 'letra'} aoCarregar={() => abas.aoMudar('letra')} />
+      </> : <>
+        <Text style={[styles.npFilaHeading, compacta && { fontSize: 14 }]}>Up next</Text>
+        <NumeroQueAnda valor={fila.saida ? 0 : fila.upNext.length} />
+      </>}
       <View style={{ flex: 1 }} />
       {compacta ? null : <RadioEmTresEstados />}
       {fila.current || fila.upNext.length ? <Pressable accessibilityRole="button" accessibilityLabel="Save queue as playlist"

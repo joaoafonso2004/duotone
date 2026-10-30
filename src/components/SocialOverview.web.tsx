@@ -16,6 +16,7 @@ import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { colors, radii } from './socialTokens';
 import { ESCALA_MAXIMA } from '../theme';
 import { CapaDuotone } from '../desktop/duotone.web';
+import { useCorDoAmbiente } from '../hooks/useCorDoAmbiente';
 import { marcar } from '../desktop/ui.web';
 import { jamsDosAmigos } from '../state/jamsDosAmigos';
 import { ouvirComAmigo } from '../state/ouvirComAmigo';
@@ -69,7 +70,10 @@ function CartaoAOuvir({ amigo, agora, aoAbrir }: { amigo: SocialFriend; agora: n
   const title = tituloDaFaixa(a.track), artist = displayArtist(a.track);
   const status = musicActivityLabel(a, agora);
   const cover = capaParaLista(a.track.artworkUrl) ?? a.track.artworkUrl;
-  return <View {...marcar('cartao-ouvir')} style={styles.activityCard}>
+  // A cor da capa a lavar o cartão da esquerda para a direita (30/10, da maquete): só quem ouve agora.
+  const cor = useCorDoAmbiente(a.listening ? cover : null);
+  const lavagem = cor ? { backgroundImage: `linear-gradient(90deg, color-mix(in oklab, ${cor} 30%, transparent), ${colors.surface} 75%)` } : null;
+  return <View {...marcar('cartao-ouvir')} style={[styles.activityCard, lavagem as any]}>
     <Pressable style={({pressed}) => [styles.activityMain, pressed && styles.pressed]} accessibilityRole="button"
       accessibilityLabel={`${amigo.name}, ${title}, ${artist}, ${status}. Song options`} onPress={() => aoAbrir(a.track)}>
       <View style={styles.activityCover}><CapaDuotone uri={cover} viva={a.listening} style={{ borderRadius: 8 }}/></View>

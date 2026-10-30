@@ -130,8 +130,10 @@ export function StatsChart({ buckets, color }: { buckets: TimelineBucket[]; colo
 }
 
 /** Para onde o perfil leva é o `irPara` da casca (5/10, lib/destinos.ts). */
-export function ProfilePage({userId,back}:{userId?:string;back?:()=>void}) {
+export function ProfilePage({userId,back,aoMenuDaFaixa}:{userId?:string;back?:()=>void;
+  /** O menu de uma música da app (30/10): as reticências e o botão direito das músicas do perfil. */
+  aoMenuDaFaixa?:(t:Track)=>void}) {
   const ownId=useAuth(s=>s.session?.user.id);
   const target=userId || ownId;
-  return <View style={{flex:1,minHeight:0}}>{target&&<SocialProfileView key={target} userId={target} onBack={userId?back:undefined}/>}</View>;
+  return <View style={{flex:1,minHeight:0}}>{target&&<SocialProfileView key={target} userId={target} onBack={userId?back:undefined} aoMenuDaFaixa={aoMenuDaFaixa}/>}</View>;
 }

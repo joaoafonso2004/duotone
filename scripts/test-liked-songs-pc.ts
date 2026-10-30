@@ -63,9 +63,10 @@ caso('os chips são um grupo de opções, com o estado de escolhido da app', () 
   assert.match(UI, /aceso \? ESTADO\.escolhido : hovered && \{ backgroundColor: ESTADO\.hover \}/);
 });
 
-console.log('\no cabeçalho da tabela preso');
-caso('preso ao topo, por cima das linhas, quase opaco, e a tabela deixa-o colar (overflow visível)', () => {
-  assert.match(UI, /tableHeaderPlain: \{[^}]*position: 'sticky', top: 0, zIndex: 4, backgroundColor: 'rgba\(12,12,16,0\.96\)' \}/);
+console.log('\no cabeçalho da tabela (sem faixa escura, 30/10)');
+caso('sem fundo escuro e sem ficar preso: só as letras e um fio, e rola com a lista (o João: a faixa "não pertence")', () => {
+  assert.match(UI, /tableHeaderPlain: \{ paddingHorizontal: ESP\.sm, borderTopWidth: 1, borderTopColor: COR\.linhaSuave, backgroundColor: 'transparent' \}/);
+  assert.ok(!/tableHeaderPlain: \{[^}]*sticky/.test(UI));
   assert.match(UI, /tablePlain: \{ borderWidth: 0, borderRadius: 0, backgroundColor: 'transparent', overflow: 'visible' \}/);
 });
 

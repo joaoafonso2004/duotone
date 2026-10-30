@@ -42,7 +42,7 @@ const React = { createElement: (type, props, ...children) => ({ type, props: { .
 const { SocialOverview } = load('src/components/SocialOverview.web.tsx', {
   '../lib/previaDaConversa': load('src/lib/previaDaConversa.ts'),
   react: React, 'react-native': { Pressable: 'Pressable', Text: 'Text', TextInput: 'TextInput', View: 'View', StyleSheet: { create: x => x } },
-  '../desktop/duotone.web': { CapaDuotone: 'CapaDuotone' }, '../desktop/ui.web': { marcar: (...m) => ({ 'data-dt': m.join(' ') }) },
+  '../desktop/duotone.web': { CapaDuotone: 'CapaDuotone' }, '../hooks/useCorDoAmbiente': { useCorDoAmbiente: () => null }, '../desktop/ui.web': { marcar: (...m) => ({ 'data-dt': m.join(' ') }) },
   '../state/jamsDosAmigos': { jamsDosAmigos: async () => new Map([['f0', 'jam-f0']]) },
   '../state/ouvirComAmigo': { ouvirComAmigo: async (amigo, sessao) => { juntados.push([amigo.friendId, sessao]); } },
   '../lib/socialActivity': core,

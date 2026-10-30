@@ -268,7 +268,7 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
           {/* Os sítios de onde se ouviu, como na Home do iPhone (5/10). */}
           <EntradasDaHome misturaDoDia={misturaDoDiaFaixas} />
           <VoltarAOuvir />
-          <Shelf grelha titulo="Discover daily" nota={notaDaPrateleira('descobrir')} tracks={descobrir} onPlay={tocarMusica} onMore={more} contexto={contextoPrateleira('descobrir')}
+          <Shelf lado={184} titulo="Discover daily" nota={notaDaPrateleira('descobrir')} tracks={descobrir} onPlay={tocarMusica} onMore={more} contexto={contextoPrateleira('descobrir')}
             capa={(t, lado) => <CapaDuotone uri={capaDaFaixa(t)} brilho viva={savedKeys.has(`${t.source}:${t.sourceId}`)} style={{ width: lado, height: lado, borderRadius: RAIO.ctrl }} />} />
           {/* Ao lado do Discover, e a dizer o contrário: esse vai buscar aos
               vizinhos o que saiu, esta vai buscar aos teus o que nunca saiu. */}
@@ -299,7 +299,7 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
             aoMenu={(m, e) => setMenuDaMist({ id: m.id, ponto: pontoDoEvento(e) })} escolhido={menuDaMist?.id ?? null} /> : null}
           {outras ? <PrateleiraDeMisturas titulo="Your genres" nota="your library, by genre" misturas={generos} aoAbrir={abrirMistura} aoTocar={tocarMistura}
             aoMenu={(m, e) => setMenuDaMist({ id: m.id, ponto: pontoDoEvento(e) })} escolhido={menuDaMist?.id ?? null} /> : null}
-          <PrateleiraDeMisturas titulo="Decades" nota="your music from that era" misturas={decadas} aoAbrir={abrirMistura} aoTocar={tocarMistura}
+          <PrateleiraDeMisturas titulo="Decades" nota="your music from that era" variante="decada" misturas={decadas} aoAbrir={abrirMistura} aoTocar={tocarMistura}
             aoMenu={(m, e) => setMenuDaMist({ id: m.id, ponto: pontoDoEvento(e) })} escolhido={menuDaMist?.id ?? null} />
           {outras ? <PrateleiraDeMisturas titulo="Playlists" misturas={playlists} aoAbrir={abrirMistura} aoTocar={tocarMistura}
             aoMenu={(m, e) => setMenuDaMist({ id: m.id, ponto: pontoDoEvento(e) })} escolhido={menuDaMist?.id ?? null} /> : null}
