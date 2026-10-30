@@ -2,6 +2,7 @@ import React from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import { capaComBarras } from '../lib/modoLimpo';
 import { posicaoNoCartao, SEM_BARRAS } from '../lib/doisTons';
+import { useDoisTons } from './doisTons.web';
 import { COR } from './tokens.web';
 import { marcar } from './ui.web';
 
@@ -15,6 +16,9 @@ import { marcar } from './ui.web';
  * multiplica e aclara). O browser descodifica uma só. Mesmo assim cada quadro
  * leva um filtro e uma mistura: serve para prateleiras e grelhas, nunca para uma
  * linha por faixa (centenas de filtros ao mesmo tempo pesam).
+ *
+ * **Desligada de origem** (opção "Two-tone covers" das Definições, 30/10): sem ela a
+ * capa é só a imagem a cores, com o brilho se o tiver, e a camada a cinzentos nem se monta.
  *
  * `brilho`: o reflexo de metal que segue o cursor, sobre o quadro (para o
  * cartão inteiro, `marcar('cartao', 'brilho')` no próprio cartão). As regras
@@ -31,12 +35,16 @@ const COBRE = { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, over
 export function CapaDuotone({ uri, viva = false, brilho = false, style }: {
   uri: string | null | undefined; viva?: boolean; brilho?: boolean; style?: any;
 }) {
-  const marcas = viva ? (brilho ? MARCAS.vivaBrilho : MARCAS.viva) : (brilho ? MARCAS.brilho : MARCAS.base);
+  const doisTons = useDoisTons();
+  // Sem a opção ligada toda a capa é "viva": a cores, sem a camada a cinzentos.
+  const aCores = viva || !doisTons;
+  const marcas = aCores ? (brilho ? MARCAS.vivaBrilho : MARCAS.viva) : (brilho ? MARCAS.brilho : MARCAS.base);
   const quadro = [{ width: '100%', aspectRatio: 1, backgroundColor: COR.elevado, overflow: 'hidden' }, style];
   if (!uri) return <View {...marcas} style={quadro as any} />;
   // Com as barras do YouTube, a imagem sai do quadro pelos lados e por cima/baixo
   // (o `overflow` corta): ver `SEM_BARRAS`.
   const imagem = capaComBarras(uri) ? { position: 'absolute' as const, ...SEM_BARRAS } : StyleSheet.absoluteFill;
+  if (aCores) return <View {...marcas} style={quadro as any}><Image source={{ uri }} style={imagem as any} /></View>;
   return <View {...marcas} style={quadro as any}>
     <Image source={{ uri }} style={imagem as any} />
     <View {...marcar('duo-tom')} aria-hidden pointerEvents="none" style={COBRE}>

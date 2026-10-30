@@ -9,13 +9,14 @@ import { refDoAlvo } from '../Arrastar.web';
 import { alvoDaPlaylist } from '../alvosDeLargar.web';
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { MenuDeContexto, pontoDoEvento, ultimoClique, type PontoNoEcra } from '../MenuDeContexto.web';
+import { SugestoesDaPlaylist } from '../SugestoesDaPlaylist.web';
 import { guardarRetrato, NOME_DO_RETRATO, retratoDe, viajar } from '../viagem.web';
 import { RETRATO } from '../../lib/retratosQueViajam';
 import { filtrarPlaylists, OPCOES_DE_ORDEM, ordenarPlaylists, resumoDasPlaylists, type OrdemDasPlaylists } from '../../lib/ordemDasPlaylists';
 import { menuDaPlaylist, type IdDaAcaoDaPlaylist } from '../../lib/menuDaPlaylist';
 import { Image, Pressable, Text, View as NativeView } from 'react-native';
 import {
-  copiasGuardadas, createPlaylist, deletePlaylist, getPlaylistTracks, getPlaylistDetails, listPlaylists, mergePlaylists,
+  addTracksToPlaylist, copiasGuardadas, createPlaylist, deletePlaylist, getPlaylistTracks, getPlaylistDetails, listPlaylists, mergePlaylists,
   renamePlaylist, savePlaylistCopy, lerPessoasDaPlaylist, quemPosNaPlaylist, relerPlaylist, sairDaPlaylist, setPlaylistOrder,
 } from '../../api/playlists';
 import { movidaPara } from '../../lib/arrastar';
@@ -381,9 +382,19 @@ export function PlaylistPage({ id, title, back, share, navigate, abrirPessoas = 
     if (!filteredTracks.length) return;
     void usePlayer.getState().tocarLista(filteredTracks, ligado, inteligente, { tipo: 'playlist', nome: playlistTitle, id });
   };
+  // Juntar uma das sugestões do fim da página (30/10): como qualquer "Add to playlist" (o
+  // `addTracksToPlaylist` já esquece a afinidade), e relê-se por baixo para a lista e a contagem acertarem.
+  const juntarSugestao = async (t: Track) => {
+    try {
+      await addTracksToPlaylist(id, [t]);
+      window.dispatchEvent(new CustomEvent('duotone:refresh-playlists'));
+      props.notify(`Added to ${playlistTitle}.`);
+      await refresh({ silencioso: true });
+    } catch (e) { avisarErro(mensagemDeErro(e, 'playlist')); }
+  };
   const artworks = tracks.map((track) => track.artworkUrl).filter((uri): uri is string => !!uri);
   return <><Page title="Playlist" action={<BotaoVoltar onPress={back} />}><ContentScroll scrollKey={`playlist:${id}`}>{!!loadError&&<Empty icon="alert-circle-outline" title="Playlists unavailable" body={loadError} action={<Button secondary onPress={refresh}>Try again</Button>}/>}{loading ? <View style={{ height: 350 }}><Loading /></View> : loadError ? <Empty icon="alert-circle-outline" title="Playlist unavailable" body={loadError} action={<Button onPress={refresh}>Try again</Button>}/> : <><View style={styles.detailHero}><View style={{ viewTransitionName: NOME_DO_RETRATO } as any}><PlaylistArtwork artworks={artworks} lado={176} /></View><View style={styles.detailHeroBody}><Text style={styles.detailHeroEyebrow}>PLAYLIST</Text><Text numberOfLines={2} style={styles.detailHeroTitle}>{playlistTitle}</Text><Text style={styles.detailHeroMeta}>{linhaDeMeta(tracks.length, duracaoTotal)}</Text>{eColaborativa(pessoas) ? <View style={{ marginTop: 6 }}><CarasDaPlaylist alinhar="flex-start" pessoas={pessoasVistas} onPress={() => setPessoasAbertas(true)} /></View> : null}<View style={styles.detailHeroActions}><Button icon="play" onPress={playAll}>Play</Button><Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button><BotaoDeFixar atalho={{ tipo: 'playlist', id, nome: playlistTitle, capa: artworks[0] ?? null }} />{canEdit ? <IconButton name="ellipsis-horizontal" label="More playlist actions" onPress={() => { setOndeMenuDaPagina(ultimoClique()); setMenuOpen(true); }} /> : <>{estadoGuardar !== 'escondido' && <Button secondary icon={estadoGuardar === 'abrir-copia' ? 'checkmark' : 'add'} ocupado={aGuardar} onPress={() => void guardar()}>{estadoGuardar === 'abrir-copia' ? 'Open your copy' : aGuardar ? 'Saving…' : 'Save'}</Button>}<Button secondary icon="share-social-outline" onPress={partilhar}>Share</Button></>}</View></View></View><View style={styles.detailToolbar}><View style={[styles.detailSearch, { marginBottom: 0 }]}><Field icon="search" placeholder="Search this playlist" value={query} onChangeText={setQuery} /></View><Button secondary icon="swap-vertical" onPress={() => setSortOpen(true)}>{NOMES_DA_ORDENACAO[sortMode]}</Button><IconButton name="refresh" label="Refresh playlist" active={aReler} onPress={() => void refresh({ silencioso: true })} /></View><TrackTable plain listKey={`playlist:${id}:${query}:${sortMode}`} ordenacao={{ modo: colunaAtiva, aoMudar: (m) => setSortMode(m ?? 'default') }} tracks={filteredTracks}
-          reordenar={podeReordenar ? { aoMover: moverNaPlaylist } : null} caraDaLinha={caraDaLinha} onPlay={(t) => props.tocarMusica(t, filteredTracks, undefined, { tipo: 'playlist', nome: playlistTitle, id })} onMore={(t, contexto) => props.more(t, contexto, { playlist: { id, podeEditar: canEdit } })} empty={query ? <Empty icon="search-outline" title="No results found" body={`No playlist tracks match "${query}"`} /> : <Empty icon="add-circle-outline" title="This playlist is empty" body="Use track actions from Search or Liked Songs to add music here." />} /></>}</ContentScroll></Page>{menuOpen ? <MenuDeContexto rato={ondeMenuDaPagina} rotulo={`Options for ${playlistTitle}`}
+          reordenar={podeReordenar ? { aoMover: moverNaPlaylist } : null} caraDaLinha={caraDaLinha} onPlay={(t) => props.tocarMusica(t, filteredTracks, undefined, { tipo: 'playlist', nome: playlistTitle, id })} onMore={(t, contexto) => props.more(t, contexto, { playlist: { id, podeEditar: canEdit } })} empty={query ? <Empty icon="search-outline" title="No results found" body={`No playlist tracks match "${query}"`} /> : <Empty icon="add-circle-outline" title="This playlist is empty" body="Use track actions from Search or Liked Songs to add music here." />} />{canEdit && !query.trim() ? <SugestoesDaPlaylist faixas={tracks} aoJuntar={juntarSugestao} /> : null}</>}</ContentScroll></Page>{menuOpen ? <MenuDeContexto rato={ondeMenuDaPagina} rotulo={`Options for ${playlistTitle}`}
   linhas={menuDaPlaylist({ plataforma: 'pc', onde: 'pagina', temFaixas: tracks.length > 0, minha: souDono, colaboro: papel === 'colaborador', fixada: estaFixado(atalhosDaPagina, `playlist:${id}`) })
     .map((a) => ({ id: a.id, rotulo: a.rotulo, icone: a.icone, perigo: a.destrutiva, inicioDeGrupo: a.inicioDeGrupo }))}
   aoEscolher={(acao) => {

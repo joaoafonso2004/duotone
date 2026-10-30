@@ -49,7 +49,8 @@ import { ligarRecomendado, useRecomendado } from '../../state/recomendado';
 import { EscolhaDoModelo, LinhaDoRecomendado } from '../RecomendadoDoEq.web';
 import { usePresets } from '../../state/presets';
 import { chaveDaFaixa, PLANO } from '../../lib/equalizer';
-import { getCorNaJanela, getDiscordRichPresence, setCorNaJanela, setCrossfadeSegundos, setDiscordRichPresence, setIntensidadeDoSmartShuffle, type CorDoLeitor } from '../../lib/prefs';
+import { getCorNaJanela, getDiscordRichPresence, getDoisTons, setCorNaJanela, setCrossfadeSegundos, setDiscordRichPresence, setDoisTons, setIntensidadeDoSmartShuffle, type CorDoLeitor } from '../../lib/prefs';
+import { definirDoisTons } from '../doisTons.web';
 import { DURACOES_DO_CROSSFADE, type DuracaoDoCrossfade } from '../../lib/crossfade';
 import { efeitoDaMarcaDoRefrao, efeitoDoCrossfade, efeitoDoDiscord, efeitoDoPadrao, efeitoDoRadio, efeitoDoRecomendado, efeitoDoSmartShuffle, efeitoDoTemporizador } from '../../lib/efeitoDasDefinicoes';
 import { lerMarcaDoRefrao, ligarMarcaDoRefrao, useMarcaDoRefrao } from '../../state/refrao';
@@ -141,6 +142,8 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   };
   const [seccao, setSeccao] = useState<IdDaSeccao>(seccaoAberta);
   const [estreita, setEstreita] = useState(false);
+  const [doisTons, setDoisTonsState] = useState(false);
+  useEffect(() => { void getDoisTons().then(setDoisTonsState); }, []);
   const [corDoLeitor, setCorDoLeitorState] = useState<CorDoLeitor>('janela');
   useEffect(() => { void getCorNaJanela().then(setCorDoLeitorState); }, []);
   const mudarCorDoLeitor = (v: string) => {
@@ -459,6 +462,8 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                 {glitch !== 'off' && <ChoiceLine label="Effect strength" value={effectIntensity} choices={[['subtle', 'Subtle'], ['normal', 'Normal'], ['strong', 'Strong']]} onChange={changeEffectIntensity} />}
                 {/* A cor da capa a encher a janela (26/9); a de origem. */}
                 <ChoiceLine label="Now Playing colour" description="Let the artwork's colour (and an artist's photo) fill the whole window, or keep it inside the page." value={corDoLeitor} choices={[['janela', 'Whole window'], ['pagina', 'Page only']]} onChange={mudarCorDoLeitor} />
+                {/* As capas a dois tons (30/10): desligadas de origem. */}
+                <ToggleLine label="Two-tone covers" description="Show covers on shelves and grids in two tones until you hover them or keep the song." value={doisTons} onChange={(v) => { setDoisTonsState(v); definirDoisTons(v); void setDoisTons(v); }} />
                 <ChoiceLine label={ROTULOS.acento} value={modo} choices={[['steel', 'Steel'], ['cover', 'Follow the cover']]} onChange={(v) => void setMode(v as any)} />
                 <ChoiceLine label="Window" value={opacity} choices={[['0.95', 'Solid'], ['0.72', 'Default'], ['0.55', 'Translucent'], ['0.35', 'Clear']]} onChange={changeOpacity} />
                 <ToggleLine label={ROTULOS.duracao} description="Show a time column in track lists." value={duration} onChange={(v) => { setDurationState(v); setShowTrackDuration(v); setShowTrackDurationCache(v); }} />

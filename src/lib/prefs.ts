@@ -45,6 +45,7 @@ const KEY_SEMENTES = 'pref:artistasSemente';
 const KEY_ARTISTAS_FAVORITOS = 'pref:artistasFavoritos';
 /** A cor da capa do Now Playing do PC: na janela toda ou só na página. */
 const KEY_COR_NA_JANELA = 'pref:corNaJanela';
+const KEY_DOIS_TONS = 'pref:doisTons';
 /** Os atalhos fixados na lateral do PC (`lib/atalhosDaLateral.ts`). */
 const KEY_ATALHOS_DA_LATERAL = 'pref:atalhosDaLateral';
 /** O gosto lido do Spotify. Ver `getGostoDoSpotify`. */
@@ -719,6 +720,18 @@ export async function getCorNaJanela(): Promise<CorDoLeitor> {
 }
 export async function setCorNaJanela(v: CorDoLeitor): Promise<void> {
   await AsyncStorage.setItem(KEY_COR_NA_JANELA, v);
+}
+
+/**
+ * As capas a dois tons no PC (30/10): **desligadas de origem**, a pedido do João.
+ * Ligadas, as capas das prateleiras e das grelhas ficam entre dois tons até o
+ * rato lhes tocar (`desktop/duotone.web.tsx`).
+ */
+export async function getDoisTons(): Promise<boolean> {
+  try { return (await AsyncStorage.getItem(KEY_DOIS_TONS)) === '1'; } catch { return false; }
+}
+export async function setDoisTons(v: boolean): Promise<void> {
+  await AsyncStorage.setItem(KEY_DOIS_TONS, v ? '1' : '0');
 }
 
 /** Os atalhos da lateral do PC, crus: quem os valida é `lerAtalhos`. */

@@ -37,7 +37,8 @@ import { useAuth } from '../state/auth';
 import { contextoDaRecomendacaoAtual, usePlayer } from '../state/player';
 import { usePresencaDoDiscord } from '../hooks/usePresencaDoDiscord';
 import { useSincroniaDaSessao } from '../hooks/useSincroniaDaSessao';
-import { getCorNaJanela, getDiscordRichPresence, type CorDoLeitor } from '../lib/prefs';
+import { getCorNaJanela, getDiscordRichPresence, getDoisTons, type CorDoLeitor } from '../lib/prefs';
+import { definirDoisTons } from '../desktop/doisTons.web';
 import { FundoDaCapa } from '../desktop/FundoDaCapa.web';
 import { sessaoDoSegredoDiscord } from '../lib/presencaDoDiscord';
 import { registar } from '../lib/eventos';
@@ -429,6 +430,8 @@ function DesktopShell() {
   // A cor da capa na janela toda enquanto o Now Playing está aberto (26/9).
   // As Definições avisam por evento, como a opacidade.
   const [corDoLeitor, setCorDoLeitor] = useState<CorDoLeitor>('janela');
+  // As capas a dois tons: desligadas de origem, e as Definições ligam-nas (30/10).
+  useEffect(() => { void getDoisTons().then(definirDoisTons); }, []);
   useEffect(() => {
     void getCorNaJanela().then(setCorDoLeitor);
     const mudou = (e: any) => { if (e.detail === 'janela' || e.detail === 'pagina') setCorDoLeitor(e.detail); };
@@ -714,7 +717,8 @@ function DesktopShell() {
   let page: ReactNode;
   switch (route.name) {
     case 'search': page = <SearchPage navigate={navigate} {...common} />; break; case 'songs': page = <SongsPage {...common} />; break; case 'artists': page = <ArtistsPage navigate={navigate} notify={notify} />; break;
-    case 'artist': page = <ArtistPage name={route.value} back={back} corNaJanela={corDoArtistaMontada && !corDoArtistaApaga} {...common} />; break; case 'playlists': page = <PlaylistsPage navigate={navigate} notify={notify} share={openShareDialog} />; break; case 'playlist': page = <PlaylistPage id={route.id} title={route.title} abrirPessoas={!!route.pessoas} back={back} share={openShareDialog} navigate={navigate} {...common} />; break;
+    case 'artist': page = <ArtistPage name={route.value} back={back} corNaJanela={corDoArtistaMontada && !corDoArtistaApaga} {...common} />; break; case 'playlists': page = <PlaylistsPage navigate={navigate} notify={notify} share={openShareDialog} />; break; case 'playlist': // `key`: uma playlist nova NÃO herda as faixas da anterior (duas fixadas na lateral: a segunda abria com a lista da primeira e só o título mudava).
+    page = <PlaylistPage key={route.id} id={route.id} title={route.title} abrirPessoas={!!route.pessoas} back={back} share={openShareDialog} navigate={navigate} {...common} />; break;
     case 'mistura': page = <MisturaPage key={route.id} id={route.id} titulo={route.titulo} back={back} {...common} />; break;
     case 'stats': page = <StatsPage key={route.userId} back={back} play={play} userId={route.userId} />; break;
     case 'retrospetiva': page = <RetrospetivaPage key={`${route.userId}:${route.ano}`} back={back} play={play} userId={route.userId} ano={route.ano} />; break;
