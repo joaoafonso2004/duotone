@@ -3,7 +3,10 @@ import {
   idadeDaAmostra,
   instanteDaAmostra,
   isSessionFresh,
+  JANELA_DA_RETOMA_MS,
   pickHandoffSession,
+  posicaoDeArranque,
+  retomaDoHandoff,
   resumoDaFila,
   saltouNaBarra,
   shouldOfferHandoff,
@@ -12,6 +15,7 @@ import {
   SESSION_TTL_MS,
   type RemoteSession,
 } from '../src/lib/handoff.ts';
+import { readFileSync } from 'node:fs';
 import type { Track } from '../src/types.ts';
 
 let bad = 0;
@@ -231,6 +235,32 @@ check('mudar a velocidade é', saltouNaBarra(l(10_000, NOW, 1), l(11_000, NOW + 
 check('a 0,8x, andar 0,8 s por segundo não é', !saltouNaBarra(l(10_000, NOW, 0.8), l(18_000, NOW + 10_000 - 1, 0.8)));
 check('depois de 10 s sem leituras não se compara', !saltouNaBarra(l(10_000, NOW), l(90_000, NOW + 12_000)));
 check('sem leitura anterior não há salto', !saltouNaBarra(null, l(10_000, NOW)));
+
+// "Continue here" no PC (30/10): a faixa adotada arranca onde o outro aparelho ia.
+// O IFrame do PC só lia a posição no `onReady`; com o leitor já criado, a troca
+// de faixa carregava do início.
+console.log('\n  a retoma do handoff no PC');
+check('adotar a 2:10 guarda a faixa, a posição e um prazo', JSON.stringify(retomaDoHandoff('abc', 130_000, NOW)) ===
+  JSON.stringify({ sourceId: 'abc', ms: 130_000, ate: NOW + JANELA_DA_RETOMA_MS }));
+check('a menos de 1,5 s começa-se do início', retomaDoHandoff('abc', 1_500, NOW) === null && retomaDoHandoff('abc', 0, NOW) === null);
+check('uma posição que não é número não vira retoma', retomaDoHandoff('abc', NaN, NOW) === null && retomaDoHandoff('', 9_000, NOW) === null);
+const retoma = retomaDoHandoff('abc', 130_000, NOW);
+check('a faixa adotada arranca na posição', posicaoDeArranque(retoma, 'abc', NOW + 50) === 130_000);
+check('outra faixa não herda a posição', posicaoDeArranque(retoma, 'outra', NOW + 50) === null);
+check('caduca: dez segundos depois já não vale', posicaoDeArranque(retoma, 'abc', NOW + JANELA_DA_RETOMA_MS) === 130_000
+  && posicaoDeArranque(retoma, 'abc', NOW + JANELA_DA_RETOMA_MS + 1) === null);
+check('sem retoma não há posição', posicaoDeArranque(null, 'abc', NOW) === null && posicaoDeArranque(undefined, 'abc', NOW) === null);
+
+// Os finais de linha do Windows (o CI faz checkout com CRLF): tudo em LF.
+const ler = (f: string) => readFileSync(f, 'utf8').replace(/\r\n/g, '\n');
+const leitor = ler('src/components/YouTubePlayerView.web.tsx');
+const loja = ler('src/state/player.ts');
+check('o leitor do PC usa a retoma na troca de faixa e na faixa já preparada', (leitor.match(/posicaoDeArranque\(state\.retomaDoHandoff, track\.sourceId\)/g) ?? []).length === 2);
+check('a troca de faixa carrega com startSeconds', /loadVideoById\(\{ videoId: track\.sourceId, startSeconds: retoma \/ 1000 \}\)/.test(leitor));
+check('a faixa preparada salta para a posição', /espera\.seekTo\?\.\(retoma \/ 1000, true\)/.test(leitor));
+check('cada uso limpa a retoma (só vale uma vez)', (leitor.match(/usePlayer\.setState\(\{ retomaDoHandoff: null \}\)/g) ?? []).length === 2);
+check('só o adoptSession a escreve', (loja.match(/retomaDoHandoff: retomaDoHandoff\(track\.sourceId, positionMs\)/g) ?? []).length === 1);
+check('não se guarda com a sessão', !/partialize[\s\S]{0,400}retomaDoHandoff/.test(loja));
 
 console.log(bad ? `\n  ${bad} falha(s)` : `\n  Todos os casos passaram.`);
 process.exit(bad ? 1 : 0);

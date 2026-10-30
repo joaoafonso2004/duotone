@@ -7,6 +7,7 @@ import {
   recuperacao, registar, type TipoFalha,
 } from '../lib/playbackDiagnostics';
 import { baterSessao } from '../lib/sessionSync';
+import { posicaoDeArranque } from '../lib/handoff';
 import { velocidadeNaSessao } from '../lib/jam';
 import { ritmoDeQuemSigo, useSeguirAmigo } from '../state/seguirAmigo';
 import { aoTocar, chaveDaFaixa } from '../lib/equalizer';
@@ -903,6 +904,13 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       // eventos do player em espera só contam quando ele começa a tocar, por
       // isso o "parado" não se confunde com "pronto".
       try { sai?.mute?.(); sai?.setVolume?.(0); sai?.stopVideo?.(); } catch {}
+      // "Continue here" com a faixa de outro aparelho já preparada aqui: a
+      // preparada arranca do início, por isso salta-se para onde o outro ia.
+      const retoma = posicaoDeArranque(state.retomaDoHandoff, track.sourceId);
+      if (retoma != null) {
+        usePlayer.setState({ retomaDoHandoff: null });
+        try { espera.seekTo?.(retoma / 1000, true); } catch {}
+      }
       try {
         espera.unMute();
         espera.setVolume(volumeParaOMotor(state.volume));
@@ -933,6 +941,15 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (naSala != null) {
       comecarAlinhamento(p, track.sourceId);
       try { p.loadVideoById({ videoId: track.sourceId, startSeconds: naSala / 1000 }); } catch {}
+      return;
+    }
+    // "Continue here" (30/10): o leitor já existe, por isso o `onReady` não volta
+    // a ler a posição, e sem ponto de partida a faixa do telemóvel começava do
+    // zero. A retoma é só do `adoptSession`, da faixa adotada, e usa-se uma vez.
+    const retoma = posicaoDeArranque(state.retomaDoHandoff, track.sourceId);
+    if (retoma != null) {
+      usePlayer.setState({ retomaDoHandoff: null });
+      try { p.loadVideoById({ videoId: track.sourceId, startSeconds: retoma / 1000 }); } catch {}
       return;
     }
     try { p.loadVideoById(track.sourceId); } catch {}

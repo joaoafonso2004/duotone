@@ -2,6 +2,7 @@ import { proximaFaixa, decisaoDeControlo, restoDaLista, baralhada, type PonteJam
 import { faixasParaAdiantar } from '../lib/adiantarFaixas';
 import { juntarSessao, partirSessao, SUFIXO_DA_FILA } from '../lib/sessaoPartida';
 import { passoLinear, primeiraTocavelAoRestaurar, saltarAteTocavel } from '../lib/filaSemRede';
+import { retomaDoHandoff, type RetomaDoHandoff } from '../lib/handoff';
 import {ensureLyrics} from './lyrics';
 import { useConnectivity } from './connectivity';
 import {
@@ -489,6 +490,8 @@ interface PlayerState {
   autoplayOnLoad: boolean;
   /** Posição (ms) a retomar após restauro da sessão; consumida uma vez. */
   resumePositionMs: number | null;
+  /** De onde a faixa adotada de outro aparelho arranca no PC (`adoptSession`); caduca em 10 s e quem a usa limpa-a. Ver `lib/handoff.ts`. Não se persiste. */
+  retomaDoHandoff: RetomaDoHandoff | null;
   volume: number;
   setVolume: (v: number) => void;
 
@@ -1217,6 +1220,7 @@ export const usePlayer = create<PlayerState>()(
   downloadProgress: null,
   autoplayOnLoad: true,
   resumePositionMs: null,
+  retomaDoHandoff: null,
   volume: getInitialVolume(),
   _yt: null,
   activeBackend: 'resolving',
@@ -1471,6 +1475,8 @@ export const usePlayer = create<PlayerState>()(
       // no onReady do IFrame. Preencher os dois é o que faz o handoff cair
       // no segundo certo nas duas plataformas.
       resumePositionMs: positionMs > 1500 ? positionMs : null,
+      // O PC com o leitor já criado só troca de faixa: a posição vai por aqui.
+      retomaDoHandoff: retomaDoHandoff(track.sourceId, positionMs),
       // A sessão de outro aparelho não traz de onde veio a fila.
       origemDaFila: null,
       doRadio: [],

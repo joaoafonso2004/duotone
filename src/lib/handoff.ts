@@ -333,3 +333,36 @@ export function resumoDaFila(
   const seguintes = session.queue.slice(i + 1);
   return { proxima: seguintes[0] ?? null, depois: Math.max(0, seguintes.length - 1) };
 }
+
+/**
+ * De onde arrancar no PC depois de "Continue here" (30/10).
+ *
+ * O IFrame do PC só lia a posição do handoff no `onReady`, ou seja, quando o
+ * leitor é CRIADO. Com a app já aberta (e é assim que o banner aparece: o PC
+ * tem a faixa da última vez carregada) o IFrame já existe, e o `adoptSession`
+ * só trocava a faixa -- que o efeito da troca carregava com `loadVideoById`
+ * sem ponto de partida, do início. Daí o "no telemóvel ia no 2:10 e no PC
+ * começou do zero".
+ *
+ * Não se lê o `resumePositionMs` nem o `positionMs`: o primeiro também guarda a
+ * posição de um restauro de sessão, que o PC nunca consome (ficava velha e
+ * o salto seguinte ia parar a um sítio qualquer), e o segundo pode ainda ser o
+ * da faixa que sai. Esta retoma é só do `adoptSession`, é da faixa que se
+ * adotou, e caduca: quem a lê tem `JANELA_DA_RETOMA_MS` para a usar.
+ */
+export const JANELA_DA_RETOMA_MS = 10_000;
+export interface RetomaDoHandoff { sourceId: string; ms: number; ate: number }
+
+/** Abaixo de 1,5 s não vale a pena saltar: começa-se do início, como o resto da app. */
+export function retomaDoHandoff(sourceId: string, positionMs: number, agora: number = Date.now()): RetomaDoHandoff | null {
+  if (!sourceId || !Number.isFinite(positionMs) || positionMs <= 1500) return null;
+  return { sourceId, ms: Math.round(positionMs), ate: agora + JANELA_DA_RETOMA_MS };
+}
+
+/** A posição em ms onde esta faixa deve arrancar, ou null (outra faixa, caducada, ou nada). */
+export function posicaoDeArranque(
+  retoma: RetomaDoHandoff | null | undefined, sourceId: string, agora: number = Date.now(),
+): number | null {
+  if (!retoma || retoma.sourceId !== sourceId || agora > retoma.ate) return null;
+  return retoma.ms > 1500 ? retoma.ms : null;
+}
