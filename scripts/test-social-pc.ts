@@ -64,7 +64,7 @@ caso('nenhum pedido novo: só a biblioteca em memória', () => {
 
 console.log('\nquem está a ouvir');
 caso('um cartão por amigo, a cores enquanto ouve e a dois tons quando ouviu há pouco', () => {
-  assert.match(LISTA, /<CapaDuotone uri=\{cover\} viva=\{a\.listening\} style=\{\{ borderRadius: 9 \}\}\/>/);
+  assert.match(LISTA, /<CapaDuotone uri=\{cover\} viva=\{a\.listening\} style=\{\{ borderRadius: 8 \}\}\/>/);
   assert.match(LISTA, /\{listening\.slice\(0, CARTOES_A_OUVIR\)\.map\(f => <CartaoAOuvir key=\{f\.friendId\} amigo=\{f\} agora=\{props\.now\} aoAbrir=\{props\.onTrack\}\/>\)\}/);
 });
 caso('o título conta quem ouve agora, e sem ninguém diz "Recently played"', () => {

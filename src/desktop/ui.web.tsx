@@ -1314,7 +1314,7 @@ export const ui = StyleSheet.create({
   fieldWrap: { height: 42, borderRadius: RAIO.cartao, borderWidth: 1, borderColor: COR.linha, backgroundColor: COR.elevado, flexDirection: 'row', alignItems: 'center', paddingHorizontal: ESP.md, gap: ESP.sm },
   field: { flex: 1, minWidth: 0, ...TIPO.corpo, color: COR.texto, outlineStyle: 'none' } as any,
   fieldPilula: { height: 44, borderRadius: 22, paddingLeft: 16, paddingRight: 10 },
-  fieldAtalho: { fontFamily: FONT.mono, fontSize: 10.5, color: COR.textoMedio, borderWidth: 1, borderColor: COR.linha, borderRadius: 6, paddingVertical: 3, paddingHorizontal: 7 },
+  fieldAtalho: { fontFamily: FONT.mono, fontSize: 10, color: COR.textoMedio, borderWidth: 1, borderColor: COR.linha, borderRadius: 4, paddingVertical: 3, paddingHorizontal: 7 },
 
   empty: { minHeight: 330, alignItems: 'center', justifyContent: 'center', padding: ESP.xxl },
   emptyIcon: { width: 60, height: 60, borderRadius: RAIO.superficie, backgroundColor: COR.elevado, borderWidth: 1, borderColor: COR.linhaSuave, alignItems: 'center', justifyContent: 'center', marginBottom: ESP.lg },

@@ -92,6 +92,6 @@ const estilos = StyleSheet.create({
   rotulo: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 8, paddingRight: 8 },
   segmento: { height: 22, paddingHorizontal: 10, borderRadius: 11, justifyContent: 'center' },
   texto: { fontFamily: FONT.body, fontSize: 12, fontWeight: '600', color: COR.textoMedio },
-  desfazer: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  desfazer: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   desfazerTexto: { fontFamily: FONT.body, fontSize: 12, fontWeight: '400', color: COR.texto, textDecorationLine: 'underline' },
 });

@@ -72,7 +72,7 @@ function CartaoAOuvir({ amigo, agora, aoAbrir }: { amigo: SocialFriend; agora: n
   return <View {...marcar('cartao-ouvir')} style={styles.activityCard}>
     <Pressable style={({pressed}) => [styles.activityMain, pressed && styles.pressed]} accessibilityRole="button"
       accessibilityLabel={`${amigo.name}, ${title}, ${artist}, ${status}. Song options`} onPress={() => aoAbrir(a.track)}>
-      <View style={styles.activityCover}><CapaDuotone uri={cover} viva={a.listening} style={{ borderRadius: 9 }}/></View>
+      <View style={styles.activityCover}><CapaDuotone uri={cover} viva={a.listening} style={{ borderRadius: 8 }}/></View>
       <View style={styles.activityText}>
         <Text numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA.lista} style={styles.cardName}>{amigo.name}</Text>
         <View style={styles.activityLine}>
@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
   eq: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 12 }, eqBarra: { width: 3, height: 12, borderRadius: 2, backgroundColor: colors.online },
   ouvirJa: { height: 30, paddingHorizontal: 12, borderRadius: 15, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   ouvirJaTexto: { color: colors.text, fontSize: 12, fontWeight: '600' },
-  cardName: { color: colors.text, fontSize: 14, fontWeight: '700' }, cardTitle: { color: colors.textSecondary, fontSize: 12.5, flexShrink: 1 },
+  cardName: { color: colors.text, fontSize: 14, fontWeight: '700' }, cardTitle: { color: colors.textSecondary, fontSize: 12, flexShrink: 1 },
   cardStatus: { color: colors.textSecondary, fontSize: 12 }, pressed: { opacity: 0.7 },
   personRow: { minHeight: 60, paddingVertical: 6, paddingHorizontal: 8, marginHorizontal: -8, borderRadius: 14, flexDirection: 'row', gap: 12, alignItems: 'center' },
   personText: { flex: 1, minWidth: 0, minHeight: 44, justifyContent: 'center', gap: 3 },

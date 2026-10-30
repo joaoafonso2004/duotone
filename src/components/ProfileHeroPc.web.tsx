@@ -158,7 +158,7 @@ export function ProfileHeroPc({ profile, own, cover, unread, status, altura, lar
         style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 320, background: 'rgba(0,0,0,0.94)', display: 'flex',
           flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, cursor: 'zoom-out', outline: 'none' }}>
         <img data-dt="dialogo" src={cover} alt="Cover photo" draggable={false}
-          style={{ maxWidth: '92%', maxHeight: '84%', objectFit: 'contain', borderRadius: 10, boxShadow: '0 30px 100px #000' }} />
+          style={{ maxWidth: '92%', maxHeight: '84%', objectFit: 'contain', borderRadius: 8, boxShadow: '0 30px 100px #000' }} />
         <span style={{ fontFamily: FONT.mono, fontSize: 11, letterSpacing: 1.4, color: '#fff', textTransform: 'uppercase' }}>Full cover · click or press Esc to close</span>
       </div>,
       document.body,
@@ -171,11 +171,11 @@ const estilos = StyleSheet.create({
   anel: { width: 118, height: 118, borderRadius: 59, borderWidth: 3, borderColor: 'rgba(255,255,255,0.92)', overflow: 'hidden', marginBottom: 18,
     boxShadow: '0 16px 40px rgba(0,0,0,0.5)' } as any,
   nome: { fontFamily: FONT.display, fontWeight: '900', color: '#fff', textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 8 }, textShadowRadius: 40 },
-  arroba: { fontFamily: FONT.mono, fontSize: 12.5, color: 'rgba(255,255,255,0.7)', marginTop: 8 },
+  arroba: { fontFamily: FONT.mono, fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 8 },
   bio: { fontFamily: FONT.body, fontSize: 16, lineHeight: 23, color: '#fff', marginTop: 10, maxWidth: 520 },
   acoes: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 18 },
   pilula: { minHeight: 44, borderRadius: 22, borderWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 18 },
-  pilulaTexto: { fontFamily: FONT.body, fontSize: 13.5, fontWeight: '700' },
+  pilulaTexto: { fontFamily: FONT.body, fontSize: 14, fontWeight: '700' },
   pista: { position: 'absolute', left: 0, right: 0, bottom: 14, alignItems: 'center', gap: 4 },
   pistaTexto: { fontFamily: FONT.mono, fontSize: 10, letterSpacing: 1.6, color: 'rgba(255,255,255,0.7)' },
 });

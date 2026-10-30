@@ -35,5 +35,5 @@ export function EtiquetaDaFaixaPartilhada({ faixa }: { faixa: Track }) {
 }
 
 const estilos = StyleSheet.create({
-  etiqueta: { fontSize: 9.5, letterSpacing: 1.4, color: '#d6f26b', marginBottom: 2, fontWeight: '600' },
+  etiqueta: { fontSize: 10, letterSpacing: 1.4, color: '#d6f26b', marginBottom: 2, fontWeight: '600' },
 });
