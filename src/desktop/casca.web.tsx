@@ -465,6 +465,12 @@ export function injectDesktopDocumentStyles() {
       background: radial-gradient(220px circle at var(--mx, 50%) var(--my, 50%), rgba(255,255,255,.16), transparent 62%); }
     [data-dt~="brilho"]:hover::after{ opacity: 1; }
 
+    /* O vinil por tras do retrato de um artista (30/10, passo 4, desktop/RetratosDosArtistas.web.tsx):
+       sai para o lado e roda devagar com o rato no cartao. So transform, e
+       so um por cartao. */
+    [data-dt~="vinil"]{ transition: transform 800ms var(--dt-curva); }
+    [data-dt~="cartao"]:hover [data-dt~="vinil"], [data-dt~="cartao"]:focus-within [data-dt~="vinil"]{ transform: translateX(38%) rotate(120deg); }
+
     /* A fila a sair e a entrar (30/10, passo 1 do PC elevado). Clear: as linhas
        saem em cascata (o atraso de cada uma vai inline, atrasoDaLinha). A Radio
        a trocar a fila: as linhas viram e saem enquanto ela procura, e as novas
@@ -502,6 +508,7 @@ export function injectDesktopDocumentStyles() {
        grelha para o cabeçalho da página. Enquanto dura, a página nova não entra a subir
        (o esbater da raiz já a traz) e a raiz esbate-se depressa. */
     ::view-transition-group(portrait){ animation-duration: 560ms; animation-timing-function: var(--dt-curva); }
+    ::view-transition-old(portrait), ::view-transition-new(portrait){ height: 100%; object-fit: cover; }
     ::view-transition-old(root), ::view-transition-new(root){ animation-duration: 220ms; }
     html[data-viagem] [data-dt~="pagina"]{ animation: none; }
     @media (prefers-reduced-motion: reduce){

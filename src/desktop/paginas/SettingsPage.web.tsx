@@ -458,7 +458,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                 <ChoiceLine label="Now Playing effect" description="Reactive follows the music. Static freezes it. Off shows the plain artwork." value={glitch} choices={[['reactive', 'Reactive'], ['static', 'Static'], ['off', 'Off']]} onChange={changeGlitch} />
                 {glitch !== 'off' && <ChoiceLine label="Effect strength" value={effectIntensity} choices={[['subtle', 'Subtle'], ['normal', 'Normal'], ['strong', 'Strong']]} onChange={changeEffectIntensity} />}
                 {/* A cor da capa a encher a janela (26/9); a de origem. */}
-                <ChoiceLine label="Now Playing colour" description="Let the artwork's colour fill the whole window, or keep it inside the page." value={corDoLeitor} choices={[['janela', 'Whole window'], ['pagina', 'Page only']]} onChange={mudarCorDoLeitor} />
+                <ChoiceLine label="Now Playing colour" description="Let the artwork's colour (and an artist's photo) fill the whole window, or keep it inside the page." value={corDoLeitor} choices={[['janela', 'Whole window'], ['pagina', 'Page only']]} onChange={mudarCorDoLeitor} />
                 <ChoiceLine label={ROTULOS.acento} value={modo} choices={[['steel', 'Steel'], ['cover', 'Follow the cover']]} onChange={(v) => void setMode(v as any)} />
                 <ChoiceLine label="Window" value={opacity} choices={[['0.95', 'Solid'], ['0.72', 'Default'], ['0.55', 'Translucent'], ['0.35', 'Clear']]} onChange={changeOpacity} />
                 <ToggleLine label={ROTULOS.duracao} description="Show a time column in track lists." value={duration} onChange={(v) => { setDurationState(v); setShowTrackDuration(v); setShowTrackDurationCache(v); }} />

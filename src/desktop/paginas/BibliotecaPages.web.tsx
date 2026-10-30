@@ -38,6 +38,9 @@ import { correspondeAPesquisa } from '../../lib/searchText';
 import { resumoDaLista } from '../../lib/duracaoTotal';
 import { resumoDasOutras } from '../../lib/entradasDaHome';
 import { EntradasDaHome } from '../EntradasDaHome.web';
+import { ArtistaEmRepeticao, RetratoDoArtista } from '../RetratosDosArtistas.web';
+import { NOME_DO_RETRATO, viajar } from '../viagem.web';
+import { artistaEmDestaque, OPCOES_DOS_ARTISTAS, ordenarGrelhaDeArtistas, posicoesDaBiblioteca, resumoDosArtistas, type OrdemDosArtistas } from '../../lib/grelhaDeArtistas';
 import { CapaDuotone } from '../duotone.web';
 import { useMusicSearch } from '../../hooks/useMusicSearch';
 import { estadoDaPesquisa, FRASES_DA_PESQUISA } from '../../lib/estadoDaPesquisa';
@@ -563,7 +566,7 @@ export function SongsPage(props: CommonPageProps) {
 }
 
 /** O ranking dos artistas pelo histórico, entre visitas à página. */
-let rankingGuardado: { conta: string | undefined; mapa: Map<string, number>; em: number } | null = null;
+let rankingGuardado: { conta: string | undefined; mapa: Map<string, number>; jogadas: Map<string, number>; em: number } | null = null;
 /**
  * O agrupamento da biblioteca por artista, entre visitas: aprende o vocabulário
  * da biblioteca inteira e percorre-a toda, e só muda quando a biblioteca (a
@@ -591,6 +594,13 @@ export function ArtistsPage({ navigate, notify }: { navigate: (route: Route) => 
   // abertura já sai na ordem certa, e o pedido só se repete passados 5 min.
   const conta = useAuth((st) => st.session?.user.id);
   const [ranking, setRanking] = useState<Map<string, number>>(() => { const g = rankingGuardado; return g && g.conta === conta ? g.mapa : new Map(); });
+  // As reproduções de cada um, do MESMO pedido do ranking (30/10): o cartão em destaque diz quantas.
+  const [jogadas, setJogadas] = useState<Map<string, number>>(() => { const g = rankingGuardado; return g && g.conta === conta ? g.jogadas : new Map(); });
+  // A ordem da grelha (30/10): não se guarda entre visitas, como a das Playlists.
+  const [ordemDaGrelha, setOrdemDaGrelha] = useState<OrdemDosArtistas>('plays');
+  // O retrato de cada cartão: o que parte quando se abre um artista (`viajar`).
+  const retratos = useRef(new Map<string, HTMLElement>());
+  const guardarRetrato = (chave: string) => (no: HTMLElement | null) => { if (no) retratos.current.set(chave, no); else retratos.current.delete(chave); };
   useEffect(() => {
     const g = rankingGuardado;
     if (g && g.conta === conta && Date.now() - g.em < 5 * 60_000) return;
@@ -599,8 +609,10 @@ export function ArtistsPage({ navigate, notify }: { navigate: (route: Route) => 
       // historico, onde o mesmo artista pode estar escrito de outra maneira.
       .then((tops) => {
         const mapa = new Map(tops.map((a, i) => [chaveDeArtista(a.name), i] as [string, number]));
-        rankingGuardado = { conta, mapa, em: Date.now() };
+        const plays = new Map(tops.map((a) => [chaveDeArtista(a.name), a.plays] as [string, number]));
+        rankingGuardado = { conta, mapa, jogadas: plays, em: Date.now() };
         setRanking(mapa);
+        setJogadas(plays);
       })
       .catch(() => {});
   }, [conta]);
@@ -611,10 +623,14 @@ export function ArtistsPage({ navigate, notify }: { navigate: (route: Route) => 
   const alternarFavorito = useArtistasFavoritos((s) => s.alternar);
   useEffect(() => { void useArtistasFavoritos.getState().carregar(); }, []);
   const comNovidade = useNovosLancamentos((s) => s.comNovidade);
-  const artists = useMemo(
+  const porEscuta = useMemo(
     () => ordenarArtistas(gruposDaBiblioteca(data.tracks, versaoDoCatalogo), ranking, favoritos),
     [data.tracks, ranking, versaoDoCatalogo, favoritos],
   );
+  const posicoes = useMemo(() => posicoesDaBiblioteca(data.tracks), [data.tracks]);
+  const artists = useMemo(() => ordenarGrelhaDeArtistas(porEscuta, ordemDaGrelha, posicoes), [porEscuta, ordemDaGrelha, posicoes]);
+  // O que mais ouves, à frente da grelha: só na ordem por escuta e sem pesquisa.
+  const destaque = useMemo(() => artistaEmDestaque(porEscuta, jogadas), [porEscuta, jogadas]);
   // A grelha monta por lotes: com centenas de artistas, montar tudo de uma vez
   // era mandar buscar centenas de capas no mesmo fotograma e a app inteira
   // engasgava-se ao abrir o separador. Ver `lib/grelhaQueCresce.ts`.
@@ -637,18 +653,26 @@ export function ArtistsPage({ navigate, notify }: { navigate: (route: Route) => 
     return crescer(quantosMostrar(n, filteredArtists.length), filteredArtists.length);
   }), [filteredArtists.length]);
 
-  return <Page title="Artists" subtitle={data.semLista ? undefined : `${artists.length} ${artists.length === 1 ? 'artist' : 'artists'}`}>
+  const tocarArtista = (nome: string, faixas: readonly Track[]) => {
+    const leitor = usePlayer.getState();
+    void leitor.tocarLista([...faixas], leitor.shuffle, leitor.shuffleInteligente, { tipo: 'artista', nome });
+  };
+  return <Page title="Artists" subtitle={data.semLista ? undefined : resumoDosArtistas(artists.length, ordemDaGrelha)}>
     <ArtistFavoritesSyncStatus />
     <View style={styles.songsToolbar}>
       <View style={styles.songsSearch}><Field icon="search" placeholder="Search artists" value={query} onChangeText={setQuery} /></View>
       {data.semLista ? null : <Text style={styles.songsResultCount}>{query ? `${filteredArtists.length} of ` : ''}{artists.length} {artists.length === 1 ? 'artist' : 'artists'}</Text>}
+      {data.semLista ? null : <Chips rotulo="Sort artists" valor={ordemDaGrelha} opcoes={OPCOES_DOS_ARTISTAS} aoMudar={setOrdemDaGrelha} />}
     </View>
-    <ContentScroll scrollKey="artists" aoChegarAoFim={mostrarMais}>{data.loading ? <View style={{ height: 350 }}><Loading /></View> : data.semLista ? <Empty icon="alert-circle-outline" title="Couldn't load your library" body="Check your connection. Nothing was removed: your songs are still saved." action={<Button onPress={() => void data.refresh()}>Try again</Button>} /> : filteredArtists.length ? <View style={styles.playlistGrid}>{visiveis.map(({ nome, chave, faixas }) => { const favorito = favoritos.has(chave); return (
-      <Pressable key={chave} onPress={() => navigate({ name: 'artist', value: nome })}
+    <ContentScroll scrollKey="artists" aoChegarAoFim={mostrarMais}>{data.loading ? <View style={{ height: 350 }}><Loading /></View> : data.semLista ? <Empty icon="alert-circle-outline" title="Couldn't load your library" body="Check your connection. Nothing was removed: your songs are still saved." action={<Button onPress={() => void data.refresh()}>Try again</Button>} /> : filteredArtists.length ? <>
+      {!query && ordemDaGrelha === 'plays' && destaque ? <ArtistaEmRepeticao nome={destaque.grupo.nome} faixas={destaque.grupo.faixas} jogadas={destaque.jogadas}
+        aoTocar={() => tocarArtista(destaque.grupo.nome, destaque.grupo.faixas)} aoMontar={guardarRetrato('destaque')}
+        aoAbrir={() => viajar(retratos.current.get('destaque') ?? null, () => navigate({ name: 'artist', value: destaque.grupo.nome }))} /> : null}
+      <View style={styles.playlistGrid}>{visiveis.map(({ nome, chave, faixas }) => { const favorito = favoritos.has(chave); return (
+      <Pressable key={chave} onPress={() => viajar(retratos.current.get(chave) ?? null, () => navigate({ name: 'artist', value: nome }))}
         {...({ onContextMenu: (e: any) => abrirMenuDoArtista({ nome, capa: faixas[0]?.artworkUrl ?? null }, e) } as any)}
         {...marcar('cartao', ...(artistaDoMenu === chave ? ['com-menu'] : []))} style={styles.playlistCard}>
-        <View style={styles.playlistArt}>
-          <FotoDoCartao nome={nome} faixa={faixas[0]} />
+        <RetratoDoArtista nome={nome} faixas={faixas} aoMontar={guardarRetrato(chave)}>
           {/* Um lançamento novo que ainda não se foi ver (10/10). */}
           {comNovidade.has(chave) ? <View accessibilityLabel="New release" style={styles.pontoNovo} /> : null}
           {/* É o MESMO coração das músicas, e não uma estrela: guardar é o
@@ -673,11 +697,11 @@ export function ArtistsPage({ navigate, notify }: { navigate: (route: Route) => 
             <Ionicons name={favorito ? 'heart' : 'heart-outline'} size={16}
               color={favorito ? COR.metalClaro : COR.texto} />
           </Pressable>
-        </View>
-        <Text numberOfLines={1} style={styles.playlistTitle}>{nome}</Text>
-        <Text style={styles.playlistMeta}>{faixas.length} {faixas.length === 1 ? 'track' : 'tracks'}</Text>
+        </RetratoDoArtista>
+        <Text numberOfLines={1} style={[styles.playlistTitle, { textAlign: 'center' }]}>{nome}</Text>
+        <Text style={[styles.playlistMeta, { textAlign: 'center' }]}>{faixas.length} {faixas.length === 1 ? 'track' : 'tracks'}</Text>
       </Pressable>
-    ); })}</View> : query ? <Empty icon="search-outline" title="No artists found" body={`No artist matches "${query}".`} /> : <Empty icon="mic-outline" title="No artists yet" body="Artists are collected automatically from the tracks in your library." />}</ContentScroll>
+    ); })}</View></> : query ? <Empty icon="search-outline" title="No artists found" body={`No artist matches "${query}".`} /> : <Empty icon="mic-outline" title="No artists yet" body="Artists are collected automatically from the tracks in your library." />}</ContentScroll>
     {menuDoArtista}
   </Page>;
 }
@@ -740,7 +764,7 @@ export function MisturaPage({ id, titulo, back, ...props }: {
   </Page>;
 }
 
-export function ArtistPage({ name, back, ...props }: { name: string; back: () => void } & CommonPageProps) {
+export function ArtistPage({ name, back, corNaJanela = false, ...props }: { name: string; back: () => void; corNaJanela?: boolean } & CommonPageProps) {
   const data = useLibraryData();
   // A página do artista (23/10, variante A de docs/artista-pc-maquete.html,
   // escolhida pelo João): a foto grande à direita, a desfazer-se no fundo, com
@@ -898,7 +922,9 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
   const fotoDoHeroi = foto ?? tracks[0]?.artworkUrl ?? fotoDoCanal ?? outras[0]?.artworkUrl ?? null;
   // A cor da foto por trás do cabeçalho (como no iPhone). Só a do catálogo: a
   // do canal vem sem Referer, e não se lê num canvas.
-  const cor = useCorDoAmbiente(foto);
+  // Com a cor na janela inteira (`RootNavigator.web.tsx`, a mesma camada do Now
+  // Playing), a mancha local seria a mesma cor outra vez: fica só uma.
+  const cor = useCorDoAmbiente(corNaJanela ? null : foto);
   // O filtro procura nas que já estão em memória: nenhum pedido.
   const musicasFiltradas = useMemo(() => {
     const q = filtro.trim();
@@ -1156,7 +1182,7 @@ const LADO_DO_DISCO = 158;
 /** A foto do cabeçalho: à direita, a desfazer-se para a esquerda e para baixo (máscara do CSS). */
 const MASCARA_DO_HEROI = 'linear-gradient(90deg, transparent 0%, #000 45%), linear-gradient(0deg, transparent 0%, #000 42%)';
 const FOTO_DO_HEROI: React.CSSProperties = {
-  position: 'absolute', top: 0, right: 0, bottom: 0, width: '62%', pointerEvents: 'none',
+  position: 'absolute', top: 0, right: 0, bottom: 0, width: '62%', pointerEvents: 'none', viewTransitionName: NOME_DO_RETRATO,
   WebkitMaskImage: MASCARA_DO_HEROI, WebkitMaskComposite: 'source-in', maskImage: MASCARA_DO_HEROI, maskComposite: 'intersect',
 } as any;
 
@@ -1167,14 +1193,9 @@ function tomDoArtista(cor: string): string {
 }
 const ALTURA_DO_HEROI = 400;
 
-/**
- * A imagem de um artista na grelha dos Artists (23/10): a foto do catálogo, a
- * MESMA da página dele; sem ela, a capa da primeira música dele (a de sempre).
- */
-function FotoDoCartao({ nome, faixa }: { nome: string; faixa: Track }) {
-  const foto = useFotoDoArtista(nome);
-  return foto ? <Image source={{ uri: fotoNoTamanho(foto, 250) }} style={{ width: 200, height: 200 }} /> : <Artwork track={faixa} size={200} />;
-}
+// A imagem de um artista na grelha dos Artists (23/10: a foto do catálogo, a
+// MESMA da página dele; sem ela, a capa da primeira música dele) passou a ser o
+// `RetratoDoArtista` (30/10, desktop/RetratosDosArtistas.web.tsx).
 
 /** Um "Fans also like": a foto do catálogo, redonda, e o nome; abre a página dele. */
 function ParecidoNoPc({ nome, aoAbrir, aoMenu }: { nome: string; aoAbrir: () => void; aoMenu: (e: any) => void }) {
