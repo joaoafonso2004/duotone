@@ -297,6 +297,7 @@ const TESTES = [
   `${TS} scripts/test-aparencia.ts`,
   `${TS} scripts/test-guardar-fila.ts`,
   `${TS} scripts/test-dialogo-da-fila.ts`,
+  `${TS} scripts/test-dois-tons.ts`,
 ];
 
 const raiz = fileURLToPath(new URL('..', import.meta.url));

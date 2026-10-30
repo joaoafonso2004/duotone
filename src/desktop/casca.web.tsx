@@ -38,6 +38,8 @@ import { styles } from './estilos.web';
 import { COR, cssDasFontes, ESTADO, FONT, RAIO } from './tokens.web';
 import { ANEL_DO_REFRAO, Artwork, comDica, formatTime, IconButton, ui, marcar, useProcurarAoLargar } from './ui.web';
 import { PRE_ESCUTA_S } from '../lib/refrao';
+import { TOM_CLARO, TOM_ESCURO } from '../lib/doisTons';
+import { ligarBrilhoDoCursor } from './duotone.web';
 import { usePontoNaBarra } from '../state/refrao';
 import { dentesDaTecla, valorDaProcura } from '../lib/acessibilidadeDoPc';
 import { PRIMARY, type Route } from './rotas';
@@ -439,6 +441,28 @@ export function injectDesktopDocumentStyles() {
 
     /* Guardar: o coracao anima-se a si proprio (components/CoracaoAnimado.web.tsx). */
 
+    /* A capa a dois tons (30/10, desktop/duotone.web.tsx): em repouso a imagem
+       fica entre os dois tons, e a cor volta com o rato no cartao (ou no proprio
+       quadro). Por cima da imagem a cores, a mesma a cinzentos, multiplicada
+       pelo tom claro e aclarada pelo escuro. O desvanecer e so de opacidade. */
+    :root{ --duo-baixo: ${TOM_ESCURO}; --duo-alto: ${TOM_CLARO}; }
+    [data-dt~="duo"]{ position: relative; overflow: hidden; isolation: isolate; }
+    [data-dt~="duo"] [data-dt~="duo-tom"]{ background: var(--duo-alto); isolation: isolate;
+      transition: opacity 550ms var(--dt-curva); }
+    [data-dt~="duo"] [data-dt~="duo-tom-img"]{ filter: grayscale(1) contrast(1.12) brightness(1.04); mix-blend-mode: multiply; }
+    [data-dt~="duo"] [data-dt~="duo-sombra"]{ background: var(--duo-baixo); mix-blend-mode: lighten; }
+    [data-dt~="cartao"]:hover [data-dt~="duo-tom"], [data-dt~="cartao"]:focus-within [data-dt~="duo-tom"],
+    [data-dt~="duo"]:hover [data-dt~="duo-tom"], [data-dt~="duo"][data-dt~="duo-viva"] [data-dt~="duo-tom"]{ opacity: 0; }
+
+    /* O brilho de metal que segue o cursor (30/10): luz, nao cor. A posicao
+       (--mx, --my) escreve-a o ouvinte unico de duotone.web.tsx; sem ela, ao
+       centro. */
+    [data-dt~="brilho"]{ position: relative; }
+    [data-dt~="brilho"]::after{ content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+      z-index: 5; opacity: 0; transition: opacity 350ms var(--dt-curva);
+      background: radial-gradient(220px circle at var(--mx, 50%) var(--my, 50%), rgba(255,255,255,.16), transparent 62%); }
+    [data-dt~="brilho"]:hover::after{ opacity: 1; }
+
     /* Quem pediu menos movimento no Windows nao leva nada disto. O estado
        final e o mesmo: aqui so morre o caminho ate la. */
     @media (prefers-reduced-motion: reduce){
@@ -450,7 +474,8 @@ export function injectDesktopDocumentStyles() {
       [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]{ animation: none !important; }
       [data-dt~="premir"], [data-dt~="desliza"], [data-dt~="campo"], [data-dt~="fila"] [data-dt~="toca"],
       [data-dt~="fila"] [data-dt~="mais"], [data-dt~="fila"] [data-dt~="numero"],
-      [data-dt~="cartao"], [data-dt~="coracaoDoCartao"], [data-dt~="a-sair"], [data-dt~="main-a-voltar"]{ transition: none !important; }
+      [data-dt~="cartao"], [data-dt~="coracaoDoCartao"], [data-dt~="a-sair"], [data-dt~="main-a-voltar"],
+      [data-dt~="duo"] [data-dt~="duo-tom"], [data-dt~="brilho"]::after{ transition: none !important; }
       /* A sair do Now Playing: some logo, como antes (o tempo da saída corre na
          mesma, mas já invisível). */
       [data-dt~="np-a-sair"], [data-dt~="janela-cor"][data-dt~="a-apagar"]{ animation: none !important; opacity: 0 !important; }
@@ -462,6 +487,7 @@ export function injectDesktopDocumentStyles() {
   `;
   document.head.appendChild(style);
   document.title = 'Duotone';
+  ligarBrilhoDoCursor();
 }
 
 /** `comPainel`: a seta do painel da Queue e das Lyrics só existe com a app aberta (no login não há painel). */
