@@ -14,6 +14,8 @@ import { Button, comDica, Dialog, Field } from './ui.web';
 import { COR, ESP, ESTADO } from './tokens.web';
 import type { CommonPageProps } from './rotas';
 
+const { createPortal } = require('react-dom') as { createPortal: (filho: React.ReactNode, onde: Element) => React.ReactElement };
+
 type Fila = ReturnType<typeof useFilaDoLeitor>;
 const RADIO_HOVER = 'rgba(233,234,238,0.07)';
 
@@ -78,19 +80,28 @@ export function CabecaDaFila({ fila, compacta = false }: { fila: Fila; compacta?
       </Pressable> : null}
     </View>
     {fila.radioErro && !fila.emJam ? <Text accessibilityRole="alert" style={styles.npRadioErro}>{fila.radioErro}</Text> : null}
-    <Dialog open={!!fila.aGuardar} title="Save queue as playlist" onClose={() => { if (!fila.aGravar) fila.setAGuardar(null); }}>
-      <View style={{ paddingBottom: 16 }}>
-        <Field autoFocus placeholder="Playlist name" value={fila.aGuardar?.nome ?? ''}
-          onChangeText={(nome) => fila.setAGuardar({ nome })}
-          onSubmitEditing={() => void fila.guardar(fila.aGuardar?.nome ?? '')} />
-      </View>
-      <View style={styles.dialogActions}>
-        <Button secondary onPress={() => fila.setAGuardar(null)} disabled={fila.aGravar}>Cancel</Button>
-        <Button onPress={() => void fila.guardar(fila.aGuardar?.nome ?? '')} disabled={fila.aGravar || !fila.aGuardar?.nome.trim()}>
-          {fila.aGravar ? 'Saving…' : 'Save'}
-        </Button>
-      </View>
-    </Dialog>
+    {/* Num portal (30/10): cada View do RNW tem `z-index: 0`, e o diálogo, dentro
+        da cabeça da fila, ficava preso a essa camada -- o veu só cobria a cabeça,
+        e os botões, por baixo da lista, deixavam de receber o clique (iam para a
+        fila). Só existe aberto: o contentor fixo cobre a janela e apanharia o rato. */}
+    {fila.aGuardar ? createPortal(
+      <View style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 310 } as any}>
+        <Dialog open title="Save queue as playlist" onClose={() => { if (!fila.aGravar) fila.setAGuardar(null); }}>
+          <View style={{ paddingBottom: 16 }}>
+            <Field autoFocus placeholder="Playlist name" value={fila.aGuardar?.nome ?? ''}
+              onChangeText={(nome) => fila.setAGuardar({ nome })}
+              onSubmitEditing={() => void fila.guardar(fila.aGuardar?.nome ?? '')} />
+          </View>
+          <View style={styles.dialogActions}>
+            <Button secondary onPress={() => fila.setAGuardar(null)} disabled={fila.aGravar}>Cancel</Button>
+            <Button onPress={() => void fila.guardar(fila.aGuardar?.nome ?? '')} disabled={fila.aGravar || !fila.aGuardar?.nome.trim()}>
+              {fila.aGravar ? 'Saving…' : 'Save'}
+            </Button>
+          </View>
+        </Dialog>
+      </View>,
+      document.body,
+    ) : null}
   </View>;
 }
 
