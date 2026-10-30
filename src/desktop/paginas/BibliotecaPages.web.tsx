@@ -35,6 +35,7 @@ import { comCatalogo, garantirCatalogo, useCatalogoDeFaixas } from '../../state/
 import { ordenarArtistas, ordenarFaixas } from '../../lib/ordenacao';
 import { useAuth } from '../../state/auth';
 import { correspondeAPesquisa } from '../../lib/searchText';
+import { resumoDaLista } from '../../lib/duracaoTotal';
 import { useMusicSearch } from '../../hooks/useMusicSearch';
 import { estadoDaPesquisa, FRASES_DA_PESQUISA } from '../../lib/estadoDaPesquisa';
 import { useArtistaEmDestaque, usePesquisaPorTipo, type SeparadorDaPesquisa } from '../../hooks/usePesquisaPorTipo';
@@ -47,7 +48,7 @@ import { crescer, faltaMostrar, PRIMEIRO_LOTE, quantosMostrar } from '../../lib/
 import { styles } from '../estilos.web';
 import { BotaoVoltar,
   Artwork, Button, ContentScroll, Dialog, Empty, Field, IconButton, Loading, marcar, Page,
-  PrateleiraDeMisturas, Separadores, Shelf, ShelfDeLancamentos, TrackTable, type ColunaOrdenavel,
+  Chips, PrateleiraDeMisturas, Separadores, Shelf, ShelfDeLancamentos, TrackTable, type ColunaOrdenavel,
 } from '../ui.web';
 import { useMisturaDoDia } from '../../state/misturaDoDia';
 import { marcarArtistaAberto, useNovosLancamentos } from '../../state/novosLancamentos';
@@ -517,18 +518,25 @@ export function SongsPage(props: CommonPageProps) {
     void usePlayer.getState().tocarLista(filteredTracks, ligado, inteligente, { tipo: 'guardadas', nome: 'Liked Songs' });
   };
 
-  return <><Page title="Liked Songs" action={<View style={{ flexDirection: 'row', gap: 8 }}><Button icon="play" onPress={playAll}>Play all</Button><Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button></View>}>
+  // O resumo conta a lista TODA, e não a filtrada (a pesquisa diz "12 of 73" ao lado dela).
+  const resumo = data.loading || data.semLista ? undefined : resumoDaLista(data.tracks);
+  return <><Page title="Liked Songs" eyebrow="Playlist" subtitle={resumo} action={<View style={{ flexDirection: 'row', gap: 8 }}><Button icon="play" onPress={playAll}>Play all</Button><Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button></View>}>
     <View style={styles.songsToolbar}>
       <View style={styles.songsSearch}><Field icon="search" placeholder="Search your library" value={query} onChangeText={setQuery} /></View>
-      {/* "0 songs" só para uma lista que se leu (16/10, auditoria 5). */}
-      {data.semLista ? null : <Text style={styles.songsResultCount}>{query ? `${filteredTracks.length} of ` : ''}{data.tracks.length} {data.tracks.length === 1 ? 'song' : 'songs'}</Text>}
+      <View style={{ flex: 1 }} />
+      {/* Com a pesquisa a contar quantas há: o total vive por baixo do título (30/10). "0 songs" só para uma lista que se leu (16/10, auditoria 5). */}
+      {data.semLista || !query ? null : <Text style={styles.songsResultCount}>{filteredTracks.length} of {data.tracks.length} {data.tracks.length === 1 ? 'song' : 'songs'}</Text>}
+      {/* A ordem à vista (30/10): o mesmo estado do cabeçalho da tabela. "Recent" é a ordem das gostadas, que o cabeçalho só dava ao desligar a coluna. */}
+      {data.semLista ? null : <Chips rotulo="Sort liked songs" valor={ordem ?? 'recent'}
+        opcoes={[{ id: 'recent', rotulo: 'Recent' }, { id: 'title', rotulo: 'Title' }, { id: 'artist', rotulo: 'Artist' }] as const}
+        aoMudar={(id) => setOrdem(id === 'recent' ? null : (id as ColunaOrdenavel))} />}
       <IconButton name="refresh" label="Refresh library" active={data.aReler} onPress={() => {
         // Com a lista no ecrã, uma falha não a tira: só se avisa.
         const comLista = data.tracks.length > 0;
         void data.refresh().then((ok) => { if (!ok && comLista) props.notify('Could not refresh your liked songs.'); });
       }} />
     </View>
-    <ContentScroll scrollKey="songs">{data.loading ? <View style={{ height: 350 }}><Loading /></View> : data.semLista ? <Empty icon="alert-circle-outline" title="Couldn't load your library" body="Check your connection. Nothing was removed: your songs are still saved." action={<Button onPress={() => void data.refresh()}>Try again</Button>} /> : <TrackTable plain listKey={`songs:${ordem ?? 'recent'}`} ordenacao={{ modo: ordem, aoMudar: setOrdem }} tracks={filteredTracks} onPlay={(t) => props.tocarMusica(t, filteredTracks, undefined, { tipo: 'guardadas', nome: 'Liked Songs' })} onMore={props.more} empty={query ? <Empty icon="search-outline" title="No results found" body={`No liked songs match "${query}"`} /> : <Empty icon="heart-outline" title="No liked songs yet" body="Tap the heart on a track and it will appear here." />} />}</ContentScroll>
+    <ContentScroll scrollKey="songs">{data.loading ? <View style={{ height: 350 }}><Loading /></View> : data.semLista ? <Empty icon="alert-circle-outline" title="Couldn't load your library" body="Check your connection. Nothing was removed: your songs are still saved." action={<Button onPress={() => void data.refresh()}>Try again</Button>} /> : <TrackTable plain saltoParaAtual listKey={`songs:${ordem ?? 'recent'}`} ordenacao={{ modo: ordem, aoMudar: setOrdem }} tracks={filteredTracks} onPlay={(t) => props.tocarMusica(t, filteredTracks, undefined, { tipo: 'guardadas', nome: 'Liked Songs' })} onMore={props.more} empty={query ? <Empty icon="search-outline" title="No results found" body={`No liked songs match "${query}"`} /> : <Empty icon="heart-outline" title="No liked songs yet" body="Tap the heart on a track and it will appear here." />} />}</ContentScroll>
   </Page></>;
 }
 

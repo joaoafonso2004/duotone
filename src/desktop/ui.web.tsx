@@ -904,7 +904,27 @@ function alvoDaOrdem(lista: string, aoMover: (de: number, para: number) => void)
   };
 }
 
-export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = false, plain = false, listKey, contexto, ordenacao, colunaDoArtista = true, caraDaLinha, larguraDaCara = 34, divisoria, reordenar }: {
+/**
+ * Opções lado a lado, uma escolhida (30/10): a ordem de uma lista (Recent / Title /
+ * Artist). O escolhido leva o estado da app (`ESTADO.escolhido`); o hover não se
+ * confunde com ele. É um grupo de opções para o leitor de ecrã.
+ */
+export function Chips<T extends string>({ opcoes, valor, aoMudar, rotulo }: {
+  opcoes: readonly { id: T; rotulo: string }[]; valor: T; aoMudar: (id: T) => void; rotulo: string;
+}) {
+  return <View accessibilityRole={'radiogroup' as any} accessibilityLabel={rotulo} style={ui.chips}>
+    {opcoes.map((o) => {
+      const aceso = o.id === valor;
+      return <Pressable key={o.id} {...marcar('premir')} accessibilityRole={'radio' as any} accessibilityState={{ checked: aceso }}
+        onPress={() => aoMudar(o.id)}
+        style={({ hovered }: any) => [ui.chip, aceso ? ESTADO.escolhido : hovered && { backgroundColor: ESTADO.hover }]}>
+        <Text style={[ui.chipTexto, aceso && { color: COR.texto }]}>{o.rotulo}</Text>
+      </Pressable>;
+    })}
+  </View>;
+}
+
+export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = false, plain = false, listKey, contexto, ordenacao, colunaDoArtista = true, caraDaLinha, larguraDaCara = 34, divisoria, reordenar, saltoParaAtual = false }: {
   tracks: Track[]; onPlay: (track: Track, discoveryContext?: DiscoveryContext) => void; onMore?: (track: Track, discoveryContext?: DiscoveryContext) => void; empty?: ReactNode;
   /** Marcar as que já estão na biblioteca. Só em listas que misturam
    * guardadas e não guardadas (pesquisa) — na tabela de Songs seria um
@@ -937,6 +957,11 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
    * tua (ou colaborativa) na ordem dela. `para` é o índice novo.
    */
   reordenar?: { aoMover: (de: number, para: number) => void } | null;
+  /**
+   * Um atalho "↑ Patek · now playing" quando a que toca está nesta lista e fora
+   * do ecrã (30/10): leva-te até ela. Só nas listas onde faz sentido (as Liked Songs).
+   */
+  saltoParaAtual?: boolean;
 }) {
   // A coluna do artista só existe com largura para ela; numa janela estreita
   // o artista volta a ir por baixo do título.
@@ -963,6 +988,8 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
   // número. Só o `current` interessa: ler a posição aqui redesenhava a lista
   // inteira a cada segundo.
   const atual = usePlayer((st) => st.current);
+  // A linha que toca, para o atalho a poder medir e levar até ela.
+  const [noDaAtual, setNoDaAtual] = useState<HTMLElement | null>(null);
   if (!tracks.length) return <>{empty}</>;
   // 40 e não 48: as linhas passaram de 56 para 52 (25/9), e uma biblioteca de
   // milhares de faixas lê-se melhor com mais linhas à vista.
@@ -991,7 +1018,7 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
       {separar ? <View style={ui.divisoriaDaTabela} accessibilityRole="header">
         <Text style={ui.divisoriaTexto}>{divisoria!.rotulo.toUpperCase()}</Text><View style={ui.divisoriaLinha} />
       </View> : null}
-      <P onPress={() => onPlay(track,contexto?.(track))}
+      <P ref={aTocar && saltoParaAtual ? setNoDaAtual : undefined} onPress={() => onPlay(track,contexto?.(track))}
       onContextMenu={((event: any) => { event.preventDefault(); onMore?.(track,contexto?.(track)); }) as any}
       onPointerDown={((event: any) => comecarArrasto(event, track, { lista: listKey, indice: index })) as any}
       {...marcar('fila')}
@@ -1029,8 +1056,90 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
       </React.Fragment>;
     })}
     {visiveis.length < tracks.length && <CarregarAoChegar key={visiveis.length} aoChegar={mostrarMais} />}
+    {saltoParaAtual && atual ? <SaltoParaAAtual no={noDaAtual} faixa={atual}
+      indice={tracks.findIndex((t) => t.source === atual.source && t.sourceId === atual.sourceId)}
+      carregadas={visiveis.length} aoCarregar={(ate) => setLimite((n) => Math.max(n, Math.min(tracks.length, ate + PASSO_DE_LINHAS)))} /> : null}
   </View>;
 }
+
+/** A altura do cabeçalho da tabela (`ui.tableHeader`): as linhas que passam por baixo dele não se veem. */
+const ALTURA_DO_CABECALHO = 38;
+
+/** O ancestral que rola: a janela de uma lista, onde as linhas ficam cortadas. */
+function ancestralQueRola(no: HTMLElement | null): HTMLElement | null {
+  for (let el = no?.parentElement ?? null; el; el = el.parentElement) {
+    const y = getComputedStyle(el).overflowY;
+    if ((y === 'auto' || y === 'scroll') && el.scrollHeight > el.clientHeight) return el;
+  }
+  return null;
+}
+
+/**
+ * O atalho para a faixa que toca (30/10): aparece, preso por cima do fundo da
+ * janela, quando ela está nesta lista e fora do ecrã -- por cima ou por baixo --
+ * e diz para que lado fica (uma medição por fotograma, só da linha dela, enquanto
+ * se rola). Se a linha ainda
+ * não foi montada (a lista monta por lotes), monta até lá e depois rola.
+ * Um elemento de altura zero e preso: não mexe no tamanho da lista nem no scroll.
+ */
+function SaltoParaAAtual({ no, faixa, indice, carregadas, aoCarregar }: {
+  no: HTMLElement | null; faixa: Track; indice: number; carregadas: number; aoCarregar: (ate: number) => void;
+}) {
+  const [lado, setLado] = useState<'cima' | 'baixo' | null>(null);
+  const [aIr, setAIr] = useState(false);
+  // Mede-se ao rolar, e não com um IntersectionObserver: esse só avisa quando a
+  // linha ENTRA ou SAI do ecrã, e quem passa de "por baixo" a "por cima" a arrastar
+  // a barra nunca a vê entrar -- o atalho ficava a apontar para o lado errado.
+  // Uma leitura por fotograma, de uma só linha, e só enquanto se rola.
+  useEffect(() => {
+    if (!no) { setLado(null); return; }
+    const raiz = ancestralQueRola(no);
+    let quadro = 0;
+    const medir = () => {
+      quadro = 0;
+      const r = no.getBoundingClientRect();
+      const j = raiz ? raiz.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
+      // A linha por baixo do cabeçalho preso também conta como fora.
+      setLado(r.bottom <= j.top + ALTURA_DO_CABECALHO ? 'cima' : r.top >= j.bottom ? 'baixo' : null);
+    };
+    const agendar = () => { if (!quadro) quadro = requestAnimationFrame(medir); };
+    medir();
+    const alvo: HTMLElement | Window = raiz ?? window;
+    alvo.addEventListener('scroll', agendar, { passive: true });
+    window.addEventListener('resize', agendar);
+    return () => {
+      cancelAnimationFrame(quadro);
+      alvo.removeEventListener('scroll', agendar);
+      window.removeEventListener('resize', agendar);
+    };
+  }, [no, carregadas]);
+  const rolar = (alvo: HTMLElement) => alvo.scrollIntoView({
+    block: 'center', behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+  });
+  // A linha pedida acabou de montar-se: agora rola-se.
+  useEffect(() => { if (aIr && no) { setAIr(false); rolar(no); } }, [aIr, no]);
+  if (indice < 0) return null;
+  // Ainda por montar: está sempre mais abaixo.
+  const onde = indice >= carregadas ? 'baixo' : lado;
+  if (!onde) return null;
+  return <View pointerEvents="box-none" style={estiloDoSalto.preso}>
+    <Pressable {...marcar('premir', 'salto-atual')} accessibilityRole="button"
+      accessibilityLabel={`Go to ${tituloDaFaixa(faixa)}, now playing`}
+      onPress={() => { if (indice >= carregadas) { aoCarregar(indice); setAIr(true); } else if (no) rolar(no); }}
+      style={({ hovered }: any) => [estiloDoSalto.pilula, hovered && { backgroundColor: COR.hover }]}>
+      <Ionicons name={onde === 'cima' ? 'arrow-up' : 'arrow-down'} size={14} color={COR.texto} />
+      <Text numberOfLines={1} style={estiloDoSalto.texto}>{tituloDaFaixa(faixa)} · now playing</Text>
+    </Pressable>
+  </View>;
+}
+
+const estiloDoSalto = StyleSheet.create({
+  // Altura zero e presa 56 px acima do fundo da janela: a pílula sobe a partir daí.
+  preso: { height: 0, alignItems: 'center', position: 'sticky', bottom: 56, zIndex: 5 } as any,
+  pilula: { position: 'absolute', bottom: 0, flexDirection: 'row', alignItems: 'center', gap: 8, height: 34, paddingHorizontal: 14,
+    maxWidth: 420, borderRadius: 17, borderWidth: 1, borderColor: COR.linha, backgroundColor: COR.elevado, boxShadow: '0 8px 24px rgba(0,0,0,.45)' } as any,
+  texto: { ...TIPO.legenda, color: COR.texto, fontWeight: '600', flexShrink: 1 },
+});
 
 /**
  * `semVeu`: o que está por trás continua à vista, sem escurecer (16/10, o EQ:
@@ -1197,7 +1306,14 @@ export const ui = StyleSheet.create({
   table: { borderWidth: 1, borderColor: COR.linhaSuave, borderRadius: RAIO.cartao, overflow: 'hidden', backgroundColor: COR.painel },
   tablePlain: { borderWidth: 0, borderRadius: 0, backgroundColor: 'transparent', overflow: 'visible' },
   tableHeader: { height: 38, paddingHorizontal: ESP.md, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: COR.linhaSuave },
-  tableHeaderPlain: { paddingHorizontal: ESP.sm, borderTopWidth: 1, borderTopColor: COR.linhaSuave },
+  // Preso ao rolar (30/10): a lista corre por baixo e as colunas ficam à vista.
+  // Quase opaco, e não transparente: a lista passava por trás das letras. Só dá
+  // com `overflow: visible` na tabela (a `tablePlain`) e o scroll da página por cima.
+  tableHeaderPlain: { paddingHorizontal: ESP.sm, borderTopWidth: 1, borderTopColor: COR.linhaSuave,
+    position: 'sticky', top: 0, zIndex: 4, backgroundColor: 'rgba(12,12,16,0.96)' } as any,
+  chips: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 3, borderRadius: 16, borderWidth: 1, borderColor: COR.linha, backgroundColor: 'rgba(233,234,238,0.04)' },
+  chip: { height: 24, paddingHorizontal: 12, borderRadius: 12, justifyContent: 'center' },
+  chipTexto: { fontFamily: FONT.body, fontSize: 12, fontWeight: '600', color: COR.textoMedio },
   // Redondo e discreto: e um atalho, nao um controlo do formulario.
   fieldLimpar: { width: 22, height: 22, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   // A marca de modo (o "1" do repeat) vive no canto, como a estrelinha do

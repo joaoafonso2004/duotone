@@ -493,6 +493,8 @@ export function injectDesktopDocumentStyles() {
     @keyframes dt-radio-onda{ 50%{ opacity: .35; } }
     [data-dt~="radio-anel"]{ animation: dt-radio-anel 950ms ease-out both; }
     @keyframes dt-radio-anel{ from{ box-shadow: 0 0 0 0 rgba(233,234,238,.4); } to{ box-shadow: 0 0 0 14px rgba(233,234,238,0); } }
+    /* O atalho para a faixa que toca (30/10, TrackTable): sobe de leve ao aparecer. */
+    [data-dt~="salto-atual"]{ animation: dt-linha 220ms var(--dt-curva) backwards; }
 
     /* Quem pediu menos movimento no Windows nao leva nada disto. O estado
        final e o mesmo: aqui so morre o caminho ate la. */
@@ -504,7 +506,7 @@ export function injectDesktopDocumentStyles() {
       [data-dt~="pagina"], [data-dt~="pagina"] [data-dt~="cartao"], [data-dt~="carregar"],
       [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"],
       .np-fila-sai, .np-fila-vira, .np-fila-entra, [data-dt~="grupo-radio"],
-      [data-dt~="radio-onda"], [data-dt~="radio-anel"]{ animation: none !important; }
+      [data-dt~="radio-onda"], [data-dt~="radio-anel"], [data-dt~="salto-atual"]{ animation: none !important; }
       [data-dt~="grupo-radio"][data-dt~="grupo-sai"]{ transition: none !important; }
       [data-dt~="premir"], [data-dt~="desliza"], [data-dt~="campo"], [data-dt~="fila"] [data-dt~="toca"],
       [data-dt~="fila"] [data-dt~="mais"], [data-dt~="fila"] [data-dt~="numero"],
@@ -559,6 +561,9 @@ export function Sidebar({ route, navigate, notify, voltar }: { route: Route; nav
     : route.name === 'playlist' || route.name === 'import' ? 'playlists' : route.name;
 
   const [name,setName]=useState('Profile');
+  // O @ da conta (30/10): por baixo do nome, em vez do email. É do mesmo perfil
+  // público que já se lê para o nome (cache, sem pedido novo).
+  const [username,setUsername]=useState<string|null>(null);
   const [publicAvatar,setPublicAvatar]=useState<string|null>(null);
   const profileVersion=useSocial(s=>s.profileVersion);
   const socialReceived=useSocial(s=>s.received);
@@ -567,7 +572,7 @@ export function Sidebar({ route, navigate, notify, voltar }: { route: Route; nav
   useEffect(()=>{
     let active=true;
     if(!session)return;
-    const refresh=()=>getPublicProfiles([session.user.id]).then(([p])=>{if(active&&p){setName(p.name);setPublicAvatar(p.avatar_url);}}).catch(()=>{});
+    const refresh=()=>getPublicProfiles([session.user.id]).then(([p])=>{if(active&&p){setName(p.name);setUsername(p.username||null);setPublicAvatar(p.avatar_url);}}).catch(()=>{});
     void refresh();
     return()=>{active=false;};
   },[session?.user.id,profileVersion]);
@@ -638,7 +643,7 @@ export function Sidebar({ route, navigate, notify, voltar }: { route: Route; nav
     {/* O perfil é a linha com a tua cara (o item "Profile" repetia-a) e as
         Definições são a roda dentada nela (26/9, decidido com o João). */}
     <View style={styles.accountRow}>
-      <Pressable accessibilityLabel="Profile" onPress={() => navigate({ name: 'profile' })} style={({ hovered }) => [styles.account, styles.accountPerfil, (hovered || active === 'profile') && styles.navHover]}>{avatarDisplay}<View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={styles.accountName}>{name}</Text><Text numberOfLines={1} style={styles.accountEmail}>{session?.user.email}</Text></View></Pressable>
+      <Pressable accessibilityLabel="Profile" onPress={() => navigate({ name: 'profile' })} style={({ hovered }) => [styles.account, styles.accountPerfil, (hovered || active === 'profile') && styles.navHover]}>{avatarDisplay}<View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={styles.accountName}>{name}</Text><Text numberOfLines={1} style={styles.accountEmail}>{username?`@${username}`:session?.user.email}</Text></View></Pressable>
       <Pressable accessibilityLabel="Settings" onPress={() => navigate({ name: 'settings' })} style={({ hovered }) => [styles.accountDefinicoes, (hovered || active === 'settings') && styles.navHover]}><Ionicons name="settings-outline" size={17} color={active === 'settings' ? COR.texto : COR.textoMedio} /></Pressable>
     </View>
     <ProgressoDaImportacao />

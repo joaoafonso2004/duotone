@@ -79,7 +79,10 @@ caso('o PC: a lista fica no refresh e a falha sem lista tem o seu estado', () =>
   assert.match(gancho, /semLista: !!error && !lida/);
   const paginas = ler('src/desktop/paginas/BibliotecaPages.web.tsx');
   const songs = corpo(paginas, 'export function SongsPage(', '\nexport function ');
-  assert.match(songs, /data\.semLista \? null : <Text style=\{styles\.songsResultCount\}>/);
+  // 30/10: o total vive por baixo do título, e a barra só conta enquanto se pesquisa;
+  // nos dois sítios uma lista que não se leu não diz "0 songs".
+  assert.match(songs, /data\.semLista \|\| !query \? null : <Text style=\{styles\.songsResultCount\}>/);
+  assert.match(songs, /const resumo = data\.loading \|\| data\.semLista \? undefined : resumoDaLista\(data\.tracks\);/);
   assert.match(songs, /data\.semLista \? <Empty icon="alert-circle-outline" title="Couldn't load your library"/);
   const artists = corpo(paginas, 'export function ArtistsPage(', '\nexport function ');
   assert.match(artists, /data\.semLista \? <Empty icon="alert-circle-outline"/);

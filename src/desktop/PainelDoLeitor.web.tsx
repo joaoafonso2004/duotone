@@ -29,7 +29,8 @@ export function SetaDoPainel() {
   return <Pressable nativeID={ID_DA_SETA} accessibilityRole="button" accessibilityLabel="Open queue and lyrics panel"
     {...({ 'aria-expanded': false, 'aria-controls': 'painel-do-leitor' } as any)}
     onPress={abrir} style={({ hovered, focused }: any) => [s.setaDaBarra, (hovered || focused) && { backgroundColor: ESTADO.hover }]}>
-    <Ionicons name="chevron-back" size={18} color={COR.textoMedio} />
+    {/* O ícone diz o que abre: a fila (30/10); era uma seta. */}
+    <Ionicons name="list" size={18} color={COR.textoMedio} />
   </Pressable>;
 }
 
