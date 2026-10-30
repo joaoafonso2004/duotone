@@ -7,7 +7,7 @@ import { horasDoArtista, jogadasEmCurto } from '../lib/grelhaDeArtistas';
 import type { Track } from '../types';
 import { CapaDuotone } from './duotone.web';
 import { COR, ESP, FONT, RAIO, TIPO } from './tokens.web';
-import { Button, capaDaFaixa, marcar } from './ui.web';
+import { Button, capaDaFaixa, marcar, PlayDoCartao } from './ui.web';
 
 /**
  * Os retratos dos Artists do PC (30/10, passo 4 de `docs/PLANO-ELEVAR-PC.md`;
@@ -34,8 +34,10 @@ function imagemDoArtista(foto: string | null, faixa: Track | undefined): string 
  * lançamento novo e o coração), em posições do quadrado de 200 px. `aoMontar`
  * entrega o nó DOM do retrato a quem o quiser levar numa viagem (`viajar`).
  */
-export function RetratoDoArtista({ nome, faixas, aoMontar, children }: {
+export function RetratoDoArtista({ nome, faixas, aoMontar, aoTocar, children }: {
   nome: string; faixas: readonly Track[]; aoMontar?: (no: HTMLElement | null) => void; children?: React.ReactNode;
+  /** O play que sobe no canto (30/10): toca as músicas dele da biblioteca. */
+  aoTocar?: () => void;
 }) {
   const foto = useFotoDoArtista(nome);
   const imagem = imagemDoArtista(foto, faixas[0]);
@@ -49,6 +51,7 @@ export function RetratoDoArtista({ nome, faixas, aoMontar, children }: {
     <View ref={aoMontar as any} style={estilos.retrato}>
       <CapaDuotone uri={imagem} brilho style={{ borderRadius: LADO / 2 }} />
     </View>
+    {aoTocar ? <PlayDoCartao aoTocar={aoTocar} rotulo={`Play ${nome}`} /> : null}
     {children}
   </View>;
 }

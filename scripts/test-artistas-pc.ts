@@ -109,7 +109,7 @@ caso('o Play do destaque toca as músicas dele da biblioteca, com a origem "arti
 });
 caso('cada cartão é um retrato que viaja para a página, e o coração e o ponto de novidade ficam lá dentro', () => {
   assert.match(grelha, /<Pressable key=\{chave\} onPress=\{\(\) => viajar\(retratoDe\(RETRATO\.artista\(chave\)\), \(\) => navigate\(\{ name: 'artist', value: nome \}\)\)\}/);
-  assert.match(grelha, /<RetratoDoArtista nome=\{nome\} faixas=\{faixas\} aoMontar=\{guardarRetrato\(RETRATO\.artista\(chave\)\)\}>/);
+  assert.match(grelha, /<RetratoDoArtista nome=\{nome\} faixas=\{faixas\} aoMontar=\{guardarRetrato\(RETRATO\.artista\(chave\)\)\} aoTocar=\{\(\) => tocarArtista\(nome, faixas\)\}>/);
   assert.match(grelha, /<\/RetratoDoArtista>/);
   assert.match(grelha, /\{\.\.\.\(favorito \? marcar\('coracaoDoCartao', 'fixo'\) : marcar\('coracaoDoCartao'\)\)\}/);
 });

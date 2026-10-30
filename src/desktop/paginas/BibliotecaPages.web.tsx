@@ -112,6 +112,11 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
     playlists: recs.misturas.filter((m) => !m.id.startsWith('estilo:') && !m.id.startsWith('radio:')
       && !m.id.startsWith('decada:') && !m.id.startsWith('genero:')),
   }), [recs.misturas]);
+  // O play que sobe nos cartões de mistura da Home (30/10): toca a mistura inteira, com a origem dela.
+  const tocarMistura = (m: { id: string; nome: string; faixas: Track[] }) => {
+    const leitor = usePlayer.getState();
+    void leitor.tocarLista([...m.faixas], leitor.shuffle, leitor.shuffleInteligente, { tipo: 'mistura', nome: m.nome, id: m.id });
+  };
   const abrirMistura = (m: { id: string; nome: string }) =>
     navigate({ name: 'mistura', id: m.id, titulo: m.nome });
   const recsCarregadas = recs.estado === 'pronto';
@@ -288,15 +293,15 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
                 Decades     -> a TUA musica daquela era, nao musica nova dela
                 Playlists   -> a tua biblioteca com descobertas pelo meio
               Ver `lib/estilos.ts`, `radiosDeArtista` e `lib/decadas.ts`. */}
-          <PrateleiraDeMisturas titulo="Your styles" misturas={estilos} aoAbrir={abrirMistura}
+          <PrateleiraDeMisturas titulo="Your styles" misturas={estilos} aoAbrir={abrirMistura} aoTocar={tocarMistura}
             aoMenu={(m, e) => setMenuDaMist({ id: m.id, ponto: pontoDoEvento(e) })} escolhido={menuDaMist?.id ?? null} />
-          {outras ? <PrateleiraDeMisturas titulo="Radio" nota="three new tracks for every one of yours" misturas={radios} aoAbrir={abrirMistura}
+          {outras ? <PrateleiraDeMisturas titulo="Radio" nota="three new tracks for every one of yours" misturas={radios} aoAbrir={abrirMistura} aoTocar={tocarMistura}
             aoMenu={(m, e) => setMenuDaMist({ id: m.id, ponto: pontoDoEvento(e) })} escolhido={menuDaMist?.id ?? null} /> : null}
-          {outras ? <PrateleiraDeMisturas titulo="Your genres" nota="your library, by genre" misturas={generos} aoAbrir={abrirMistura}
+          {outras ? <PrateleiraDeMisturas titulo="Your genres" nota="your library, by genre" misturas={generos} aoAbrir={abrirMistura} aoTocar={tocarMistura}
             aoMenu={(m, e) => setMenuDaMist({ id: m.id, ponto: pontoDoEvento(e) })} escolhido={menuDaMist?.id ?? null} /> : null}
-          <PrateleiraDeMisturas titulo="Decades" nota="your music from that era" misturas={decadas} aoAbrir={abrirMistura}
+          <PrateleiraDeMisturas titulo="Decades" nota="your music from that era" misturas={decadas} aoAbrir={abrirMistura} aoTocar={tocarMistura}
             aoMenu={(m, e) => setMenuDaMist({ id: m.id, ponto: pontoDoEvento(e) })} escolhido={menuDaMist?.id ?? null} />
-          {outras ? <PrateleiraDeMisturas titulo="Playlists" misturas={playlists} aoAbrir={abrirMistura}
+          {outras ? <PrateleiraDeMisturas titulo="Playlists" misturas={playlists} aoAbrir={abrirMistura} aoTocar={tocarMistura}
             aoMenu={(m, e) => setMenuDaMist({ id: m.id, ponto: pontoDoEvento(e) })} escolhido={menuDaMist?.id ?? null} /> : null}
           {/* A unica prateleira desta pagina que nao sai do teu proprio
               historico. Fica entre a descoberta e o que ja e teu. */}
@@ -672,7 +677,7 @@ export function ArtistsPage({ navigate, notify }: { navigate: (route: Route) => 
       <Pressable key={chave} onPress={() => viajar(retratoDe(RETRATO.artista(chave)), () => navigate({ name: 'artist', value: nome }))}
         {...({ onContextMenu: (e: any) => abrirMenuDoArtista({ nome, capa: faixas[0]?.artworkUrl ?? null }, e) } as any)}
         {...marcar('cartao', ...(artistaDoMenu === chave ? ['com-menu'] : []))} style={styles.playlistCard}>
-        <RetratoDoArtista nome={nome} faixas={faixas} aoMontar={guardarRetrato(RETRATO.artista(chave))}>
+        <RetratoDoArtista nome={nome} faixas={faixas} aoMontar={guardarRetrato(RETRATO.artista(chave))} aoTocar={() => tocarArtista(nome, faixas)}>
           {/* Um lançamento novo que ainda não se foi ver (10/10). */}
           {comNovidade.has(chave) ? <View accessibilityLabel="New release" style={styles.pontoNovo} /> : null}
           {/* É o MESMO coração das músicas, e não uma estrela: guardar é o

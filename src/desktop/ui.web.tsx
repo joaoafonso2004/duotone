@@ -8,6 +8,7 @@ import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { LIMIAR_ARRASTO_PX } from '../lib/reorder';
 import { BrilhoInteligente, EstrelaInteligente } from '../components/BrilhoInteligente';
 import { usePlayer } from '../state/player';
+import { useCorDoAmbiente } from '../hooks/useCorDoAmbiente';
 import { useSaved } from '../state/saved';
 import { ouvirRefrao, temRefrao, useRefrao } from '../state/refrao';
 import { comecarArrasto, refDoAlvo, type Alvo, type ArrastoAtivo } from './Arrastar.web';
@@ -489,6 +490,53 @@ function BotaoDoRefrao({ track }: { track: Track }) {
   </P>;
 }
 
+/**
+ * O play que sobe no canto de um cartão (30/10, da maquete `docs/pc-elevar-maquete.html`):
+ * invisível e um pouco abaixo, e com o rato no cartão (ou o foco lá dentro) sobe e acende
+ * (CSS, `play-cartao`). Sem `aoTocar` é só o convite: o cartão inteiro já toca (uma
+ * prateleira de músicas). Com `aoTocar` é um botão a sério, para um cartão que ABRE
+ * (um artista, uma mistura): não começa a arrastar nem abre o cartão.
+ */
+export function PlayDoCartao({ aoTocar, rotulo, lado = 'direita', tamanho = 36 }: {
+  aoTocar?: () => void; rotulo?: string; lado?: 'direita' | 'esquerda'; tamanho?: number;
+}) {
+  const estilo = { position: 'absolute', bottom: 8, [lado === 'direita' ? 'right' : 'left']: 8, width: tamanho, height: tamanho, borderRadius: tamanho / 2,
+    backgroundColor: COR.texto, alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 20px rgba(0,0,0,.45)', zIndex: 6 } as any;
+  const icone = <Ionicons name="play" size={Math.round(tamanho * 0.44)} color={COR.fundo} style={{ marginLeft: 2 }} />;
+  if (!aoTocar) return <View {...marcar('play-cartao')} pointerEvents="none" aria-hidden style={estilo}>{icone}</View>;
+  return <P {...marcar('play-cartao')} accessibilityRole="button" accessibilityLabel={rotulo ?? 'Play'} style={estilo}
+    onPointerDown={((e: any) => e.stopPropagation()) as any}
+    onPress={(e: any) => { e?.stopPropagation?.(); aoTocar(); }}>{icone}</P>;
+}
+
+/**
+ * O cartão de uma mistura (30/10, "Your styles" e as outras da maquete): um cartão de
+ * cor, com o nome grande, três capas em círculos que se sobrepõem e o play que sobe. A cor é
+ * a da primeira capa dele (`useCorDoAmbiente`, a mesma do iPhone: lê-se uma vez e fica
+ * em memória). Abrir é o clique no cartão; tocar é o play.
+ */
+function CartaoDeMistura({ m, escolhido, arrastou, aoAbrir, aoMenu, aoTocar }: {
+  m: { id: string; nome: string; faixas: Track[] }; escolhido: boolean; arrastou: { current: boolean };
+  aoAbrir: (m: { id: string; nome: string }) => void; aoMenu?: (m: { id: string; nome: string }, e: any) => void; aoTocar?: (m: { id: string; nome: string; faixas: Track[] }) => void;
+}) {
+  const cor = useCorDoAmbiente(m.faixas[0]?.artworkUrl ?? null) ?? '#3a3a46';
+  const capas = m.faixas.map((t) => t.artworkUrl).filter((u, i, l): u is string => !!u && l.indexOf(u) === i).slice(0, 3);
+  return <P {...marcar('cartao', ...(escolhido ? ['com-menu'] : []))}
+    onPress={() => { if (arrastou.current) return; aoAbrir(m); }}
+    onContextMenu={((e: any) => { if (!aoMenu) return; e.preventDefault(); aoMenu(m, e); }) as any}
+    style={({ hovered, pressed }: any) => [ui.cartaoDeMistura,
+      { backgroundImage: `linear-gradient(135deg, color-mix(in oklab, ${cor} 58%, #0b0b0d), color-mix(in oklab, ${cor} 14%, #0b0b0d))` } as any,
+      hovered && ui.shelfCardHover, pressed && ui.pressed]}>
+    <Text style={ui.misturaEtiqueta}>MIX · {m.faixas.length} {m.faixas.length === 1 ? 'SONG' : 'SONGS'}</Text>
+    <Text numberOfLines={2} style={ui.misturaNome}>{m.nome}</Text>
+    <View style={{ flex: 1 }} />
+    <View style={ui.misturaPilha}>
+      {capas.map((u, i) => <Image key={u} source={{ uri: u }} style={[ui.misturaCirculo, i > 0 && { marginLeft: -14 }]} resizeMode="cover" />)}
+    </View>
+    {aoTocar ? <PlayDoCartao aoTocar={() => aoTocar(m)} rotulo={`Play ${m.nome}`} /> : null}
+  </P>;
+}
+
 /** O lado mínimo de uma capa na grelha; o real estica para a linha acabar na borda. */
 const CAPA_MINIMA_DA_GRELHA = 150;
 
@@ -530,7 +578,7 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto, gr
     const lado = larguraDaGrelha > 0
       ? Math.floor((larguraDaGrelha - ESP.lg * (colunas - 1)) / colunas)
       : CAPA_MINIMA_DA_GRELHA;
-    return <View style={{ marginBottom: ESP.xxl }}>
+    return <View {...marcar('bloco')} style={{ marginBottom: ESP.xxl }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESP.md, marginBottom: ESP.md }}>
         <Text style={ui.shelfTitle}>{titulo}</Text>
         {nota ? <Text style={ui.shelfNota}>{nota}</Text> : null}
@@ -547,6 +595,7 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto, gr
               {capa ? capa(t, lado) : <Artwork track={t} size={lado} />}
               {selo ? <View style={ui.shelfSelo} pointerEvents="none"><Text style={ui.shelfSeloTexto}>{selo}</Text></View> : null}
               <BotaoDoRefrao track={t} />
+              <PlayDoCartao lado="esquerda" />
             </View>
             <Text numberOfLines={1} style={ui.shelfCardTitle}>{tituloDaFaixa(t)}</Text>
             <Text numberOfLines={1} style={ui.shelfCardArtista}>{displayArtist(t)}</Text>
@@ -555,7 +604,7 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto, gr
       </View>
     </View>;
   }
-  return <View style={{ marginBottom: ESP.xxl }}>
+  return <View {...marcar('bloco')} style={{ marginBottom: ESP.xxl }}>
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESP.md, marginBottom: ESP.md }}>
       <Text style={ui.shelfTitle}>{titulo}</Text>
       {nota ? <Text style={ui.shelfNota}>{nota}</Text> : null}
@@ -588,6 +637,7 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto, gr
             <Artwork track={t} size={148} />
             {selo ? <View style={ui.shelfSelo} pointerEvents="none"><Text style={ui.shelfSeloTexto}>{selo}</Text></View> : null}
             <BotaoDoRefrao track={t} />
+            <PlayDoCartao lado="esquerda" />
           </View>
           <Text numberOfLines={1} style={ui.shelfCardTitle}>{tituloDaFaixa(t)}</Text>
           <Text numberOfLines={1} style={ui.shelfCardArtista}>{displayArtist(t)}</Text>
@@ -612,7 +662,7 @@ export function ShelfDeLancamentos({ titulo, nota, itens, onOpen, onMenu }: {
   const { ref, podeEsquerda, podeDireita, deslizar, arrastou } = useCarrossel();
   if (!itens.length) return null;
   const rola = podeEsquerda || podeDireita;
-  return <View style={{ marginBottom: ESP.xxl }}>
+  return <View {...marcar('bloco')} style={{ marginBottom: ESP.xxl }}>
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESP.md, marginBottom: ESP.md }}>
       <Text style={ui.shelfTitle}>{titulo}</Text>
       {nota ? <Text style={ui.shelfNota}>{nota}</Text> : null}
@@ -659,19 +709,21 @@ export function ShelfDeLancamentos({ titulo, nota, itens, onOpen, onMenu }: {
  * O clique ABRE, nao toca. Uma mistura e uma lista, e uma lista abre-se; o
  * `onPlay` fica para quem quiser tocar a coisa inteira a partir de dentro.
  */
-export function PrateleiraDeMisturas({ titulo, nota, misturas, aoAbrir, aoMenu, escolhido }: {
+export function PrateleiraDeMisturas({ titulo, nota, misturas, aoAbrir, aoMenu, aoTocar, escolhido }: {
   titulo: string; nota?: string;
   misturas: readonly { id: string; nome: string; faixas: Track[] }[];
   aoAbrir: (mistura: { id: string; nome: string }) => void;
   /** O botão direito num cartão (24/10): o menu de uma mistura. */
   aoMenu?: (mistura: { id: string; nome: string }, e: any) => void;
+  /** O play do cartão (30/10): toca a mistura. Sem ele, o cartão só abre. */
+  aoTocar?: (mistura: { id: string; nome: string; faixas: Track[] }) => void;
   /** O id com o menu aberto: o cartão fica levantado. */
   escolhido?: string | null;
 }) {
   const { ref, podeEsquerda, podeDireita, deslizar, arrastou } = useCarrossel();
   if (!misturas.length) return null;
   const rola = podeEsquerda || podeDireita;
-  return <View style={{ marginBottom: ESP.xxl }}>
+  return <View {...marcar('bloco')} style={{ marginBottom: ESP.xxl }}>
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESP.md, marginBottom: ESP.md }}>
       <Text style={ui.shelfTitle}>{titulo}</Text>
       {nota ? <Text style={ui.shelfNota}>{nota}</Text> : null}
@@ -689,24 +741,7 @@ export function PrateleiraDeMisturas({ titulo, nota, misturas, aoAbrir, aoMenu, 
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={{ gap: ESP.lg, paddingRight: ESP.xxxl }}>
       {misturas.map((m) => (
-        <P key={m.id}
-          {...marcar('cartao', ...(escolhido === m.id ? ['com-menu'] : []))}
-          onPress={() => { if (arrastou.current) return; aoAbrir(m); }}
-          onContextMenu={((e: any) => { if (!aoMenu) return; e.preventDefault(); aoMenu(m, e); }) as any}
-          style={({ hovered, pressed }: any) => [ui.shelfCard, hovered && ui.shelfCardHover, pressed && ui.pressed]}>
-          <View style={ui.mosaico}>
-            {[0, 1, 2, 3].map((i) => {
-              const capa = m.faixas[i]?.artworkUrl;
-              return capa
-                ? <Image key={i} source={{ uri: capa }} style={ui.mosaicoCelula} resizeMode="cover" />
-                : <View key={i} style={ui.mosaicoCelula} />;
-            })}
-          </View>
-          <Text numberOfLines={1} style={ui.shelfCardTitle}>{m.nome}</Text>
-          <Text numberOfLines={1} style={ui.shelfCardArtista}>
-            {m.faixas.length} {m.faixas.length === 1 ? 'song' : 'songs'}
-          </Text>
-        </P>
+        <CartaoDeMistura key={m.id} m={m} escolhido={escolhido === m.id} arrastou={arrastou} aoAbrir={aoAbrir} aoMenu={aoMenu} aoTocar={aoTocar} />
       ))}
     </ScrollView>
   </View>;
@@ -1374,6 +1409,11 @@ export const ui = StyleSheet.create({
   shelfTitle: { ...TIPO.titulo, color: COR.texto },
   shelfNota: { ...TIPO.legenda, color: COR.textoFraco },
   shelfCard: { width: 148, borderRadius: RAIO.cartao, gap: 2 },
+  cartaoDeMistura: { width: 232, height: 148, borderRadius: RAIO.superficie, padding: ESP.lg, borderWidth: 1, borderColor: COR.linhaSuave, overflow: 'hidden', backgroundColor: COR.elevado },
+  misturaEtiqueta: { ...TIPO.micro, color: 'rgba(233,234,238,.62)' },
+  misturaNome: { fontFamily: FONT.display, fontSize: 22, fontWeight: '800' as any, letterSpacing: -0.6, color: COR.texto, marginTop: ESP.xs, lineHeight: 24 },
+  misturaPilha: { flexDirection: 'row', alignItems: 'center' },
+  misturaCirculo: { width: 32, height: 32, borderRadius: 16, borderWidth: 2, borderColor: 'rgba(11,11,13,.85)', backgroundColor: COR.elevado },
   // Antes era `opacity: .82`: passar o rato APAGAVA a capa. Agora aproxima-se
   // e acende, que é o que um cartão faz quando responde.
   shelfCardHover: { transform: [{ translateY: -3 }], filter: 'brightness(1.08)' } as any,

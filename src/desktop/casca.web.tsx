@@ -471,6 +471,23 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="vinil"]{ transition: transform 800ms var(--dt-curva); }
     [data-dt~="cartao"]:hover [data-dt~="vinil"], [data-dt~="cartao"]:focus-within [data-dt~="vinil"]{ transform: translateX(38%) rotate(120deg); }
 
+    /* A entrada por blocos (30/10, da maquete): cada bloco de uma pagina (uma prateleira)
+       entra a subir e a acender, um a seguir ao outro. So opacidade e transform, e com
+       "menos movimento" nao anda. O atraso vem da posicao entre os irmaos. */
+    @keyframes dt-bloco{ from{ opacity: 0; transform: translateY(16px); } to{ opacity: 1; transform: none; } }
+    [data-dt~="bloco"]{ animation: dt-bloco 640ms var(--dt-curva) both; }
+    [data-dt~="bloco"]:nth-child(2){ animation-delay: 60ms; }
+    [data-dt~="bloco"]:nth-child(3){ animation-delay: 120ms; }
+    [data-dt~="bloco"]:nth-child(4){ animation-delay: 180ms; }
+    [data-dt~="bloco"]:nth-child(5){ animation-delay: 240ms; }
+    [data-dt~="bloco"]:nth-child(6){ animation-delay: 300ms; }
+    [data-dt~="bloco"]:nth-child(n+7){ animation-delay: 360ms; }
+
+    /* O play que sobe no canto de um cartao (30/10): aparece com o rato no cartao ou com o foco la dentro. */
+    [data-dt~="play-cartao"]{ opacity: 0; transform: translateY(8px) scale(.92);
+      transition: opacity var(--dt-rapido) var(--dt-curva), transform var(--dt-normal) var(--dt-curva); }
+    [data-dt~="cartao"]:hover [data-dt~="play-cartao"], [data-dt~="cartao"]:focus-within [data-dt~="play-cartao"]{ opacity: 1; transform: none; }
+
     /* O Social (30/10, passo 7, components/SocialOverview.web.tsx). Um amigo a
        ouvir: as barrinhas mexem-se, e o "Listen along" aparece com o rato no
        cartao (ou com o foco la dentro, para o teclado o encontrar). A linha de

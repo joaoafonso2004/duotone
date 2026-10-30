@@ -82,7 +82,7 @@ function DailyMix({ faixas }: { faixas: readonly Track[] }) {
 export function EntradasDaHome({ misturaDoDia }: { misturaDoDia: readonly Track[] }) {
   const temAtual = usePlayer((s) => !!s.current);
   if (!temAtual && misturaDoDia.length < 1) return null;
-  return <View style={estilos.linha}>
+  return <View {...marcar('bloco')} style={estilos.linha}>
     <Continuar />
     <DailyMix faixas={misturaDoDia} />
   </View>;
