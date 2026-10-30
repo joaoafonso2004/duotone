@@ -193,12 +193,21 @@ const ContextoDoRolo = React.createContext<((rolado: boolean) => void) | null>(n
  * tracks you saved with the heart button."). Saíram a 25/9: o título ganha a
  * hierarquia sozinho. `eyebrow` fica para quando disser alguma coisa.
  */
-export function Page({ title, subtitle, eyebrow, action, children }: { title: string; subtitle?: ReactNode; eyebrow?: string; action?: ReactNode; children: ReactNode }) {
+export function Page({ title, subtitle, eyebrow, action, lavagem, children }: {
+  title: string; subtitle?: ReactNode; eyebrow?: string; action?: ReactNode; children: ReactNode;
+  /**
+   * Uma cor que lava o topo da página, a esbater-se para baixo (30/10, a das Liked
+   * Songs na maquete: um violeta). Fica atrás do cabeçalho; só cor, sem pedidos.
+   */
+  lavagem?: string;
+}) {
   // Ao rolar, o cabeçalho encolhe e o subtítulo sai, em vez de o título
   // desaparecer pelo topo (preview de 20/9). O conteúdo ganha o espaço.
   const [rolado, setRolado] = useState(false);
   return <View style={ui.page}>
-    <View style={[ui.pageHeader, rolado && ui.pageHeaderCurto]}>
+    {lavagem ? <View pointerEvents="none" aria-hidden style={[ui.lavagem, { backgroundImage: `linear-gradient(180deg, ${lavagem}, rgba(6,6,8,0))` } as any]} /> : null}
+    {/* O cabeçalho entra por blocos, como as prateleiras (30/10). */}
+    <View {...marcar('bloco')} style={[ui.pageHeader, rolado && ui.pageHeaderCurto]}>
       <View style={{ flex: 1 }}>
         {eyebrow ? <Text style={ui.eyebrow}>{eyebrow}</Text> : null}
         <Text style={[ui.title, rolado && ui.tituloCurto]}>{title}</Text>
@@ -1408,6 +1417,7 @@ export const ui = StyleSheet.create({
 
   shelfTitle: { ...TIPO.titulo, color: COR.texto },
   shelfNota: { ...TIPO.legenda, color: COR.textoFraco },
+  lavagem: { position: 'absolute', top: 0, left: 0, right: 0, height: 300 },
   shelfCard: { width: 148, borderRadius: RAIO.cartao, gap: 2 },
   cartaoDeMistura: { width: 232, height: 148, borderRadius: RAIO.superficie, padding: ESP.lg, borderWidth: 1, borderColor: COR.linhaSuave, overflow: 'hidden', backgroundColor: COR.elevado },
   misturaEtiqueta: { ...TIPO.micro, color: 'rgba(233,234,238,.62)' },

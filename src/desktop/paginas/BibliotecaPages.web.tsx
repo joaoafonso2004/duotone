@@ -551,7 +551,7 @@ export function SongsPage(props: CommonPageProps) {
 
   // O resumo conta a lista TODA, e não a filtrada (a pesquisa diz "12 of 73" ao lado dela).
   const resumo = data.loading || data.semLista ? undefined : resumoDaLista(data.tracks);
-  return <><Page title="Liked Songs" eyebrow="Playlist" subtitle={resumo} action={<View style={{ flexDirection: 'row', gap: 8 }}><Button icon="play" onPress={playAll}>Play all</Button><Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button></View>}>
+  return <><Page title="Liked Songs" eyebrow="Playlist" lavagem="rgba(108,92,255,.34)" subtitle={resumo} action={<View style={{ flexDirection: 'row', gap: 8 }}><Button icon="play" onPress={playAll}>Play all</Button><Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button></View>}>
     <View style={styles.songsToolbar}>
       <View style={styles.songsSearch}><Field icon="search" placeholder="Search your library" value={query} onChangeText={setQuery} /></View>
       <View style={{ flex: 1 }} />

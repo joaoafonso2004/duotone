@@ -50,6 +50,16 @@ caso('o artista da grelha toca as músicas dele da biblioteca, e a mistura da Ho
   assert.equal((BIBLIOTECA.match(/aoAbrir=\{abrirMistura\} aoTocar=\{tocarMistura\}/g) ?? []).length, (BIBLIOTECA.match(/<PrateleiraDeMisturas titulo=/g) ?? []).length, 'todas as prateleiras de misturas');
 });
 
+console.log('\nas Liked Songs');
+caso('o topo leva uma lavagem de violeta que se esbate para baixo, atrás do cabeçalho', () => {
+  assert.match(BIBLIOTECA, /<Page title="Liked Songs" eyebrow="Playlist" lavagem="rgba\(108,92,255,\.34\)" subtitle=\{resumo\}/);
+  assert.match(UI, /\{lavagem \? <View pointerEvents="none" aria-hidden style=\{\[ui\.lavagem, \{ backgroundImage: `linear-gradient\(180deg, \$\{lavagem\}, rgba\(6,6,8,0\)\)` \} as any\]\} \/> : null\}/);
+  assert.match(UI, /lavagem: \{ position: 'absolute', top: 0, left: 0, right: 0, height: 300 \}/);
+});
+caso('o cabeçalho de toda a página entra por blocos, como as prateleiras', () => {
+  assert.match(UI, /<View \{\.\.\.marcar\('bloco'\)\} style=\{\[ui\.pageHeader, rolado && ui\.pageHeaderCurto\]\}>/);
+});
+
 console.log('\no cartão de mistura');
 caso('um cartão de cor: a da primeira capa, com a etiqueta, o nome grande e três círculos que se sobrepõem', () => {
   assert.match(UI, /const cor = useCorDoAmbiente\(m\.faixas\[0\]\?\.artworkUrl \?\? null\) \?\? '#3a3a46';/);
