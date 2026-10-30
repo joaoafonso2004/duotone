@@ -301,6 +301,7 @@ const TESTES = [
   `${TS} scripts/test-dois-tons.ts`,
   `${TS} scripts/test-fila-animada.ts`,
   `${TS} scripts/test-liked-songs-pc.ts`,
+  `${TS} scripts/test-perfil-pc.ts`,
 ];
 
 const raiz = fileURLToPath(new URL('..', import.meta.url));

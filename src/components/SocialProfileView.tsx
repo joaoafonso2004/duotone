@@ -20,6 +20,8 @@ import { naoLidasPorAmigo } from '../lib/social';
 import { ArtworkCollage } from './ArtworkCollage';
 import { ProfileEditor } from './ProfileEditor';
 import { ProfileHero } from './ProfileHero';
+import { ProfileHeroPc } from './ProfileHeroPc';
+import { LinearGradient } from 'expo-linear-gradient';
 import { CimaDoPerfil } from './CimaDoPerfil';
 import { usePuxarParaAtualizar } from './PuxarParaAtualizar';
 import { guardarPerfil, ouvirPerfis, perfilEmCache } from '../lib/cachePerfil';
@@ -37,6 +39,7 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef}:{userId:
   scrollRef?:React.RefObject<any>}) {
   const web=Platform.OS==='web';
   const [width,setWidth]=useState(0);
+  const [altura,setAltura]=useState(0);
   const wide=web&&width>=780;
   const columns=web&&width>=1000;
   // No iPhone o perfil vive sempre numa pilha de um separador, com a barra por
@@ -331,11 +334,18 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef}:{userId:
       </Pressable>),10);
 
   const nome=profile?.profile.name||'';
-  return <View style={s.body} onLayout={e=>setWidth(e.nativeEvent.layout.width)}>
+  const capaPorPagina=web&&!!profile?.appearance?.cover_path;
+  return <View style={s.body} onLayout={e=>{setWidth(e.nativeEvent.layout.width);setAltura(e.nativeEvent.layout.height);}}>
     {menuDoAmigo}
     <Animated.ScrollView ref={scrollRef} refreshControl={puxar} onScroll={web?undefined:aoRolar} scrollEventThrottle={16}
       contentContainerStyle={{paddingBottom:bottomPadding}} keyboardShouldPersistTaps="handled">
-      <View {...(menuNoTopo as any)}>
+      {capaPorPagina?<ProfileHeroPc profile={profile} own={own} cover={cover} unread={unread} altura={altura} largura={width}
+        menu={menuNoTopo} status={!own&&profile?.canView?(friend?.online?'● Online now':ultimaAtividade(friend?.lastSeenAt,now)):undefined}
+        onVocesOsDois={onVocesOsDois&&profile?.canView&&friend?.status==='accepted'?()=>onVocesOsDois(profile.profile.name||profile.profile.username||undefined):undefined}
+        onEdit={()=>setEditing(true)} onSocial={onSocial} onStats={abrirEstatisticas} onBack={onBack}
+        onMessage={()=>onMessage(userId)} onRefresh={()=>void load()} pending={friend?.status==='pending'}
+        onAddFriend={()=>{void sendFriendRequest(userId).then(()=>useSocial.getState().refresh()).catch(()=>setError('Could not send the friend request. Please try again.'));}}/>
+      :<View {...(menuNoTopo as any)}>
       <ProfileHero profile={profile} own={own} cover={cover} unread={unread} botoesFora={!web} rolagem={web?undefined:rolagem}
         status={!own&&profile?.canView?(friend?.online?'● Online now':ultimaAtividade(friend?.lastSeenAt,now)):undefined}
         onVocesOsDois={onVocesOsDois&&profile?.canView&&friend?.status==='accepted'?()=>onVocesOsDois(profile.profile.name||profile.profile.username||undefined):undefined}
@@ -343,8 +353,9 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef}:{userId:
         onEdit={()=>setEditing(true)} onSocial={onSocial} onStats={abrirEstatisticas} onBack={onBack}
         onMessage={()=>onMessage(userId)} onRefresh={()=>void load()} pending={friend?.status==='pending'}
         onAddFriend={()=>{void sendFriendRequest(userId).then(()=>useSocial.getState().refresh()).catch(()=>setError('Could not send the friend request. Please try again.'));}}/>
-      </View>
-      <View style={{paddingHorizontal:SOCIAL_GUTTER,paddingTop:26,gap:24}}>
+      </View>}
+      <View style={[{paddingHorizontal:SOCIAL_GUTTER,paddingTop:26,gap:24},capaPorPagina&&{position:'relative',zIndex:3,backgroundColor:colors.bg} as any]}>
+      {capaPorPagina&&<LinearGradient pointerEvents="none" colors={['rgba(12,12,16,0)',colors.bg]} style={{position:'absolute',left:0,right:0,top:-130,height:130}}/>}
       {loading&&!profile&&<SkeletonDoPerfil/>}
       {!!error&&sectionFailure(error)}
       {profile&&<>
