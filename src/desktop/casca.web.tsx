@@ -40,6 +40,8 @@ import { ANEL_DO_REFRAO, Artwork, comDica, formatTime, IconButton, ui, marcar, u
 import { PRE_ESCUTA_S } from '../lib/refrao';
 import { TOM_CLARO, TOM_ESCURO } from '../lib/doisTons';
 import { ligarBrilhoDoCursor } from './duotone.web';
+import { IconeJam, IconePlayPause, IconeRepeat, IconeShuffle, IconeVolume } from './IconesDeEstado.web';
+import { estadoDoShuffle } from '../lib/estadoDosIcones';
 import { usePontoNaBarra } from '../state/refrao';
 import { dentesDaTecla, valorDaProcura } from '../lib/acessibilidadeDoPc';
 import { PRIMARY, type Route } from './rotas';
@@ -496,6 +498,48 @@ export function injectDesktopDocumentStyles() {
     /* O atalho para a faixa que toca (30/10, TrackTable): sobe de leve ao aparecer. */
     [data-dt~="salto-atual"]{ animation: dt-linha 220ms var(--dt-curva) backwards; }
 
+    /* Os ícones da barra do leitor que mudam de estado (30/10, passo 8,
+       desktop/IconesDeEstado.web.tsx): cada um com a sua animação, só de
+       movimento e opacidade e de traços que se desenham (pathLength 1). A mola
+       é a da maquete. O primeiro desenho não anima: só as mudanças (data-anima). */
+    :root{ --dt-mola: cubic-bezier(.34, 1.56, .64, 1); }
+    [data-dt~="ie"]{ position: relative; display: inline-grid; place-items: center; pointer-events: none; flex: none;
+      transition: color var(--dt-rapido) var(--dt-curva); }
+    [data-dt~="ie"] svg{ width: 100%; height: 100%; display: block; overflow: visible; }
+    [data-dt~="ie-ponto"]{ position: absolute; bottom: -3px; left: 50%; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%;
+      background: currentColor; transform: scale(0); transition: transform 450ms var(--dt-mola); }
+    [data-dt~="ie"]:not([data-s="off"]) [data-dt~="ie-ponto"]{ transform: scale(1); }
+    /* shuffle: as duas setas desenham-se, uma a seguir à outra */
+    [data-dt~="ie-linha"]{ stroke-dasharray: 1; stroke-dashoffset: 0; }
+    [data-dt~="ie-shuffle"][data-anima] [data-dt~="ie-linha"]{ animation: dt-ie-desenha 500ms var(--dt-curva) both; }
+    [data-dt~="ie-shuffle"][data-anima] [data-dt~="ie-linha2"]{ animation-delay: 120ms; }
+    @keyframes dt-ie-desenha{ from{ stroke-dashoffset: 1; } to{ stroke-dashoffset: 0; } }
+    /* repeat: gira sempre mais uma volta (o valor da rotação sobe no estilo), e o "1" salta para dentro */
+    [data-dt~="ie-repeat"] svg{ transition: transform 750ms var(--dt-mola); }
+    [data-dt~="ie-um"]{ position: absolute; left: 50%; top: 50%; width: 11px; height: 11px; margin: -5.5px 0 0 -5.5px; border-radius: 50%;
+      background: ${COR.texto}; color: ${COR.fundo}; font: 800 8px/11px ${FONT.body}; text-align: center;
+      transform: scale(0); transition: transform 500ms var(--dt-mola); }
+    [data-dt~="ie-repeat"][data-s="one"] [data-dt~="ie-um"]{ transform: scale(1); }
+    /* play / pause: o ícone que sai roda um quarto de volta e encolhe, o que entra vem do outro lado */
+    [data-dt~="ie-i1"], [data-dt~="ie-i2"]{ position: absolute; inset: 0; display: grid; place-items: center;
+      transition: transform 500ms var(--dt-mola), opacity 200ms var(--dt-curva); }
+    [data-dt~="ie-i1"] svg{ transform: translateX(1px); }
+    [data-dt~="ie-play"][data-s="playing"] [data-dt~="ie-i1"]{ opacity: 0; transform: rotate(-90deg) scale(.35); }
+    [data-dt~="ie-play"][data-s="paused"] [data-dt~="ie-i2"]{ opacity: 0; transform: rotate(90deg) scale(.35); }
+    /* volume: os arcos desenham-se um a um; sem som, um traço corta o altifalante */
+    [data-dt~="ie-arco"], [data-dt~="ie-corte"]{ stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset 400ms var(--dt-curva); }
+    [data-dt~="ie-arco2"]{ transition-delay: 120ms; }
+    [data-dt~="ie-volume"]:not([data-s="mudo"]) [data-dt~="ie-arco1"],
+    [data-dt~="ie-volume"][data-s="alto"] [data-dt~="ie-arco2"],
+    [data-dt~="ie-volume"][data-s="mudo"] [data-dt~="ie-corte"]{ stroke-dashoffset: 0; }
+    [data-dt~="ie-volume"][data-s="mudo"] [data-dt~="ie-arco"]{ transition-delay: 0ms; }
+    /* Jam: ligada, abrem-se ondas à volta dos auscultadores, uma depois da outra */
+    [data-dt~="ie-jam"]::before, [data-dt~="ie-jam"]::after{ content: ''; position: absolute; inset: -4px; border-radius: 50%;
+      border: 1.5px solid rgba(233,234,238,.55); opacity: 0; pointer-events: none; }
+    [data-dt~="ie-jam"][data-s="on"]::before{ animation: dt-ie-onda 2400ms ease-out infinite; }
+    [data-dt~="ie-jam"][data-s="on"]::after{ animation: dt-ie-onda 2400ms ease-out 1200ms infinite; }
+    @keyframes dt-ie-onda{ from{ opacity: .9; transform: scale(.7); } to{ opacity: 0; transform: scale(1.6); } }
+
     /* Quem pediu menos movimento no Windows nao leva nada disto. O estado
        final e o mesmo: aqui so morre o caminho ate la. */
     @media (prefers-reduced-motion: reduce){
@@ -506,12 +550,15 @@ export function injectDesktopDocumentStyles() {
       [data-dt~="pagina"], [data-dt~="pagina"] [data-dt~="cartao"], [data-dt~="carregar"],
       [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"],
       .np-fila-sai, .np-fila-vira, .np-fila-entra, [data-dt~="grupo-radio"],
-      [data-dt~="radio-onda"], [data-dt~="radio-anel"], [data-dt~="salto-atual"]{ animation: none !important; }
+      [data-dt~="radio-onda"], [data-dt~="radio-anel"], [data-dt~="salto-atual"],
+      [data-dt~="ie-shuffle"][data-anima] [data-dt~="ie-linha"], [data-dt~="ie-jam"]::before, [data-dt~="ie-jam"]::after{ animation: none !important; }
       [data-dt~="grupo-radio"][data-dt~="grupo-sai"]{ transition: none !important; }
       [data-dt~="premir"], [data-dt~="desliza"], [data-dt~="campo"], [data-dt~="fila"] [data-dt~="toca"],
       [data-dt~="fila"] [data-dt~="mais"], [data-dt~="fila"] [data-dt~="numero"],
       [data-dt~="cartao"], [data-dt~="coracaoDoCartao"], [data-dt~="a-sair"], [data-dt~="main-a-voltar"],
-      [data-dt~="duo"] [data-dt~="duo-tom"], [data-dt~="brilho"]::after{ transition: none !important; }
+      [data-dt~="duo"] [data-dt~="duo-tom"], [data-dt~="brilho"]::after,
+      [data-dt~="ie"], [data-dt~="ie-ponto"], [data-dt~="ie-repeat"] svg, [data-dt~="ie-um"], [data-dt~="ie-i1"], [data-dt~="ie-i2"],
+      [data-dt~="ie-arco"], [data-dt~="ie-corte"]{ transition: none !important; }
       /* A sair do Now Playing: some logo, como antes (o tempo da saída corre na
          mesma, mas já invisível). */
       [data-dt~="np-a-sair"], [data-dt~="janela-cor"][data-dt~="a-apagar"]{ animation: none !important; opacity: 0 !important; }
@@ -784,7 +831,7 @@ function BarraDoVolume() {
   };
   return <V style={styles.volumeRow} onWheel={rodarVolume} {...marcar('calha')}>
     <IconButton name={volume === 0 ? 'volume-mute-outline' : volume < 35 ? 'volume-low-outline' : volume < 70 ? 'volume-medium-outline' : 'volume-high-outline'}
-      label={volume === 0 ? 'Unmute' : 'Mute'} onPress={alternarSilencio} />
+      label={volume === 0 ? 'Unmute' : 'Mute'} onPress={alternarSilencio} desenho={(cor) => <IconeVolume volume={volume} cor={cor} />} />
     <V role="slider" aria-label="Volume" aria-valuemin={0} aria-valuemax={100} aria-valuenow={volume}
       aria-valuetext={volume === 0 ? 'Muted' : `${volume}%`} tabIndex={0} onKeyDown={teclar}
       onMouseDown={startDragVolume} onTouchStart={startDragVolume} style={styles.volumeHit}>
@@ -890,26 +937,14 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
             : <Text numberOfLines={1} style={styles.playerArtista}>{displayArtist(p.current)}</Text>}
         </View>
       </Pressable>
-      {/* As Faíscas a guardar e o Encolher a tirar, logo ao carregar (16/10). */}
-      <View style={styles.playerSave}>
-        <IconButton
-          name={coracao.mostrada ? 'heart' : 'heart-outline'}
-          label={coracao.mostrada ? 'Remove from Liked Songs' : 'Add to Liked Songs'}
-          atalho="Ctrl+L"
-          onPressIn={coracao.onPressIn}
-          onPress={coracao.onPress}
-          onPressOut={coracao.onPressOut}
-          active={coracao.mostrada}
-          desenho={(cor) => <CoracaoAnimado guardada={coracao.mostrada} pulso={coracao.pulso} tamanho={19} cor={cor} corCheio={cor} />}
-        />
-      </View>
     </View>
     <View style={styles.playerCenter}>
       <View style={styles.playerControls}>
-        <IconButton name="shuffle" label={rotuloDoModo(modoDeShuffle(p.shuffle, p.shuffleInteligente))} active={p.shuffle} estrela={p.shuffleInteligente} onPress={p.toggleShuffle} />
+        <IconButton name="shuffle" label={rotuloDoModo(modoDeShuffle(p.shuffle, p.shuffleInteligente))} active={p.shuffle} estrela={p.shuffleInteligente} onPress={p.toggleShuffle}
+          desenho={(cor) => <IconeShuffle estado={estadoDoShuffle(p.shuffle, p.shuffleInteligente)} cor={cor} />} />
         <IconButton name="play-skip-back" label="Previous" atalho="Ctrl+←" onPress={p.prev} />
         {p.showRewindButton && <IconButton name="play-back" label="Rewind 15 seconds" onPress={() => p.seekTo(Math.max(0, usePlayer.getState().positionMs - 15000))} />}
-        <Pressable {...comDica(p.isPlaying ? 'Pause' : 'Play', 'Space')} accessibilityRole="button" accessibilityLabel={p.isPlaying ? 'Pause' : 'Play'} onPress={p.togglePlay} style={({ hovered, pressed }) => [styles.playButton, hovered && { transform: [{ scale: 1.05 }] }, pressed && { transform: [{ scale: .97 }] }]}><Ionicons name={p.buffering ? 'hourglass-outline' : p.isPlaying ? 'pause' : 'play'} size={19} color="#111117" /></Pressable>
+        <Pressable {...comDica(p.isPlaying ? 'Pause' : 'Play', 'Space')} accessibilityRole="button" accessibilityLabel={p.isPlaying ? 'Pause' : 'Play'} onPress={p.togglePlay} style={({ hovered, pressed }) => [styles.playButton, hovered && { transform: [{ scale: 1.05 }] }, pressed && { transform: [{ scale: .97 }] }]}>{p.buffering ? <Ionicons name="hourglass-outline" size={19} color="#111117" /> : <IconePlayPause tocando={p.isPlaying} />}</Pressable>
         <IconButton name="play-skip-forward" label="Next" atalho="Ctrl+→" onPress={p.next} />
         {/* O icone e o MESMO nos dois modos: o `repeat` e o `repeat-outline`
             do Ionicons sao praticamente iguais a este tamanho, e o botao
@@ -918,17 +953,31 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
           name="repeat"
           label={p.repeatMode === 'one' ? 'Repeat this track' : p.repeatMode === 'all' ? 'Repeat queue' : 'Repeat off'}
           active={p.repeatMode !== 'off'}
-          marca={p.repeatMode === 'one' ? '1' : undefined}
           onPress={p.cycleRepeat}
+          desenho={(cor) => <IconeRepeat modo={p.repeatMode} cor={cor} />}
         />
       </View>
       <BarraDeProgresso />
     </View>
     <View style={styles.playerRight}>
       <SeguirNaBarra />
+      {/* O coração é o primeiro dos ícones da direita (30/10, a escolha do João: ao lado do
+          título não lhe agradava): tudo o que é "desta música" junto, e o centro só com o que
+          toca. As Faíscas a guardar e o Encolher a tirar, logo ao carregar (16/10). */}
+      <IconButton
+        name={coracao.mostrada ? 'heart' : 'heart-outline'}
+        label={coracao.mostrada ? 'Remove from Liked Songs' : 'Add to Liked Songs'}
+        atalho="Ctrl+L"
+        onPressIn={coracao.onPressIn}
+        onPress={coracao.onPress}
+        onPressOut={coracao.onPressOut}
+        active={coracao.mostrada}
+        desenho={(cor) => <CoracaoAnimado guardada={coracao.mostrada} pulso={coracao.pulso} tamanho={19} cor={cor} corCheio={cor} />}
+      />
       {/* Quem vê o que está a tocar, ao lado do botão que abre o Jam. */}
       <IndicadorDeVisibilidade discordLigado={discordLigado} onJam={onJam} onAviso={onAviso} />
-      <IconButton name={jam ? ICONES.jam : `${ICONES.jam}-outline`} label={jam ? 'Manage Jam' : 'Start a Jam'} active={!!jam} onPress={onJam} />
+      <IconButton name={jam ? ICONES.jam : `${ICONES.jam}-outline`} label={jam ? 'Manage Jam' : 'Start a Jam'} active={!!jam} onPress={onJam}
+        desenho={(cor) => <IconeJam ligada={!!jam} cor={cor} />} />
       <BarraDoVolume />
       <IconButton name="close" label="Close player" onPress={()=>void closePlayerSmoothly()} />
     </View>

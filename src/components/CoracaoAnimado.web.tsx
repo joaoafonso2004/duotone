@@ -38,16 +38,19 @@ function garantirEstilo(doc: Document): void {
     .ca .ca-cheio{fill:currentColor;transform-origin:12px 13.5px}
     .ca .ca-ponto{position:absolute;left:50%;top:50%;border-radius:50%;background:currentColor;opacity:0}
     .ca-por svg{animation:ca-mola ${DURACAO.mola}ms cubic-bezier(.3,1.5,.5,1) both}
-    .ca-por .ca-cheio{animation:ca-aparece ${DURACAO.aparece}ms both}
+    .ca-por .ca-cheio{animation:ca-enche ${DURACAO.aparece}ms cubic-bezier(.22,1,.36,1) both}
+    .ca .ca-anel{position:absolute;inset:-1px;border-radius:50%;border:1.5px solid currentColor;opacity:0}
+    .ca-por .ca-anel{animation:ca-anel 620ms cubic-bezier(.22,1,.36,1) both}
     .ca-por .ca-ponto{animation:ca-faisca ${DURACAO.faiscas}ms cubic-bezier(.2,.8,.3,1) both}
     .ca-tirar .ca-cheio{animation:ca-encolhe ${DURACAO.encolhe}ms cubic-bezier(.5,0,.8,.5) both}
     .ca-tirar svg{animation:ca-respira ${DURACAO.respira}ms ease-out both}
     ${quadros('ca-mola', MOLA)}
     ${quadros('ca-respira', RESPIRA)}
-    @keyframes ca-aparece{0%{opacity:0}100%{opacity:1}}
+    @keyframes ca-enche{0%{opacity:1;clip-path:inset(100% 0 0 0)}100%{opacity:1;clip-path:inset(0 0 0 0)}}
+    @keyframes ca-anel{0%{opacity:.8;transform:scale(.6)}100%{opacity:0;transform:scale(2)}}
     @keyframes ca-encolhe{0%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(0)}}
     @keyframes ca-faisca{0%{opacity:0;transform:translate(0,0) scale(.6)}20%{opacity:1}100%{opacity:0;transform:translate(var(--x),var(--y)) scale(.4)}}
-    @media (prefers-reduced-motion: reduce){.ca svg,.ca svg *,.ca .ca-ponto{animation:none !important}}
+    @media (prefers-reduced-motion: reduce){.ca svg,.ca svg *,.ca .ca-ponto,.ca .ca-anel{animation:none !important}}
   `;
   doc.head.appendChild(estilo);
 }
@@ -80,6 +83,7 @@ export function CoracaoAnimado({ guardada, pulso, tamanho, cor, corCheio }: Prop
       className={`ca${animacao ? ` ca-${animacao.tipo}` : ''}`}
       style={{ width: tamanho, height: tamanho, color: guardada ? corCheio : cor }}
     >
+      <span className="ca-anel" />
       <svg width={tamanho} height={tamanho} viewBox="0 0 24 24">
         <path className="ca-cheio" d={CORACAO} style={{ opacity: guardada ? 1 : 0 }} />
         <path className="ca-contorno" d={CORACAO} />

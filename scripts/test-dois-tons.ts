@@ -76,7 +76,8 @@ caso('só o desvanecer da cor e a luz usam transição, e só de opacidade', () 
 caso('quem pediu menos movimento fica sem as duas transições', () => {
   const i = CASCA.lastIndexOf('prefers-reduced-motion');
   const bloco = CASCA.slice(i);
-  assert.ok(bloco.includes('[data-dt~="duo"] [data-dt~="duo-tom"], [data-dt~="brilho"]::after{ transition: none !important; }'));
+  // A regra cresceu com os ícones de estado (30/10): o que importa é que as duas estão na lista das transições desligadas.
+  assert.match(bloco, /\[data-dt~="duo"\] \[data-dt~="duo-tom"\], \[data-dt~="brilho"\]::after,[^{]*\{ transition: none !important; \}/);
 });
 caso('nada de backdrop-filter, nem na casca nem no componente', () => {
   assert.ok(!/backdrop-filter/.test(COMPONENTE));

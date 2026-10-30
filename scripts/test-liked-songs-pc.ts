@@ -98,7 +98,8 @@ caso('fica preso com altura zero (não mexe no tamanho da lista) e rola sem anim
 caso('entra de leve, e quem pediu menos movimento fica sem a animação', () => {
   assert.match(CASCA, /\[data-dt~="salto-atual"\]\{ animation: dt-linha 220ms var\(--dt-curva\) backwards; \}/);
   const bloco = CASCA.slice(CASCA.lastIndexOf('prefers-reduced-motion'));
-  assert.ok(bloco.includes('[data-dt~="salto-atual"]{ animation: none !important; }'));
+  // A regra cresceu com os ícones de estado (30/10): o atalho continua na lista das animações desligadas.
+  assert.match(bloco, /\[data-dt~="salto-atual"\],[^{]*\{ animation: none !important; \}/);
 });
 
 console.log('\na barra de título e a lateral');
