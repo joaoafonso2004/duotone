@@ -93,13 +93,14 @@ caso('a que toca vem à cabeça da fila, em destaque, com as barrinhas a mexer',
   assert.match(NP, /<View \{\.\.\.marcar\('eq'\)\} aria-hidden/);
   assert.match(ESTILOS, /npAtual: \{[^}]*backgroundColor: 'rgba\(233,234,238,\.09\)'/);
 });
-caso('o cartão tem duas abas, "Up next" e "Lyrics", no mesmo sítio (a letra é a do painel do leitor)', () => {
-  assert.match(NP, /const \[abaDaFila, setAbaDaFila\] = useState<'fila' \| 'letra'>\('fila'\);/);
+caso('o cartão tem três abas, "Up next", "Lyrics" e "About" (31/10), no mesmo sítio (a letra é a do painel do leitor)', () => {
+  assert.match(NP, /const \[abaDaFila, setAbaDaFila\] = useState<AbaDoCartao>\('fila'\);/);
   assert.match(NP, /<CabecaDaFila fila=\{fila\} abas=\{\{ aba: abaDaFila, aoMudar: setAbaDaFila \}\} \/>/);
   assert.match(NP, /<LyricsView key=\{`\$\{track\.source\}:\$\{track\.sourceId\}`\} track=\{track\} visible \/>/);
   const fila = ler('src/desktop/FilaDoLeitor.web.tsx');
-  assert.match(fila, /<AbaDaFila rotulo="Up next" ativa=\{abas\.aba === 'fila'\}/);
-  assert.match(fila, /<AbaDaFila rotulo="Lyrics" ativa=\{abas\.aba === 'letra'\}/);
+  assert.match(fila, /<AbaDaFila rotulo="Up next" ativa=\{aba === 'fila'\}/);
+  assert.match(fila, /<AbaDaFila rotulo="Lyrics" ativa=\{aba === 'letra'\}/);
+  assert.match(fila, /<AbaDaFila rotulo="About" ativa=\{aba === 'sobre'\}/);
   assert.match(fila, /borderBottomWidth: 2, borderBottomColor: ativa \? COR\.texto : 'transparent'/);
 });
 caso('a que toca diz "playing now", e o painel e o ecrã estreito ficam sem abas', () => {

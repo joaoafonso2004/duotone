@@ -107,7 +107,8 @@ console.log('\na barra de título e a lateral');
 caso('o ícone do painel é a fila, e já não uma seta', () => {
   assert.match(PAINEL, /<Ionicons name="list" size=\{18\} color=\{COR\.textoMedio\} \/>/);
   assert.ok(!PAINEL.includes('chevron-back'));
-  assert.match(PAINEL, /accessibilityLabel="Open queue and lyrics panel"/);
+  // O rótulo muda com o Now Playing aberto (31/10): a fila e a letra já estão na página.
+  assert.match(PAINEL, /accessibilityLabel=\{escondido \? 'The queue and lyrics are already on this page' : 'Open queue and lyrics panel'\}/);
 });
 caso('a lateral diz o @ da conta, e só sem ele volta ao email (do mesmo perfil que já se lê)', () => {
   assert.match(CASCA, /setUsername\(p\.username\|\|null\)/);

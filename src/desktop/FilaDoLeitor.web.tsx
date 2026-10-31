@@ -53,17 +53,26 @@ export function AbaDaFila({ rotulo, ativa, aoCarregar, filhos }: { rotulo: strin
   </Pressable>;
 }
 
+/** As abas do cartão do Now Playing grande (31/10: a terceira, "About", é nova). */
+export type AbaDoCartao = 'fila' | 'letra' | 'sobre';
+
+/** As três abas juntas: "Up next" (com o número da fila), "Lyrics" e "About". */
+export function AbasDoCartao({ fila, aba, aoMudar }: { fila: Fila; aba: AbaDoCartao; aoMudar: (aba: AbaDoCartao) => void }) {
+  return <>
+    <AbaDaFila rotulo="Up next" ativa={aba === 'fila'} aoCarregar={() => aoMudar('fila')} filhos={<NumeroQueAnda valor={fila.saida ? 0 : fila.upNext.length} />} />
+    <AbaDaFila rotulo="Lyrics" ativa={aba === 'letra'} aoCarregar={() => aoMudar('letra')} />
+    <AbaDaFila rotulo="About" ativa={aba === 'sobre'} aoCarregar={() => aoMudar('sobre')} />
+  </>;
+}
+
 export function CabecaDaFila({ fila, compacta = false, abas }: {
   fila: Fila; compacta?: boolean;
-  /** As abas "Up next" e "Lyrics" no cartão da fila do Now Playing grande. */
-  abas?: { aba: 'fila' | 'letra'; aoMudar: (aba: 'fila' | 'letra') => void };
+  /** As abas "Up next", "Lyrics" e "About" no cartão da fila do Now Playing grande. */
+  abas?: { aba: AbaDoCartao; aoMudar: (aba: AbaDoCartao) => void };
 }) {
   return <View>
     <View style={[styles.npFilaCabeca, compacta && { flexWrap: 'wrap', gap: ESP.sm }, abas && { alignItems: 'flex-end', borderBottomWidth: 1, borderBottomColor: COR.linhaSuave, marginBottom: ESP.sm }]}>
-      {abas ? <>
-        <AbaDaFila rotulo="Up next" ativa={abas.aba === 'fila'} aoCarregar={() => abas.aoMudar('fila')} filhos={<NumeroQueAnda valor={fila.saida ? 0 : fila.upNext.length} />} />
-        <AbaDaFila rotulo="Lyrics" ativa={abas.aba === 'letra'} aoCarregar={() => abas.aoMudar('letra')} />
-      </> : <>
+      {abas ? <AbasDoCartao fila={fila} aba={abas.aba} aoMudar={abas.aoMudar} /> : <>
         <Text style={[styles.npFilaHeading, compacta && { fontSize: 14 }]}>Up next</Text>
         <NumeroQueAnda valor={fila.saida ? 0 : fila.upNext.length} />
       </>}

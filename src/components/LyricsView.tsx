@@ -19,13 +19,20 @@ const Line=memo(function Line({text,timeMs,index,active,onPress,onLayout,reduced
 const SEM_LINHAS:never[]=[];
 
 /** O relógio é o da faixa, incluindo seek e speed; nunca um temporizador próprio. */
-export function LyricsView({track,visible}:{track:Track;visible:boolean}){
+export function LyricsView({track,visible,escala=1}:{track:Track;visible:boolean;
+  /** Só a letra grande do PC (31/10) a muda: multiplica o tamanho das linhas. As outras ficam a 1. */
+  escala?:number}){
   const key=lyricsCacheKey(track),entry=useLyrics(s=>s.entries[key]);
   const seek=usePlayer(s=>s.seekTo);
   const reduced=useReducedMotion(),scroll=useRef<ScrollView>(null),offsets=useRef<Record<number,number>>({});
   // O tamanho escolhido (10/10, personalização: S, M -- o de sempre -- ou L).
   const tamanhoEscolhido=useAparencia(s=>s.tamanhoDasLetras);
-  const tamanho=useMemo(()=>tamanhoDasLetras(tamanhoEscolhido),[tamanhoEscolhido]);
+  const tamanho=useMemo(()=>{
+    const t=tamanhoDasLetras(tamanhoEscolhido);
+    if(escala===1)return t;
+    const maior=(x:{fontSize:number;lineHeight:number})=>({fontSize:Math.round(x.fontSize*escala),lineHeight:Math.round(x.lineHeight*escala)});
+    return {linha:maior(t.linha),texto:maior(t.texto)};
+  },[tamanhoEscolhido,escala]);
   const [height,setHeight]=useState(220),[revision,setRevision]=useState(0),[manual,setManual]=useState(false);
   const resume=useRef<ReturnType<typeof setTimeout>|undefined>(undefined),previous=useRef(-1);
   // As mesmas funções para todas as linhas. Funções novas dentro do map e

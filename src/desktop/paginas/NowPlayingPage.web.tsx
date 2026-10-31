@@ -1,4 +1,5 @@
-import { AbaDaFila, CabecaDaFila, LinhasDaFila } from '../FilaDoLeitor.web';
+import { AbasDoCartao, CabecaDaFila, LinhasDaFila, type AbaDoCartao } from '../FilaDoLeitor.web';
+import { SobreAMusica } from '../SobreAMusica.web';
 import { LyricsView } from '../../components/LyricsView';
 import { useFilaDoLeitor } from '../useFilaDoLeitor.web';
 import {ArtworkLyricsCube} from '../../components/ArtworkLyricsCube';
@@ -20,7 +21,7 @@ import { avisoDoPedido, type TipoDePedido } from '../../lib/duotoneConnect';
 import { extrapolatedPositionMs } from '../../lib/handoff';
 import { takeOverSession } from '../../lib/sessionSync';
 import { styles } from '../estilos.web';
-import { COR, ESP, TIPO } from '../tokens.web';
+import { COR, ESP, ESTADO, TIPO } from '../tokens.web';
 import { BotaoVoltar, Artwork, Button, Dialog, Empty, IconButton, marcar, Page, ui } from '../ui.web';
 import { FundoDaCapa } from '../FundoDaCapa.web';
 import { preCarregarCapaGrande, useCapaGrande } from '../useCapaGrande.web';
@@ -387,7 +388,16 @@ export function NowPlayingPage({
 
   const cabecaDaFila = <CabecaDaFila fila={fila} />;
   // O cartão da fila tem duas abas (30/10, da maquete): a fila e a letra, no mesmo sítio.
-  const [abaDaFila, setAbaDaFila] = useState<'fila' | 'letra'>('fila');
+  const [abaDaFila, setAbaDaFila] = useState<AbaDoCartao>('fila');
+  // A letra grande (31/10): a letra passa para a largura toda, com a capa pequena ao lado.
+  const [letraGrande, setLetraGrande] = useState(false);
+  useEffect(() => { setLetraGrande(false); }, [current?.source, current?.sourceId]);
+  useEffect(() => {
+    if (!letraGrande) return;
+    const aoEscape = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); setLetraGrande(false); } };
+    window.addEventListener('keydown', aoEscape);
+    return () => window.removeEventListener('keydown', aoEscape);
+  }, [letraGrande]);
   const linhas = <LinhasDaFila fila={fila} />;
 
   return (
@@ -429,18 +439,28 @@ export function NowPlayingPage({
         ) : null}
       </View>
 
-      {duasColunas ? (
+      {letraGrande ? (
+        <View style={{ flex: 1, minHeight: 0, flexDirection: 'row', gap: ESP.xxl, paddingHorizontal: ESP.lg, paddingTop: ESP.sm }}>
+          <View style={{ width: 240, gap: ESP.md }}>
+            <Artwork track={track} size={240} />
+            <View>
+              <Text numberOfLines={2} style={styles.npTitulo}>{tituloDaFaixa(track)}</Text>
+              <Text numberOfLines={1} style={styles.npArtista}>{nomeDoArtista}</Text>
+            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel="Collapse the lyrics" onPress={() => setLetraGrande(false)}
+              style={({ hovered }: any) => [styles.npFilaLimpar, { flexDirection: 'row', alignItems: 'center', gap: ESP.sm, alignSelf: 'flex-start', borderWidth: 1, borderColor: COR.linha, borderRadius: 999, paddingHorizontal: ESP.md, paddingVertical: ESP.sm }, hovered && { backgroundColor: ESTADO.hover }]}>
+              <Ionicons name="contract-outline" size={14} color={COR.textoMedio} />
+              <Text style={styles.npFilaLimparTexto}>Collapse · Esc</Text>
+            </Pressable>
+          </View>
+          <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}><LyricsView key={`grande:${track.source}:${track.sourceId}`} track={track} visible escala={1.5} /></View>
+        </View>
+      ) : duasColunas ? (
         <View style={styles.npGrelha}>
           {coluna}
           {/* A fila rola sozinha; a capa fica onde está. */}
           <View style={styles.npFila}>
-            {abaDaFila === 'letra' ? <>
-              <View style={[styles.npFilaCabeca, { alignItems: 'flex-end', borderBottomWidth: 1, borderBottomColor: COR.linhaSuave, marginBottom: ESP.sm }]}>
-                <AbaDaFila rotulo="Up next" ativa={false} aoCarregar={() => setAbaDaFila('fila')} />
-                <AbaDaFila rotulo="Lyrics" ativa aoCarregar={() => setAbaDaFila('letra')} />
-              </View>
-              <View style={{ flex: 1, minHeight: 0 }}><LyricsView key={`${track.source}:${track.sourceId}`} track={track} visible /></View>
-            </> : <>
+            {abaDaFila === 'fila' ? <>
             <CabecaDaFila fila={fila} abas={{ aba: abaDaFila, aoMudar: setAbaDaFila }} />
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: ESP.xl }}
               scrollEventThrottle={100} onScroll={fila.aoRolar}>
@@ -457,6 +477,20 @@ export function NowPlayingPage({
               </View>
               {linhas}
             </ScrollView>
+            </> : <>
+              <View style={[styles.npFilaCabeca, { alignItems: 'flex-end', borderBottomWidth: 1, borderBottomColor: COR.linhaSuave, marginBottom: ESP.sm }]}>
+                <AbasDoCartao fila={fila} aba={abaDaFila} aoMudar={setAbaDaFila} />
+                <View style={{ flex: 1 }} />
+                {/* "Expand" (31/10): a letra a toda a largura. */}
+                {abaDaFila === 'letra' ? <Pressable accessibilityRole="button" accessibilityLabel="Expand the lyrics" onPress={() => setLetraGrande(true)}
+                  style={({ hovered }: any) => [styles.npFilaLimpar, { flexDirection: 'row', alignItems: 'center', gap: ESP.xs }, hovered && { backgroundColor: ESTADO.hover }]}>
+                  <Ionicons name="expand-outline" size={14} color={COR.textoMedio} />
+                  <Text style={styles.npFilaLimparTexto}>Expand</Text>
+                </Pressable> : null}
+              </View>
+              {abaDaFila === 'letra'
+                ? <View style={{ flex: 1, minHeight: 0 }}><LyricsView key={`${track.source}:${track.sourceId}`} track={track} visible /></View>
+                : <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: ESP.xl }}><SobreAMusica track={track} more={more} notify={notify} /></ScrollView>}
             </>}
           </View>
         </View>
@@ -467,6 +501,11 @@ export function NowPlayingPage({
           <View style={{ marginTop: ESP.xxl }}>
             {cabecaDaFila}
             {linhas}
+          </View>
+          {/* Na janela estreita não há cartão com abas: o About vem por baixo da fila (31/10). */}
+          <View style={{ marginTop: ESP.xxl }}>
+            <Text style={styles.npFilaHeading}>About</Text>
+            <SobreAMusica track={track} more={more} notify={notify} />
           </View>
         </ScrollView>
       )}

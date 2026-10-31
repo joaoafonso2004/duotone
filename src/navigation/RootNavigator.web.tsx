@@ -1,5 +1,6 @@
 import { PainelDoLeitor } from '../desktop/PainelDoLeitor.web';
 import { SeparadorDaLateral } from '../desktop/SeparadorDeLargura.web';
+import { usePainelDoLeitor } from '../desktop/estadoDoPainel.web';
 import { TransicaoDePagina } from '../desktop/TransicaoDePagina.web';
 import { viagemChegou, voltarViajando } from '../desktop/viagem.web';
 import { retratosDaVolta } from '../lib/retratosQueViajam';
@@ -122,6 +123,9 @@ function DesktopShell() {
   // O Now Playing também SAI (20/10): fica montado a apagar-se enquanto a
   // página de baixo (ou a nova) aparece, e a cor da capa apaga-se na janela.
   const saidaDoLeitor = useSaida(nowPlayingOpen, SAIDA_DO_LEITOR_MS);
+  // O painel da direita recolhe-se com o Now Playing aberto (31/10): a página já tem a fila, a
+  // letra e o About, e o painel repetia-os. Volta como estava quando o Now Playing fecha.
+  useEffect(() => { usePainelDoLeitor.setState({ escondido: nowPlayingOpen }); }, [nowPlayingOpen]);
   // A app tem de parecer instantânea (27/9). A rota muda em duas velocidades:
   // a da LATERAL no próprio clique (o realce anda logo), e a da PÁGINA numa
   // transição do React -- a nova monta-se sem congelar a janela, e a antiga

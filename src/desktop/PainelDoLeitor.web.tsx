@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { LyricsView } from '../components/LyricsView';
 import { BarreiraDeErros } from '../components/BarreiraDeErros';
 import { usePlayer } from '../state/player';
@@ -8,6 +8,7 @@ import { comCatalogo, garantirCatalogo, useCatalogoDeFaixas } from '../state/cat
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { FilaDoLeitor } from './FilaDoLeitor.web';
+import { SobreAMusica } from './SobreAMusica.web';
 import { SeparadorDoPainel } from './SeparadorDeLargura.web';
 import { Artwork, Empty } from './ui.web';
 import { COR, ESP, ESTADO, FONT, TIPO } from './tokens.web';
@@ -15,6 +16,9 @@ import type { CommonPageProps } from './rotas';
 import { usePainelDoLeitor, type AbaDoPainel as Aba } from './estadoDoPainel.web';
 
 const DURACAO_DA_RECOLHA = 240;
+/** As abas do painel, por ordem, e o nome de cada (31/10: a terceira, About, é nova). */
+const ABAS: readonly Aba[] = ['fila', 'letras', 'sobre'];
+const ROTULO_DA_ABA: Record<Aba, string> = { fila: 'Queue', letras: 'Lyrics', sobre: 'About' };
 /** O id da seta na barra de título: o foco volta para ela ao fechar. */
 const ID_DA_SETA = 'seta-do-painel-do-leitor';
 
@@ -26,10 +30,13 @@ const ID_DA_SETA = 'seta-do-painel-do-leitor';
 export function SetaDoPainel() {
   const aberto = usePainelDoLeitor((s) => s.aberto);
   const abrir = usePainelDoLeitor((s) => s.abrir);
-  if (aberto) return null;
-  return <Pressable nativeID={ID_DA_SETA} accessibilityRole="button" accessibilityLabel="Open queue and lyrics panel"
-    {...({ 'aria-expanded': false, 'aria-controls': 'painel-do-leitor' } as any)}
-    onPress={abrir} style={({ hovered, focused }: any) => [s.setaDaBarra, (hovered || focused) && { backgroundColor: ESTADO.hover }]}>
+  // Com o Now Playing aberto (31/10) a fila e a letra já estão na página: a seta fica apagada.
+  const escondido = usePainelDoLeitor((s) => s.escondido);
+  if (aberto && !escondido) return null;
+  return <Pressable nativeID={ID_DA_SETA} accessibilityRole="button" disabled={escondido}
+    accessibilityLabel={escondido ? 'The queue and lyrics are already on this page' : 'Open queue and lyrics panel'}
+    {...({ 'aria-expanded': false, 'aria-controls': 'painel-do-leitor', ...(escondido ? { title: 'The queue and lyrics are already on this page' } : {}) } as any)}
+    onPress={abrir} style={({ hovered, focused }: any) => [s.setaDaBarra, escondido && { opacity: ESTADO.apagado }, !escondido && (hovered || focused) && { backgroundColor: ESTADO.hover }]}>
     {/* O ícone diz o que abre: a fila (30/10); era uma seta. */}
     <Ionicons name="list" size={18} color={COR.textoMedio} />
   </Pressable>;
@@ -53,6 +60,8 @@ function ConteudoDoPainel({ aba, more, notify }: Pick<CommonPageProps, 'more' | 
     </Pressable>
   </View> : <Empty icon="musical-notes-outline" title="Nothing playing" body="Play a track to see it here." />;
   if (aba === 'fila') return <FilaDoLeitor more={more} notify={notify} atual={identidade} />;
+  // O About (31/10): o artista e a música, o mesmo do cartão do Now Playing.
+  if (aba === 'sobre') return <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: ESP.sm }}>{track ? <SobreAMusica track={track} more={more} notify={notify} /> : identidade}</ScrollView>;
   return <View style={{ flex: 1, minHeight: 0 }}>
     {identidade}
     {track ? <LyricsView key={`${track.source}:${track.sourceId}`} track={track} visible /> : null}
@@ -61,7 +70,8 @@ function ConteudoDoPainel({ aba, more, notify }: Pick<CommonPageProps, 'more' | 
 
 /** A seta vive no canto do conteúdo, também por cima do Now Playing grande. */
 export function PainelDoLeitor({ children, more, notify }: Pick<CommonPageProps, 'more' | 'notify'> & { children: React.ReactNode }) {
-  const aberto = usePainelDoLeitor((st) => st.aberto);
+  // Com o Now Playing aberto o painel recolhe-se (31/10: a página já tem a fila, a letra e o About).
+  const aberto = usePainelDoLeitor((st) => st.aberto && !st.escondido);
   const abaAtual = usePainelDoLeitor((st) => st.aba);
   const estado = { aberto, aba: abaAtual };
   const setEstado = (f: (antes: { aberto: boolean; aba: Aba }) => { aberto: boolean; aba: Aba }) =>
@@ -167,17 +177,19 @@ export function PainelDoLeitor({ children, more, notify }: Pick<CommonPageProps,
           {...({ onKeyDown: (e: any) => {
             if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
             e.preventDefault();
-            const n = e.key === 'Home' ? 0 : e.key === 'End' ? 1 : estado.aba === 'fila' ? 1 : 0;
-            setEstado((antes) => ({ ...antes, aba: n === 0 ? 'fila' : 'letras' }));
+            const atual = ABAS.indexOf(estado.aba);
+            const n = e.key === 'Home' ? 0 : e.key === 'End' ? ABAS.length - 1
+              : Math.min(ABAS.length - 1, Math.max(0, atual + (e.key === 'ArrowRight' ? 1 : -1)));
+            setEstado((antes) => ({ ...antes, aba: ABAS[n] }));
             abasRef.current[n]?.focus();
           } } as any)}>
-          {(['fila', 'letras'] as const).map((aba, i) => <Pressable key={aba} ref={(el) => { abasRef.current[i] = el; }}
-            nativeID={`aba-do-leitor-${aba}`} accessibilityRole="tab" accessibilityLabel={aba === 'fila' ? 'Queue' : 'Lyrics'}
+          {ABAS.map((aba, i) => <Pressable key={aba} ref={(el) => { abasRef.current[i] = el; }}
+            nativeID={`aba-do-leitor-${aba}`} accessibilityRole="tab" accessibilityLabel={ROTULO_DA_ABA[aba]}
             accessibilityState={{ selected: estado.aba === aba }}
             {...({ 'aria-controls': 'conteudo-do-painel', 'aria-selected': estado.aba === aba, tabIndex: estado.aba === aba ? 0 : -1 } as any)}
             onPress={() => setEstado((antes) => ({ ...antes, aba }))}
             style={({ hovered, focused }: any) => [s.aba, estado.aba === aba ? ESTADO.escolhido : (hovered || focused) && { backgroundColor: ESTADO.hover }]}>
-            <Text style={[s.abaTexto, estado.aba === aba && { color: COR.texto }]}>{aba === 'fila' ? 'Queue' : 'Lyrics'}</Text>
+            <Text style={[s.abaTexto, estado.aba === aba && { color: COR.texto }]}>{ROTULO_DA_ABA[aba]}</Text>
           </Pressable>)}
         </View>
         <Pressable ref={fecharRef} accessibilityRole="button" accessibilityLabel="Close queue and lyrics panel" onPress={fechar}
