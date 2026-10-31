@@ -1,6 +1,6 @@
 import {
-  atualizarVelocidadeDoMotor, corrigirVelocidadeQueFicouAtras, passosDevidos, planoDoRelaxe, tocarNaVelocidade,
-  velocidadeDoPasso, type RelaxeDaVelocidade,
+  acertoEmVigor, acertoQueFica, atualizarVelocidadeDoMotor, corrigirVelocidadeQueFicouAtras, tocarNaVelocidade,
+  velocidadeQueSeOuve, type AcertoQueFica,
 } from '../lib/velocidadeDoMotor';
 import { posicaoDaSalaParaFaixa } from '../lib/arranqueDaSala';
 import { useConnectivity } from '../state/connectivity';
@@ -449,13 +449,13 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const intervaloAplicadoRef = useRef<{ motor: unknown; sourceId: string; passo: number } | null>(null);
   const aPrepararRef = useRef(false);
   /**
-   * A velocidade a voltar, aos poucos, depois de uma passagem do AutoMix com
-   * acerto de andamento (30/10, `planoDoRelaxe`): a faixa que entra ouve-se
-   * ainda a 0,96 e a loja diz 1; em vez de um degrau, uns poucos passos ao
-   * ritmo do `timeUpdate`. `desdeS` fica `null` até ao primeiro evento do motor
-   * que passou a tocar. Só vale para esta faixa e para este pedido de velocidade.
+   * O acerto de andamento que fica depois de uma passagem do AutoMix (31/10,
+   * `acertoQueFica`): a faixa que entra ouve-se a 0,96 e a loja diz 1, e fica
+   * assim até ao fim dela. Nem degrau nem passos: cada escrita de velocidade
+   * num AVPlayer a tocar corta. Só vale para esta faixa, este pedido de
+   * velocidade e enquanto o motor estiver à acertada (`acertoEmVigor`).
    */
-  const relaxeRef = useRef<{ sourceId: string; plano: RelaxeDaVelocidade; dados: number; desdeS: number | null } | null>(null);
+  const acertoRef = useRef<AcertoQueFica | null>(null);
 
   /**
    * A passagem a decorrer, ou `null`.
@@ -616,16 +616,16 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   // durante uma alteração com áudio disponível. Não reinstala o tap do EQ.
   useEffect(() => {
     if (backend !== 'native') return;
-    // Uma passagem com o andamento acertado: a velocidade volta aos poucos
-    // (o `timeUpdate` trata disso), e não de uma vez. Outro pedido de
-    // velocidade, ou outra faixa, cancela-o e aplica-se o novo como sempre.
-    const relaxe = relaxeRef.current;
-    if (relaxe) {
-      if (relaxe.sourceId === track.sourceId && relaxe.plano.para === arredondarRate(playbackRate)) {
-        registarNaVelocidade(`easing back to ${playbackRate} from ${relaxe.plano.de.toFixed(3)} in ${relaxe.plano.passos} steps (no jump after the mix)`);
+    // Uma passagem com o andamento acertado: a faixa fica à velocidade
+    // acertada até ao fim, sem escrita nenhuma. Outro pedido de velocidade,
+    // ou outra faixa, acaba-o e aplica-se o novo como sempre.
+    const acerto = acertoRef.current;
+    if (acerto) {
+      if (acertoEmVigor(acerto, track.sourceId, playbackRate, player.playbackRate)) {
+        registarNaVelocidade(`keeps the mixed speed ${acerto.taxa.toFixed(3)} until the track ends (own ${playbackRate}; no rate write, each one cuts the sound)`);
         return;
       }
-      relaxeRef.current = null;
+      acertoRef.current = null;
     }
     registarNaVelocidade(`engine applies ${playbackRate} | before: ${fotoDaVelocidade(player)}`);
     atualizarVelocidadeDoMotor(player,playbackRate,aplicarVelocidadeNativa);
@@ -1072,42 +1072,16 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   };
 
   /**
-   * Um passo do relaxe da velocidade, a cada `timeUpdate` do motor que toca.
-   * Cada passo é uma mudança de velocidade como a do utilizador (a nativa, por
-   * dentro, sem reavaliar o buffer). Se a loja já pediu outra velocidade, ou a
-   * faixa mudou, o relaxe acaba sem aplicar nada: quem mudou já a aplicou.
+   * A velocidade a que a faixa que toca se OUVE: a acertada de uma passagem
+   * do AutoMix, enquanto vale, senão a da loja. Os andamentos da passagem
+   * seguinte comparam-se com esta.
    */
-  const darPassoDoRelaxe = (currentTime: number) => {
-    const r = relaxeRef.current;
-    if (!r) return;
-    if (r.sourceId !== track.sourceId || arredondarRate(usePlayer.getState().playbackRate) !== r.plano.para) {
-      relaxeRef.current = null;
-      return;
-    }
-    if (r.desdeS == null) { r.desdeS = currentTime; return; }
-    const devidos = passosDevidos(r.plano, currentTime - r.desdeS);
-    if (devidos <= r.dados) return;
-    r.dados = devidos;
-    const taxa = velocidadeDoPasso(r.plano, devidos);
+  const velocidadeQueToca = () => {
+    const pedida = usePlayer.getState().playbackRate;
     try {
-      atualizarVelocidadeDoMotor(player, taxa, aplicarVelocidadeNativa);
-      registarNaVelocidade(`easing speed ${devidos}/${r.plano.passos} -> ${taxa}`);
+      return velocidadeQueSeOuve(acertoRef.current, track.sourceId, pedida, player.playbackRate);
     } catch {
-      // motor largado -- ignorar
-    }
-    if (devidos >= r.plano.passos) relaxeRef.current = null;
-  };
-
-  /** Acaba já o relaxe: põe a velocidade da faixa de uma vez (uma passagem nova vai começar). */
-  const acabarRelaxe = () => {
-    const r = relaxeRef.current;
-    if (!r) return;
-    relaxeRef.current = null;
-    try {
-      atualizarVelocidadeDoMotor(player, r.plano.para, aplicarVelocidadeNativa);
-      registarNaVelocidade(`easing speed cut short -> ${r.plano.para}`);
-    } catch {
-      // motor largado -- ignorar
+      return pedida;
     }
   };
 
@@ -1126,7 +1100,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
    */
   const comecarPassagem = (seguinte: Track) => {
     const st = usePlayer.getState();
-    acabarRelaxe();
+    // Com um acerto de andamento a valer, a que sai acaba à velocidade em que
+    // está: uma escrita agora cortava o fim dela (31/10).
     passagemRef.current = {
       sourceId: seguinte.sourceId,
       tetoSai: ceilingRef.current,
@@ -1170,10 +1145,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       const duracao = duracaoDeConfianca();
       const ficheiroSai = cachedAudioFile(de);
       const ficheiroEntra = cachedAudioFile(para);
-      const taxaSai = st.playbackRate;
+      // A que sai pode estar ainda à velocidade acertada da passagem anterior (31/10).
+      const taxaSai = velocidadeQueToca();
       const taxaEntra = seguinteRef.current?.rate ?? 1;
       const impedimento = impedimentoDoAutomix({
-        duracaoS: duracao, rateSai: st.playbackRate, rateEntra: seguinteRef.current?.rate ?? 1,
+        duracaoS: duracao, rateSai: taxaSai, rateEntra: taxaEntra,
         localSai: ficheiroSai.exists, localEntra: ficheiroEntra.exists, hls: !!streamRef.current?.isHls,
         comVelocidade: temAutomixComVelocidade,
       });
@@ -1241,7 +1217,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       ganhosEntra: seguinteRef.current?.ganhos,
       eqSai,
       eqAplicado: { sai: '', entra: '' },
-      ...(plano.semitons ? { dobra: { semitons: plano.semitons, taxa: st.playbackRate, passos: 0 } } : {}),
+      ...(plano.semitons ? { dobra: { semitons: plano.semitons, taxa: velocidadeQueToca(), passos: 0 } } : {}),
     };
     // Como no crossfade: daqui em diante quem avança a fila é o fim da passagem.
     endedRef.current = true;
@@ -1439,17 +1415,18 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       try {
         entra.volume = ceilingRef.current;
         registarNaVelocidade(`play at track start/crossfade (entra) | ${fotoDaVelocidade(entra)}`);
-        // Entrou com o andamento acertado (0,96 para 1): fica como está e volta
-        // aos poucos, em vez de um degrau na faixa que agora se ouve.
+        // Entrou com o andamento acertado (0,96 para 1): fica assim até ao fim
+        // dela, sem degrau nem passos na faixa que agora se ouve (31/10).
         const alvo = usePlayer.getState().playbackRate;
-        const relaxe = planoDoRelaxe(entra.playbackRate, arredondarRate(alvo));
-        if (relaxe && !useOuvirJuntos.getState().sessao && !ritmoDeQuemSigo()) {
-          relaxeRef.current = { sourceId: track.sourceId, plano: relaxe, dados: 0, desdeS: null };
+        const acerto = acertoQueFica(track.sourceId, entra.playbackRate, alvo);
+        if (acerto && !useOuvirJuntos.getState().sessao && !ritmoDeQuemSigo()) {
+          acertoRef.current = acerto;
+          registarNaVelocidade(`mixed in at ${acerto.taxa.toFixed(3)} (own ${alvo}): stays there until the track ends`);
           // Já está a tocar à velocidade acertada: nenhuma escrita (nem a de 0,001
           // que o arredondamento faria). Só se garante que toca.
           if (!entra.playing) entra.play();
         } else {
-          relaxeRef.current = null;
+          acertoRef.current = null;
           tocarNaVelocidade(entra,alvo,aplicarVelocidadeNativa);
         }
         // O `playingChange` do motor que entra ainda não tem ouvinte: só
@@ -2302,7 +2279,6 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     // onde é que a música ia.
     baterSessao();
     if (backend !== 'native' || nativeTrackIdRef.current !== track.sourceId) return;
-    darPassoDoRelaxe(currentTime);
     // Regista avanço real da posição (para o watchdog de stream preso).
     if (currentTime !== lastProgressRef.current.time) {
       lastProgressRef.current = { time: currentTime, at: Date.now() };

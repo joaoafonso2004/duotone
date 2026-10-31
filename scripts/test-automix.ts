@@ -318,7 +318,8 @@ t('a zona cinzenta: confiança 2,6 com o andamento estável já não cai no suav
 
 t('o leitor: a dobra em três passos, só com ela no plano, e a que sai volta à velocidade dela', () => {
   const v = readFileSync(new URL('../src/components/YouTubePlayerView.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
-  assert.match(v, /\.\.\.\(plano\.semitons \? \{ dobra: \{ semitons: plano\.semitons, taxa: st\.playbackRate, passos: 0 \} \} : \{\}\)/);
+  // A base da dobra é a velocidade que se ouve: pode ser a acertada da passagem anterior (31/10).
+  assert.match(v, /\.\.\.\(plano\.semitons \? \{ dobra: \{ semitons: plano\.semitons, taxa: velocidadeQueToca\(\), passos: 0 \} \} : \{\}\)/);
   assert.match(v, /if \(d && d\.passos < 3 && decorrido >= \(p\.duracaoDoFade \* \(d\.passos \+ 1\)\) \/ 4\) \{/);
   assert.match(v, /const taxa = d\.taxa \* Math\.pow\(2, \(d\.semitons \* d\.passos\) \/ 3 \/ 12\);/);
   // Um binário que não muda a velocidade sem cortes: não insiste.
@@ -355,7 +356,9 @@ t('o leitor: o AutoMix decide antes do crossfade, e uma pausa desfaz a entrada m
   // Só com o binário novo, e a 1x nas duas.
   assert.match(v, /if \(!st\.automix \|\| !temAutomixNativo\) return false;/);
   assert.match(v, /impedimentoDoAutomix\(\{/);
-  assert.match(v, /rateSai: st\.playbackRate, rateEntra: seguinteRef\.current\?\.rate/);
+  // A que sai à velocidade que se ouve (a acertada da passagem anterior, 31/10).
+  assert.match(v, /const taxaSai = velocidadeQueToca\(\);/);
+  assert.match(v, /rateSai: taxaSai, rateEntra: taxaEntra/);
   // A pausa desfaz uma entrada do AutoMix (o instante marcado deixava de chegar a horas).
   assert.match(v, /if \(passagemRef\.current\?\.inicioS != null\) \{\n\s*abortarPassagem\(\);/);
   // Agendada depois de desfeita: cala-se, senão entrava sozinha.
@@ -435,8 +438,9 @@ t('o Swift: a que entra arranca à velocidade dela, e a que sai pode ir a qualqu
 
 t('o leitor: a velocidade de cada uma e o EQ de cada uma, por baixo dos cortes', () => {
   const v = readFileSync(new URL('../src/components/YouTubePlayerView.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
-  // A velocidade: a da que toca e a que a seguinte vai ter, no plano e no agendamento.
-  assert.match(v, /const taxaSai = st\.playbackRate;\n\s+const taxaEntra = seguinteRef\.current\?\.rate \?\? 1;/);
+  // A velocidade: a que se ouve na que toca (a acertada da passagem anterior,
+  // 31/10) e a que a seguinte vai ter, no plano e no agendamento.
+  assert.match(v, /const taxaSai = velocidadeQueToca\(\);\n\s+const taxaEntra = seguinteRef\.current\?\.rate \?\? 1;/);
   assert.match(v, /comVelocidade: temAutomixComVelocidade,/);
   assert.match(v, /taxaSai,\n\s+taxaEntra,\n\s+podeAcertar: temAutomixComVelocidade,\n\s+\}\);/);
   // A que entra arranca à velocidade dela, acertada ao andamento da que sai (26/10).

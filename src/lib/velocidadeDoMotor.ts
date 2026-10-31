@@ -90,46 +90,59 @@ export function tocarNaVelocidade(player: MotorComVelocidade, rate: number, nati
 }
 
 /**
- * Largar o acerto de andamento do AutoMix aos poucos (30/10).
+ * O acerto de andamento do AutoMix fica até ao fim da faixa (31/10).
  *
  * Numa passagem "na batida" a que entra arranca à velocidade dela × a razão dos
- * andamentos (até 4 %: o fader de pitch de um DJ). No fim a loja muda de faixa
- * e o motor punha logo a velocidade dela: um DEGRAU de até 4 % (0,7 de semitom
- * com o `.varispeed`) NA FAIXA QUE AGORA SE OUVE -- a que sai já estava calada,
- * e foi aí que a nota "com a que sai já calada" enganou. O relatório de 30/10
- * mostra-o ("expo-video changed its rate 0.96 -> 1", "0.972 -> 0.95") e o João
- * reportou "mudanças de velocidade" e cortes nas transições. Agora a velocidade
- * volta à dela em poucos passos de ~1 %, ao ritmo do `timeUpdate` (e não de um
- * temporizador: com o ecrã bloqueado o iOS suspende-os).
+ * andamentos (até 4 %: o fader de pitch de um DJ). Duas maneiras de o largar já
+ * falharam, as duas por escreverem a velocidade da faixa que AGORA se ouve:
  *
- * Poucos passos (2 a 5): cada mudança de velocidade num AVPlayer pode dar um
- * corte curto (30/9), e a nativa já a aplica por dentro, sem reavaliar o buffer.
+ * - de uma vez (até à 5.4.6): um degrau de até 0,7 de semitom com o
+ *   `.varispeed` ("expo-video changed its rate 0.96 -> 1" no relatório de 30/10);
+ * - aos poucos (o relaxe da 5.4.7: 2 a 5 passos de ~1 % em 10 s): um corte
+ *   por passo. O João, a 31/10: a música seguinte "corta 4 ou 5 vezes e depois
+ *   continua normal". Cada escrita de velocidade num AVPlayer a tocar corta
+ *   (30/9), mesmo pela nativa.
+ *
+ * Por isso não se escreve nada: a faixa toca até ao fim à velocidade acertada,
+ * como um DJ que deixa o fader onde ficou. A velocidade dela volta na próxima
+ * paragem natural, onde uma escrita não se ouve: a faixa seguinte (que arranca
+ * à dela), um play depois de uma pausa, ou outro pedido de velocidade.
  */
-export const RELAXE_DURACAO_S = 10;
-/** Abaixo disto (0,4 %) não se ouve: muda-se de uma vez, como sempre. */
-export const RELAXE_MINIMO = 0.004;
-export const RELAXE_PASSO_ALVO = 0.01;
-export const RELAXE_PASSOS_MAXIMOS = 5;
+/** Abaixo disto (0,4 %) não se ouve: aplica-se a velocidade dela, como sempre. */
+export const ACERTO_MINIMO = 0.004;
+/** A folga para comparar com o motor: o AVPlayer guarda a taxa em Float. */
+const FOLGA_DO_MOTOR = 0.002;
 
-export interface RelaxeDaVelocidade { de: number; para: number; passos: number; duracaoS: number }
-
-/** O plano para voltar de `de` (a velocidade acertada) a `para` (a da faixa), ou null se não vale a pena. */
-export function planoDoRelaxe(de: number, para: number): RelaxeDaVelocidade | null {
-  if (!Number.isFinite(de) || !Number.isFinite(para) || de <= 0 || para <= 0) return null;
-  const delta = Math.abs(para - de);
-  if (delta <= RELAXE_MINIMO) return null;
-  const passos = Math.min(RELAXE_PASSOS_MAXIMOS, Math.max(2, Math.ceil(delta / RELAXE_PASSO_ALVO)));
-  return { de, para, passos, duracaoS: RELAXE_DURACAO_S };
+export interface AcertoQueFica {
+  sourceId: string;
+  /** A velocidade a que o motor toca (a acertada), tal como ele a diz. */
+  taxa: number;
+  /** A velocidade da faixa (a da loja), na grelha do motor. */
+  dela: number;
 }
 
-/** A velocidade do passo `k` (1 a `passos`), na grelha do motor; o último é exatamente o destino. */
-export function velocidadeDoPasso(p: RelaxeDaVelocidade, k: number): number {
-  if (k >= p.passos) return arredondar(p.para);
-  return arredondar(p.de + ((p.para - p.de) * Math.max(0, k)) / p.passos);
+/** O acerto a manter quando `sourceId` passa a ser a que se ouve, ou null se não há acerto que se ouça. */
+export function acertoQueFica(sourceId: string, taxaDoMotor: number, taxaDela: number): AcertoQueFica | null {
+  if (!Number.isFinite(taxaDoMotor) || !Number.isFinite(taxaDela) || taxaDoMotor <= 0 || taxaDela <= 0) return null;
+  if (Math.abs(taxaDoMotor - taxaDela) <= ACERTO_MINIMO) return null;
+  return { sourceId, taxa: taxaDoMotor, dela: arredondar(taxaDela) };
 }
 
-/** Quantos passos já devem estar dados, `decorridoS` depois de a faixa passar a ser a que se ouve. */
-export function passosDevidos(p: RelaxeDaVelocidade, decorridoS: number): number {
-  if (!Number.isFinite(decorridoS) || decorridoS <= 0) return 0;
-  return Math.min(p.passos, Math.floor(decorridoS / (p.duracaoS / p.passos)));
+/**
+ * O acerto ainda vale? Só para a mesma faixa, o mesmo pedido de velocidade, e
+ * com o motor ainda à velocidade acertada: um play depois de uma pausa escreve
+ * a dela, e a partir daí é a dela que se ouve.
+ */
+export function acertoEmVigor(a: AcertoQueFica | null, sourceId: string, taxaPedida: number, taxaDoMotor: number): a is AcertoQueFica {
+  return !!a && a.sourceId === sourceId && a.dela === arredondar(taxaPedida)
+    && Number.isFinite(taxaDoMotor) && Math.abs(taxaDoMotor - a.taxa) <= FOLGA_DO_MOTOR;
+}
+
+/**
+ * A velocidade a que a faixa se OUVE: a acertada enquanto o acerto vale, senão
+ * a pedida. É a que conta para planear a passagem seguinte (os andamentos
+ * comparam-se como se ouvem) e para a dobra da que sai.
+ */
+export function velocidadeQueSeOuve(a: AcertoQueFica | null, sourceId: string, taxaPedida: number, taxaDoMotor: number): number {
+  return acertoEmVigor(a, sourceId, taxaPedida, taxaDoMotor) ? a.taxa : taxaPedida;
 }
