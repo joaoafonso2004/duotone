@@ -80,8 +80,9 @@ type RecoveryRun = {
 // num ciclo a alternar eternamente entre dois vídeos indisponíveis.
 const recoveryByVideoId = new Map<string, RecoveryRun>();
 
-function playbackNotice(message: string) {
-  window.dispatchEvent(new CustomEvent('duotone:playback-notice', { detail: message }));
+/** O aviso vai com o tipo (A1, 31/10): quase todos são de uma música que falhou. */
+function playbackNotice(message: string, tipo: 'erro' | 'info' | 'feito' = 'erro') {
+  window.dispatchEvent(new CustomEvent('duotone:playback-notice', { detail: { texto: message, tipo } }));
 }
 
 async function recoverUnavailableVideo(track: Track, tipo: TipoFalha) {
@@ -139,7 +140,7 @@ async function recoverUnavailableVideo(track: Track, tipo: TipoFalha) {
       recoveryByVideoId.set(alternative.sourceId, run);
       if (usePlayer.getState().replaceUnavailableTrack(track.sourceId, alternative)) {
         void rememberPlaybackAlternative(track.sourceId, alternative.sourceId);
-        playbackNotice('Found a playable copy and saved it for next time.');
+        playbackNotice('Found a playable copy and saved it for next time.', 'feito');
         return;
       }
       // A faixa mudou enquanto a pesquisa decorria; não saltar a nova.

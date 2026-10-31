@@ -17,6 +17,7 @@ import { COR } from '../tokens.web';
 import { styles } from '../estilos.web';
 import { faixasEmCache, lerFaixas, ouvirFaixas } from '../../lib/cacheDaBiblioteca';
 
+import { mensagemDeErro } from '../../lib/mensagemDeErro';
 /**
  * A cache subiu para `lib/cacheDaBiblioteca.ts`.
  *
@@ -71,7 +72,7 @@ export function useLibraryData(loader: () => Promise<Track[]> = getLibrary) {
       void garantirCatalogo(faixas);
       return true;
     } catch (e: any) {
-      setError(e?.message || 'Could not load your library.');
+      setError(mensagemDeErro(e, "Couldn't load your library."));
       return false;
     } finally {
       setLoading(false); setAReler(false);

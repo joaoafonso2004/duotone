@@ -4,7 +4,7 @@ import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { useSeguirAmigo } from '../state/seguirAmigo';
 import { esperaDaSaida, fimDaFila, inicioDoGrupoDaRadio } from '../lib/leitorDoPc';
 import { trackKey } from '../lib/shuffle';
-import { avisarRemocao, contarMusicas } from '../lib/avisoDeRemocao';
+import { avisarErro, avisarRemocao, contarMusicas } from '../lib/avisoDeRemocao';
 import { pertoDoFim } from '../lib/grelhaQueCresce';
 import type { CommonPageProps } from './rotas';
 import type { Track } from '../types';
@@ -112,7 +112,7 @@ export function useFilaDoLeitor({ more, notify }: Pick<CommonPageProps, 'more' |
       notify(`Saved “${nome.trim()}” · ${faixas.length} ${faixas.length === 1 ? 'song' : 'songs'}`);
       setAGuardar(null);
     } catch (e) {
-      notify(mensagemDeErro(e, 'Could not save the queue.'));
+      avisarErro(mensagemDeErro(e, "Couldn't save the queue."));
     } finally {
       setAGravar(false);
     }

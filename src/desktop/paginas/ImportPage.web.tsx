@@ -15,6 +15,8 @@ import { styles } from '../estilos.web';
 import { BotaoVoltar, Button, ContentScroll, Field, Page } from '../ui.web';
 import { COR } from '../tokens.web';
 
+import { avisarErro, avisarInfo } from '../../lib/avisoDeRemocao';
+import { mensagemDeErro } from '../../lib/mensagemDeErro';
 export function ImportPage({ back, notify }: { back: () => void; notify: (s: string) => void }) {
   const [url, setUrl] = useState(''); const [loading, setLoading] = useState(false); const [preview, setPreview] = useState<any>(null); const [playlists, setPlaylists] = useState<Playlist[]>([]); const [target, setTarget] = useState<string>('');
   const [newPlName, setNewPlName] = useState(''); const [creatingNew, setCreatingNew] = useState(false);
@@ -22,7 +24,7 @@ export function ImportPage({ back, notify }: { back: () => void; notify: (s: str
   const refreshPlaylists = () => { void usePlaylists.getState().carregar(true).then(() => { const p = usePlaylists.getState().items; setPlaylists(p); if (p.length && !target) setTarget(p[0].id); }); };
   useEffect(() => { refreshPlaylists(); }, []);
   // Um link do Spotify vai para a importação em segundo plano (state/importacoes.ts).
-  const inspect = async () => { if (lerLink(url)?.tipo === 'spotify') { useImportacoes.getState().importar(url); notify('Importing in the background. You can keep listening.'); back(); return; } setLoading(true); try { setPreview(await fetchYouTubePlaylist(url)); } catch (e: any) { notify(e?.message || 'Could not read playlist.'); } finally { setLoading(false); } };
+  const inspect = async () => { if (lerLink(url)?.tipo === 'spotify') { useImportacoes.getState().importar(url); avisarInfo('Importing in the background. You can keep listening.'); back(); return; } setLoading(true); try { setPreview(await fetchYouTubePlaylist(url)); } catch (e: any) { avisarErro(mensagemDeErro(e, "Couldn't read playlist.")); } finally { setLoading(false); } };
   const runImport = async () => {
     if (!preview) return;
     setLoading(true);
@@ -37,7 +39,7 @@ export function ImportPage({ back, notify }: { back: () => void; notify: (s: str
       notify(`Imported ${preview.items.length} tracks.`);
       back();
     } catch (e: any) {
-      notify(e?.message || 'Import failed.');
+      avisarErro(mensagemDeErro(e, 'Import failed.'));
     } finally {
       setLoading(false);
     }

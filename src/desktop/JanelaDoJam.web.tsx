@@ -12,6 +12,7 @@ import { COR, ESP, FONT, RAIO, TIPO } from './tokens.web';
 import { efeitoDaAutoFila } from '../lib/jam';
 import { useMenuDoAmigoNoPc } from '../components/MenuDoAmigoNoPc';
 
+import { avisarErro } from '../lib/avisoDeRemocao';
 /**
  * O Jam do Windows.
  *
@@ -64,7 +65,7 @@ export function JanelaDoJam({ open, onClose, notify }: {
       await abandonar();
       onClose();
     } catch {
-      notify(acabaComigo ? 'Could not end the Jam.' : 'Could not leave the Jam.');
+      avisarErro(acabaComigo ? "Couldn't end the Jam." : "Couldn't leave the Jam.");
     } finally {
       setBusy(false);
     }
@@ -112,11 +113,11 @@ export function JanelaDoJam({ open, onClose, notify }: {
         <Text style={styles.section}>CONTROL</Text>
         <View style={styles.setting}>
           <View style={{ flex: 1 }}><Text style={styles.title}>Guests can control</Text><Text style={styles.meta}>Play, pause and skip. Everyone can always add songs.</Text></View>
-          <Switch value={!!sessao?.convidadosControlam} onValueChange={(value) => void darControlo(value).catch(() => notify('Could not change Jam control.'))} />
+          <Switch value={!!sessao?.convidadosControlam} onValueChange={(value) => void darControlo(value).catch(() => avisarErro("Couldn't change Jam control."))} />
         </View>
         <View style={[styles.setting, !podeAlternarAux && { opacity: .55 }]}>
           <View style={{ flex: 1 }}><Text style={styles.title}>Pass the aux</Text><Text style={styles.meta}>{podeAlternarAux ? 'One song each, in turn.' : 'Another person needs to join first.'}</Text></View>
-          <Switch value={!!sessao?.auxDe} disabled={!podeAlternarAux} onValueChange={(value) => void rodarAux(value).catch(() => notify('Could not pass the aux.'))} />
+          <Switch value={!!sessao?.auxDe} disabled={!podeAlternarAux} onValueChange={(value) => void rodarAux(value).catch(() => avisarErro("Couldn't pass the aux."))} />
         </View>
       </> : null}
 
@@ -132,7 +133,7 @@ export function JanelaDoJam({ open, onClose, notify }: {
                 setConvidados((actual) => [...actual, amigo.friendId]);
                 void convidarMais([amigo.friendId]).catch(() => {
                   setConvidados((actual) => actual.filter((id) => id !== amigo.friendId));
-                  notify(`Could not invite ${amigo.name}.`);
+                  avisarErro(`Couldn't invite ${amigo.name}.`);
                 });
               }}>{enviado ? 'Sent' : 'Invite'}</Button>
             </View>;
@@ -144,7 +145,7 @@ export function JanelaDoJam({ open, onClose, notify }: {
       {fila.length ? <View style={styles.list}>{fila.map((item) => <View key={item.id} style={styles.row}>
         <Artwork track={item.track} size={38} />
         <View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={styles.title}>{tituloDaFaixa(item.track)}</Text><Text numberOfLines={1} style={styles.meta}>{displayArtist(item.track)} · {nomeDe(item.postoPor)}</Text></View>
-        {(anfitriao || item.postoPor === euId) ? <Button secondary onPress={() => void retirarSugestao(item.id).catch(() => notify('Could not remove this song.'))}>Remove</Button> : null}
+        {(anfitriao || item.postoPor === euId) ? <Button secondary onPress={() => void retirarSugestao(item.id).catch(() => avisarErro("Couldn't remove this song."))}>Remove</Button> : null}
       </View>)}</View> : <Text style={styles.empty}>Choose any song in Duotone to add it to the shared queue.</Text>}
     </ScrollView>
 

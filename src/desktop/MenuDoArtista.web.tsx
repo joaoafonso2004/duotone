@@ -19,6 +19,7 @@ import type { Track } from '../types';
 import { MenuDeContexto, pontoDoEvento, type LinhaDoMenu, type PontoNoEcra } from './MenuDeContexto.web';
 import { COR } from './tokens.web';
 
+import { avisarErro } from '../lib/avisoDeRemocao';
 /** Quem é o artista do menu. `canal`: o da pesquisa, para abrir o certo (homónimos). */
 export type ArtistaDoMenu = { nome: string; canal?: string | null; capa?: string | null };
 
@@ -86,7 +87,7 @@ export function MenuDoArtista({ artista, rato, notify, aoFechar, extras }: {
       irPara({ tipo: 'artista', nome });
     } else if (id === 'mix') {
       const ok = await tocarMixDoArtista(nome, { canal: canal ?? null, faixas: tuas }).catch(() => false);
-      if (!ok) notify('Could not load the mix.');
+      if (!ok) avisarErro("Couldn't load the mix.");
     } else if (id === 'baralhar') {
       const leitor = usePlayer.getState();
       await leitor.playShuffled(tuas, leitor.shuffleInteligente, { tipo: 'artista', nome });

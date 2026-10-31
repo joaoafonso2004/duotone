@@ -4,6 +4,7 @@ import { usePlaylists } from '../state/playlists';
 import type { Playlist, Track } from '../types';
 import { invalidarCacheDaPlaylist } from './paginas/PlaylistPages.web';
 
+import { avisarErro, avisarInfo } from '../lib/avisoDeRemocao';
 /**
  * O que o painel "Add to playlist ›" faz quando se escolhe (24/10,
  * `EscolherPlaylist.web.tsx`): o menu de uma música e o de uma mensagem com
@@ -17,13 +18,13 @@ export function mudouAPlaylist(id: string): void {
 
 export async function porNaPlaylist(t: Track, p: Playlist, jaLaEsta: boolean, notify: (texto: string) => void): Promise<void> {
   // O servidor não a punha duas vezes; dizer que já lá está é a resposta certa.
-  if (jaLaEsta) { notify(`Already in ${p.name}.`); return; }
+  if (jaLaEsta) { avisarInfo(`Already in ${p.name}.`); return; }
   try {
     await addTracksToPlaylist(p.id, [t]);
     mudouAPlaylist(p.id);
     notify(`Added to ${p.name}.`);
   } catch (e) {
-    notify(mensagemDeErro(e, 'Could not add to the playlist.'));
+    avisarErro(mensagemDeErro(e, "Couldn't add to the playlist."));
   }
 }
 
@@ -36,6 +37,6 @@ export async function criarEPor(t: Track, nome: string, notify: (texto: string) 
     mudouAPlaylist(p.id);
     notify(`Added to ${nome}.`);
   } catch (e) {
-    notify(mensagemDeErro(e, 'Could not create the playlist.'));
+    avisarErro(mensagemDeErro(e, "Couldn't create the playlist."));
   }
 }

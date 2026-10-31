@@ -73,6 +73,7 @@ import { useLibraryData } from './comum.web';
 import { contextoDaMistura, contextoDaPrateleira, contextoParaAnalytics, notaDaPrateleira } from '../../lib/contextoDaDescoberta';
 import { registar } from '../../lib/eventos';
 
+import { avisarErro } from '../../lib/avisoDeRemocao';
 /** As prateleiras menos usadas ficam atrás de um botão, e a escolha fica entre visitas (30/10). */
 let outrasPrateleirasAbertas = false;
 
@@ -190,7 +191,7 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
         window.dispatchEvent(new CustomEvent('duotone:refresh-playlists'));
       }
     } catch (e) {
-      notify(mensagemDeErro(e, acao === 'guardar' ? "Couldn't save this mix." : "Couldn't play this mix."));
+      avisarErro(mensagemDeErro(e, acao === 'guardar' ? "Couldn't save this mix." : "Couldn't play this mix."));
     }
   };
   const lancamentos = useNovosLancamentos((s) => s.itens);
@@ -205,7 +206,7 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
     setAAbrirMix(true);
     const ok = await tocarMixDoArtista(a.nome, { canal: a.canal }).catch(() => false);
     setAAbrirMix(false);
-    if (!ok) notify('Could not load the mix.');
+    if (!ok) avisarErro("Couldn't load the mix.");
   };
   // As prateleiras menos usadas, atrás de um botão (30/10): o que têm e quantas são.
   const outrasPrateleiras = resumoDasOutras([
@@ -564,7 +565,7 @@ export function SongsPage(props: CommonPageProps) {
       <IconButton name="refresh" label="Refresh library" active={data.aReler} onPress={() => {
         // Com a lista no ecrã, uma falha não a tira: só se avisa.
         const comLista = data.tracks.length > 0;
-        void data.refresh().then((ok) => { if (!ok && comLista) props.notify('Could not refresh your liked songs.'); });
+        void data.refresh().then((ok) => { if (!ok && comLista) avisarErro("Couldn't refresh your liked songs."); });
       }} />
     </View>
     <ContentScroll scrollKey="songs">{data.loading ? <View style={{ height: 350 }}><Loading /></View> : data.semLista ? <Empty icon="alert-circle-outline" title="Couldn't load your library" body="Check your connection. Nothing was removed: your songs are still saved." action={<Button onPress={() => void data.refresh()}>Try again</Button>} /> : <TrackTable plain saltoParaAtual listKey={`songs:${ordem ?? 'recent'}`} ordenacao={{ modo: ordem, aoMudar: setOrdem }} tracks={filteredTracks} onPlay={(t) => props.tocarMusica(t, filteredTracks, undefined, { tipo: 'guardadas', nome: 'Liked Songs' })} onMore={props.more} empty={query ? <Empty icon="search-outline" title="No results found" body={`No liked songs match "${query}"`} /> : <Empty icon="heart-outline" title="No liked songs yet" body="Tap the heart on a track and it will appear here." />} />}</ContentScroll>
@@ -843,7 +844,7 @@ export function ArtistPage({ name, back, corNaJanela = false, ...props }: { name
       setOutras(resultados.filter((t) => chaveDeArtista(displayArtist(t)) === alvo));
       setDetalhesDaPesquisa(detalhes ?? {});
     }).catch((e: any) => {
-      if (!cancelado) props.notify(e?.message || 'Could not discover more from this artist.');
+      if (!cancelado) avisarErro(mensagemDeErro(e, "Couldn't discover more from this artist."));
     }).finally(() => {
       if (!cancelado) setADescobrir(false);
     });
@@ -920,7 +921,7 @@ export function ArtistPage({ name, back, corNaJanela = false, ...props }: { name
     setAAbrirMix(true);
     const ok = await tocarMixDoArtista(name, { mix: pagina.mix, musicas: pagina.musicas }).catch(() => false);
     setAAbrirMix(false);
-    if (!ok) props.notify('Could not load the mix.');
+    if (!ok) avisarErro("Couldn't load the mix.");
   };
   // O Play toca as músicas da página toda, e não só as que se veem.
   const faixasDaAba = musicas;
@@ -1104,7 +1105,7 @@ function useDialogoDoAlbum(props: CommonPageProps) {
       setFaixasDoAlbum(faixas);
     } catch (e: any) {
       if (pedido !== pedidoDeAlbum.current) return;
-      props.notify(e?.message || 'Could not load this album.');
+      avisarErro(mensagemDeErro(e, "Couldn't load this album."));
       setAlbumAberto(null);
     } finally {
       if (pedido === pedidoDeAlbum.current) setACarregarAlbum(false);
@@ -1121,7 +1122,7 @@ function useDialogoDoAlbum(props: CommonPageProps) {
       window.dispatchEvent(new CustomEvent('duotone:refresh-playlists'));
       setAlbumAberto(null);
     } catch (e: any) {
-      props.notify(e?.message || 'Could not save this album.');
+      avisarErro(mensagemDeErro(e, "Couldn't save this album."));
     } finally {
       setAGuardarAlbum(false);
     }
@@ -1167,19 +1168,19 @@ function useDialogoDoAlbum(props: CommonPageProps) {
       if (modo === 'baralhar') await leitor.playShuffled(faixas, leitor.shuffleInteligente, origem);
       else props.play(faixas[0], faixas, undefined, origem);
     } catch (e) {
-      props.notify(mensagemDeErro(e, "Couldn't load this album."));
+      avisarErro(mensagemDeErro(e, "Couldn't load this album."));
     }
   };
   const guardarAlbumSemAbrir = async (album: YtRecommendedPlaylist) => {
     try {
       const faixas = await faixasDe(album);
-      if (!faixas.length) { props.notify("Couldn't find the songs of this album."); return; }
+      if (!faixas.length) { avisarErro("Couldn't find the songs of this album."); return; }
       const playlist = await createPlaylist(album.title);
       await addTracksToPlaylist(playlist.id, faixas);
       props.notify(`Saved “${album.title}” with ${faixas.length} tracks.`);
       window.dispatchEvent(new CustomEvent('duotone:refresh-playlists'));
     } catch (e) {
-      props.notify(mensagemDeErro(e, "Couldn't save this album."));
+      avisarErro(mensagemDeErro(e, "Couldn't save this album."));
     }
   };
   return { abrirAlbum, fecharAlbum, dialogoDoAlbum, albumSemAbrir, guardarAlbumSemAbrir };

@@ -16,7 +16,7 @@ import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { removeTrackFromPlaylist } from '../api/playlists';
 import { EscolherPlaylist } from '../desktop/EscolherPlaylist.web';
 import { criarEPor, porNaPlaylist } from '../desktop/porNaPlaylist.web';
-import { avisos, type AvisoDeRemocao } from '../lib/avisoDeRemocao';
+import { avisarErro, avisarInfo, avisos, type AvisoDeRemocao, type TipoDeAviso } from '../lib/avisoDeRemocao';
 import { CamadaDoArrasto } from '../desktop/Arrastar.web';
 import { PreEscutaDoRefrao } from '../desktop/PreEscutaDoRefrao.web';
 import { AvisoComDesfazer } from '../desktop/AvisoComDesfazer.web';
@@ -85,6 +85,7 @@ import { type OrigemDoMenu, type Route, type ShareTarget } from '../desktop/rota
 import { rotaNoPc, type Destino } from '../lib/destinos';
 import { DestinosProvider } from './destinos';
 import { AVISO_DO_NAO_INTERESSA, eSugestao, naoInteressa } from '../state/naoInteressa';
+import { mensagemDeErro } from '../lib/mensagemDeErro';
 const V = View as any;
 
 function AuthDesktop() {
@@ -113,7 +114,8 @@ function DesktopShell() {
   // local — ficava eternamente em "Loading · 0%" e todos os toques passavam a
   // ser interpretados como sugestões para o Jam.
   useSincroniaDaSessao();
-  const [route, setRoute] = useState<Route>({ name: 'search' }); const history = useRef<Route[]>([]); const [toast, setToast] = useState('');
+  const [route, setRoute] = useState<Route>({ name: 'search' }); const history = useRef<Route[]>([]); const [toast, setToastComTipo] = useState<{ texto: string; tipo: TipoDeAviso } | null>(null);
+  const setToast = useCallback((texto: string, tipo: TipoDeAviso = 'feito') => setToastComTipo(texto ? { texto, tipo } : null), []);
   // Só o nome da página: os parâmetros (ids, nomes de artistas) são conteúdo.
   useEffect(() => { anotarEcra(route.name); }, [route.name]);
   // Uma rota nova acabou de entrar: se havia uma viagem a meio (o mosaico de uma playlist), cumpre-se (30/10).
@@ -200,9 +202,9 @@ function DesktopShell() {
     return ouvir((segredo)=>{
       const sessao=sessaoDoSegredoDiscord(segredo);
       registar('discord_join_recebido', { valido: !!sessao });
-      if(!sessao){setToast('This Discord invite is not valid.');return;}
+      if(!sessao){setToast('This Discord invite is not valid.', 'erro');return;}
       const actual=useOuvirJuntos.getState();
-      if(actual.sessao?.id===sessao){setToast('You are already in this Jam.');return;}
+      if(actual.sessao?.id===sessao){setToast('You are already in this Jam.', 'info');return;}
       if(aEntrar)return;
       aEntrar=true;
       void (async()=>{
@@ -214,7 +216,7 @@ function DesktopShell() {
           await useOuvirJuntos.getState().juntarSe(sessao, 'discord');
           setToast('Joined the Jam from Discord.');
         }catch{
-          setToast('Could not join this Jam. You must be Duotone friends and the Jam must still be open.');
+          setToast("Couldn't join this Jam. You must be Duotone friends and the Jam must still be open.", 'erro');
         }finally{aEntrar=false;}
       })();
     });
@@ -300,7 +302,7 @@ function DesktopShell() {
       window.dispatchEvent(new Event('duotone:refresh-library'));
     } catch (e: any) {
       useSaved.getState().markSaved(faixa, tirar);
-      notify(e?.message || 'Could not update library.');
+      avisarErro(mensagemDeErro(e, "Couldn't update library."));
     } finally {
       aGuardarAtual.current = false;
     }
@@ -366,7 +368,7 @@ function DesktopShell() {
     window.addEventListener('mousedown', engolir);
     return () => { window.removeEventListener('mouseup', aoLargar); window.removeEventListener('mousedown', engolir); };
   }, [voltarPeloRato, avancar]);
-  const notify = useCallback((s: string) => setToast(s), []);
+  const notify = useCallback((s: string) => setToast(s), [setToast]);
   // Os avisos dos componentes partilhados (avisarFeito/avisarErro/avisarInfo,
   // lib/avisoDeRemocao.ts) só tinham quem os mostrasse no iPhone: no PC
   // calavam-se (o "Invited … to listen" do Social, 24/10). Vão para o toast.
@@ -377,15 +379,15 @@ function DesktopShell() {
     const a = avisos.atual();
     if (a?.desfazer) { setToast(''); setAvisoComDesfazer(a); return; }
     setAvisoComDesfazer(null);
-    if (a) setToast(a.detalhe ? `${a.texto} · ${a.detalhe}` : a.texto);
+    if (a) setToast(a.detalhe ? `${a.texto} · ${a.detalhe}` : a.texto, a.tipo ?? 'feito');
   }), []);
   // Os avisos da Jam (29/9): no iPhone aparecem na barra da sessão; o PC não
   // tinha onde os mostrar -- "You are now the Jam host", "Added · ...", a Jam
   // que acabou. Vão para o mesmo toast do resto da app.
   useEffect(() => useOuvirJuntos.subscribe((agora, antes) => {
-    if (agora.aviso && agora.aviso !== antes.aviso) setToast(agora.aviso);
+    if (agora.aviso && agora.aviso !== antes.aviso) setToast(agora.aviso, 'info');
     if (agora.acabouSemAviso && !antes.acabouSemAviso) {
-      setToast('The Jam ended.');
+      setToast('The Jam ended.', 'info');
       useOuvirJuntos.getState().limparAviso();
     }
   }), []);
@@ -394,11 +396,11 @@ function DesktopShell() {
     const juntos = useOuvirJuntos.getState();
     if (!juntos.sessao) {
       const track = usePlayer.getState().current;
-      if (!track) { notify('Play a song before starting a Jam.'); return; }
+      if (!track) { avisarInfo('Play a song before starting a Jam.'); return; }
       try {
         await juntos.abrir(track, []);
       } catch {
-        notify('Could not start the Jam. Check your connection and try again.');
+        avisarErro("Couldn't start the Jam. Check your connection and try again.");
         return;
       }
     }
@@ -412,7 +414,11 @@ function DesktopShell() {
   }, []);
 
   useEffect(() => {
-    const onPlaybackNotice = (event: any) => notify(String(event.detail || 'Playback changed.'));
+    const onPlaybackNotice = (event: any) => {
+      const d = event.detail;
+      if (typeof d === 'string') setToast(d || 'Playback changed.', 'info');
+      else setToast(String(d?.texto || 'Playback changed.'), d?.tipo ?? 'erro');
+    };
     window.addEventListener('duotone:playback-notice', onPlaybackNotice);
     return () => window.removeEventListener('duotone:playback-notice', onPlaybackNotice);
   }, [notify]);
@@ -601,7 +607,7 @@ function DesktopShell() {
       window.dispatchEvent(new Event('duotone:refresh-library'));
     } catch (e: any) {
       useSaved.getState().markSaved(trackMenu, tirar);
-      notify(e?.message || 'Could not update library.');
+      avisarErro(mensagemDeErro(e, "Couldn't update library."));
     }
   };
 
@@ -613,7 +619,7 @@ function DesktopShell() {
       notify('Removed from playlist.');
       window.dispatchEvent(new CustomEvent('duotone:refresh-playlist'));
     } catch (e: any) {
-      notify(e?.message || 'Could not remove track.');
+      avisarErro(mensagemDeErro(e, "Couldn't remove track."));
     }
   };
 
@@ -664,7 +670,7 @@ function DesktopShell() {
       case 'recomendacoes': setTrackMenuOpen(false); setRecommendationTrack(t); setRecommendationContext(trackMenuContext); return;
       case 'nao-interessa':
         setTrackMenuOpen(false);
-        void naoInteressa(t).then(() => notify(AVISO_DO_NAO_INTERESSA)).catch((e: any) => notify(e?.message || 'Could not save this preference.'));
+        void naoInteressa(t).then(() => notify(AVISO_DO_NAO_INTERESSA)).catch((e: any) => avisarErro(mensagemDeErro(e, "Couldn't save this preference.")));
         return;
       case 'tirar-da-playlist': void removeFromCurrentPlaylist(); return;
       case 'tirar-da-fila': {
@@ -746,7 +752,7 @@ function DesktopShell() {
   // O nome da página que está atrás (5/10, lib/voltarPara.ts). Com o Now
   // Playing por cima, o voltar fecha-o e mostra a página de baixo.
   const rotuloDoVoltar = nomeDaRota(nowPlayingOpen ? route : history.current[history.current.length - 1]);
-  return <DestinosProvider value={irPara}><RotuloDoVoltar.Provider value={rotuloDoVoltar}><View style={[styles.root, { backgroundColor: 'transparent' }]}>{corNaJanela && <FundoDaCapa onde="janela" aApagar={aApagarACor} uri={currentTrack?.artworkUrl ?? null} />}{corDoArtistaMontada && fotoDaCor && <FundoDaCapa onde="janela" aApagar={corDoArtistaApaga} uri={fotoNoTamanho(fotoDaCor, 250)} />}<ThemeCssSync panelOpacity={panelOpacity}/><TitleBar comPainel /><V style={[styles.main, (corNaJanela && !aApagarACor) || (corDoArtistaMontada && !corDoArtistaApaga) ? { backgroundColor: 'transparent' } : bgStyle]} {...(aApagarACor || corDoArtistaApaga ? marcar('main-a-voltar') : {})}><View style={styles.sidebar}><Sidebar route={rotaDaLateral} navigate={navigate} notify={notify} voltar={back} /><SeparadorDaLateral /></View><PainelDoLeitor more={more} notify={notify}><View style={styles.content}>{/* Com a cor na janela o painel do leitor é transparente: a página de baixo esconde-se (continua montada, com o scroll onde estava). */}<View style={[{ flex: 1, minHeight: 0 }, nowPlayingOpen && corNaJanela && ({ visibility: 'hidden' } as any)]}><TransicaoDePagina chave={JSON.stringify(route)} aSair={aMudarDePagina} volta={chegouDeVolta}><BarreiraDeErros onde={`pagina:${route.name}`} chave={JSON.stringify(route)}>{page}</BarreiraDeErros></TransicaoDePagina></View>{saidaDoLeitor.montado&&<View pointerEvents={saidaDoLeitor.aSair?'none':'auto'} {...(saidaDoLeitor.aSair?marcar('np-a-sair'):{})} style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:corNaJanela?'transparent':COR.fundo}]}><BarreiraDeErros onde="pagina:now-playing-painel"><NowPlayingPage fundoNaJanela={corNaJanela} share={openShareDialog} play={play} tocarMusica={tocarMusica} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={abrirPlaylistsSozinhas} /></BarreiraDeErros></View>}</View></PainelDoLeitor></V><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} onJam={() => void abrirJam()} discordLigado={discordLigado} onAviso={notify} aoMenuDaFaixa={() => { if (currentTrack) void more(currentTrack, undefined, { leitor: 'barra' }); }} /><HandoffBanner /><NotificationBanner onOpen={abrirSocial} /><ModoLimpo /><BoasVindasPc />{toast && <Toast message={toast} onDone={() => setToast('')} />}{avisoComDesfazer && <AvisoComDesfazer aviso={avisoComDesfazer} />}<CamadaDoArrasto /><PreEscutaDoRefrao />
+  return <DestinosProvider value={irPara}><RotuloDoVoltar.Provider value={rotuloDoVoltar}><View style={[styles.root, { backgroundColor: 'transparent' }]}>{corNaJanela && <FundoDaCapa onde="janela" aApagar={aApagarACor} uri={currentTrack?.artworkUrl ?? null} />}{corDoArtistaMontada && fotoDaCor && <FundoDaCapa onde="janela" aApagar={corDoArtistaApaga} uri={fotoNoTamanho(fotoDaCor, 250)} />}<ThemeCssSync panelOpacity={panelOpacity}/><TitleBar comPainel /><V style={[styles.main, (corNaJanela && !aApagarACor) || (corDoArtistaMontada && !corDoArtistaApaga) ? { backgroundColor: 'transparent' } : bgStyle]} {...(aApagarACor || corDoArtistaApaga ? marcar('main-a-voltar') : {})}><View style={styles.sidebar}><Sidebar route={rotaDaLateral} navigate={navigate} notify={notify} voltar={back} /><SeparadorDaLateral /></View><PainelDoLeitor more={more} notify={notify}><View style={styles.content}>{/* Com a cor na janela o painel do leitor é transparente: a página de baixo esconde-se (continua montada, com o scroll onde estava). */}<View style={[{ flex: 1, minHeight: 0 }, nowPlayingOpen && corNaJanela && ({ visibility: 'hidden' } as any)]}><TransicaoDePagina chave={JSON.stringify(route)} aSair={aMudarDePagina} volta={chegouDeVolta}><BarreiraDeErros onde={`pagina:${route.name}`} chave={JSON.stringify(route)}>{page}</BarreiraDeErros></TransicaoDePagina></View>{saidaDoLeitor.montado&&<View pointerEvents={saidaDoLeitor.aSair?'none':'auto'} {...(saidaDoLeitor.aSair?marcar('np-a-sair'):{})} style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:corNaJanela?'transparent':COR.fundo}]}><BarreiraDeErros onde="pagina:now-playing-painel"><NowPlayingPage fundoNaJanela={corNaJanela} share={openShareDialog} play={play} tocarMusica={tocarMusica} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={abrirPlaylistsSozinhas} /></BarreiraDeErros></View>}</View></PainelDoLeitor></V><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} onJam={() => void abrirJam()} discordLigado={discordLigado} onAviso={notify} aoMenuDaFaixa={() => { if (currentTrack) void more(currentTrack, undefined, { leitor: 'barra' }); }} /><HandoffBanner /><NotificationBanner onOpen={abrirSocial} /><ModoLimpo /><BoasVindasPc />{toast && <Toast message={toast.texto} tipo={toast.tipo} onDone={() => setToast('')} />}{avisoComDesfazer && <AvisoComDesfazer aviso={avisoComDesfazer} />}<CamadaDoArrasto /><PreEscutaDoRefrao />
     <JanelaDoJam open={jamOpen} onClose={fecharJam} notify={notify} />
     
     {/* O menu de uma faixa abre no cursor (5/10, auditoria M1): era um

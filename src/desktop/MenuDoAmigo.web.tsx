@@ -21,6 +21,8 @@ import { COR, FONT } from './tokens.web';
 import { Button, Dialog } from './ui.web';
 import { novaEscolha } from '../lib/ultimaEscolha';
 
+import { avisarErro, avisarInfo } from '../lib/avisoDeRemocao';
+import { mensagemDeErro } from '../lib/mensagemDeErro';
 // Sem tipos instalados para o react-dom; só se usa o portal (como na lateral).
 const { createPortal } = require('react-dom') as { createPortal: (filho: React.ReactNode, onde: Element) => React.ReactElement };
 
@@ -101,7 +103,7 @@ export function MenuDoAmigo({ amigo, sessaoDele, rato, aoFechar, aoPedirRemover,
           const aindaVale = novaEscolha();
           const mistura = await lerMisturaDosDois(eu, amigo.friendId);
           if (!aindaVale()) break;
-          if (!mistura.length) { notify(`Not enough listening yet for a mix with ${nome}.`); break; }
+          if (!mistura.length) { avisarInfo(`Not enough listening yet for a mix with ${nome}.`); break; }
           await usePlayer.getState().playTrack(mistura[0], mistura, false, false, contextoDaPrateleira('amigos'), null);
           notify(`Playing a mix of you and ${nome}.`);
           break;
@@ -136,7 +138,7 @@ export function MenuDoAmigo({ amigo, sessaoDele, rato, aoFechar, aoPedirRemover,
     } catch (e: any) {
       // O gostar otimista volta atrás se o servidor recusar.
       if (id === 'gostar' && faixa) useSaved.getState().markSaved(faixa, faixaGuardada);
-      notify(e?.message || 'Something went wrong. Try again.');
+      avisarErro(mensagemDeErro(e, 'Something went wrong. Try again.'));
     }
   };
 
@@ -178,7 +180,7 @@ export function ConfirmarRemoverAmigo({ amigo, aoFechar, notify }: {
       notify(`${nome} was removed from your friends.`);
       aoFechar();
     } catch (e: any) {
-      notify(e?.message || 'Could not remove this friend.');
+      avisarErro(mensagemDeErro(e, "Couldn't remove this friend."));
     } finally {
       setARemover(false);
     }

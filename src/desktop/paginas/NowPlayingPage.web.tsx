@@ -17,7 +17,8 @@ import { chaveDaFaixa } from '../../lib/equalizer';
 import { PainelEqualizador } from '../PainelEqualizador.web';
 import { GlitchArtwork } from '../glitch/GlitchArtwork.web';
 import { mandarComando, useAparelhos } from '../../lib/connectSync';
-import { avisoDoPedido, type TipoDePedido } from '../../lib/duotoneConnect';
+import { avisoDoPedido, type EstadoDoPedido, type TipoDePedido } from '../../lib/duotoneConnect';
+import { avisarErro, avisarFeito, avisarInfo } from '../../lib/avisoDeRemocao';
 import { extrapolatedPositionMs } from '../../lib/handoff';
 import { takeOverSession } from '../../lib/sessionSync';
 import { styles } from '../estilos.web';
@@ -33,6 +34,13 @@ import { useCoracaoAoCarregar } from '../../hooks/useCoracaoAoCarregar';
 import { displayArtist, tituloDaFaixa } from '../../lib/artistName';
 import { comCatalogo, garantirCatalogo, useCatalogoDeFaixas } from '../../state/catalogoDeFaixas';
 
+
+/** O aviso de um pedido ao outro aparelho, com o tipo dele: a enviar, feito, ou falhou (A1, 31/10). */
+function avisarPedido(estado: EstadoDoPedido, texto: string) {
+  if (estado === 'pendente') avisarInfo(texto);
+  else if (estado === 'feito') avisarFeito(texto);
+  else avisarErro(texto);
+}
 function fmtRelogio(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
@@ -527,7 +535,7 @@ export function NowPlayingPage({
               if (!alvo) return;
               void mandarComando(alvo, tipo).then((estado) => {
                 if (estado === 'feito') return;
-                notify(avisoDoPedido(estado, aparelhos.find((a) => a.deviceId === alvo)?.nome ?? 'Device', tipo));
+                avisarPedido(estado, avisoDoPedido(estado, aparelhos.find((a) => a.deviceId === alvo)?.nome ?? 'Device', tipo));
               });
             }}
             aoTrazer={() => {
@@ -553,7 +561,7 @@ export function NowPlayingPage({
                   setAMandar(a.deviceId);
                   void mandarComando(a.deviceId, 'assumir').then((estado) => {
                     setAMandar(null);
-                    notify(avisoDoPedido(estado, a.nome, 'assumir'));
+                    avisarPedido(estado, avisoDoPedido(estado, a.nome, 'assumir'));
                     if (estado === 'feito') setAparelhosAberto(false);
                   });
                 }}

@@ -22,6 +22,7 @@ import { pertoDoFim } from '../lib/grelhaQueCresce';
 import { criarRoda, PROCURAR_DEPOIS_MS, proporcaoComARoda } from '../lib/rodaDoRato';
 import { criarPilhaDeCamadas, dentesDaTecla, focoAoTab } from '../lib/acessibilidadeDoPc';
 import { useDestinos } from '../navigation/destinos';
+import { duracaoDoAviso, type TipoDeAviso } from '../lib/avisoDeRemocao';
 
 /**
  * Largura da coluna de duracao, no cabecalho E na celula.
@@ -1293,18 +1294,17 @@ export function Dialog({ open, title, children, onClose, width = 460, semVeu = f
   </View>;
 }
 
-export function Toast({ message, onDone }: { message: string; onDone: () => void }) {
+export function Toast({ message, tipo = 'feito', onDone }: { message: string; tipo?: TipoDeAviso; onDone: () => void }) {
   // O DesktopShell redesenha varias vezes por segundo enquanto a musica toca.
   // `onDone` chega como funcao inline, portanto inclui-lo nas dependencias
   // reiniciava o temporizador para sempre e o aviso nunca desaparecia.
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
-  useEffect(() => { const id = setTimeout(() => onDoneRef.current(), 3200); return () => clearTimeout(id); }, [message]);
-  const lower = message.toLowerCase();
-  const warning = /failed|could not|not found|unavailable|skipping|deleted/.test(lower);
-  const information = /looking|checking|available/.test(lower);
-  const icon = warning ? 'alert-circle' : information ? 'information-circle' : 'checkmark-circle';
-  const colour = warning ? COR.aviso : information ? COR.metalClaro : COR.ok;
+  useEffect(() => { const id = setTimeout(() => onDoneRef.current(), duracaoDoAviso({ tipo })); return () => clearTimeout(id); }, [message, tipo]);
+  // O tipo vem com o aviso (A1, 31/10). Adivinhava-se pelo texto, e "No
+  // connection…" ou "Couldn't…" saíam com o visto verde de sucesso.
+  const icon = tipo === 'erro' ? 'alert-circle' : tipo === 'info' ? 'information-circle' : 'checkmark-circle';
+  const colour = tipo === 'erro' ? COR.aviso : tipo === 'info' ? COR.metalClaro : COR.ok;
   return <View style={ui.toast} {...marcar('aviso')}><Ionicons name={icon} size={18} color={colour} /><Text style={ui.toastText}>{message}</Text></View>;
 }
 

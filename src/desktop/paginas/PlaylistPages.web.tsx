@@ -78,7 +78,7 @@ async function tocarSemAbrir(p: Playlist, modo: 'tocar' | 'baralhar' | 'fila', n
     if (modo === 'baralhar') await leitor.playShuffled(faixas, leitor.shuffleInteligente, origem);
     else await leitor.tocarLista(faixas, leitor.shuffle, leitor.shuffleInteligente, origem);
   } catch (e: any) {
-    notify(e?.message || 'Could not load the playlist.');
+    avisarErro(mensagemDeErro(e, "Couldn't load the playlist."));
   }
 }
 
@@ -109,7 +109,7 @@ export function PlaylistsPage({ navigate, notify, share }: { navigate: (route: R
   const confirmarSair = async () => {
     if (!sair) return;
     try { await sairDaPlaylist(sair.id); usePlaylists.getState().aplicar((l) => l.filter((x) => x.id !== sair.id)); setSair(null); void refresh(); }
-    catch (e: any) { notify(e?.message || 'Could not leave the playlist.'); }
+    catch (e: any) { avisarErro(mensagemDeErro(e, "Couldn't leave the playlist.")); }
   };
   const atalhosFixados = useAtalhosDaLateral((st) => st.lista);
   const [renomear, setRenomear] = useState<Playlist | null>(null);
@@ -134,15 +134,15 @@ export function PlaylistsPage({ navigate, notify, share }: { navigate: (route: R
   const confirmarNome = async () => {
     if (!renomear || !nomeNovo.trim()) return;
     try { await renamePlaylist(renomear.id, nomeNovo.trim()); setRenomear(null); void refresh(); }
-    catch (e: any) { notify(e?.message || 'Could not rename the playlist.'); }
+    catch (e: any) { avisarErro(mensagemDeErro(e, "Couldn't rename the playlist.")); }
   };
   const confirmarApagar = async () => {
     if (!apagar) return;
     try { await deletePlaylist(apagar.id); setApagar(null); void refresh(); }
-    catch (e: any) { notify(e?.message || 'Could not delete the playlist.'); }
+    catch (e: any) { avisarErro(mensagemDeErro(e, "Couldn't delete the playlist.")); }
   };
 
-  const create = async () => { if (!name.trim()) return; try { const item = await createPlaylist(name.trim()); setCreateOpen(false); setName(''); navigate({ name: 'playlist', id: item.id, title: item.name }); } catch (e: any) { notify(e?.message || 'Could not create playlist.'); } };
+  const create = async () => { if (!name.trim()) return; try { const item = await createPlaylist(name.trim()); setCreateOpen(false); setName(''); navigate({ name: 'playlist', id: item.id, title: item.name }); } catch (e: any) { avisarErro(mensagemDeErro(e, "Couldn't create playlist.")); } };
   return <><Page title="Playlists" subtitle={items.length ? resumoDasPlaylists(items) : undefined} action={<View style={{ flexDirection: 'row', gap: 10 }}><Button secondary icon="download-outline" onPress={() => { setOndeImportar(ultimoClique()); setImportarAberto(true); }}>Import</Button><Button icon="add" onPress={() => setCreateOpen(true)}>New playlist</Button></View>}>{items.length ? <View style={styles.songsToolbar}><View style={styles.songsSearch}><Field icon="search" placeholder="Search playlists" value={consulta} onChangeText={setConsulta} /></View><View style={{ flex: 1 }} />{consulta.trim() ? <Text style={styles.songsResultCount}>{visiveis.length} of {items.length}</Text> : null}<Chips rotulo="Sort playlists" valor={ordemDaGrelha} opcoes={OPCOES_DE_ORDEM} aoMudar={setOrdemDaGrelha} /></View> : null}<ContentScroll scrollKey="playlists">{!!loadError&&<Empty icon="alert-circle-outline" title="Playlists unavailable" body={loadError} action={<Button secondary onPress={refresh}>Try again</Button>}/>}{loading ? <View style={{ height: 350 }}><Loading /></View> : items.length ? <View style={styles.playlistGrid}>{visiveis.map((item) => <Pressable key={item.id} ref={refDoAlvo(`cartao-playlist:${item.id}`, alvoDaPlaylist({ id: item.id, nome: item.name })) as any} onPress={() => viajar(retratoDe(RETRATO.playlist(item.id)), () => navigate({ name: 'playlist', id: item.id, title: item.name }))} onContextMenu={((e: any) => { e.preventDefault(); setOndeMenu(pontoDoEvento(e)); setMenuAlvo(item); }) as any} {...marcar('cartao')} style={styles.playlistCard}><View ref={guardarRetrato(RETRATO.playlist(item.id)) as any}><PlaylistArtwork artworks={item.artworks} /></View><Text numberOfLines={1} style={styles.playlistTitle}>{item.name}</Text><Text numberOfLines={1} style={styles.playlistMeta}>{metaDaPlaylist(item)}</Text></Pressable>)}</View> : loadError?null:<Empty icon="albums-outline" title="Nothing here yet" body="Bring a playlist over from YouTube or Spotify, or start an empty one and fill it as you go." action={<View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}><Button icon="logo-youtube" secondary onPress={() => navigate({ name: 'import' })}>Import from YouTube</Button><Button icon="musical-notes-outline" secondary onPress={() => navigate({ name: 'spotify-import' })}>Import from Spotify</Button><Button onPress={() => setCreateOpen(true)}>New playlist</Button></View>} />}</ContentScroll></Page>{importarAberto ? <MenuDeContexto rato={ondeImportar} rotulo="Import a playlist" linhas={[{ id: 'youtube', rotulo: 'From YouTube', icone: 'logo-youtube' }, { id: 'spotify', rotulo: 'From Spotify', icone: 'musical-notes-outline' }]}
   aoEscolher={(id) => navigate({ name: id === 'youtube' ? 'import' : 'spotify-import' })} aoFechar={() => setImportarAberto(false)} /> : null}{menuAlvo ? <MenuDeContexto rato={ondeMenu} rotulo={`Options for ${menuAlvo.name}`}
   linhas={menuDaPlaylist({ plataforma: 'pc', onde: 'cartao', temFaixas: menuAlvo.trackCount > 0, minha: !menuAlvo.souColaborador, colaboro: !!menuAlvo.souColaborador, fixada: estaFixado(atalhosFixados, `playlist:${menuAlvo.id}`) })
@@ -224,7 +224,7 @@ export function PlaylistPage({ id, title, back, share, navigate, abrirPessoas = 
   },[id,back,props]);
   const sair=async()=>{
     try{await sairDaPlaylist(id);setSairAberto(false);depoisDeSair();}
-    catch(e:any){props.notify(e?.message||'Could not leave the playlist.');}
+    catch(e:any){avisarErro(mensagemDeErro(e, "Couldn't leave the playlist."));}
   };
   /** A cara de quem pôs cada música; o objeto vem da lista das pessoas. */
   // Alguém mexeu numa playlist colaborativa aberta: relê-se por baixo.
@@ -260,7 +260,7 @@ export function PlaylistPage({ id, title, back, share, navigate, abrirPessoas = 
       window.dispatchEvent(new CustomEvent('duotone:refresh-playlists'));
       if(jaTinha)navigate({name:'playlist',id:copia,title:`${playlistTitle} (Shared)`});
       else props.notify('Saved to your playlists.');
-    }catch(e:any){props.notify(mensagemDeFalhaAoGuardar(e));}
+    }catch(e:any){avisarErro(mensagemDeFalhaAoGuardar(e));}
     finally{setAGuardar(false);}
   };
   const detailRequest=useRef(0);
@@ -280,7 +280,7 @@ export function PlaylistPage({ id, title, back, share, navigate, abrirPessoas = 
     if(silencioso)setAReler(true);
     else{setLoading(true);setOwnerId(null);setLoadError('');}
     try {const [info,rows,quem]=await Promise.all([getPlaylistDetails(id),silencioso?relerPlaylist(id):getPlaylistTracks(id),lerPessoasDaPlaylist(id).catch(()=>[] as PessoaDaPlaylist[])]);if(token!==detailRequest.current)return;cacheDePlaylist.set(id,{tracks:rows,ownerId:info.ownerId,name:info.name,pessoas:quem,em:Date.now()});setOwnerId(info.ownerId);setPessoas(quem);setPlaylistTitle(info.name);setRenameVal(info.name);setTracks(rows);}
-    catch(e:any){if(token!==detailRequest.current)return;if(silencioso){props.notify(e?.message || 'Could not refresh the playlist.');return;}setTracks([]);setLoadError(e?.message || 'Could not load playlist.');}
+    catch(e:any){if(token!==detailRequest.current)return;if(silencioso){avisarErro(mensagemDeErro(e, "Couldn't refresh the playlist."));return;}setTracks([]);setLoadError(mensagemDeErro(e, "Couldn't load this playlist."));}
     finally{if(token===detailRequest.current){setLoading(false);setAReler(false);}}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
@@ -300,7 +300,7 @@ export function PlaylistPage({ id, title, back, share, navigate, abrirPessoas = 
     window.addEventListener('duotone:refresh-playlist', atualizar);
     return()=>{detailRequest.current++;window.removeEventListener('duotone:refresh-playlist', atualizar);};
   }, [id, refresh]);
-  const remove = async () => { try { await deletePlaylist(id); cacheDePlaylist.delete(id); back(); } catch (e: any) { props.notify(e?.message || 'Could not delete playlist.'); } };
+  const remove = async () => { try { await deletePlaylist(id); cacheDePlaylist.delete(id); back(); } catch (e: any) { avisarErro(mensagemDeErro(e, "Couldn't delete playlist.")); } };
 
   const doRename = async () => {
     const trimmed = renameVal.trim();
@@ -314,7 +314,7 @@ export function PlaylistPage({ id, title, back, share, navigate, abrirPessoas = 
       props.notify('Playlist renamed.');
       window.dispatchEvent(new CustomEvent('duotone:refresh-playlists'));
     } catch (e: any) {
-      props.notify(e?.message || 'Could not rename playlist.');
+      avisarErro(mensagemDeErro(e, "Couldn't rename playlist."));
     }
   };
 
@@ -357,7 +357,7 @@ export function PlaylistPage({ id, title, back, share, navigate, abrirPessoas = 
   const abrirMerge = async () => {
     setMergeOpen(true);
     try { setMergeItems((await listPlaylists()).filter((playlist) => playlist.id !== id)); }
-    catch (e: any) { setMergeOpen(false); props.notify(e?.message || 'Could not load your playlists.'); }
+    catch (e: any) { setMergeOpen(false); avisarErro(mensagemDeErro(e, "Couldn't load your playlists.")); }
   };
   const fazerMerge = async (source: Playlist) => {
     setMerging(true);
@@ -368,7 +368,7 @@ export function PlaylistPage({ id, title, back, share, navigate, abrirPessoas = 
       await refresh();
       props.notify(`${resultado.adicionadas} added; ${resultado.repetidas} duplicates skipped. “${source.name}” was not changed.`);
       window.dispatchEvent(new CustomEvent('duotone:refresh-playlists'));
-    } catch (e: any) { props.notify(e?.message || 'Could not merge the playlists.'); }
+    } catch (e: any) { avisarErro(mensagemDeErro(e, "Couldn't merge the playlists.")); }
     finally { setMerging(false); }
   };
 

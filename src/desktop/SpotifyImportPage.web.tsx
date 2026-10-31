@@ -18,6 +18,8 @@ import { SpotifyReview } from './SpotifyReview.web';
 import { BotaoVoltar, Button, ContentScroll, Field, Page } from './ui.web';
 import { COR, RAIO } from './tokens.web';
 
+import { avisarErro, avisarInfo } from '../lib/avisoDeRemocao';
+import { mensagemDeErro } from '../lib/mensagemDeErro';
 /**
  * Importação de playlists do Spotify — só no desktop.
  *
@@ -198,7 +200,7 @@ export function SpotifyImportPage({ back, notify }: { back: () => void; notify: 
       // Volta a 'parsed' e não a 'idle': o CSV continua lido, e depois de
       // resolvida a rede basta carregar outra vez sem o escolher de novo.
       setPhase('parsed');
-      notify(e?.message ?? 'The import failed.');
+      avisarErro(mensagemDeErro(e, 'The import failed.'));
       return;
     }
 
@@ -211,7 +213,7 @@ export function SpotifyImportPage({ back, notify }: { back: () => void; notify: 
 
   async function save(tracks: Track[]) {
     if (!tracks.length) {
-      notify('There are no tracks to save.');
+      avisarInfo('There are no tracks to save.');
       return;
     }
 
@@ -237,11 +239,11 @@ export function SpotifyImportPage({ back, notify }: { back: () => void; notify: 
       if (criadaAgora && inseridas === 0) {
         // Nada entrou: apagar em vez de deixar lixo na biblioteca.
         await deletePlaylist(criadaAgora).catch(() => {});
-        notify(e?.message ?? 'Could not save. The playlist was not created.');
+        avisarErro(mensagemDeErro(e, "Couldn't save. The playlist was not created."));
       } else if (criadaAgora) {
-        notify(`Saved ${inseridas} of ${tracks.length} tracks before the error.`);
+        avisarErro(`Saved ${inseridas} of ${tracks.length} tracks before the error.`);
       } else {
-        notify(e?.message ?? 'Could not save the tracks.');
+        avisarErro(mensagemDeErro(e, "Couldn't save the tracks."));
       }
     } finally {
       setSaving(false);

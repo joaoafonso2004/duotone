@@ -62,6 +62,8 @@ import { useConnectivity } from '../../state/connectivity';
 import type { NavegarFn } from '../rotas';
 import { lerDescarga, rotuloDaProcuraDeAtualizacoes, type DescargaDaAtualizacao } from '../../lib/rotuloDaAtualizacao';
 
+import { avisarErro, avisarInfo } from '../../lib/avisoDeRemocao';
+import { mensagemDeErro } from '../../lib/mensagemDeErro';
 export function SettingsPage({ notify, navigate }: { notify: (s: string) => void; navigate: NavegarFn }) {
   // O painel de saúde (7/10): a entrada só aparece na conta de quem gere a app.
   const contaDoPainel = useAuth((s) => s.session?.user.id ?? null);
@@ -107,7 +109,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
     if (savingStartup || !window.duotoneDesktop?.setStartup) return;
     setSavingStartup(true);
     try { setStartup(await window.duotoneDesktop.setStartup(enabled, mode)); }
-    catch (e: any) { notify(e?.message || 'Could not change Windows startup.'); }
+    catch (e: any) { avisarErro(mensagemDeErro(e, "Couldn't change Windows startup.")); }
     finally { setSavingStartup(false); }
   };
   const changeCloseToTray = async (enabled: boolean) => {
@@ -116,7 +118,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
     try { await window.duotoneDesktop?.setCloseToTray?.(enabled); }
     catch (e: any) {
       setCloseToTray(anterior);
-      notify(e?.message || 'Could not change the Close button behaviour.');
+      avisarErro(mensagemDeErro(e, "Couldn't change the Close button behaviour."));
     }
   };
   const [duration, setDurationState] = useState(true);
@@ -133,9 +135,10 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
     setARepor(true);
     try {
       const erro = await useAuth.getState().resetPassword();
-      notify(erro ?? 'We sent a password reset link to your email.');
+      if (erro) avisarErro(erro);
+      else notify('We sent a password reset link to your email.');
     } catch {
-      notify('Could not send the reset email. Please try again.');
+      avisarErro("Couldn't send the reset email. Please try again.");
     } finally {
       setARepor(false);
     }
@@ -321,7 +324,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
       notify('Your account has been deleted.');
       useAuth.getState().signOut();
     } catch (e: any) {
-      notify(e?.message || 'Could not delete your account.');
+      avisarErro(mensagemDeErro(e, "Couldn't delete your account."));
     }
   };
 
@@ -337,8 +340,8 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
       try {
         const r = await ponte.procurarAtualizacao();
         if (r?.estado === 'pronta') notify(`Duotone ${r.versao} is ready. It installs the next time you open Duotone.`);
-        else if (r?.estado === 'atual') notify(`Duotone ${APP_VERSION} is up to date.`);
-        else notify('Could not check for updates. Check your connection and try again.');
+        else if (r?.estado === 'atual') avisarInfo(`Duotone ${APP_VERSION} is up to date.`);
+        else avisarErro("Couldn't check for updates. Check your connection and try again.");
       } finally {
         setCheckingUpdate(false);
       }
@@ -358,13 +361,13 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
       const release = await checkForUpdate({ ignorarDispensa: true, atirarErro: true });
       if (release?.platform === 'windows') {
         setUpdate({ version: release.latest });
-        notify(`Duotone ${release.latest} is available.`);
+        avisarInfo(`Duotone ${release.latest} is available.`);
         window.dispatchEvent(new CustomEvent(EVENTO_PROCURAR_ATUALIZACAO));
       } else {
-        notify(`Duotone ${APP_VERSION} is up to date.`);
+        avisarInfo(`Duotone ${APP_VERSION} is up to date.`);
       }
     } catch {
-      notify('Could not check for updates. Check your connection and try again.');
+      avisarErro("Couldn't check for updates. Check your connection and try again.");
     } finally {
       setCheckingUpdate(false);
     }
@@ -540,7 +543,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                   label={rotuloDaProcuraDeAtualizacoes({ descarga, versaoNova: update?.version ?? null, instalaNaApp, aProcurar: checkingUpdate })}
                   onPress={() => { if (!checkingUpdate) void checkForUpdates(); }}
                 />
-                <SettingAction label="Save playback report" description="If a song won't play, or Duotone feels heavy, send this so it can be fixed." onPress={() => { notify('Preparing the report…'); void exportarRelatorio(); }} />
+                <SettingAction label="Save playback report" description="If a song won't play, or Duotone feels heavy, send this so it can be fixed." onPress={() => { avisarInfo('Preparing the report…'); void exportarRelatorio(); }} />
                 {/* Só na conta do João (7/10, supabase/painel-de-saude.sql). */}
                 {administrador ? <SettingAction label="App health" description="Who is on which version, failed songs, crashes and time to first sound, from everyone's app." onPress={() => setPainelAberto(true)} /> : null}
               </SettingsCard>}

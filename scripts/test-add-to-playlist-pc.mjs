@@ -36,14 +36,15 @@ caso('o botão do Now Playing abre o mesmo painel, sozinho, no botão', () => {
   assert.match(casca, /corpo=\{painelDasPlaylists\(escolhaSolta\.faixa, \(\) => setEscolhaSolta\(null\)\)\}/);
 });
 caso('com o ✓, não a põe outra vez: diz que já lá está', () => {
-  assert.match(porNa, /if \(jaLaEsta\) \{ notify\(`Already in \$\{p\.name\}\.`\); return; \}/);
+  assert.match(porNa, /if \(jaLaEsta\) \{ avisarInfo\(`Already in \$\{p\.name\}\.`\); return; \}/);
 });
 caso('criar põe a música lá, e a lista das Playlists sabe já da nova', () => {
   assert.match(porNa, /const p = await createPlaylist\(nome\);\n\s+await addTracksToPlaylist\(p\.id, \[t\]\);\n[\s\S]{0,160}carregar\(true\)/);
 });
 caso('os erros pela frase legível', () => {
-  assert.match(porNa, /notify\(mensagemDeErro\(e, 'Could not add to the playlist\.'\)\)/);
-  assert.match(porNa, /notify\(mensagemDeErro\(e, 'Could not create the playlist\.'\)\)/);
+  // Um erro vai pelo avisarErro (A1, 31/10): pelo notify saía com o visto verde.
+  assert.match(porNa, /avisarErro\(mensagemDeErro\(e, "Couldn't add to the playlist\."\)\)/);
+  assert.match(porNa, /avisarErro\(mensagemDeErro\(e, "Couldn't create the playlist\."\)\)/);
 });
 
 caso('as marcas ✓ pelas regras da folha do iPhone, só da abertura de agora', () => {

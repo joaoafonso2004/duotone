@@ -15,6 +15,7 @@ import { marcar } from '../desktop/ui.web';
 import { RAIO, TIPO } from '../desktop/tokens.web';
 import { FriendAvatar } from './FriendAvatar';
 
+import { mensagemDeErro } from '../lib/mensagemDeErro';
 /** Quanto o aviso fica, sem ninguém a mexer nele. */
 const FICA_MS = 8000;
 
@@ -72,7 +73,7 @@ function Aviso({ item, onOpen }: { item: InAppNotification; onOpen: (target: Not
       void useSocial.getState().markRead(item.conversationKey, item.createdAt);
       fechar();
     } catch (e: any) {
-      setErro(e?.message || 'Could not send. Try again.');
+      setErro(mensagemDeErro(e, "Couldn't send. Try again."));
       setAEnviar(false);
     }
   };

@@ -55,6 +55,7 @@ import { SetaDoPainel } from './PainelDoLeitor.web';
 import { CoracaoAnimado } from '../components/CoracaoAnimado';
 import { useCoracaoAoCarregar } from '../hooks/useCoracaoAoCarregar';
 
+import { avisarErro } from '../lib/avisoDeRemocao';
 const P = Pressable as any;
 const V = View as any;
 
@@ -723,7 +724,7 @@ export function Sidebar({ route, navigate, notify, voltar }: { route: Route; nav
       const origem={tipo:'guardadas' as const,nome:'Liked Songs'};
       if(id==='baralhar')await leitor.playShuffled(faixas,leitor.shuffleInteligente,origem);
       else await leitor.tocarLista(faixas,leitor.shuffle,leitor.shuffleInteligente,origem);
-    }catch{notify('Could not load your Liked Songs.');}
+    }catch{avisarErro("Couldn't load your Liked Songs.");}
   };
   // O `onLayout` do react-native-web só dispara quando o item muda de TAMANHO
   // (é um ResizeObserver), e não quando muda de SÍTIO. Uma fonte que chega
