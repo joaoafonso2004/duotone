@@ -434,7 +434,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <View style={{ flex: 1, paddingRight: ESP.lg }}>
                       <Text style={styles.settingLabel}>{ROTULOS.equalizador}</Text>
-                      <Text style={styles.settingDescription}>For songs you haven't set on their own. The one playing changes on the next song.</Text>
+                      <Text style={styles.settingDescription}>This PC's default, for songs you haven't set on their own. The iPhone has its own. The one playing changes on the next song.</Text>
                       <Efeito texto={efeitos.equalizador} />
                     </View>
                     <ReporEqualizador aoRepor={() => mudarOPadrao(PLANO.slice())} />

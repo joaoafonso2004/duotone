@@ -187,7 +187,12 @@ export default function App() {
     if (!userId||offline) return;
     const pararPresenca = iniciarPresenca(userId);
     // As preferências passam a viver na conta: reinstalar deixa de as apagar.
-    const pararPrefs = sincronizarPreferencias(userId);
+    const pararPrefs = sincronizarPreferencias(userId, (chaves) => {
+      // O EQ padrão desta plataforma chegou da conta (a app foi reinstalada): passa a valer já, a
+      // partir da faixa seguinte, e não só no próximo arranque.
+      if (!chaves.some((chave) => chave.startsWith('pref:eqPadrao'))) return;
+      void getEqPadrao().then((ganhos) => usePlayer.setState({ padraoGanhos: ganhos })).catch(() => {});
+    });
     const pararEventos = iniciarEventos(userId);
     const pararSocial = iniciarSocial(userId);
     // Fechar a app nao e sair de uma sessao de escuta: se ficou uma aberta,

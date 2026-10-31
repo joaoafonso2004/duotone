@@ -61,8 +61,12 @@ async function enviar(): Promise<void> {
  * Traz o que faltar, e passa a enviar o que mudar.
  *
  * Devolve o `parar`, para a app o chamar quando a sessão termina.
+ *
+ * `aoRestaurar` diz que chaves acabaram de entrar no aparelho (31/10): há preferências que a
+ * app leu no arranque, antes de elas chegarem, e que só valiam no arranque seguinte -- o EQ
+ * padrão de uma plataforma que acabou de ser reinstalada, por exemplo.
  */
-export function sincronizarPreferencias(userId: string): () => void {
+export function sincronizarPreferencias(userId: string, aoRestaurar?: (chaves: string[]) => void): () => void {
   utilizador = userId;
   ultimoEnviado = '';
 
@@ -74,7 +78,10 @@ export function sincronizarPreferencias(userId: string): () => void {
 
       const locais = await lerLocais();
       const aEscrever = chavesAEscrever(locais, data.prefs as Record<string, unknown>);
-      if (aEscrever.length) await AsyncStorage.multiSet(aEscrever);
+      if (aEscrever.length) {
+        await AsyncStorage.multiSet(aEscrever);
+        try { aoRestaurar?.(aEscrever.map(([chave]) => chave)); } catch { /* quem pede não pode partir a sincronização */ }
+      }
       ultimoEnviado = JSON.stringify(await lerLocais());
     } catch {
       // Sem a migração aplicada, ou sem rede: a app fica como estava.

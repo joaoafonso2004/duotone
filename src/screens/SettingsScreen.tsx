@@ -708,7 +708,7 @@ function EqualizadorPadrao({ visivel, aoFechar, ganhos: padrao, presets, efeito 
         <View style={styles.cabecalhoDoEq}>
           <View style={{ flex: 1 }}>
             <Text accessibilityRole="header" style={type.title}>Equaliser</Text>
-            <Text style={[type.caption, { marginTop: 2 }]}>For every song that has no EQ of its own</Text>
+            <Text style={[type.caption, { marginTop: 2 }]}>This iPhone's default, for every song that has no EQ of its own. The PC has its own.</Text>
           </View>
           <ReporEqualizador desativado={!ligado && ePlano(ganhos)} aoRepor={() => mudar(PLANO.slice())} />
         </View>

@@ -239,6 +239,7 @@ const TESTES = [
   `${RESOLVER} scripts/test-presets-do-equalizador.ts`,
   `${RESOLVER} scripts/test-autoeq.ts`,
   `${DUPLOS} scripts/test-eq-recomendado.ts`,
+  `${DUPLOS} scripts/test-eq-padrao-por-plataforma.ts`,
   `${TS} scripts/test-eq-nativo.ts`,
   `${TS} scripts/test-smart-shuffle.ts`,
   `${TS} scripts/test-escolha-da-sugestao.ts`,

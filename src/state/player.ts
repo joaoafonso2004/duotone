@@ -787,11 +787,12 @@ function lembrarDaFaixa(semGanhos = false): void {
   const { current, playbackRate, eqGanhos, ajustesPorFaixa } = st;
   if (!current) return;
   const chave = chaveDaFaixa(current);
-  // Com o Recommended, mudar só a velocidade de uma faixa que segue a base não
-  // lhe congela a curva destes auscultadores: os ganhos ficam a null, e ela
-  // continua a seguir o que estiver ligado (25/10).
-  const continuaNaBase = semGanhos || (!!st.eqRecomendado && segueABase(st)
-    && normalizarGanhos(eqGanhos).every((v, i) => v === st.eqRecomendado![i]));
+  // Mudar só a velocidade de uma faixa que segue a base não lhe congela a curva: os ganhos
+  // ficam a null, e ela continua a seguir o que for a base (o Recommended desta saída, 25/10, ou
+  // o EQ padrão da plataforma, 31/10). Só mexer no EQ da própria faixa a faz diferente.
+  const base = baseDoEq(st);
+  const continuaNaBase = semGanhos || (segueABase(st)
+    && normalizarGanhos(eqGanhos).every((v, i) => v === base[i]));
   const value={rate:playbackRate,ganhos:continuaNaBase?null:normalizarGanhos(eqGanhos),visto:Date.now()};
   const nova=fundirAjustes(ajustesPorFaixa,{[chave]:value});
   usePlayer.setState({ajustesPorFaixa:nova});
@@ -811,12 +812,15 @@ function lembrarDaFaixa(semGanhos = false): void {
  * O `pref:eqPadrao` continua a ser escrito por quem chama: é o que a app lê
  * antes de a sincronização acordar, e é o que resta quando não há conta.
  *
- * Escreve-se SEMPRE com valores concretos, nunca a null: uma linha com os dois
- * a null é deitada fora pelo `daPersistencia`, e voltar o padrão a plano é uma
- * escolha tão explícita como qualquer outra -- tem de viajar como as outras.
+ * O ritmo vai sempre concreto (1× também): uma linha com os dois campos a null é
+ * deitada fora pelo `daPersistencia`, e voltar a velocidade a 1× é uma escolha tão
+ * explícita como qualquer outra -- tem de viajar como as outras.
  */
-function guardarOPadrao(rate: number, ganhos: readonly number[]): void {
-  const value = { rate, ganhos: normalizarGanhos(ganhos), visto: Date.now() };
+function guardarOPadrao(rate: number): void {
+  // O EQ padrão já não viaja aqui (31/10): cada plataforma tem o seu (`pref:eqPadrao:ios` e
+  // `pref:eqPadrao:windows`, em `lib/prefs.ts`). Os ganhos ficam a null, e um aparelho que ainda
+  // leia esta linha com o código de antes fica com o EQ dele em vez de adotar o do outro.
+  const value = { rate, ganhos: null, visto: Date.now() };
   usePlayer.setState({
     ajustesPorFaixa: fundirAjustes(usePlayer.getState().ajustesPorFaixa, { [CHAVE_DO_PADRAO]: value }),
   });
@@ -2522,9 +2526,10 @@ export const usePlayer = create<PlayerState>()(
       //
       // Persistido aqui e não nos ecrãs de Definições: são dois, o do telemóvel
       // e o do PC, e assim nenhum se pode esquecer.
+      // E só deste aparelho (31/10): o iPhone e o PC têm um padrão cada, nada vai para a conta
+      // pela linha das faixas.
       set({ padraoGanhos: ganhos });
       persistEqPadrao(ganhos).catch(() => {});
-      guardarOPadrao(get().padraoRate, ganhos);
       return;
     }
     // No carro mexe-se na curva da viagem, e a faixa não aprende nada: o que
@@ -2595,16 +2600,15 @@ export const usePlayer = create<PlayerState>()(
     // tocou no controlo depois desta versão) vale o que veio das preferências,
     // que é o comportamento de sempre.
     const doServidor = padraoGuardado(m);
-    const g = normalizarGanhos(doServidor?.ganhos ?? ganhos);
+    // O EQ padrão é o desta plataforma (31/10): vem das preferências e não da linha, que só
+    // leva o ritmo. Era a linha que mandava, e o iPhone e o PC tinham de ter o mesmo.
+    const g = normalizarGanhos(ganhos);
     const r = arredondarRate(doServidor?.rate ?? rate);
-    // Escrito também na preferência local: é dela que o arranque seguinte lê,
+    // O ritmo escrito também na preferência local: é dela que o arranque seguinte lê,
     // antes de a sincronização acordar, e é ela que os dois ecrãs de Definições
     // mostram. NÃO se chama o `guardarOPadrao` aqui -- isto é a chegada de uma
     // edição, não uma edição, e reenviá-la era um ciclo.
-    if (doServidor) {
-      persistEqPadrao(g).catch(() => {});
-      persistPlaybackRate(r).catch(() => {});
-    }
+    if (doServidor) persistPlaybackRate(r).catch(() => {});
     // O PADRAO e o que vem das Definicoes. Ate aqui era tambem o que ficava
     // aplicado, e isso era um bug que se lia como "nao guardou": a sessao
     // restaura a faixa PAUSADA, sem passar pelo `playTrack` — e o `playTrack`
@@ -2645,14 +2649,11 @@ export const usePlayer = create<PlayerState>()(
     const doServidor = padraoGuardado(m);
     if (!doServidor) { set({ ajustesPorFaixa: m }); return; }
     const r = arredondarRate(doServidor.rate ?? get().padraoRate);
-    const g = normalizarGanhos(doServidor.ganhos ?? get().padraoGanhos);
-    const mudou = r !== get().padraoRate || g.some((v, i) => v !== get().padraoGanhos[i]);
-    set({ ajustesPorFaixa: m, padraoRate: r, padraoGanhos: g });
+    // Só o ritmo chega de outro aparelho: o EQ padrão é de cada plataforma (31/10).
+    const mudou = r !== get().padraoRate;
+    set({ ajustesPorFaixa: m, padraoRate: r });
     // Na preferência também: é dela que o arranque seguinte e as Definições leem.
-    if (mudou) {
-      persistPlaybackRate(r).catch(() => {});
-      persistEqPadrao(g).catch(() => {});
-    }
+    if (mudou) persistPlaybackRate(r).catch(() => {});
   },
 
   setPlaybackRate: (rate, comoPadrao = false) => {
@@ -2669,7 +2670,7 @@ export const usePlayer = create<PlayerState>()(
       // desktop) e assim nenhum se pode esquecer. Antes o preset voltava a
       // "normal" a cada arranque, apesar de estar apresentado como definição.
       persistPlaybackRate(v).catch(() => {});
-      guardarOPadrao(v, get().padraoGanhos);
+      guardarOPadrao(v);
     } else {
       registarNaVelocidade(`asked ${v} (was ${get().playbackRate})`);
       if (get().playbackRate === v) return;

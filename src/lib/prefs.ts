@@ -26,8 +26,14 @@ const KEY_SOUND_PRESET = 'pref:soundPreset';
 // Substituiu o KEY_SOUND_PRESET; a chave velha so e lida para migrar.
 const KEY_PLAYBACK_RATE = 'pref:playbackRate';
 const KEY_EQ_GANHOS = 'pref:eqGanhos';
-/** O equalizador base das Definicoes. Chave NOVA -- ver `getEqPadrao`. */
+/**
+ * O equalizador base das Definicoes. Chave NOVA -- ver `getEqPadrao`. Desde 31/10 cada
+ * plataforma tem o seu (`chaveDoEqPadrao`); esta e a de antes, partilhada, e fica so como
+ * ponto de partida para quem ainda nao escolheu o da sua plataforma.
+ */
 const KEY_EQ_PADRAO = 'pref:eqPadrao';
+const KEY_EQ_PADRAO_IOS = 'pref:eqPadrao:ios';
+const KEY_EQ_PADRAO_WINDOWS = 'pref:eqPadrao:windows';
 const KEY_AJUSTES_FAIXA = 'pref:ajustesPorFaixa';
 // Chave antiga, escrita à mão pelo ecrã de Definições antes de haver getter.
 const KEY_KEEP_AWAKE = 'pref:keepAwake';
@@ -218,7 +224,8 @@ export async function getEqGanhos(): Promise<number[]> {
  */
 export async function getEqPadrao(): Promise<number[]> {
   try {
-    const guardado = await AsyncStorage.getItem(KEY_EQ_PADRAO);
+    // O da plataforma primeiro; sem ele (ainda nao se escolheu aqui) o de antes, que era um so.
+    const guardado = (await AsyncStorage.getItem(chaveDoEqPadrao())) ?? (await AsyncStorage.getItem(KEY_EQ_PADRAO));
     if (!guardado) return ganhosPorOmissao();
     const lido = JSON.parse(guardado);
     return Array.isArray(lido) ? normalizarGanhos(lido) : ganhosPorOmissao();
@@ -229,7 +236,20 @@ export async function getEqPadrao(): Promise<number[]> {
 }
 
 export async function setEqPadrao(ganhos: readonly number[]): Promise<void> {
-  await AsyncStorage.setItem(KEY_EQ_PADRAO, JSON.stringify(normalizarGanhos(ganhos)));
+  await AsyncStorage.setItem(chaveDoEqPadrao(), JSON.stringify(normalizarGanhos(ganhos)));
+}
+
+/**
+ * Um equalizador base por plataforma (31/10, o João: "um preset default para o iOS e um para o
+ * Windows"). O PC e o telemóvel têm auscultadores, colunas e ouvidos diferentes, e o padrão era
+ * um só, na conta: escolhê-lo num apagava o do outro. Cada um guarda o seu numa chave própria
+ * (`pref:` viaja na conta e restaura-se ao reinstalar a mesma plataforma; a outra não lhe toca).
+ * A plataforma vem do `navigator.product`, que só o React Native põe a 'ReactNative': o iPhone.
+ * Importar o `Platform` aqui arrastava o react-native para os testes que leem este módulo.
+ */
+export function chaveDoEqPadrao(): string {
+  const noTelemovel = typeof navigator !== 'undefined' && navigator.product === 'ReactNative';
+  return noTelemovel ? KEY_EQ_PADRAO_IOS : KEY_EQ_PADRAO_WINDOWS;
 }
 
 /** O que cada faixa lembra: a velocidade e os ganhos com que a deixaste. */
