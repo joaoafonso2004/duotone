@@ -8,6 +8,7 @@ import { comCatalogo, garantirCatalogo, useCatalogoDeFaixas } from '../state/cat
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { FilaDoLeitor } from './FilaDoLeitor.web';
+import { SeparadorDoPainel } from './SeparadorDeLargura.web';
 import { Artwork, Empty } from './ui.web';
 import { COR, ESP, ESTADO, FONT, TIPO } from './tokens.web';
 import type { CommonPageProps } from './rotas';
@@ -152,11 +153,14 @@ export function PainelDoLeitor({ children, more, notify }: Pick<CommonPageProps,
       display: 'flex', flexDirection: 'column', flexShrink: 0, minHeight: 0, overflow: 'hidden', zIndex: 30,
       position: porCimaAgora ? 'absolute' : 'relative', right: porCimaAgora ? 0 : undefined,
       top: porCimaAgora ? 0 : undefined, bottom: porCimaAgora ? 0 : undefined,
-      width: 340, maxWidth: '100%',
+      // A largura é a variável da raiz (31/10, `estadoDasBarras.web.ts`): o painel é ajustável e
+      // arrastar não passa pelo React.
+      width: 'var(--dt-painel, 340px)', maxWidth: '100%',
       transform: `translateX(${noSitio ? 0 : 100}%)`,
       pointerEvents: estado.aberto ? 'auto' : 'none',
       boxShadow: porCimaAgora && noSitio ? '-16px 0 44px rgba(0,0,0,0.3)' : undefined,
     }}>
+    {(estado.aberto || conteudoMontado) && <SeparadorDoPainel />}
     {(estado.aberto || conteudoMontado) && <View style={[s.painel, porCima && { maxWidth: '100%' }]}>
       <View style={s.cabeca}>
         <View accessibilityRole="tablist" accessibilityLabel="Player panel" style={s.abas}
@@ -202,7 +206,7 @@ function focarSemDeslizar(el: any) {
 }
 
 const s = StyleSheet.create({
-  painel: { flex: 1, width: 340, flexShrink: 0, minHeight: 0, borderLeftWidth: 1, borderLeftColor: COR.linhaSuave,
+  painel: { flex: 1, width: '100%', flexShrink: 0, minHeight: 0, borderLeftWidth: 1, borderLeftColor: COR.linhaSuave,
     backgroundColor: 'rgba(12,12,16,0.96)' },
   cabeca: { height: 58, paddingHorizontal: ESP.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   abas: { flexDirection: 'row', gap: ESP.xs },

@@ -36,7 +36,8 @@ export const styles = StyleSheet.create({
   // A barra lateral deixou de ser um cartão: vive na mesma superfície, separada
   // por um fio. Duas caixas com borda dentro de uma janela com borda eram três
   // molduras para a mesma coisa.
-  sidebar: { width: 232, borderRightWidth: 1, borderRightColor: COR.linhaSuave } as any, sidebarContent: { padding: ESP.md, paddingTop: ESP.xl }, navLabel: { ...TIPO.micro, color: COR.textoFraco, marginHorizontal: ESP.md, marginBottom: ESP.sm, marginTop: ESP.md }, navItem: { height: 38, paddingHorizontal: ESP.md, borderRadius: RAIO.cartao, flexDirection: 'row', alignItems: 'center', gap: ESP.md, marginBottom: 1 },
+  // A largura vem da variável `--dt-lateral` (31/10, `estadoDasBarras.web.ts`): a lateral é ajustável.
+  sidebar: { width: 'var(--dt-lateral, 232px)', borderRightWidth: 1, borderRightColor: COR.linhaSuave } as any, sidebarContent: { padding: ESP.md, paddingTop: ESP.xl }, navLabel: { ...TIPO.micro, color: COR.textoFraco, marginHorizontal: ESP.md, marginBottom: ESP.sm, marginTop: ESP.md }, navItem: { height: 38, paddingHorizontal: ESP.md, borderRadius: RAIO.cartao, flexDirection: 'row', alignItems: 'center', gap: ESP.md, marginBottom: 1 },
   // Realces de baixo contraste: com o `hover` e o `accentSoft` cheios, cada
   // linha lia-se como um cartãozinho independente.
   navHover: { backgroundColor: 'rgba(233,234,238,0.04)' }, navActive: { backgroundColor: 'rgba(233,234,238,0.07)' },

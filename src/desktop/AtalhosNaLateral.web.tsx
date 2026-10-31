@@ -19,7 +19,7 @@ import { useSocial } from '../state/social';
 import type { Playlist, Track } from '../types';
 import type { Route } from './rotas';
 import { COR, ESP, ESTADO, FONT, RAIO, TIPO } from './tokens.web';
-import { Dialog, Field, IconButton, marcar } from './ui.web';
+import { comDica, Dialog, Field, IconButton, marcar } from './ui.web';
 
 // Sem tipos instalados para o react-dom; só se usa o portal.
 const { createPortal } = require('react-dom') as { createPortal: (filho: React.ReactNode, onde: Element) => React.ReactElement };
@@ -47,7 +47,9 @@ function moverOuTirar(a: Atalho, id: string): void {
   else useAtalhosDaLateral.getState().tirar(chave);
 }
 
-export function AtalhosNaLateral({ navigate, notify }: { navigate: (r: Route) => void; notify: (texto: string) => void }) {
+export function AtalhosNaLateral({ navigate, notify, compacta = false }: { navigate: (r: Route) => void; notify: (texto: string) => void;
+  /** Na régua de ícones da lateral (31/10): só as miniaturas, com o nome numa legenda. */
+  compacta?: boolean }) {
   const lista = useAtalhosDaLateral((s) => s.lista);
   const carregados = useAtalhosDaLateral((s) => s.carregados);
   const amigos = useSocial((s) => s.friends);
@@ -67,6 +69,56 @@ export function AtalhosNaLateral({ navigate, notify }: { navigate: (r: Route) =>
       case 'mistura-do-dia': void tocarMisturaDoDia(); break;
     }
   };
+
+  // O menu e o diálogo do "+" são os mesmos na lista e na régua de ícones (31/10).
+  const janelas = (
+    <>
+      {/* O menu de contexto comum do PC, no cursor (5/10): era um diálogo ao centro.
+          Um artista fixado abre o menu de um artista (24/10), com o mover no meio. */}
+      {menu?.tipo === 'artista' ? <MenuDoArtista
+        artista={{ nome: menu.nome, capa: menu.capa ?? null }}
+        rato={ondeMenu}
+        notify={notify}
+        extras={{ linhas: MOVER, aoEscolher: (id) => moverOuTirar(menu, id) }}
+        aoFechar={() => setMenu(null)}
+      /> : menu ? <MenuDeContexto
+        rato={ondeMenu}
+        rotulo={`Options for ${nomeDoAtalho(menu)}`}
+        linhas={[...MOVER, { id: 'tirar', rotulo: 'Unpin from sidebar', icone: 'close-circle-outline', inicioDeGrupo: true }]}
+        aoEscolher={(id) => moverOuTirar(menu, id)}
+        aoFechar={() => setMenu(null)}
+      /> : null}
+      <PorCimaDeTudo aberto={escolher}><EscolherAtalho aberto={escolher} aoFechar={() => setEscolher(false)} /></PorCimaDeTudo>
+    </>
+  );
+
+  // A régua (31/10): o "+" e uma miniatura por atalho, ao meio; o nome e o tipo ficam na legenda.
+  if (compacta) {
+    return (
+      <View style={{ flex: 1, minHeight: 0, paddingTop: ESP.md }}>
+        <View style={{ alignItems: 'center', paddingBottom: ESP.sm }}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Pin something" {...comDica('Pin something', undefined)} onPress={() => setEscolher(true)}
+            style={({ hovered }: any) => ({ width: 32, height: 32, borderRadius: RAIO.cartao, alignItems: 'center', justifyContent: 'center', backgroundColor: hovered ? ESTADO.hover : 'transparent' })}>
+            <Ionicons name="add" size={18} color={COR.textoMedio} />
+          </Pressable>
+        </View>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ alignItems: 'center', gap: 4, paddingBottom: ESP.md }}>
+          {lista.map((a) => (
+            <Pressable key={chaveDoAtalho(a)} onPress={() => abrir(a)}
+              {...comDica(`${nomeDoAtalho(a)} · ${subtituloDoAtalho(a, online)}`, undefined, 'atalho')}
+              ref={refDoAlvo(`atalho:${chaveDoAtalho(a)}`, a.tipo === 'playlist' ? alvoDaPlaylist({ id: a.id, nome: a.nome })
+                : a.tipo === 'amigo' ? alvoDoAmigo({ id: a.id, nome: a.nome }) : null) as any}
+              onContextMenu={((e: any) => { e.preventDefault(); setOndeMenu(pontoDoEvento(e)); setMenu(a); }) as any}
+              accessibilityLabel={`${nomeDoAtalho(a)}, ${subtituloDoAtalho(a, online)}`}
+              style={{ width: 44, height: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}>
+              <Miniatura a={a} online={a.tipo === 'amigo' && online.has(a.id)} />
+            </Pressable>
+          ))}
+        </ScrollView>
+        {janelas}
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, minHeight: 0, paddingHorizontal: ESP.md, paddingTop: ESP.md }}>
@@ -112,22 +164,7 @@ export function AtalhosNaLateral({ navigate, notify }: { navigate: (r: Route) =>
         </ScrollView>
       )}
 
-      {/* O menu de contexto comum do PC, no cursor (5/10): era um diálogo ao centro.
-          Um artista fixado abre o menu de um artista (24/10), com o mover no meio. */}
-      {menu?.tipo === 'artista' ? <MenuDoArtista
-        artista={{ nome: menu.nome, capa: menu.capa ?? null }}
-        rato={ondeMenu}
-        notify={notify}
-        extras={{ linhas: MOVER, aoEscolher: (id) => moverOuTirar(menu, id) }}
-        aoFechar={() => setMenu(null)}
-      /> : menu ? <MenuDeContexto
-        rato={ondeMenu}
-        rotulo={`Options for ${nomeDoAtalho(menu)}`}
-        linhas={[...MOVER, { id: 'tirar', rotulo: 'Unpin from sidebar', icone: 'close-circle-outline', inicioDeGrupo: true }]}
-        aoEscolher={(id) => moverOuTirar(menu, id)}
-        aoFechar={() => setMenu(null)}
-      /> : null}
-      <PorCimaDeTudo aberto={escolher}><EscolherAtalho aberto={escolher} aoFechar={() => setEscolher(false)} /></PorCimaDeTudo>
+      {janelas}
     </View>
   );
 }

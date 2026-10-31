@@ -13,7 +13,7 @@ import { agoraNoServidor, useSocial } from '../state/social';
 import type { Route } from './rotas';
 import { COR, ESP, FONT, TIPO } from './tokens.web';
 import { TextoQueRola } from './TextoQueRola.web';
-import { marcar } from './ui.web';
+import { comDica, marcar } from './ui.web';
 import { ConfirmarRemoverAmigo, MenuDoAmigo } from './MenuDoAmigo.web';
 import { refDoAlvo } from './Arrastar.web';
 import { alvoDoAmigo } from './alvosDeLargar.web';
@@ -29,7 +29,9 @@ import { alvoDoAmigo } from './alvosDeLargar.web';
  * `hovered` do RNW: é clicável dentro de uma linha clicável, e o hover do pai
  * cai quando o rato entra no filho (ver "O movimento do PC" no CLAUDE.md).
  */
-export function AmigosNaLateral({ navigate, notify }: { navigate: (r: Route) => void; notify: (texto: string) => void }) {
+export function AmigosNaLateral({ navigate, notify, compacta = false }: { navigate: (r: Route) => void; notify: (texto: string) => void;
+  /** Na régua de ícones da lateral (31/10): só as caras, com o nome e a música numa legenda. */
+  compacta?: boolean }) {
   const amigos = useSocial((s) => s.friends);
   // O botão direito num amigo abre o menu dele onde está o rato (2/10).
   const [menu, setMenu] = useState<{ amigoId: string; rato: { x: number; y: number } } | null>(null);
@@ -70,6 +72,33 @@ export function AmigosNaLateral({ navigate, notify }: { navigate: (r: Route) => 
 
   if (!visiveis.length) return menus;
   const agora = agoraNoServidor();
+
+  // A régua (31/10): uma cara por amigo, com o ponto verde; o nome e a música ficam na legenda.
+  if (compacta) {
+    return (
+      <View style={{ alignItems: 'center', paddingTop: ESP.md, paddingBottom: ESP.sm, gap: 6 }}>
+        {visiveis.map((a) => {
+          const faixa = a.currentlyPlaying;
+          const nome = a.name || a.username;
+          return (
+            <Pressable key={a.friendId}
+              {...comDica(faixa ? `${nome} · ${tituloDaFaixa(faixa)}` : `${nome} · Online`, undefined, 'amigo')}
+              accessibilityLabel={faixa ? `${nome}, listening to ${tituloDaFaixa(faixa)}. Open chat` : `${nome}, online. Open chat`}
+              onPress={() => navigate({ name: 'social', friendId: a.friendId })}
+              onContextMenu={((e: any) => { e.preventDefault(); setMenu({ amigoId: a.friendId, rato: { x: e.clientX, y: e.clientY } }); }) as any}
+              ref={refDoAlvo(`lateral-amigo:${a.friendId}`, alvoDoAmigo({ id: a.friendId, nome })) as any}
+              style={{ width: 44, height: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}>
+              <View style={{ width: 32, height: 32 }}>
+                <FriendAvatar avatarUrl={a.avatarUrl} name={nome} size={32} />
+                <View style={{ position: 'absolute', right: -1, bottom: -1, width: 10, height: 10, borderRadius: 5, backgroundColor: COR.ok, borderWidth: 2, borderColor: COR.painel }} />
+              </View>
+            </Pressable>
+          );
+        })}
+        {menus}
+      </View>
+    );
+  }
 
   return (
     <View style={{ paddingHorizontal: ESP.md, paddingTop: ESP.md, paddingBottom: ESP.sm, gap: 2 }}>

@@ -310,6 +310,7 @@ const TESTES = [
   `${RESOLVER} scripts/test-viagem-de-volta.ts`,
   `${RESOLVER} scripts/test-ajustes-do-pc.ts`,
   `${TS} scripts/test-look-do-pc.ts`,
+  `${TS} scripts/test-largura-das-barras.ts`,
 ];
 
 const raiz = fileURLToPath(new URL('..', import.meta.url));

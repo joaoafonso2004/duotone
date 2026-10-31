@@ -35,7 +35,8 @@ import { useShallow } from 'zustand/react/shallow';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { useTheme } from '../state/theme';
 import { styles } from './estilos.web';
-import { COR, cssDasFontes, ESTADO, FONT, RAIO } from './tokens.web';
+import { COR, cssDasFontes, ESP, ESTADO, FONT, RAIO } from './tokens.web';
+import { useLateralRecolhida } from './estadoDasBarras.web';
 import { ANEL_DO_REFRAO, Artwork, comDica, formatTime, IconButton, ui, marcar, useProcurarAoLargar } from './ui.web';
 import { PRE_ESCUTA_S } from '../lib/refrao';
 import { TOM_CLARO, TOM_ESCURO } from '../lib/doisTons';
@@ -210,6 +211,20 @@ export function injectDesktopDocumentStyles() {
     .np-fila-mais:hover { background: ${ESTADO.hover}; }
     .np-fila-mais:focus-visible { opacity: 1; outline: 2px solid ${COR.texto}; }
     [data-dt~="painel-do-leitor"] { transition: transform 240ms cubic-bezier(.22,1,.36,1); will-change: transform; }
+    /* As barras ajustaveis (31/10, desktop/SeparadorDeLargura.web.tsx): a pega e uma tira de 6 px
+       POR DENTRO do bordo da lateral e do painel; o fio acende-se com o rato, o foco do teclado e o
+       arrasto. Durante o arrasto o cursor e de arrasto em todo o lado, nada se seleciona, e o painel
+       nao anima (so a largura muda, e tem de a seguir o rato). */
+    [data-dt~="separador"]{ position: absolute; top: 0; bottom: 0; width: 6px; z-index: 40; cursor: col-resize;
+      touch-action: none; background: transparent; outline: none; }
+    [data-dt~="separador"]::after{ content: ''; position: absolute; top: 0; bottom: 0; width: 2px; background: transparent;
+      transition: background-color var(--dt-rapido) var(--dt-curva); }
+    [data-dt~="separador"][data-lado="direita"]::after{ right: 0; }
+    [data-dt~="separador"][data-lado="esquerda"]::after{ left: 0; }
+    [data-dt~="separador"]:hover::after, [data-dt~="separador"]:focus-visible::after, [data-dt~="separador"][data-a-arrastar]::after{
+      background: rgba(233,234,238,.46); }
+    html[data-a-redimensionar], html[data-a-redimensionar] *{ cursor: col-resize !important; user-select: none !important; }
+    html[data-a-redimensionar] [data-dt~="painel-do-leitor"]{ transition: none !important; }
     /* O fundo do Now Playing: a capa nova entra por cima da anterior. */
     [data-dt~="np-fundo"]{ animation: dt-np-fundo 700ms ease both; }
     /* A cor da capa a encher a janela ao abrir o Now Playing (26/9). */
@@ -603,6 +618,7 @@ export function injectDesktopDocumentStyles() {
        final e o mesmo: aqui so morre o caminho ate la. */
     @media (prefers-reduced-motion: reduce){
       [data-dt~="painel-do-leitor"] { transition: none !important; }
+      [data-dt~="separador"]::after{ transition: none !important; }
       #duotone-dica{ transition: none !important; transform: none !important; }
       [data-dt~="fila"], [data-dt~="dialogo"], [data-dt~="veu"], [data-dt~="aviso"],
       [data-dt~="menu-amigo"], [data-dt~="aviso-msg"],
@@ -656,6 +672,8 @@ export function Sidebar({ route, navigate, notify, voltar }: { route: Route; nav
   /** O voltar da janela: uma música arrastada que abriu as Playlists volta por aqui (25/10). */
   voltar?: () => void }) {
   const session = useAuth((s) => s.session);
+  // Arrastada para menos de metade do caminho, a lateral recolhe numa régua só de ícones (31/10).
+  const compacta = useLateralRecolhida();
   const tema = useTheme((s) => s.theme);
   // Uma mistura abre-se a partir da Pesquisa: e ai que o separador tem de
   // ficar aceso, senao a barra dizia que se estava noutro sitio.
@@ -734,8 +752,8 @@ export function Sidebar({ route, navigate, notify, voltar }: { route: Route; nav
       {realce?<View pointerEvents="none" {...marcar('desliza')}
         style={[styles.navRealce,{height:realce.altura,transform:[{translateY:realce.y}],backgroundColor:tema.soft}]}/>:null}
       {/* "LIBRARY" e não "DISCOVER" (5/10, auditoria N9): o que está por baixo é a biblioteca e os amigos. */}
-      <Text style={styles.navLabel}>LIBRARY</Text>
-      {PRIMARY.map((item) => <NavItem key={item.id} active={active === item.id} semFundo={!!realce} medicao={medicao} aoMedir={medir(item.id)} {...item} badge={item.id === 'social' && (naoLidasPorAmigo(socialReceived,socialSeen).size>0 || socialFriends.some(f=>f.status==='pending'&&!f.isSender))} onPress={() => navigate({ name: item.id })}
+      {compacta ? null : <Text style={styles.navLabel}>LIBRARY</Text>}
+      {PRIMARY.map((item) => <NavItem key={item.id} compacta={compacta} active={active === item.id} semFundo={!!realce} medicao={medicao} aoMedir={medir(item.id)} {...item} badge={item.id === 'social' && (naoLidasPorAmigo(socialReceived,socialSeen).size>0 || socialFriends.some(f=>f.status==='pending'&&!f.isSender))} onPress={() => navigate({ name: item.id })}
         aoMenu={item.id === 'songs' ? (e) => setMenuDasLiked(pontoDoEvento(e)) : undefined}
         alvo={item.id === 'songs' ? alvoDasGostadas()
           // Segurar uma música nas Playlists abre a página (25/10); largada
@@ -748,21 +766,24 @@ export function Sidebar({ route, navigate, notify, voltar }: { route: Route; nav
     </ScrollView>
     {/* O perfil é a linha com a tua cara (o item "Profile" repetia-a) e as
         Definições são a roda dentada nela (26/9, decidido com o João). */}
-    <View style={styles.accountRow}>
-      <Pressable accessibilityLabel="Profile" onPress={() => navigate({ name: 'profile' })} style={({ hovered }) => [styles.account, styles.accountPerfil, (hovered || active === 'profile') && styles.navHover]}>{avatarDisplay}<View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={styles.accountName}>{name}</Text><Text numberOfLines={1} style={styles.accountEmail}>{username?`@${username}`:session?.user.email}</Text></View></Pressable>
-      <Pressable accessibilityLabel="Settings" onPress={() => navigate({ name: 'settings' })} style={({ hovered }) => [styles.accountDefinicoes, (hovered || active === 'settings') && styles.navHover]}><Ionicons name="settings-outline" size={17} color={active === 'settings' ? COR.texto : COR.textoMedio} /></Pressable>
+    {/* Na régua (31/10) a conta é só a cara, e a roda dentada fica por baixo dela. */}
+    <View style={[styles.accountRow, compacta && { flexDirection: 'column', paddingRight: 0, paddingVertical: ESP.sm }]}>
+      <Pressable accessibilityLabel="Profile" {...(compacta ? comDica(name, undefined) : {})} onPress={() => navigate({ name: 'profile' })} style={({ hovered }) => [styles.account, styles.accountPerfil, compacta && { flex: 0, width: 48, minHeight: 48, marginLeft: 0, paddingHorizontal: 0, justifyContent: 'center' }, (hovered || active === 'profile') && styles.navHover]}>{avatarDisplay}{compacta ? null : <View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={styles.accountName}>{name}</Text><Text numberOfLines={1} style={styles.accountEmail}>{username?`@${username}`:session?.user.email}</Text></View>}</Pressable>
+      <Pressable accessibilityLabel="Settings" {...(compacta ? comDica('Settings', undefined) : {})} onPress={() => navigate({ name: 'settings' })} style={({ hovered }) => [styles.accountDefinicoes, (hovered || active === 'settings') && styles.navHover]}><Ionicons name="settings-outline" size={17} color={active === 'settings' ? COR.texto : COR.textoMedio} /></Pressable>
     </View>
-    <ProgressoDaImportacao />
-    <AmigosNaLateral navigate={navigate} notify={notify} />
+    {compacta ? null : <ProgressoDaImportacao />}
+    <AmigosNaLateral navigate={navigate} notify={notify} compacta={compacta} />
     {/* O espaço que sobrava por baixo: é do utilizador (26/9). */}
-    <AtalhosNaLateral navigate={navigate} notify={notify} />
+    <AtalhosNaLateral navigate={navigate} notify={notify} compacta={compacta} />
     {menuDasLiked ? <MenuDeContexto rato={menuDasLiked} rotulo="Options for Liked Songs"
       linhas={menuDasGostadas({ semRede }).map((l) => ({ id: l.id, rotulo: l.rotulo, icone: l.icone, motivo: l.motivo }))}
       aoEscolher={(id) => void tocarAsLiked(id)} aoFechar={() => setMenuDasLiked(null)} /> : null}
   </View>;
 }
 
-export function NavItem({ label, icon, active, badge, onPress, aoMenu, alvo = null, aoMedir, semFundo, medicao }: { label: string; icon: keyof typeof Ionicons.glyphMap; active: boolean; badge?: boolean; onPress: () => void;
+export function NavItem({ label, icon, active, badge, onPress, aoMenu, alvo = null, aoMedir, semFundo, medicao, compacta = false }: { label: string; icon: keyof typeof Ionicons.glyphMap; active: boolean; badge?: boolean; onPress: () => void;
+  /** Na régua de ícones (31/10): sem o nome, com ele numa legenda, e o ícone ao meio. */
+  compacta?: boolean;
   /** Largar uma música arrastada aqui (24/10): as Liked Songs. */
   alvo?: Alvo | null;
   /** O botão direito, nos itens que são uma coisa e não só um lugar (as Liked Songs). */
@@ -784,10 +805,10 @@ export function NavItem({ label, icon, active, badge, onPress, aoMenu, alvo = nu
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [medicao]);
   const alvoRef = refDoAlvo(`nav:${label}`, alvo);
-  return <P ref={(n: any) => { ref.current = n; alvoRef(n); }} {...marcar('premir')} onPress={onPress}
+  return <P ref={(n: any) => { ref.current = n; alvoRef(n); }} {...(compacta ? comDica(label, undefined, 'premir') : marcar('premir'))} accessibilityLabel={compacta ? label : undefined} onPress={onPress}
     onContextMenu={(e: any) => { if (!aoMenu) return; e.preventDefault(); aoMenu(e); }}
     onLayout={(e: any) => aoMedir?.(e.nativeEvent.layout.y, e.nativeEvent.layout.height)}
-    style={({ hovered, focused, pressed }: any) => [styles.navItem, (hovered || focused) && styles.navHover, active && !semFundo && { backgroundColor: theme.soft }, pressed && ui.pressed]}><Ionicons name={icon} size={19} color={active ? theme.color : COR.textoMedio} /><Text style={[styles.navText, active && styles.navTextActive, active && { color: theme.color }]}>{label}</Text>{badge && <BolinhaDeAviso />}</P>;
+    style={({ hovered, focused, pressed }: any) => [styles.navItem, compacta && { justifyContent: 'center', paddingHorizontal: 0, gap: 0 }, (hovered || focused) && styles.navHover, active && !semFundo && { backgroundColor: theme.soft }, pressed && ui.pressed]}><Ionicons name={icon} size={19} color={active ? theme.color : COR.textoMedio} />{compacta ? null : <Text numberOfLines={1} style={[styles.navText, active && styles.navTextActive, active && { color: theme.color }]}>{label}</Text>}{badge && (compacta ? <View style={{ position: 'absolute', top: 7, right: 9 }}><BolinhaDeAviso /></View> : <BolinhaDeAviso />)}</P>;
 }
 
 /**
