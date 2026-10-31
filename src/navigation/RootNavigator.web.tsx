@@ -136,11 +136,15 @@ function DesktopShell() {
   // à parte, fechava logo e a página nova só chegava depois: durante um ou dois
   // fotogramas via-se a de ANTES por baixo dele (Artists -> Now Playing -> Liked
   // Songs mostrava os Artists antes das Liked Songs).
-  const mudarRota = useCallback((next: Route, { fecharLeitor = false } = {}) => {
+  // `volta`: a página chega calada (30/10, o "refresh" ao voltar): sem repetir a entrada. Vai na
+  // mesma transição que a rota, para a página nova nascer já com a marca.
+  const [chegouDeVolta, setChegouDeVolta] = useState(false);
+  const mudarRota = useCallback((next: Route, { fecharLeitor = false, volta = false } = {}) => {
     rotaRef.current = next;
     setRotaDaLateral(next);
     startTransition(() => {
       setRoute(next);
+      setChegouDeVolta(volta);
       if (fecharLeitor) setNowPlayingOpen(false);
     });
   }, []);
@@ -328,7 +332,7 @@ function DesktopShell() {
     const para: Route = history.current.pop() || { name: 'playlists' };
     // Da página de uma playlist ou de um artista de volta à grelha dele (30/10): o cabeçalho
     // voa para o cartão. Qualquer outro caminho volta como sempre.
-    voltarViajando(retratosDaVolta(de, para), () => mudarRota(para));
+    voltarViajando(retratosDaVolta(de, para), () => mudarRota(para, { volta: true }));
   }, [nowPlayingOpen, mudarRota]);
   /** O botão de trás do rato: como o `back`, mas sem histórico não faz nada
    * (o `back` das páginas cai nas Playlists, que é o que o botão delas diz). */
@@ -737,7 +741,7 @@ function DesktopShell() {
   // O nome da página que está atrás (5/10, lib/voltarPara.ts). Com o Now
   // Playing por cima, o voltar fecha-o e mostra a página de baixo.
   const rotuloDoVoltar = nomeDaRota(nowPlayingOpen ? route : history.current[history.current.length - 1]);
-  return <DestinosProvider value={irPara}><RotuloDoVoltar.Provider value={rotuloDoVoltar}><View style={[styles.root, { backgroundColor: 'transparent' }]}>{corNaJanela && <FundoDaCapa onde="janela" aApagar={aApagarACor} uri={currentTrack?.artworkUrl ?? null} />}{corDoArtistaMontada && fotoDaCor && <FundoDaCapa onde="janela" aApagar={corDoArtistaApaga} uri={fotoNoTamanho(fotoDaCor, 250)} />}<ThemeCssSync panelOpacity={panelOpacity}/><TitleBar comPainel /><V style={[styles.main, (corNaJanela && !aApagarACor) || (corDoArtistaMontada && !corDoArtistaApaga) ? { backgroundColor: 'transparent' } : bgStyle]} {...(aApagarACor || corDoArtistaApaga ? marcar('main-a-voltar') : {})}><View style={styles.sidebar}><Sidebar route={rotaDaLateral} navigate={navigate} notify={notify} voltar={back} /></View><PainelDoLeitor more={more} notify={notify}><View style={styles.content}>{/* Com a cor na janela o painel do leitor é transparente: a página de baixo esconde-se (continua montada, com o scroll onde estava). */}<View style={[{ flex: 1, minHeight: 0 }, nowPlayingOpen && corNaJanela && ({ visibility: 'hidden' } as any)]}><TransicaoDePagina chave={JSON.stringify(route)} aSair={aMudarDePagina}><BarreiraDeErros onde={`pagina:${route.name}`} chave={JSON.stringify(route)}>{page}</BarreiraDeErros></TransicaoDePagina></View>{saidaDoLeitor.montado&&<View pointerEvents={saidaDoLeitor.aSair?'none':'auto'} {...(saidaDoLeitor.aSair?marcar('np-a-sair'):{})} style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:corNaJanela?'transparent':COR.fundo}]}><BarreiraDeErros onde="pagina:now-playing-painel"><NowPlayingPage fundoNaJanela={corNaJanela} share={openShareDialog} play={play} tocarMusica={tocarMusica} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={abrirPlaylistsSozinhas} /></BarreiraDeErros></View>}</View></PainelDoLeitor></V><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} onJam={() => void abrirJam()} discordLigado={discordLigado} onAviso={notify} aoMenuDaFaixa={() => { if (currentTrack) void more(currentTrack, undefined, { leitor: 'barra' }); }} /><HandoffBanner /><NotificationBanner onOpen={abrirSocial} /><ModoLimpo /><BoasVindasPc />{toast && <Toast message={toast} onDone={() => setToast('')} />}{avisoComDesfazer && <AvisoComDesfazer aviso={avisoComDesfazer} />}<CamadaDoArrasto /><PreEscutaDoRefrao />
+  return <DestinosProvider value={irPara}><RotuloDoVoltar.Provider value={rotuloDoVoltar}><View style={[styles.root, { backgroundColor: 'transparent' }]}>{corNaJanela && <FundoDaCapa onde="janela" aApagar={aApagarACor} uri={currentTrack?.artworkUrl ?? null} />}{corDoArtistaMontada && fotoDaCor && <FundoDaCapa onde="janela" aApagar={corDoArtistaApaga} uri={fotoNoTamanho(fotoDaCor, 250)} />}<ThemeCssSync panelOpacity={panelOpacity}/><TitleBar comPainel /><V style={[styles.main, (corNaJanela && !aApagarACor) || (corDoArtistaMontada && !corDoArtistaApaga) ? { backgroundColor: 'transparent' } : bgStyle]} {...(aApagarACor || corDoArtistaApaga ? marcar('main-a-voltar') : {})}><View style={styles.sidebar}><Sidebar route={rotaDaLateral} navigate={navigate} notify={notify} voltar={back} /></View><PainelDoLeitor more={more} notify={notify}><View style={styles.content}>{/* Com a cor na janela o painel do leitor é transparente: a página de baixo esconde-se (continua montada, com o scroll onde estava). */}<View style={[{ flex: 1, minHeight: 0 }, nowPlayingOpen && corNaJanela && ({ visibility: 'hidden' } as any)]}><TransicaoDePagina chave={JSON.stringify(route)} aSair={aMudarDePagina} volta={chegouDeVolta}><BarreiraDeErros onde={`pagina:${route.name}`} chave={JSON.stringify(route)}>{page}</BarreiraDeErros></TransicaoDePagina></View>{saidaDoLeitor.montado&&<View pointerEvents={saidaDoLeitor.aSair?'none':'auto'} {...(saidaDoLeitor.aSair?marcar('np-a-sair'):{})} style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:corNaJanela?'transparent':COR.fundo}]}><BarreiraDeErros onde="pagina:now-playing-painel"><NowPlayingPage fundoNaJanela={corNaJanela} share={openShareDialog} play={play} tocarMusica={tocarMusica} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={abrirPlaylistsSozinhas} /></BarreiraDeErros></View>}</View></PainelDoLeitor></V><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} onJam={() => void abrirJam()} discordLigado={discordLigado} onAviso={notify} aoMenuDaFaixa={() => { if (currentTrack) void more(currentTrack, undefined, { leitor: 'barra' }); }} /><HandoffBanner /><NotificationBanner onOpen={abrirSocial} /><ModoLimpo /><BoasVindasPc />{toast && <Toast message={toast} onDone={() => setToast('')} />}{avisoComDesfazer && <AvisoComDesfazer aviso={avisoComDesfazer} />}<CamadaDoArrasto /><PreEscutaDoRefrao />
     <JanelaDoJam open={jamOpen} onClose={fecharJam} notify={notify} />
     
     {/* O menu de uma faixa abre no cursor (5/10, auditoria M1): era um

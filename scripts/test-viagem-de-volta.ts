@@ -81,7 +81,7 @@ caso('o `viagemChegou` da casca é o que acorda a volta, como na ida', () => {
 console.log('\nonde se liga');
 caso('o voltar da casca é o único sítio: todas as portas (botão, rato, Esc) passam por ele', () => {
   assert.match(NAVEGADOR, /const para: Route = history\.current\.pop\(\) \|\| \{ name: 'playlists' \};/);
-  assert.match(NAVEGADOR, /voltarViajando\(retratosDaVolta\(de, para\), \(\) => mudarRota\(para\)\);/);
+  assert.match(NAVEGADOR, /voltarViajando\(retratosDaVolta\(de, para\), \(\) => mudarRota\(para, \{ volta: true \}\)\);/);
   assert.equal((NAVEGADOR.match(/voltarViajando\(/g) ?? []).length, 1);
 });
 caso('fechar o Now Playing e avançar não viajam (o `back` do leitor sai antes)', () => {
@@ -97,6 +97,36 @@ caso('as duas grelhas registam o cartão pela mesma ponte (já não cada uma o s
 });
 caso('nenhum pedido novo, nenhum temporizador a correr: só fotogramas durante a volta', () => {
   assert.ok(!/fetch\(|supabase|setInterval/.test(VIAGEM));
+});
+
+console.log('\nsem "refresh" ao voltar (30/10)');
+const CASCA = ler('src/desktop/casca.web.tsx');
+const TRANSICAO = ler('src/desktop/TransicaoDePagina.web.tsx');
+const UI = ler('src/desktop/ui.web.tsx');
+caso('a volta leva a marca na mesma transição que a rota, para a página nascer já calada', () => {
+  assert.match(NAVEGADOR, /const mudarRota = useCallback\(\(next: Route, \{ fecharLeitor = false, volta = false \} = \{\}\) => \{/);
+  assert.match(NAVEGADOR, /setRoute\(next\);\n\s+setChegouDeVolta\(volta\);/);
+  assert.match(NAVEGADOR, /<TransicaoDePagina chave=\{JSON\.stringify\(route\)\} aSair=\{aMudarDePagina\} volta=\{chegouDeVolta\}>/);
+});
+caso('a página marca-se calada na volta E numa viagem, e a marca fica até à rota seguinte', () => {
+  assert.match(TRANSICAO, /if \(volta \|\| document\.documentElement\.hasAttribute\('data-viagem'\)\) no\.setAttribute\('data-chegada', 'calada'\);/);
+  assert.match(TRANSICAO, /else no\.removeAttribute\('data-chegada'\);/);
+});
+caso('o CSS da chegada calada apaga a entrada da página, dos blocos, dos cartões e das linhas', () => {
+  const regra = CASCA.slice(CASCA.indexOf('[data-dt~="pagina"][data-chegada="calada"],'));
+  for (const alvo of ['"bloco"', '"cartao"', '"fila"']) assert.match(regra.slice(0, 520), new RegExp(`\\[data-dt~=${alvo}\\]`));
+  assert.match(regra, /animation: none !important; \}/);
+});
+caso('nada depende de `html[data-viagem]` para apagar a entrada: tirar um `animation: none` volta a pô-la a correr (a página piscava ao fim da viagem)', () => {
+  assert.ok(!/html\[data-viagem\] \[data-dt~="pagina"\]/.test(CASCA));
+});
+caso('o scroll de uma grelha volta já, antes do primeiro fotograma, e outra vez no seguinte', () => {
+  assert.match(UI, /restaurado\.current = true;\n(?:\s+\/\/.*\n)+\s+ref\.current\?\.scrollTo\?\.\(\{ y, animated: false \}\);\n\s+requestAnimationFrame\(\(\) => ref\.current\?\.scrollTo\?\.\(\{ y, animated: false \}\)\);/);
+});
+caso('os Artists voltam com a grelha montada até onde estavam, e só uma pesquisa a faz recomeçar', () => {
+  assert.match(BIBLIOTECA, /^let artistasMontados = PRIMEIRO_LOTE;$/m);
+  assert.match(BIBLIOTECA, /const \[pedidos, setPedidos\] = useState\(artistasMontados\);\n\s+useEffect\(\(\) => \{ artistasMontados = pedidos; \}, \[pedidos\]\);/);
+  assert.match(BIBLIOTECA, /if \(primeiraPesquisa\.current\) \{ primeiraPesquisa\.current = false; return; \}\n\s+setPedidos\(PRIMEIRO_LOTE\);/);
 });
 
 if (falhas) { console.log(`\n${falhas} falha(s)`); process.exit(1); }

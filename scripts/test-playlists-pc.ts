@@ -104,10 +104,10 @@ caso('o nome sai do cartão e a marca da raiz também, aconteça o que acontecer
   assert.match(VIAGEM, /void t\.finished\.then\(limpar, limpar\);/);
   assert.match(VIAGEM, /\} catch \{\n\s+limpar\(\);\n\s+mudar\(\);/);
 });
-caso('o CSS: 560 ms no mosaico, a raiz esbate-se depressa, e a página nova não entra a subir', () => {
+caso('o CSS: 560 ms no mosaico, a raiz esbate-se depressa, e a página nova chega calada (marca na página, não em `html[data-viagem]`)', () => {
   assert.match(CASCA, /::view-transition-group\(portrait\)\{ animation-duration: 560ms; animation-timing-function: var\(--dt-curva\); \}/);
   assert.match(CASCA, /::view-transition-old\(root\), ::view-transition-new\(root\)\{ animation-duration: 220ms; \}/);
-  assert.match(CASCA, /html\[data-viagem\] \[data-dt~="pagina"\]\{ animation: none; \}/);
+  assert.match(CASCA, /\[data-dt~="pagina"\]\[data-chegada="calada"\],/);
   assert.match(CASCA, /::view-transition-group\(\*\), ::view-transition-old\(\*\), ::view-transition-new\(\*\)\{ animation: none !important; \}/);
 });
 caso('nada de backdrop-filter, e o `viewTransitionName` só no cabeçalho da playlist', () => {

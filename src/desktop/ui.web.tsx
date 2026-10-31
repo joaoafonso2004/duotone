@@ -246,6 +246,10 @@ export function ContentScroll({ children, scrollKey, aoChegarAoFim }: {
     // browser limitar a posição a zero e perder o sítio guardado.
     if (y > 0 && alturaConteudo < y + alturaVisivel.current) return;
     restaurado.current = true;
+    // Já, antes do primeiro fotograma (30/10): só no seguinte, a grelha pintava-se no topo e
+    // saltava para o sítio -- ao voltar de uma playlist parecia um refresh. O fotograma seguinte
+    // repete-o, para o caso de o layout ainda não estar assente.
+    ref.current?.scrollTo?.({ y, animated: false });
     requestAnimationFrame(() => ref.current?.scrollTo?.({ y, animated: false }));
   };
   return <ScrollView

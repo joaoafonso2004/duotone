@@ -586,6 +586,9 @@ function gruposDaBiblioteca(faixas: readonly Track[], versao: unknown) {
   return grupos;
 }
 
+/** Quantos cartões a grelha dos Artists tinha montados ao sair dela (ver `pedidos`, em ArtistsPage). */
+let artistasMontados = PRIMEIRO_LOTE;
+
 export function ArtistsPage({ navigate, notify }: { navigate: (route: Route) => void; notify: (texto: string) => void }) {
   const data = useLibraryData();
   // O botão direito num cartão (24/10): o menu de um artista.
@@ -639,7 +642,10 @@ export function ArtistsPage({ navigate, notify }: { navigate: (route: Route) => 
   // A grelha monta por lotes: com centenas de artistas, montar tudo de uma vez
   // era mandar buscar centenas de capas no mesmo fotograma e a app inteira
   // engasgava-se ao abrir o separador. Ver `lib/grelhaQueCresce.ts`.
-  const [pedidos, setPedidos] = useState(PRIMEIRO_LOTE);
+  // Ao voltar de um artista monta-se já o tanto que havia (30/10): com o primeiro lote só, o sítio
+  // onde se estava ficava para lá do fim do que estava montado, e a grelha voltava ao topo.
+  const [pedidos, setPedidos] = useState(artistasMontados);
+  useEffect(() => { artistasMontados = pedidos; }, [pedidos]);
   const filteredArtists = useMemo(() => {
     // O mesmo comparador do telemóvel: procurar por `juice` dava listas
     // diferentes nas duas plataformas, porque aqui era um pedaço da chave
@@ -649,7 +655,11 @@ export function ArtistsPage({ navigate, notify }: { navigate: (route: Route) => 
   }, [artists, query]);
   // Uma pesquisa nova começa outra vez no primeiro lote: o que interessa está
   // em cima, e quem procurou não quer ver setecentos cartões.
-  useEffect(() => { setPedidos(PRIMEIRO_LOTE); }, [query]);
+  const primeiraPesquisa = useRef(true);
+  useEffect(() => {
+    if (primeiraPesquisa.current) { primeiraPesquisa.current = false; return; }
+    setPedidos(PRIMEIRO_LOTE);
+  }, [query]);
   const aMostrar = quantosMostrar(pedidos, filteredArtists.length);
   const visiveis = useMemo(() => filteredArtists.slice(0, aMostrar), [filteredArtists, aMostrar]);
   const mostrarMais = useCallback(() => setPedidos((n) => {

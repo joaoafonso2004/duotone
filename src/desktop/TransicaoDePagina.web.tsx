@@ -21,16 +21,25 @@ import { marcar } from './ui.web';
  * a página nova nunca aparecer um fotograma inteira antes de entrar. Remontar
  * (uma `key`) deitava fora o scroll e o estado de uma página que só mudou de
  * playlist.
+ *
+ * **Chegar calada** (30/10): ao voltar, e ao chegar numa viagem (`viagem.web.ts`),
+ * a página não repete a entrada -- nem ela, nem os blocos, cartões e linhas dela.
+ * Voltar é regressar ao que já se viu, e na viagem quem entra é o retrato. A marca
+ * (`data-chegada`) fica na página até à rota seguinte: o CSS que a lê é um
+ * `animation: none`, e tirá-lo ao fim da viagem punha a animação a correr de novo
+ * (a página piscava a zero e voltava a entrar, o "refresh" do João).
  */
-export function TransicaoDePagina({ chave, aSair = false, children }: {
-  chave: string; aSair?: boolean; children: React.ReactNode;
+export function TransicaoDePagina({ chave, aSair = false, volta = false, children }: {
+  chave: string; aSair?: boolean; volta?: boolean; children: React.ReactNode;
 }) {
   const ref = useRef<View>(null);
   const primeira = useRef(true);
   useLayoutEffect(() => {
-    if (primeira.current) { primeira.current = false; return; }
     const no = ref.current as unknown as HTMLElement | null;
     if (!no?.style) return;
+    if (volta || document.documentElement.hasAttribute('data-viagem')) no.setAttribute('data-chegada', 'calada');
+    else no.removeAttribute('data-chegada');
+    if (primeira.current) { primeira.current = false; return; }
     no.style.animation = 'none';
     void no.offsetHeight;
     no.style.animation = '';

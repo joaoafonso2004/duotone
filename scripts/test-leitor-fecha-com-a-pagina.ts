@@ -11,8 +11,8 @@ const nav = readFileSync(new URL('../src/navigation/RootNavigator.web.tsx', impo
 // A transição leva as duas mudanças juntas (o `startTransition` do
 // `useTransition`, que também dá o "pendente" para a página de agora se esbater).
 assert.match(nav, /const \[aMudarDePagina, startTransition\] = useTransition\(\);/);
-assert.match(nav, /<TransicaoDePagina chave=\{JSON\.stringify\(route\)\} aSair=\{aMudarDePagina\}>/);
-assert.match(nav, /startTransition\(\(\) => \{\n\s+setRoute\(next\);\n\s+if \(fecharLeitor\) setNowPlayingOpen\(false\);\n\s+\}\);/,
+assert.match(nav, /<TransicaoDePagina chave=\{JSON\.stringify\(route\)\} aSair=\{aMudarDePagina\} volta=\{chegouDeVolta\}>/);
+assert.match(nav, /startTransition\(\(\) => \{\n\s+setRoute\(next\);\n\s+setChegouDeVolta\(volta\);\n\s+if \(fecharLeitor\) setNowPlayingOpen\(false\);\n\s+\}\);/,
   'o leitor fecha dentro da transição da página');
 
 const corpo = (nome: string) => {

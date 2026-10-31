@@ -545,7 +545,14 @@ export function injectDesktopDocumentStyles() {
     ::view-transition-group(portrait){ animation-duration: 560ms; animation-timing-function: var(--dt-curva); }
     ::view-transition-old(portrait), ::view-transition-new(portrait){ height: 100%; object-fit: cover; }
     ::view-transition-old(root), ::view-transition-new(root){ animation-duration: 220ms; }
-    html[data-viagem] [data-dt~="pagina"]{ animation: none; }
+    /* A página que chega calada (30/10, o "refresh" ao voltar): a volta e a viagem não repetem a
+       entrada. A marca fica na página enquanto ela está no ecrã (TransicaoDePagina) e NÃO sai com a
+       viagem: tirar um "animation: none" põe a animação a correr de novo, e a página piscava a
+       zero e entrava outra vez logo a seguir ao fim da viagem. */
+    [data-dt~="pagina"][data-chegada="calada"],
+    [data-dt~="pagina"][data-chegada="calada"] [data-dt~="bloco"],
+    [data-dt~="pagina"][data-chegada="calada"] [data-dt~="cartao"],
+    [data-dt~="pagina"][data-chegada="calada"] [data-dt~="fila"]{ animation: none !important; }
     @media (prefers-reduced-motion: reduce){
       ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*){ animation: none !important; }
     }
