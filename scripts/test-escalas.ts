@@ -22,7 +22,6 @@ const EXCECOES: Record<string, string> = {
   'src/components/PlayerRoot.tsx': 'o leitor do iPhone não se mexe sem o João pedir',
   // A letra do aviso do handoff está toda fora da escala (9, 11, 10,5, 13):
   // dobrar só o 10,5 deixava a terceira linha maior do que a segunda.
-  'src/components/HandoffBanner.web.tsx': 'a letra do cartão do handoff, por refazer inteira (backlog)',
 };
 const RAIOS_SOLTOS = new Set([5, 6, 7, 9, 10, 11, 17]);
 

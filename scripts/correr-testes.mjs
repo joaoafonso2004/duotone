@@ -94,6 +94,7 @@ const TESTES = [
   `${RESOLVER} scripts/test-automix.ts`,
   `${RESOLVER} scripts/test-acerto-que-fica.ts`,
   `${TS} scripts/test-avisos-do-pc.ts`,
+  `${TS} scripts/test-frases-dos-estados.ts`,
   `${TS} scripts/test-montagem-da-capa.ts`,
   `${TS} scripts/test-recuo-do-encaixe.ts`,
   `${TS} scripts/test-troca-de-fonte.ts`,

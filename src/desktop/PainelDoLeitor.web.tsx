@@ -15,6 +15,7 @@ import { COR, ESP, ESTADO, FONT, TIPO } from './tokens.web';
 import type { CommonPageProps } from './rotas';
 import { usePainelDoLeitor, type AbaDoPainel as Aba } from './estadoDoPainel.web';
 
+import { FRASES_DOS_ESTADOS } from '../lib/frasesDosEstados';
 const DURACAO_DA_RECOLHA = 240;
 /** As abas do painel, por ordem, e o nome de cada (31/10: a terceira, About, é nova). */
 const ABAS: readonly Aba[] = ['fila', 'letras', 'sobre'];
@@ -58,7 +59,7 @@ function ConteudoDoPainel({ aba, more, notify }: Pick<CommonPageProps, 'more' | 
       </View>
       <Ionicons name="ellipsis-horizontal" size={16} color={COR.textoMedio} />
     </Pressable>
-  </View> : <Empty icon="musical-notes-outline" title="Nothing playing" body="Play a track to see it here." />;
+  </View> : <Empty icon="musical-notes-outline" title={FRASES_DOS_ESTADOS.nadaATocar.titulo} body={FRASES_DOS_ESTADOS.nadaATocar.corpo} />;
   if (aba === 'fila') return <FilaDoLeitor more={more} notify={notify} atual={identidade} />;
   // O About (31/10): o artista e a música, o mesmo do cartão do Now Playing.
   if (aba === 'sobre') return <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: ESP.sm }}>{track ? <SobreAMusica track={track} more={more} notify={notify} /> : identidade}</ScrollView>;

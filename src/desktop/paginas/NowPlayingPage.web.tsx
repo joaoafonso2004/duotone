@@ -35,6 +35,7 @@ import { displayArtist, tituloDaFaixa } from '../../lib/artistName';
 import { comCatalogo, garantirCatalogo, useCatalogoDeFaixas } from '../../state/catalogoDeFaixas';
 
 
+import { FRASES_DOS_ESTADOS } from '../../lib/frasesDosEstados';
 /** O aviso de um pedido ao outro aparelho, com o tipo dele: a enviar, feito, ou falhou (A1, 31/10). */
 function avisarPedido(estado: EstadoDoPedido, texto: string) {
   if (estado === 'pendente') avisarInfo(texto);
@@ -277,7 +278,7 @@ export function NowPlayingPage({
   const seguinte = upNext[0]?.track;
   useEffect(() => { preCarregarCapaGrande(seguinte ? comCatalogo(seguinte) : null); }, [seguinte?.sourceId]);
   if (!track) {
-    return <Page title="Now Playing" action={<BotaoVoltar onPress={back} />}><Empty icon="play-circle-outline" title="Silent" body="Start playing a track to see it here." /></Page>;
+    return <Page title="Now Playing" action={<BotaoVoltar onPress={back} />}><Empty icon="play-circle-outline" title={FRASES_DOS_ESTADOS.nadaATocar.titulo} body={FRASES_DOS_ESTADOS.nadaATocar.corpo} /></Page>;
   }
   const { duasColunas, lado: ladoCapa } = disposicaoDoLeitor(area.largura || 1192, area.altura || 788);
   // O artista sai do `displayArtist` e não do campo `artist`, que no YouTube é

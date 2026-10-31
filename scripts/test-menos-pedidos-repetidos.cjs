@@ -38,6 +38,7 @@ async function main() {
       pedidos.push([nome, [...args.p_ids]]);
       return { data: args.p_ids.filter((id) => id !== 'apagado').map((id) => ({ id, name: id, username: id, avatar_url: null })), error: null };
     } } },
+    '../lib/frasesDosEstados': { FRASES_DOS_ESTADOS: { perfilMudou: 'Your profile changed on another device. Close and reopen the editor.' } },
   });
   const ids = (lista) => lista.map((p) => p.id).join(',');
 

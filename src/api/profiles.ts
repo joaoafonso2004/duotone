@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase';
 import type { DbPlayStats } from './plays';
 import type { Track } from '../types';
 
+import { FRASES_DOS_ESTADOS } from '../lib/frasesDosEstados';
 export interface PublicProfile { id: string; name: string; username: string; avatar_url: string | null }
 export async function getSocialConversations():Promise<PublicProfile[]>{
   const {data,error}=await supabase.rpc('get_social_conversations');if(error)throw error;return data??[];
@@ -26,7 +27,7 @@ export async function saveProfileCustomization(value: ProfileAppearance,name:str
     p_value:{...value,username},p_version:value.version,p_name:name.trim(),
     p_playlists:highlights.playlistIds,p_moment:highlights.moment?.id??null,
   });
-  if(error)throw new Error(error.code==='40001'?'O perfil foi alterado noutro dispositivo. Fecha e volta a abrir o editor.':error.message);
+  if(error)throw new Error(error.code==='40001'?FRASES_DOS_ESTADOS.perfilMudou:error.message);
 }
 
 /**
@@ -86,7 +87,7 @@ export async function getSocialProfileTracks(id: string,recent=false,offset=0): 
 }
 export async function saveProfileAppearance(value: ProfileAppearance,name: string,username?:string): Promise<void> {
   const {error}=await supabase.rpc('save_profile_appearance',{p_value:{...value,username},p_version:value.version,p_name:name.trim()});
-  if(error) throw new Error(error.code==='40001' ? 'O perfil foi alterado noutro dispositivo. Fecha e volta a abrir o editor.' : error.message);
+  if(error) throw new Error(error.code==='40001' ? FRASES_DOS_ESTADOS.perfilMudou : error.message);
 }
 
 /** Sem uma leitura confirmada, editar a identidade conserva os destaques. */

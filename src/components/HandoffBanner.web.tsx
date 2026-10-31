@@ -6,7 +6,7 @@ import { deviceLabel, resumoDaFila } from '../lib/handoff';
 import { mandarComando } from '../lib/connectSync';
 import { avisoDoPedido, estaAcordado, type TipoDePedido } from '../lib/duotoneConnect';
 import { useHandoffSession } from '../lib/sessionSync';
-import { COR, ESTADO, RAIO } from '../desktop/tokens.web';
+import { COR, ESTADO, RAIO, TIPO } from '../desktop/tokens.web';
 import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
 
@@ -166,24 +166,24 @@ const s = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: COR.linha,
-    backgroundColor: '#1B1B24',
+    backgroundColor: COR.elevado,
     boxShadow: '0 14px 40px rgba(0,0,0,.5)',
   } as any,
   card: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 10, paddingHorizontal: 12 },
-  iconWrap: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  iconWrap: { width: 30, height: 30, borderRadius: RAIO.cartao, alignItems: 'center', justifyContent: 'center' },
   art: { width: 38, height: 38, borderRadius: RAIO.ctrl, backgroundColor: COR.elevado },
   texts: { minWidth: 170, maxWidth: 280 },
   eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   aoVivo: { width: 6, height: 6, borderRadius: 3 },
-  eyebrow: { fontSize: 9, fontWeight: '800', letterSpacing: 1, flexShrink: 1 },
-  title: { color: COR.texto, fontSize: 13, fontWeight: '650' as any, marginTop: 3 },
-  artist: { color: COR.textoMedio, fontSize: 11, marginTop: 2 },
-  aSeguir: { color: COR.textoFraco, fontSize: 10.5, marginTop: 3 },
-  cta: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingHorizontal: 13, borderRadius: 999, cursor: 'pointer' } as any,
+  eyebrow: { ...TIPO.micro, flexShrink: 1 },
+  title: { ...TIPO.corpo, color: COR.texto, fontWeight: '600', marginTop: 3 },
+  artist: { ...TIPO.legenda, color: COR.textoMedio, marginTop: 2 },
+  aSeguir: { ...TIPO.legenda, color: COR.textoFraco, marginTop: 3 },
+  cta: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingHorizontal: 13, borderRadius: RAIO.pilula, cursor: 'pointer' } as any,
   ctaHover: { opacity: 0.88 },
   pressed: { opacity: 0.72 },
   // A cor vem do tema, no sítio de uso.
-  ctaText: { fontSize: 12, fontWeight: '700' },
+  ctaText: { ...TIPO.legenda, fontWeight: '700' },
   remoto: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 2 },
   botaoRemoto: { width: 28, height: 28, borderRadius: RAIO.cartao, alignItems: 'center', justifyContent: 'center', cursor: 'pointer' } as any,
   close: { width: 26, height: 26, borderRadius: RAIO.cartao, alignItems: 'center', justifyContent: 'center', cursor: 'pointer' } as any,

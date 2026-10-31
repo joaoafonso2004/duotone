@@ -12,7 +12,7 @@ import { usePlayer } from '../state/player';
 import { useSocial } from '../state/social';
 import { useTheme } from '../state/theme';
 import { marcar } from '../desktop/ui.web';
-import { RAIO, TIPO } from '../desktop/tokens.web';
+import { COR, RAIO, TIPO } from '../desktop/tokens.web';
 import { FriendAvatar } from './FriendAvatar';
 
 import { mensagemDeErro } from '../lib/mensagemDeErro';
@@ -101,19 +101,19 @@ function Aviso({ item, onOpen }: { item: InAppNotification; onOpen: (target: Not
             </View>
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="Dismiss notification" onPress={fechar} style={s.fecharB}>
-            <Ionicons name="close" size={18} color="#AAAAB4" />
+            <Ionicons name="close" size={18} color={COR.textoMedio} />
           </Pressable>
         </View>
 
         {item.track ? (
           <View style={s.musica}>
-            {capa ? <Image source={{ uri: capa }} style={s.capa} /> : <View style={[s.capa, { backgroundColor: '#292931' }]} />}
+            {capa ? <Image source={{ uri: capa }} style={s.capa} /> : <View style={[s.capa, { backgroundColor: COR.hover }]} />}
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text numberOfLines={1} style={s.tituloM}>{tituloDaFaixa(item.track)}</Text>
               <Text numberOfLines={1} style={s.artistaM}>{displayArtist(item.track)}</Text>
             </View>
             <Pressable accessibilityRole="button" accessibilityLabel={`Play ${tituloDaFaixa(item.track)}`} onPress={tocar} style={s.tocar}>
-              <Ionicons name="play" size={13} color="#0B0B0E" style={{ marginLeft: 2 }} />
+              <Ionicons name="play" size={13} color={COR.fundo} style={{ marginLeft: 2 }} />
             </Pressable>
           </View>
         ) : null}
@@ -134,7 +134,7 @@ function Aviso({ item, onOpen }: { item: InAppNotification; onOpen: (target: Not
                 if (e.nativeEvent?.key === 'Escape') fechar();
               }}
               placeholder={`Reply to ${item.title}…`}
-              placeholderTextColor="#84868F"
+              placeholderTextColor={COR.textoFraco}
               editable={!aEnviar}
               style={s.campo}
             />
@@ -160,29 +160,29 @@ function Aviso({ item, onOpen }: { item: InAppNotification; onOpen: (target: Not
 const s = StyleSheet.create({
   host: { position: 'absolute', right: 20, top: 48, width: 400, maxWidth: '94%' as any, zIndex: 10000 },
   card: {
-    width: '100%', backgroundColor: '#1C1C23', borderWidth: 1, borderColor: '#36363F', borderRadius: 18,
+    width: '100%', backgroundColor: COR.elevado, borderWidth: 1, borderColor: COR.linha, borderRadius: RAIO.superficie,
     shadowColor: '#000', shadowOpacity: 0.45, shadowRadius: 18, shadowOffset: { width: 0, height: 10 },
   },
   topo: { flexDirection: 'row', alignItems: 'flex-start', paddingTop: 14, paddingLeft: 14, paddingRight: 6 },
   abrir: { flex: 1, minWidth: 0, flexDirection: 'row', gap: 12, paddingBottom: 10 },
   linhaNome: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
-  nome: { color: '#F5F5F7', fontSize: 14, fontWeight: '700', flexShrink: 1 },
-  hora: { color: '#84868F', fontSize: 11, fontFamily: 'JetBrains Mono, ui-monospace, monospace' },
-  mensagem: { color: '#CDCDD4', fontSize: TIPO.corpo.fontSize, lineHeight: 19, marginTop: 3 },
-  fecharB: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  musica: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 14, marginBottom: 10, padding: 8, borderRadius: 12, backgroundColor: 'rgba(233,234,238,0.05)' },
+  nome: { ...TIPO.corpo, color: COR.texto, fontWeight: '600', flexShrink: 1 },
+  hora: { ...TIPO.numero, color: COR.textoFraco },
+  mensagem: { ...TIPO.corpo, color: COR.texto, lineHeight: 19, marginTop: 3 },
+  fecharB: { width: 32, height: 32, borderRadius: RAIO.pilula, alignItems: 'center', justifyContent: 'center' },
+  musica: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 14, marginBottom: 10, padding: 8, borderRadius: RAIO.cartao, backgroundColor: COR.linhaSuave },
   capa: { width: 40, height: 40, borderRadius: RAIO.ctrl },
-  tituloM: { color: '#F5F5F7', fontSize: 13, fontWeight: '600' },
-  artistaM: { color: '#9DA0AA', fontSize: 12, marginTop: 1 },
-  tocar: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#E9EAEE', alignItems: 'center', justifyContent: 'center' },
-  mais: { color: '#84868F', fontSize: 12, paddingHorizontal: 14, marginTop: -2, marginBottom: 10 },
+  tituloM: { ...TIPO.corpo, color: COR.texto, fontWeight: '600' },
+  artistaM: { ...TIPO.legenda, color: COR.textoMedio, marginTop: 1 },
+  tocar: { width: 30, height: 30, borderRadius: RAIO.pilula, backgroundColor: COR.metalClaro, alignItems: 'center', justifyContent: 'center' },
+  mais: { ...TIPO.legenda, color: COR.textoFraco, paddingHorizontal: 14, marginTop: -2, marginBottom: 10 },
   responder: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, paddingBottom: 14 },
   campo: {
-    flex: 1, minWidth: 0, height: 38, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(233,234,238,0.10)',
-    backgroundColor: 'rgba(233,234,238,0.06)', color: '#E9EAEE', fontSize: 14, paddingHorizontal: 12,
+    flex: 1, minWidth: 0, height: 38, borderRadius: RAIO.cartao, borderWidth: 1, borderColor: COR.linha,
+    backgroundColor: COR.linhaSuave, ...TIPO.corpo, color: COR.texto, paddingHorizontal: 12,
     outlineStyle: 'none',
   } as any,
-  enviar: { height: 38, borderRadius: 12, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
-  enviarTexto: { fontSize: 13, fontWeight: '700' },
-  erro: { color: '#E5484D', fontSize: 12, paddingHorizontal: 14, marginTop: -6, paddingBottom: 12 },
+  enviar: { height: 38, borderRadius: RAIO.cartao, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
+  enviarTexto: { ...TIPO.corpo, fontWeight: '600' },
+  erro: { ...TIPO.legenda, color: COR.erro, paddingHorizontal: 14, marginTop: -6, paddingBottom: 12 },
 });

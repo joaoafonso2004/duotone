@@ -80,6 +80,7 @@ const mocks = {
     infoDaPesquisa: () => ({ porVideo: {}, porTitulo: {} }), modosComDados: () => [],
   },
   '../lib/albunsDoArtista': { chaveDoTitulo: x => x },
+  '../lib/frasesDosEstados': { FRASES_DOS_ESTADOS: { artistaSemMusicas: { titulo: 'No songs yet', corpo: "We couldn't find songs by this artist." } } },
   '../lib/prefs': { getOrdemDoArtista: async () => 'ouvidas', setOrdemDoArtista: async () => {} },
   '../state/saved': { useSaved: { getState: () => ({ refresh() {} }) } }, '../state/player': { usePlayer },
   '../state/mixDoArtista': { tocarMixDoArtista: async (...args) => { calls.push(['mix', ...args]); return true; } },

@@ -74,6 +74,7 @@ import { contextoDaMistura, contextoDaPrateleira, contextoParaAnalytics, notaDaP
 import { registar } from '../../lib/eventos';
 
 import { avisarErro } from '../../lib/avisoDeRemocao';
+import { FRASES_DOS_ESTADOS } from '../../lib/frasesDosEstados';
 /** As prateleiras menos usadas ficam atrás de um botão, e a escolha fica entre visitas (30/10). */
 let outrasPrateleirasAbertas = false;
 
@@ -772,8 +773,8 @@ export function MisturaPage({ id, titulo, back, ...props }: {
     </View>}>
     <ContentScroll scrollKey={`mistura:${id}`}>
       {!prontas && !mistura ? <View style={{ height: 320 }}><Loading /></View>
-        : !mistura ? <Empty icon="sparkles-outline" title="This mix is gone"
-            body="Mixes are rebuilt as you listen. Go back to Search and pick one of the current ones." />
+        : !mistura ? <Empty icon="sparkles-outline" title={FRASES_DOS_ESTADOS.misturaQueSaiu.titulo}
+            body={FRASES_DOS_ESTADOS.misturaQueSaiu.corpo} />
         : <TrackTable listKey={`mistura:${id}`} tracks={faixas} contexto={contexto}
             onPlay={(t,c) => props.tocarMusica(t, faixas, c, { tipo: 'mistura', nome: mistura.nome, id })} onMore={props.more} />}
     </ContentScroll>
@@ -1014,7 +1015,7 @@ export function ArtistPage({ name, back, corNaJanela = false, ...props }: { name
                 caraDaLinha={detalheDaFaixa} larguraDaCara={96}
                 onPlay={(t) => props.tocarMusica(t, musicas, undefined, { tipo: 'artista', nome: name })} onMore={props.more}
                 empty={filtro.trim() ? <Empty icon="search" title="No matches" body={`No songs match “${filtro.trim()}”.`} />
-                  : <Empty icon="musical-notes-outline" title="No songs found" body="No songs by this artist were found." />} />
+                  : <Empty icon="musical-notes-outline" title={FRASES_DOS_ESTADOS.artistaSemMusicas.titulo} body={FRASES_DOS_ESTADOS.artistaSemMusicas.corpo} />} />
               {aProcurarMusicas ? <View style={{ height: 120 }}><Loading /></View> : null}
             </>}
           </View>

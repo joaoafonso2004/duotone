@@ -40,6 +40,7 @@ import type { Track } from '../types';
 import { useAlturaDosSeparadores } from '../state/doca';
 import { avisarErro } from '../lib/avisoDeRemocao';
 
+import { FRASES_DOS_ESTADOS } from '../lib/frasesDosEstados';
 type Props = NativeStackScreenProps<RootStackParamList, 'LibraryGroup'>;
 
 /** Detalhe de um álbum ou artista (vista sobre as faixas guardadas). */
@@ -343,7 +344,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
 
           <CabecalhoDaSeccao titulo={semDiscografia ? 'Songs' : 'Top Songs'} aoCarregar={!waiting && musicas.length ? () => { hapticSelection(); setVerTodas(true); } : undefined} />
           {waiting ? <SkeletonDeFaixas linhas={4} />
-            : !musicas.length ? <EmptyState icon="musical-notes-outline" title="No songs found" subtitle="No songs by this artist were found." />
+            : !musicas.length ? <EmptyState icon="musical-notes-outline" title={FRASES_DOS_ESTADOS.artistaSemMusicas.titulo} subtitle={FRASES_DOS_ESTADOS.artistaSemMusicas.corpo} />
             // Sem discografia (um artista sem página no catálogo de música), a
             // página acabava nas Top Songs (23/10, Dave Blunts): as músicas
             // vão todas, numa lista, em vez de doze numa grelha.

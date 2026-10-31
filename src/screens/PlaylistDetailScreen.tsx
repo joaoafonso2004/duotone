@@ -90,6 +90,7 @@ import { useAlturaDosSeparadores } from '../state/doca';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
 import { DentroDeUmModal, useModalDoRNAberto } from '../components/dentroDeUmModal';
 
+import { FRASES_DOS_ESTADOS } from '../lib/frasesDosEstados';
 type Props = NativeStackScreenProps<RootStackParamList, 'PlaylistDetail'>;
 
 export function PlaylistDetailScreen({ route, navigation }: Props) {
@@ -886,8 +887,8 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
         <View style={{ flex: 1, paddingTop: cab.espaco }}>
         <EmptyState
           icon="musical-notes-outline"
-          title="This playlist is empty"
-          subtitle={canEdit?"Add tracks from Search or your Library using the ••• menu on any track.":"The owner has not added any tracks yet."}
+          title={FRASES_DOS_ESTADOS.playlistVazia.titulo}
+          subtitle={canEdit ? FRASES_DOS_ESTADOS.playlistVazia.corpo : FRASES_DOS_ESTADOS.playlistVazia.semPoder}
         />
         </View>
       ) : playlistSearchQuery.trim() && visibleTracks.length === 0 ? (
