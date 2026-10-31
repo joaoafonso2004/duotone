@@ -40,7 +40,7 @@ export function ProgressoDaImportacao() {
       </View>
       {!acabou ? (
         <View style={{ height: 3, borderRadius: 2, backgroundColor: 'rgba(233,234,238,0.12)', overflow: 'hidden' }}>
-          <View style={{ height: 3, width: `${Math.round((fracao ?? 0.04) * 100)}%`, backgroundColor: COR.texto, transition: 'width 400ms ease' } as any} />
+          <View style={{ height: 3, width: `${Math.round((fracao ?? 0.04) * 100)}%`, backgroundColor: COR.texto, transition: 'width 400ms var(--dt-curva)' } as any} />
         </View>
       ) : null}
     </View>

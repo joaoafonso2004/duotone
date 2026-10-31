@@ -12,6 +12,7 @@ import type { Track } from '../types';
 import type { Alvo } from './Arrastar.web';
 import { mudouAPlaylist } from './porNaPlaylist.web';
 
+import { fraseDaOrbita } from '../lib/orbita';
 /**
  * Os destinos de uma música arrastada (24/10, docs/arrastar-pc-maquete.html),
  * e o que cada um faz ao largar. O que se pode desfazer leva "Undo" (o aviso
@@ -79,7 +80,7 @@ function porNaFila(t: Track, posicao: number): void {
   usePlayer.getState().playNext(t);
   if (posicao > 0) usePlayer.getState().reordenarProximas(0, posicao);
   avisarRemocao({
-    tipo: 'feito', texto: posicao === 0 ? 'Will play next.' : 'Added to the queue.',
+    tipo: 'feito', texto: fraseDaOrbita(posicao === 0 ? 'seguinte' : 'fila', ''),
     desfazer: () => { usePlayer.getState().reporFila(foto); },
   });
 }

@@ -73,6 +73,7 @@ import { closeNotificationOverlays } from '../lib/notificationOverlays';
 import type { NotificationTarget } from '../lib/inAppNotifications';
 import { PersonalizarScreen } from '../screens/PersonalizarScreen';
 
+import { CamadaDaOrbita } from '../components/CamadaDaOrbita';
 const OnlineArtists=withInternet(ArtistsScreen,'Artists');
 const OnlineImportYouTube=withInternet(ImportYouTubeScreen,'ImportYouTube');
 const OnlineListeningStats=withInternet(ListeningStatsScreen,'ListeningStats');
@@ -508,6 +509,10 @@ export function RootNavigator() {
             {/* O refrão primeiro (25/10): 15 s por cima do que estiver a tocar. */}
             <BarreiraDeErros onde="refrao" discreta>
               <PreEscutaDoRefrao />
+            </BarreiraDeErros>
+            {/* A Órbita (31/10): a capa voa para a fila, por cima do mini sem lhe mexer. */}
+            <BarreiraDeErros onde="orbita" discreta>
+              <CamadaDaOrbita />
             </BarreiraDeErros>
             {/* "A tocar no PC — continuar aqui". Fica por cima do mini-player. */}
             <HandoffBanner />

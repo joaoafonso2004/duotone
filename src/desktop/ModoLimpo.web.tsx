@@ -191,7 +191,7 @@ function EcraLimpo() {
   const lado = tamanhoDaCapa(width, height);
   const moldura = molduraSemBarras(lado);
   const aparece = (visivel: boolean) =>
-    ({ opacity: visivel ? 1 : 0, transition: 'opacity .45s cubic-bezier(.4,0,.2,1)' } as any);
+    ({ opacity: visivel ? 1 : 0, transition: 'opacity 450ms var(--dt-curva)' } as any);
 
 
   return (

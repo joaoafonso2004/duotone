@@ -86,6 +86,8 @@ import { rotaNoPc, type Destino } from '../lib/destinos';
 import { DestinosProvider } from './destinos';
 import { AVISO_DO_NAO_INTERESSA, eSugestao, naoInteressa } from '../state/naoInteressa';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
+import { orbitar, ouvirOrigemDaOrbita } from '../desktop/Orbita.web';
+import { fraseDaOrbita } from '../lib/orbita';
 const V = View as any;
 
 function AuthDesktop() {
@@ -369,6 +371,8 @@ function DesktopShell() {
     return () => { window.removeEventListener('mouseup', aoLargar); window.removeEventListener('mousedown', engolir); };
   }, [voltarPeloRato, avancar]);
   const notify = useCallback((s: string) => setToast(s), [setToast]);
+  // De onde parte a Órbita: a capa da linha onde se carregou (desktop/Orbita.web.ts).
+  useEffect(() => ouvirOrigemDaOrbita(), []);
   // Os avisos dos componentes partilhados (avisarFeito/avisarErro/avisarInfo,
   // lib/avisoDeRemocao.ts) só tinham quem os mostrasse no iPhone: no PC
   // calavam-se (o "Invited … to listen" do Social, 24/10). Vão para o toast.
@@ -602,7 +606,8 @@ function DesktopShell() {
       } else {
         await saveToLibrary(trackMenu);
         if(trackMenuContext)registar('recomendacao_guardada',contextoParaAnalytics(trackMenuContext));
-        notify('Added to Liked Songs.');
+        // A Órbita (31/10): a capa voa para as Liked Songs da lateral; sem voo, a frase.
+        if (!orbitar('guardar', trackMenu.artworkUrl)) notify(fraseDaOrbita('guardar', tituloDaFaixa(trackMenu)));
       }
       window.dispatchEvent(new Event('duotone:refresh-library'));
     } catch (e: any) {
@@ -658,8 +663,10 @@ function DesktopShell() {
         if (trackMenuFila !== null) void usePlayer.getState().playTrack(t, usePlayer.getState().queue);
         else tocarMusica(t, undefined, trackMenuContext ?? undefined);
         return;
-      case 'tocar-a-seguir': setTrackMenuOpen(false); usePlayer.getState().playNext(t); notify('Will play next.'); return;
-      case 'por-na-fila': setTrackMenuOpen(false); usePlayer.getState().addToQueue(t); notify('Added to queue.'); return;
+      // A Órbita (C4, 31/10): a capa voa para onde a música foi; sem voo (menos
+      // movimento, nada à vista), a frase -- a mesma nas duas plataformas.
+      case 'tocar-a-seguir': setTrackMenuOpen(false); usePlayer.getState().playNext(t); if (!orbitar('seguinte', t.artworkUrl)) notify(fraseDaOrbita('seguinte', tituloDaFaixa(t))); return;
+      case 'por-na-fila': setTrackMenuOpen(false); usePlayer.getState().addToQueue(t); if (!orbitar('fila', t.artworkUrl)) notify(fraseDaOrbita('fila', tituloDaFaixa(t))); return;
       case 'guardar': void toggleSave(); return;
       // 'por-em-playlist' não chega aqui: a linha abre o painel das playlists ao lado.
       // O artista sai do `displayArtist` e nao do campo `artist`, que no

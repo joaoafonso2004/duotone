@@ -3,6 +3,7 @@ import { CoracaoAnimado } from './components/CoracaoAnimado';
 import { useCoracaoAoCarregar } from './hooks/useCoracaoAoCarregar';
 import { COR, cssDasFontes, FONT, RAIO } from './desktop/tokens.web';
 
+import { cssDasMolas } from './lib/molasEmCss';
 /**
  * A janela do mini leitor do PC (entrega 2b do
  * docs/PLANO-OFFLINE-SOCIAL-DESCOBERTA-PC.md; aprovado pela pré-visualização
@@ -32,6 +33,8 @@ import { COR, cssDasFontes, FONT, RAIO } from './desktop/tokens.web';
 const BORDA_ACESA = 'rgba(233,234,238,0.16)';
 
 const CSS = `
+/* Uma física (S1, 31/10): as molas do iPhone, como na janela principal. */
+${cssDasMolas()}
 /* A barra (25/9): recolhida é uma barra fina; com o rato por cima abre para o
    cartão, e ao sair volta a recolher. A JANELA não muda de tamanho (isso no
    Windows é aos solavancos): anima o cartão lá dentro, encostado ao lado de
@@ -40,20 +43,20 @@ const CSS = `
 /* .mini.cartao: a regra .mini (altura 100%) vem depois e ganhava. */
 .mini.cartao { position: absolute; left: 0; right: 0; height: 44px; display: flex; align-items: center; gap: 10px;
   padding: 6px 8px 6px 6px;
-  transition: height 260ms cubic-bezier(.22,1,.36,1), padding 260ms cubic-bezier(.22,1,.36,1), gap 260ms cubic-bezier(.22,1,.36,1),
+  transition: height 260ms var(--dt-curva), padding 260ms var(--dt-curva), gap 260ms var(--dt-curva),
     background-color .2s, border-color .2s; }
 .cartao.baixo { bottom: 0; } .cartao.cima { top: 0; }
 .mini.cartao.aberto { height: 88px; padding: 12px; gap: 12px; background: ${COR.hover}; border-color: ${BORDA_ACESA}; }
 .cartao .capa { width: 32px; height: 32px; border-radius: ${RAIO.ctrl}px;
-  transition: width 260ms cubic-bezier(.22,1,.36,1), height 260ms cubic-bezier(.22,1,.36,1), border-radius 260ms; }
+  transition: width 260ms var(--dt-curva), height 260ms var(--dt-curva), border-radius 260ms; }
 .cartao.aberto .capa { width: 64px; height: 64px; border-radius: ${RAIO.cartao}px; }
-.cartao .detalhe { max-height: 0; opacity: 0; overflow: hidden; transition: max-height 260ms cubic-bezier(.22,1,.36,1), opacity 160ms; }
+.cartao .detalhe { max-height: 0; opacity: 0; overflow: hidden; transition: max-height 260ms var(--dt-curva), opacity 160ms; }
 .cartao.aberto .detalhe { max-height: 40px; opacity: 1; transition-delay: 0s, 80ms; }
 .cartao .extra { width: 0; opacity: 0; overflow: hidden; pointer-events: none;
-  transition: width 260ms cubic-bezier(.22,1,.36,1), opacity 160ms; }
+  transition: width 260ms var(--dt-curva), opacity 160ms; }
 .cartao.aberto .extra { width: 30px; opacity: 1; pointer-events: auto; }
 .cartao .play { width: 30px; height: 30px; border-radius: 15px;
-  transition: width 260ms cubic-bezier(.22,1,.36,1), height 260ms cubic-bezier(.22,1,.36,1), background .2s; }
+  transition: width 260ms var(--dt-curva), height 260ms var(--dt-curva), background .2s; }
 .cartao.aberto .play { width: 38px; height: 38px; border-radius: 19px; }
 .cartao .so-aberto { opacity: 0; pointer-events: none; transition: opacity 160ms; }
 .cartao.aberto .so-aberto { opacity: 1; pointer-events: auto; transition-delay: 100ms; }
@@ -67,7 +70,7 @@ const CSS = `
   border: 1px solid ${BORDA_ACESA}; color: ${COR.texto}; overflow: hidden; display: flex; flex-direction: column;
   font-family: ${FONT.body}; user-select: none;
   opacity: 0; pointer-events: none;
-  transition: clip-path 260ms cubic-bezier(.22,1,.36,1), opacity 160ms; }
+  transition: clip-path 260ms var(--dt-curva), opacity 160ms; }
 .lista.cima { clip-path: inset(0 0 100% 0 round 14px); }
 .lista.baixo { clip-path: inset(100% 0 0 0 round 14px); }
 .lista.aberta { clip-path: inset(0 0 0 0 round 14px); opacity: 1; pointer-events: auto; }

@@ -7,6 +7,7 @@ import { marcar } from '../desktop/ui.web';
 import { pausarAtalhosDaJanela } from '../desktop/useAtalhosDaJanela.web';
 import type { TipoDeRadio } from '../state/player';
 
+import { curvaDoPc } from '../lib/molasEmCss';
 // Sem tipos instalados para o react-dom; só se usa o portal.
 const { createPortal } = require('react-dom') as { createPortal: (filho: React.ReactNode, onde: Element) => React.ReactElement };
 
@@ -20,8 +21,8 @@ const ALTURA = PADDING * 2 + ALTURA_DO_TITULO + ALTURA_DA_LINHA * MENU_DO_RADIO.
 const MARGEM = 12;
 const AFASTAMENTO = 8;
 const FUNDO = '#18181F';
-const MOLA = 'cubic-bezier(.3,1.28,.45,1)';
-const SUAVE = 'cubic-bezier(.2,.8,.2,1)';
+const MOLA = curvaDoPc('soltar');
+const SUAVE = curvaDoPc('entrada');
 
 /**
  * O menu do Radio no PC (18/10, variante A de `docs/radio-menu-animacao.html`):
@@ -113,8 +114,8 @@ export function MenuDoRadio({ ancora, visivel, capa, capasDoMix, aoEscolher, aoF
     const saida = escolheu
       ? forma.current.animate([noMenu, { ...noMenu, offset: 0.2 },
         { left: `${a.x}px`, top: `${a.y}px`, width: `${a.width}px`, height: `${a.height}px`, borderRadius: `${a.height / 2}px`, backgroundColor: 'rgba(233,234,238,0.16)', opacity: 0 }],
-      { duration: 360, easing: 'cubic-bezier(.5,0,.3,1)', fill: 'forwards' })
-      : forma.current.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.96)' }], { duration: 160, easing: 'ease-in', fill: 'forwards' });
+      { duration: 360, easing: curvaDoPc('estado'), fill: 'forwards' })
+      : forma.current.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.96)' }], { duration: 160, easing: curvaDoPc('sair'), fill: 'forwards' });
     saida.finished.then(acabar, acabar);
     // Desmontar SEMPRE: a saída é decoração.
     const seguranca = setTimeout(acabar, 600);

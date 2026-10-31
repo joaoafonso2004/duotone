@@ -56,6 +56,7 @@ import { CoracaoAnimado } from '../components/CoracaoAnimado';
 import { useCoracaoAoCarregar } from '../hooks/useCoracaoAoCarregar';
 
 import { avisarErro } from '../lib/avisoDeRemocao';
+import { cssDasMolas } from '../lib/molasEmCss';
 const P = Pressable as any;
 const V = View as any;
 
@@ -107,7 +108,7 @@ export function injectDesktopDocumentStyles() {
       border-radius: 6px;
       background-color: #FFF;
       transform: translate(-50%, -50%) scale(0);
-      transition: transform 0.15s cubic-bezier(0.25, 0.8, 0.25, 1);
+      transition: transform var(--dt-normal) var(--dt-curva);
       box-shadow: 0 2px 6px rgba(0,0,0,0.4);
       pointer-events: none;
     }
@@ -211,7 +212,7 @@ export function injectDesktopDocumentStyles() {
     .np-fila-mais { background: none; border: 0; padding: 6px; border-radius: ${RAIO.cartao}px; cursor: pointer; }
     .np-fila-mais:hover { background: ${ESTADO.hover}; }
     .np-fila-mais:focus-visible { opacity: 1; outline: 2px solid ${COR.texto}; }
-    [data-dt~="painel-do-leitor"] { transition: transform 240ms cubic-bezier(.22,1,.36,1); will-change: transform; }
+    [data-dt~="painel-do-leitor"] { transition: transform 240ms var(--dt-curva); will-change: transform; }
     /* As barras ajustaveis (31/10, desktop/SeparadorDeLargura.web.tsx): a pega e uma tira de 6 px
        POR DENTRO do bordo da lateral e do painel; o fio acende-se com o rato, o foco do teclado e o
        arrasto. Durante o arrasto o cursor e de arrasto em todo o lado, nada se seleciona, e o painel
@@ -227,9 +228,9 @@ export function injectDesktopDocumentStyles() {
     html[data-a-redimensionar], html[data-a-redimensionar] *{ cursor: col-resize !important; user-select: none !important; }
     html[data-a-redimensionar] [data-dt~="painel-do-leitor"]{ transition: none !important; }
     /* O fundo do Now Playing: a capa nova entra por cima da anterior. */
-    [data-dt~="np-fundo"]{ animation: dt-np-fundo 700ms ease both; }
+    [data-dt~="np-fundo"]{ animation: dt-np-fundo 700ms var(--dt-curva) both; }
     /* A cor da capa a encher a janela ao abrir o Now Playing (26/9). */
-    [data-dt~="janela-cor"]{ animation: dt-np-fundo 450ms ease both; }
+    [data-dt~="janela-cor"]{ animation: dt-np-fundo 450ms var(--dt-curva) both; }
     /* E a sair (20/10, pedido do João: entrava devagar e saía num fotograma).
        A camada apaga-se e recua um nada, mais depressa do que entrou; a cor da
        capa apaga-se na janela quase ao passo com que acendeu, e a superfície
@@ -237,17 +238,17 @@ export function injectDesktopDocumentStyles() {
        total, 420 ms). A página de baixo, ou a nova, já está lá por baixo. */
     [data-dt~="np-a-sair"]{ animation: dt-np-sai 240ms var(--dt-curva) both; }
     @keyframes dt-np-sai{ from{ opacity:1; transform:none } to{ opacity:0; transform: scale(.985) } }
-    [data-dt~="janela-cor"][data-dt~="a-apagar"]{ animation: dt-np-cor-sai 420ms ease both; }
+    [data-dt~="janela-cor"][data-dt~="a-apagar"]{ animation: dt-np-cor-sai 420ms var(--dt-curva) both; }
     @keyframes dt-np-cor-sai{ from{ opacity:1 } to{ opacity:0 } }
-    [data-dt~="main-a-voltar"]{ transition: background-color 420ms ease; }
+    [data-dt~="main-a-voltar"]{ transition: background-color 420ms var(--dt-curva); }
     @keyframes dt-np-fundo{ from{ opacity:0 } to{ opacity:1 } }
     /* A troca de música no Now Playing (26/9): a capa nova entra por cima da
        que sai, e o título vem logo atrás. */
-    [data-dt~="np-capa-entra"]{ animation: dt-np-capa-entra 460ms cubic-bezier(.2,.8,.2,1) both; }
+    [data-dt~="np-capa-entra"]{ animation: dt-np-capa-entra 460ms var(--dt-curva) both; }
     @keyframes dt-np-capa-entra{ from{ opacity:0; transform: scale(.975) } to{ opacity:1; transform: none } }
-    [data-dt~="np-capa-sai"]{ animation: dt-np-capa-sai 600ms ease both; }
+    [data-dt~="np-capa-sai"]{ animation: dt-np-capa-sai 600ms var(--dt-curva) both; }
     @keyframes dt-np-capa-sai{ from{ opacity:1 } to{ opacity:0 } }
-    [data-dt~="np-texto-entra"]{ animation: dt-np-texto-entra 380ms cubic-bezier(.2,.8,.2,1) 90ms both; }
+    [data-dt~="np-texto-entra"]{ animation: dt-np-texto-entra 380ms var(--dt-curva) 90ms both; }
     @keyframes dt-np-texto-entra{ from{ opacity:0; transform: translateY(6px) } to{ opacity:1; transform: none } }
 
     /* =====================================================================
@@ -266,18 +267,24 @@ export function injectDesktopDocumentStyles() {
        com um: o react-native-web tambem escreve classes de uma so, e num
        empate ganha quem vier depois na folha -- que nao esta na nossa mao.
        ===================================================================== */
+    /* Uma física (S1, 31/10): as molas do iPhone em linear(), e a --dt-curva
+       e a --dt-mola de sempre passam a ser a forma da ENTRADA e do SOLTAR
+       (lib/molasEmCss.ts). As durações da coreografia ficam as de antes. */
+    ${cssDasMolas()}
     :root{
-      --dt-curva: cubic-bezier(.22, 1, .36, 1);
       /* Mais curtos a 27/9: a app tem de parecer instantânea. */
       --dt-rapido: 110ms; --dt-normal: 150ms; --dt-lento: 220ms;
     }
 
-    /* Carregar num botao encolhe-o 3%. */
-    [data-dt~="premir"]{ transition: transform var(--dt-rapido) var(--dt-curva),
+    /* Carregar num botao encolhe-o 3%: entra com o PREMIR e volta com o
+       SOLTAR, como o mesmo botão no iPhone (S1). */
+    [data-dt~="premir"]{ transition: transform var(--dt-soltar-ms) var(--dt-soltar),
       background-color var(--dt-rapido) var(--dt-curva),
       border-color var(--dt-rapido) var(--dt-curva),
       box-shadow var(--dt-normal) var(--dt-curva); }
-    [data-dt~="premir"]:active{ transform: scale(.97); }
+    [data-dt~="premir"]:active{ transform: scale(.97); transition: transform var(--dt-premir-ms) var(--dt-premir),
+      background-color var(--dt-rapido) var(--dt-curva), border-color var(--dt-rapido) var(--dt-curva),
+      box-shadow var(--dt-normal) var(--dt-curva); }
 
     /* As linhas de uma lista entram umas atras das outras -- so as primeiras:
        escalonar duzentas seria uma lista a montar-se durante dois segundos. */
@@ -297,7 +304,7 @@ export function injectDesktopDocumentStyles() {
        nova se prepara (a-sair) -- só a opacidade, pela razão do "fixed". */
     [data-dt~="pagina"]{ animation: dt-pagina 260ms var(--dt-curva) backwards; }
     @keyframes dt-pagina{ from{ opacity:0; transform: translateY(14px); } to{ opacity:1; transform:none; } }
-    [data-dt~="a-sair"]{ opacity:.35; transition: opacity 140ms ease-out; }
+    [data-dt~="a-sair"]{ opacity:.35; transition: opacity 140ms var(--dt-curva); }
     /* Os cartões das grelhas e das prateleiras entram em cascata curta, os
        doze primeiros. "backwards" pela mesma razão: o hover manda no transform. */
     [data-dt~="pagina"] [data-dt~="cartao"]:nth-child(-n+12){ animation: dt-linha 160ms var(--dt-curva) backwards; }
@@ -314,7 +321,7 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="pagina"] [data-dt~="cartao"]:nth-child(12){ animation-delay: 132ms }
     /* O "Loading…" só aparece se a espera passar de um quarto de segundo:
        uma troca rápida não pisca um spinner. */
-    [data-dt~="carregar"]{ animation: dt-aparecer 150ms ease 250ms backwards; }
+    [data-dt~="carregar"]{ animation: dt-aparecer 150ms var(--dt-curva) 250ms backwards; }
     [data-dt~="lista"] [data-dt~="fila"]:nth-child(2){ animation-delay: 10ms }
     [data-dt~="lista"] [data-dt~="fila"]:nth-child(3){ animation-delay: 20ms }
     [data-dt~="lista"] [data-dt~="fila"]:nth-child(4){ animation-delay: 30ms }
@@ -386,7 +393,7 @@ export function injectDesktopDocumentStyles() {
     @keyframes dt-rola{ 0%, 12%{ transform: none; } 88%, 100%{ transform: translateX(var(--rola-distancia, 0px)); } }
 
     /* O aviso de uma mensagem nova desce do topo (2/10). */
-    [data-dt~="aviso-msg"]{ animation: dt-aviso-msg 380ms cubic-bezier(.2,.9,.25,1.05) both; }
+    [data-dt~="aviso-msg"]{ animation: dt-aviso-msg var(--dt-estado-ms) var(--dt-estado) both; }
     @keyframes dt-aviso-msg{ from{ opacity:0; transform: translateY(-24px) scale(.98); } to{ opacity:1; transform:none; } }
 
     /* O aviso sobe do fundo. */
@@ -534,7 +541,7 @@ export function injectDesktopDocumentStyles() {
       100%{ opacity: 0; transform: translateX(52px); max-height: 0; min-height: 0; padding-top: 0; padding-bottom: 0; }
     }
     .np-fila-vira{ pointer-events: none; overflow: hidden; transform-origin: 50% 0;
-      animation: dt-fila-vira 460ms cubic-bezier(.5, 0, .75, 0) both; }
+      animation: dt-fila-vira 460ms var(--dt-sair) both; }
     @keyframes dt-fila-vira{
       0%{ opacity: 1; transform: perspective(900px) rotateX(0); max-height: 64px; }
       55%{ opacity: 0; transform: perspective(900px) rotateX(-88deg); max-height: 64px; min-height: 0; }
@@ -550,7 +557,7 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="radio-onda"]{ animation: dt-radio-onda 1.8s ease-in-out infinite; }
     [data-dt~="radio-onda"][data-dt~="radio-parado"]{ animation-play-state: paused; }
     @keyframes dt-radio-onda{ 50%{ opacity: .35; } }
-    [data-dt~="radio-anel"]{ animation: dt-radio-anel 950ms ease-out both; }
+    [data-dt~="radio-anel"]{ animation: dt-radio-anel 950ms var(--dt-curva) both; }
     @keyframes dt-radio-anel{ from{ box-shadow: 0 0 0 0 rgba(233,234,238,.4); } to{ box-shadow: 0 0 0 14px rgba(233,234,238,0); } }
     /* O atalho para a faixa que toca (30/10, TrackTable): sobe de leve ao aparecer. */
     [data-dt~="salto-atual"]{ animation: dt-linha 220ms var(--dt-curva) backwards; }
@@ -577,7 +584,6 @@ export function injectDesktopDocumentStyles() {
        desktop/IconesDeEstado.web.tsx): cada um com a sua animação, só de
        movimento e opacidade e de traços que se desenham (pathLength 1). A mola
        é a da maquete. O primeiro desenho não anima: só as mudanças (data-anima). */
-    :root{ --dt-mola: cubic-bezier(.34, 1.56, .64, 1); }
     [data-dt~="ie"]{ position: relative; display: inline-grid; place-items: center; pointer-events: none; flex: none;
       transition: color var(--dt-rapido) var(--dt-curva); }
     [data-dt~="ie"] svg{ width: 100%; height: 100%; display: block; overflow: visible; }
@@ -782,7 +788,7 @@ export function Sidebar({ route, navigate, notify, voltar }: { route: Route; nav
   </View>;
 }
 
-export function NavItem({ label, icon, active, badge, onPress, aoMenu, alvo = null, aoMedir, semFundo, medicao, compacta = false }: { label: string; icon: keyof typeof Ionicons.glyphMap; active: boolean; badge?: boolean; onPress: () => void;
+export function NavItem({ id, label, icon, active, badge, onPress, aoMenu, alvo = null, aoMedir, semFundo, medicao, compacta = false }: { id?: string; label: string; icon: keyof typeof Ionicons.glyphMap; active: boolean; badge?: boolean; onPress: () => void;
   /** Na régua de ícones (31/10): sem o nome, com ele numa legenda, e o ícone ao meio. */
   compacta?: boolean;
   /** Largar uma música arrastada aqui (24/10): as Liked Songs. */
@@ -806,7 +812,7 @@ export function NavItem({ label, icon, active, badge, onPress, aoMenu, alvo = nu
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [medicao]);
   const alvoRef = refDoAlvo(`nav:${label}`, alvo);
-  return <P ref={(n: any) => { ref.current = n; alvoRef(n); }} {...(compacta ? comDica(label, undefined, 'premir') : marcar('premir'))} accessibilityLabel={compacta ? label : undefined} onPress={onPress}
+  return <P ref={(n: any) => { ref.current = n; alvoRef(n); }} {...(compacta ? comDica(label, undefined, 'premir', ...(id ? [`nav-${id}`] : [])) : marcar('premir', ...(id ? [`nav-${id}`] : [])))} accessibilityLabel={compacta ? label : undefined} onPress={onPress}
     onContextMenu={(e: any) => { if (!aoMenu) return; e.preventDefault(); aoMenu(e); }}
     onLayout={(e: any) => aoMedir?.(e.nativeEvent.layout.y, e.nativeEvent.layout.height)}
     style={({ hovered, focused, pressed }: any) => [styles.navItem, compacta && { justifyContent: 'center', paddingHorizontal: 0, gap: 0 }, (hovered || focused) && styles.navHover, active && !semFundo && { backgroundColor: theme.soft }, pressed && ui.pressed]}><Ionicons name={icon} size={19} color={active ? theme.color : COR.textoMedio} />{compacta ? null : <Text numberOfLines={1} style={[styles.navText, active && styles.navTextActive, active && { color: theme.color }]}>{label}</Text>}{badge && (compacta ? <View style={{ position: 'absolute', top: 7, right: 9 }}><BolinhaDeAviso /></View> : <BolinhaDeAviso />)}</P>;
@@ -1002,7 +1008,8 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
         onPress={() => {if(!swiping.current)irPara({ tipo: 'a-tocar' });}}
         {...({ onContextMenu: (e: any) => { if (!aoMenuDaFaixa) return; e.preventDefault(); aoMenuDaFaixa(); } } as any)}
       >
-        <Artwork track={p.current} size={52} />
+        {/* O destino da Órbita a tocar a seguir (31/10). */}
+        <View nativeID="alvo-seguinte"><Artwork track={p.current} size={52} /></View>
         {/* O título limpo e o artista, como em todas as listas: aqui ia o
             título cru do upload, sem artista nenhum. */}
         <View style={{ minWidth: 0, flexShrink: 1 }}>

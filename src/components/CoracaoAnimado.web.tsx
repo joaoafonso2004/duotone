@@ -37,13 +37,13 @@ function garantirEstilo(doc: Document): void {
     .ca .ca-contorno{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linejoin:round}
     .ca .ca-cheio{fill:currentColor;transform-origin:12px 13.5px}
     .ca .ca-ponto{position:absolute;left:50%;top:50%;border-radius:50%;background:currentColor;opacity:0}
-    .ca-por svg{animation:ca-mola ${DURACAO.mola}ms cubic-bezier(.3,1.5,.5,1) both}
-    .ca-por .ca-cheio{animation:ca-enche ${DURACAO.aparece}ms cubic-bezier(.22,1,.36,1) both}
+    .ca-por svg{animation:ca-mola ${DURACAO.mola}ms var(--dt-mola) both}
+    .ca-por .ca-cheio{animation:ca-enche ${DURACAO.aparece}ms var(--dt-curva) both}
     .ca .ca-anel{position:absolute;inset:-1px;border-radius:50%;border:1.5px solid currentColor;opacity:0}
-    .ca-por .ca-anel{animation:ca-anel 620ms cubic-bezier(.22,1,.36,1) both}
-    .ca-por .ca-ponto{animation:ca-faisca ${DURACAO.faiscas}ms cubic-bezier(.2,.8,.3,1) both}
-    .ca-tirar .ca-cheio{animation:ca-encolhe ${DURACAO.encolhe}ms cubic-bezier(.5,0,.8,.5) both}
-    .ca-tirar svg{animation:ca-respira ${DURACAO.respira}ms ease-out both}
+    .ca-por .ca-anel{animation:ca-anel 620ms var(--dt-curva) both}
+    .ca-por .ca-ponto{animation:ca-faisca ${DURACAO.faiscas}ms var(--dt-curva) both}
+    .ca-tirar .ca-cheio{animation:ca-encolhe ${DURACAO.encolhe}ms var(--dt-sair) both}
+    .ca-tirar svg{animation:ca-respira ${DURACAO.respira}ms var(--dt-curva) both}
     ${quadros('ca-mola', MOLA)}
     ${quadros('ca-respira', RESPIRA)}
     @keyframes ca-enche{0%{opacity:1;clip-path:inset(100% 0 0 0)}100%{opacity:1;clip-path:inset(0 0 0 0)}}

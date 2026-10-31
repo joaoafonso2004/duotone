@@ -212,7 +212,7 @@ export function FilaArrastavel({
               touchAction: 'none',
               transform: y ? `translateY(${y}px)` : undefined,
               // A linha arrastada segue o rato sem atraso; as outras deslizam.
-              transition: aConfirmar || (arrastada && !arrasto?.aPousar) ? 'none' : `transform ${DESLIZE_MS}ms ease`,
+              transition: aConfirmar || (arrastada && !arrasto?.aPousar) ? 'none' : `transform ${DESLIZE_MS}ms var(--dt-curva)`,
               position: 'relative',
               zIndex: arrastada ? 2 : 1,
               borderRadius: 8,

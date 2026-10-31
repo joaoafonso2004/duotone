@@ -1329,7 +1329,7 @@ export const ui = StyleSheet.create({
     // O react-native-web deixa passar as propriedades de transição do CSS; a
     // curva é a mesma do resto do PC (ver a `casca.web.tsx`).
     transitionProperty: 'min-height, padding-top, padding-bottom',
-    transitionDuration: '180ms', transitionTimingFunction: 'cubic-bezier(.22,1,.36,1)',
+    transitionDuration: '180ms', transitionTimingFunction: 'var(--dt-curva)',
   } as any,
   pageHeaderCurto: { minHeight: 74, paddingTop: ESP.lg, paddingBottom: ESP.md },
   tituloCurto: { fontSize: 20 },

@@ -103,7 +103,9 @@ caso('o primeiro desenho não anima, só as mudanças; o shuffle recomeça o tra
 console.log('\no CSS');
 caso('só transform, opacidade e traços que se desenham', () => {
   const css = CASCA.slice(CASCA.indexOf('Os ícones da barra do leitor que mudam de estado'), CASCA.indexOf('@keyframes dt-ie-onda'));
-  assert.match(css, /--dt-mola: cubic-bezier\(\.34, 1\.56, \.64, 1\)/);
+  // A mola dos ícones é a do SOLTAR do iPhone desde 31/10 (S1, lib/molasEmCss.ts): passa do sítio.
+  assert.match(CASCA, /\$\{cssDasMolas\(\)\}/);
+  assert.match(css, /var\(--dt-mola\)/);
   assert.match(css, /@keyframes dt-ie-desenha\{ from\{ stroke-dashoffset: 1; \} to\{ stroke-dashoffset: 0; \} \}/);
   assert.ok(!/(?<![-\w])(?:left|top|width|height|margin)\s*:[^;]*;[^}]*transition/.test(css.replace(/\{[^}]*position: absolute[^}]*\}/g, '')), 'nenhuma transição de posição ou tamanho');
 });

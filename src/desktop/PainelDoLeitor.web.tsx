@@ -155,7 +155,7 @@ export function PainelDoLeitor({ children, more, notify }: Pick<CommonPageProps,
   return <div style={{ display: 'flex', flexDirection: 'row', flex: '1 1 0%', minWidth: 0, minHeight: 0, position: 'relative', overflow: 'clip' }}>
     <div style={{
       display: 'flex', flexDirection: 'column', flex: '1 1 0%', minWidth: 0, minHeight: 0,
-      opacity: assentar ? 0.7 : 1, transition: assentar ? 'none' : 'opacity 220ms ease-out',
+      opacity: assentar ? 0.7 : 1, transition: assentar ? 'none' : 'opacity 220ms var(--dt-curva)',
     }}>{children}</div>
     {/* Encostado (a página reserva o lugar) ou por cima dela. Na janela
         estreita fica sempre por cima. */}

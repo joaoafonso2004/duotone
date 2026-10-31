@@ -185,7 +185,7 @@ export const styles = StyleSheet.create({
   // página. Ver lib/leitorDoPc.ts para as medidas.
   npPagina: { flex: 1, minWidth: 0, position: 'relative', overflow: 'hidden' },
   npTopo: { height: 68, flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 32 },
-  npVoltar: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(233,234,238,0.06)', transition: 'background-color 160ms ease' } as any,
+  npVoltar: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(233,234,238,0.06)', transition: 'background-color 160ms var(--dt-curva)' } as any,
   npVoltarHover: { backgroundColor: 'rgba(233,234,238,0.12)' },
   npOrigem: { minWidth: 0, flexShrink: 1, gap: 1 },
   npOrigemAntes: { ...TIPO.legenda, color: COR.textoFraco, letterSpacing: 0.2 },

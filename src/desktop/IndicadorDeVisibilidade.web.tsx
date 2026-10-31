@@ -25,7 +25,7 @@ const PESTANAS = 'M7.2 15.9 6.2 17.8M12 17.2v2.2M16.8 15.9l1 1.9';
  * botão. Sobe isto para voltar a ficar ao centro.
  */
 const SUBIDA_FECHADO = 3.5;
-const CURVA = 'cubic-bezier(.4,0,.2,1)';
+const CURVA = 'var(--dt-curva)';
 
 type Transicao = [propriedade: string, ms: number, atraso?: number];
 

@@ -167,7 +167,8 @@ caso('a lateral só se redesenha quando entra ou sai da régua', () => {
 });
 caso('na régua: sem a etiqueta, itens só com ícone e legenda, conta só com a cara, sem o progresso da importação', () => {
   assert.match(CASCA, /\{compacta \? null : <Text style=\{styles\.navLabel\}>LIBRARY<\/Text>\}/);
-  assert.match(CASCA, /\{\.\.\.\(compacta \? comDica\(label, undefined, 'premir'\) : marcar\('premir'\)\)\}/);
+  // Com a marca do item (31/10: a Órbita pousa em `nav-songs`).
+  assert.match(CASCA, /\{\.\.\.\(compacta \? comDica\(label, undefined, 'premir', \.\.\.\(id \? \[`nav-\$\{id\}`\] : \[\]\)\) : marcar\('premir', \.\.\.\(id \? \[`nav-\$\{id\}`\] : \[\]\)\)\)\}/);
   assert.match(CASCA, /\{compacta \? null : <Text numberOfLines=\{1\} style=\{\[styles\.navText,/);
   assert.match(CASCA, /\{compacta \? null : <ProgressoDaImportacao \/>\}/);
   assert.match(CASCA, /\{avatarDisplay\}\{compacta \? null : <View style=\{\{ flex: 1, minWidth: 0 \}\}>/);

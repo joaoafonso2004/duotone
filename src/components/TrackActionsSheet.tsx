@@ -24,6 +24,7 @@ import { avisarErro, avisarFeito } from '../lib/avisoDeRemocao';
 import { AVISO_DO_NAO_INTERESSA, eSugestao, naoInteressa } from '../state/naoInteressa';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
 
+import { pedirOrbita } from '../lib/orbita';
 /** Uma linha de um menu que NÃO é de uma faixa -- as opções de uma playlist. */
 export interface SheetAction {
   icon: keyof typeof Ionicons.glyphMap;
@@ -101,12 +102,14 @@ export function TrackActionsSheet({ visible, track, onClose, actions = [], cabec
     const player = usePlayer.getState();
     switch (id) {
       case 'tocar-agora': void player.tocarMusica(t, [t], true, discoveryContext ?? undefined); return;
-      case 'tocar-a-seguir': player.playNext(t); return;
-      case 'por-na-fila': player.addToQueue(t); return;
+      // A resposta é a Órbita (C4, 31/10): a capa voa para o mini leitor. Era mudo (A2).
+      case 'tocar-a-seguir': player.playNext(t); pedirOrbita({ destino: 'seguinte', capa: capaParaLista(t.artworkUrl), titulo: tituloDaFaixa(t) }); return;
+      case 'por-na-fila': player.addToQueue(t); pedirOrbita({ destino: 'fila', capa: capaParaLista(t.artworkUrl), titulo: tituloDaFaixa(t) }); return;
       case 'guardar':
         void alternarGuardada(t).then((ficou) => {
-          // Tirar já vibra com o aviso do "Undo" (3/10).
-          if (ficou) hapticNotification();
+          // Tirar já vibra com o aviso do "Undo" (3/10). Guardar voa para o
+          // separador Songs (a Órbita, que vibra ao pousar); sem voo, vibra aqui.
+          if (ficou && !pedirOrbita({ destino: 'guardar', capa: capaParaLista(t.artworkUrl), titulo: tituloDaFaixa(t) })) hapticNotification();
           if (ficou && discoveryContext) registar('recomendacao_guardada', contextoParaAnalytics(discoveryContext));
           aoMudarBiblioteca?.();
         }).catch((e: any) => avisarErro(mensagemDeErro(e, 'Could not update your library.')));

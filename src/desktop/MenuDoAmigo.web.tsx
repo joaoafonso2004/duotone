@@ -23,6 +23,7 @@ import { novaEscolha } from '../lib/ultimaEscolha';
 
 import { avisarErro, avisarInfo } from '../lib/avisoDeRemocao';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
+import { fraseDaOrbita } from '../lib/orbita';
 // Sem tipos instalados para o react-dom; só se usa o portal (como na lateral).
 const { createPortal } = require('react-dom') as { createPortal: (filho: React.ReactNode, onde: Element) => React.ReactElement };
 
@@ -73,7 +74,7 @@ export function MenuDoAmigo({ amigo, sessaoDele, rato, aoFechar, aoPedirRemover,
           if (faixa) await usePlayer.getState().tocarMusica(faixa, [faixa], false, undefined, null);
           break;
         case 'fila':
-          if (faixa) { usePlayer.getState().addToQueue(faixa); notify(`${tituloDaFaixa(faixa)} added to the queue.`); }
+          if (faixa) { usePlayer.getState().addToQueue(faixa); notify(fraseDaOrbita('fila', tituloDaFaixa(faixa))); }
           break;
         case 'gostar':
           if (!faixa) break;

@@ -15,6 +15,7 @@ import { usePlayer } from '../state/player';
 import { useSaved } from '../state/saved';
 import type { AbrirMenuDaMensagem, OpcoesDoMenuDaMensagem } from './MenuDaMensagem';
 
+import { fraseDaOrbita } from '../lib/orbita';
 const avisar = (texto: string) => { avisarFeito(texto); };
 
 /** Copiar para a área de transferência; sem autorização para ela (a janela sem foco), pelo caminho antigo. */
@@ -70,7 +71,7 @@ function MenuDaMensagem({ m, rato, podeResponder, opcoes, aoFechar }: {
       }
       else if (!faixa) return;
       else if (id === 'tocar') await usePlayer.getState().tocarMusica(faixa, undefined, true);
-      else if (id === 'fila') { usePlayer.getState().addToQueue(faixa); avisarFeito(`${tituloDaFaixa(faixa)} added to the queue.`); }
+      else if (id === 'fila') { usePlayer.getState().addToQueue(faixa); avisarFeito(fraseDaOrbita('fila', tituloDaFaixa(faixa))); }
       else if (id === 'gostar') {
         // Otimista, como no menu de um amigo: o coração muda já e volta atrás se falhar.
         useSaved.getState().markSaved(faixa, !guardada);
