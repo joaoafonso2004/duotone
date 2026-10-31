@@ -13,6 +13,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import React, { useCallback, useState, useEffect, useMemo, useRef } from 'react';
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Animated,
   FlatList,
@@ -91,6 +92,7 @@ import { mensagemDeErro } from '../lib/mensagemDeErro';
 import { DentroDeUmModal, useModalDoRNAberto } from '../components/dentroDeUmModal';
 
 import { FRASES_DOS_ESTADOS } from '../lib/frasesDosEstados';
+import { acoesDaLinha, fraseDoMover } from '../lib/menuDaFaixa';
 type Props = NativeStackScreenProps<RootStackParamList, 'PlaylistDetail'>;
 
 export function PlaylistDetailScreen({ route, navigation }: Props) {
@@ -843,7 +845,22 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             ListHeaderComponent={cabecalhoDaEdicao}
             contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: bottomPad }}
             renderItem={({ item, index }) => (
-              <LinhaArrastavel {...arrasto.propsDaLinha(index)} podeArrastar>
+              <LinhaArrastavel {...arrasto.propsDaLinha(index)} podeArrastar
+                // O VoiceOver (A5, 31/10): mover e tirar no rotor, como a pega e o deslize.
+                acessibilidade={{
+                  rotulo: `${tituloDaFaixa(item)}, ${displayArtist(item)}`,
+                  acoes: acoesDaLinha({ indice: index, total: rascunho?.faixas.length ?? 0, tocar: false, podeMover: true, tirar: 'playlist', guardada: null, menu: false }),
+                  aoAcao: (nome) => {
+                    if (nome === 'subir' || nome === 'descer') {
+                      const para = index + (nome === 'subir' ? -1 : 1);
+                      setRascunho((r) => (r ? moverNoRascunho(r, index, para) : r));
+                      AccessibilityInfo.announceForAccessibility(fraseDoMover(tituloDaFaixa(item), para + 1));
+                    } else if (nome === 'tirar') {
+                      hapticSelection();
+                      setRascunho((r) => (r ? tirarDoRascunho(r, index) : r));
+                    }
+                  },
+                }}>
                 {(envolverPega) => (
                   <DeslizarParaTirar
                     ativo={arrasto.arrastar === null}

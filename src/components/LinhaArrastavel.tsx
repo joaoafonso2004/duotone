@@ -5,6 +5,7 @@ import {
   type PanGestureHandlerGestureEvent, type PanGestureHandlerStateChangeEvent,
 } from 'react-native-gesture-handler';
 import { desvioDaLinha } from '../lib/arrastarFila';
+import type { AcaoDaLinha, NomeDaAcaoDaLinha } from '../lib/menuDaFaixa';
 import { pedirFluidez } from '../state/fluidez';
 import { colors } from '../theme';
 
@@ -45,7 +46,7 @@ export const CEDER_MS = 150;
 
 export function LinhaArrastavel({
   index, arrastarIndex, pegadaRef, podeArrastar, altura, dy, total,
-  aoComecar, aoPegar, aoMover, aoLargar, aoCancelar, children,
+  aoComecar, aoPegar, aoMover, aoLargar, aoCancelar, children, acessibilidade,
 }: {
   index: number;
   /** Qual das linhas está a ser arrastada, para o desenho. `null` = nenhuma. */
@@ -85,6 +86,14 @@ export function LinhaArrastavel({
    * A pega desenha-se como sempre e passa por `envolverPega(<View>≡</View>)`.
    */
   children: (envolverPega: ((pega: React.ReactElement) => React.ReactElement) | null) => React.ReactNode;
+  /**
+   * O VoiceOver (A5, 31/10): a linha passa a UM elemento, com o nome da música
+   * e as ações no rotor ("Move up", "Move down", "Remove from queue"…, de
+   * `acoesDaLinha` em lib/menuDaFaixa.ts). Arrumar só se fazia com o dedo (a
+   * pega, o toque longo, o deslize para tirar), e com o VoiceOver nada disso
+   * se alcança.
+   */
+  acessibilidade?: { rotulo: string; acoes: readonly AcaoDaLinha[]; aoAcao: (nome: NomeDaAcaoDaLinha) => void };
 }) {
   const activo = arrastarIndex === index;
   // Os gestos leem tudo por referência -- incluindo o índice, que muda quando
@@ -213,6 +222,10 @@ export function LinhaArrastavel({
         // ela passa por baixo assim que as alcança, e o que se vê é a música a
         // desaparecer debaixo da lista.
         style={[estilo, activo && styles.aPegar]}
+        accessible={!!acessibilidade}
+        accessibilityLabel={acessibilidade?.rotulo}
+        accessibilityActions={acessibilidade ? [...acessibilidade.acoes] : undefined}
+        onAccessibilityAction={acessibilidade ? (e) => acessibilidade.aoAcao(e.nativeEvent.actionName as NomeDaAcaoDaLinha) : undefined}
       >
         <View style={activo ? styles.pegada : undefined}>
           {children(podeArrastar ? envolverPega : null)}

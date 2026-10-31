@@ -1,6 +1,6 @@
 import React from 'react';
 import { ICONES } from '../lib/icones';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { AccessibilityInfo, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { LinhaArrastavel } from './LinhaArrastavel';
 import { DeslizarParaTirar } from './DeslizarParaTirar';
 import { chavesEstaveis } from '../lib/arrastarFila';
@@ -29,7 +29,7 @@ import { addTracksToPlaylist, createPlaylist } from '../api/playlists';
 import { faixasDaFila, nomeParaAFila } from '../lib/guardarFila';
 import { ShareFriendSheet } from './ShareFriendSheet';
 import { RecommendationPreferences } from './RecommendationPreferences';
-import { menuCompacto, menuDaFaixa, type IdDaAcao, type LinhaDoMenu } from '../lib/menuDaFaixa';
+import { acoesDaLinha, fraseDoMover, menuCompacto, menuDaFaixa, type IdDaAcao, type LinhaDoMenu, type NomeDaAcaoDaLinha } from '../lib/menuDaFaixa';
 import { alternarDownload, downloadNoMenuDe, podeDescarregar, tocaSemRede } from '../lib/descarregarFaixa';
 import { alternarGuardada, garantirGuardadas } from '../lib/guardarFaixa';
 import { avisarRemocao, contarMusicas, avisarErro, avisarFeito } from '../lib/avisoDeRemocao';
@@ -197,6 +197,8 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
     selection.queue === queue && selection.index !== queueIndex && queue[selection.index] === selection.track;
   const lida = useSaved((s) => s.loaded);
   const naLoja = useSaved((s) => (selection ? s.keys.has(savedKey(selection.track)) : false));
+  // O "Add/Remove from Liked Songs" das ações do VoiceOver de cada linha (A5).
+  const guardadas = useSaved((s) => s.keys);
 
   /**
    * As ações da faixa são as de todos os menus (lib/menuDaFaixa.ts). Esta era
@@ -411,6 +413,37 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
               <LinhaArrastavel
                 {...arrasto.propsDaLinha(index)}
                 podeArrastar={canReorder}
+                // O VoiceOver (A5, 31/10): tocar, mover, tirar, guardar e o menu, no rotor.
+                acessibilidade={{
+                  rotulo: `${tituloDaFaixa(item)}, ${displayArtist(item)}`,
+                  acoes: acoesDaLinha({
+                    indice: index, total: upNext.length, tocar: !foraDoTelemovel && !seguido, podeMover: canReorder,
+                    tirar: 'fila', guardada: lida ? guardadas.has(savedKey(item)) : null, menu: true,
+                  }),
+                  aoAcao: (nome: NomeDaAcaoDaLinha) => {
+                    switch (nome) {
+                      case 'activate': if (!foraDoTelemovel && !seguido) playTrack(item, queue); return;
+                      case 'subir': case 'descer': {
+                        const para = index + (nome === 'subir' ? -1 : 1);
+                        reordenarProximas(index, para);
+                        AccessibilityInfo.announceForAccessibility(fraseDoMover(tituloDaFaixa(item), para + 1));
+                        return;
+                      }
+                      case 'tirar': {
+                        // As mesmas guardas do deslize: nem a que toca, nem numa Jam, nem uma fila que mudou.
+                        const agora = usePlayer.getState();
+                        if (useOuvirJuntos.getState().sessao || agora.queueIndex === realIndex || agora.queue[realIndex] !== item) return;
+                        tirarComAviso(realIndex, item);
+                        return;
+                      }
+                      case 'guardar':
+                        void alternarGuardada(item).then((ficou) => { if (ficou) hapticNotification(); })
+                          .catch((e: any) => avisarErro(mensagemDeErro(e, "Couldn't update your library.")));
+                        return;
+                      case 'menu': openActions(item, emSessao ? null : realIndex, false, chaves[index]); return;
+                    }
+                  },
+                }}
               >
               {() => (
               // Deslizar para a esquerda tira a música da fila (26/9). Num Jam

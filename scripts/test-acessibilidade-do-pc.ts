@@ -129,7 +129,7 @@ caso('o Dialog anuncia-se, prende o Tab, fecha só por cima e devolve o foco', (
   assert.match(dialogo, /\}, \[open\]\);/, 'a camada não pode sair e voltar a cada render');
 });
 caso('os botões do PC são botões, e os de ícone têm legenda', () => {
-  assert.match(ui, /<P \{\.\.\.comDica\(label, atalho, 'premir'\)\} accessibilityRole="button" accessibilityLabel=\{label\}/);
+  assert.match(ui, /<P \{\.\.\.comDica\(label, atalho, 'premir'\)\} tabIndex=\{foraDoTab \? -1 : undefined\} accessibilityRole="button" accessibilityLabel=\{label\}/);
   // Desde o B3 (20/10) o Button também diz quando está ocupado (`aria-busy`).
   assert.match(ui, /<P \{\.\.\.marcar\('premir'\)\} accessibilityRole="button" accessibilityState=\{\{ disabled: disabled \|\| ocupado, busy: ocupado \}\}\s+disabled=\{disabled \|\| ocupado\}/);
   assert.match(ler('src/navigation/RootNavigator.web.tsx'), /useDicas\(\);/);

@@ -280,3 +280,41 @@ export function menuCompacto(acoes: readonly AcaoDoMenu[], c: Pick<ContextoDoMen
     aviso: c.semRede ? (c.tocaSemRede ? AVISO_SEM_REDE.descarregada : AVISO_SEM_REDE.naoDescarregada) : null,
   };
 }
+
+// ------------------------------------------- as ações de uma linha ----
+
+/**
+ * As ações do VoiceOver numa linha que se reordena (A5 da auditoria de
+ * elevação, 31/10): a fila e a playlist em edição. Arrumar só se fazia com o
+ * dedo (a pega, o toque longo, o deslize para tirar), e com o VoiceOver nada
+ * disso se alcança. A linha passa a ser um só elemento, com estas ações no
+ * rotor; os nomes são os do menu.
+ */
+export type NomeDaAcaoDaLinha = 'activate' | 'subir' | 'descer' | 'tirar' | 'guardar' | 'menu';
+export type AcaoDaLinha = { name: NomeDaAcaoDaLinha; label: string };
+
+export function acoesDaLinha(c: {
+  indice: number; total: number;
+  /** Tocar ao ativar (um toque duplo). Na playlist em edição a linha não toca. */
+  tocar: boolean;
+  /** Na fila de uma Jam, ou com um amigo a mandar, não se reordena nem se tira. */
+  podeMover: boolean;
+  tirar: 'fila' | 'playlist' | null;
+  /** `null`: sem "Like" (a edição de uma playlist não guarda). */
+  guardada: boolean | null;
+  menu: boolean;
+}): AcaoDaLinha[] {
+  const acoes: AcaoDaLinha[] = [];
+  if (c.tocar) acoes.push({ name: 'activate', label: 'Play' });
+  if (c.podeMover && c.indice > 0) acoes.push({ name: 'subir', label: 'Move up' });
+  if (c.podeMover && c.indice < c.total - 1) acoes.push({ name: 'descer', label: 'Move down' });
+  if (c.podeMover && c.tirar) acoes.push({ name: 'tirar', label: c.tirar === 'fila' ? 'Remove from queue' : 'Remove from this playlist' });
+  if (c.guardada !== null) acoes.push({ name: 'guardar', label: c.guardada ? 'Remove from Liked Songs' : 'Add to Liked Songs' });
+  if (c.menu) acoes.push({ name: 'menu', label: 'More options' });
+  return acoes;
+}
+
+/** O que se anuncia depois de mudar uma música de sítio (o VoiceOver e o leitor de ecrã do PC). */
+export function fraseDoMover(titulo: string, posicao: number): string {
+  return `Moved ${titulo} to position ${posicao}`;
+}

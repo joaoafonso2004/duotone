@@ -12,6 +12,7 @@ import { trackKey } from '../lib/shuffle';
 import { chavesEstaveis } from '../lib/arrastarFila';
 import { atrasoDaLinha, PASSO_DA_ENTRADA_MS, PASSO_DA_SAIDA_MS } from '../lib/leitorDoPc';
 import { usePlayer } from '../state/player';
+import { teclaNaLista } from '../lib/acessibilidadeDoPc';
 
 /**
  * A fila do Now Playing, reordenável a arrastar.
@@ -91,6 +92,31 @@ export function FilaArrastavel({
   // Depois de arrastar, o `click` ainda chega; sem isto largar a faixa punha-a
   // a tocar.
   const ignorarClique = useRef(false);
+  // O teclado (A5, 31/10): a fila é UM ponto de Tab, como as tabelas. ↑/↓ e
+  // Home/End andam, Enter toca. Mudar de sítio é a arrastar (o João preferiu-o
+  // às setas). O foco segue a linha depois do render (`focarDepois`).
+  const [foco, setFoco] = useState(0);
+  const focarDepois = useRef<{ indice: number; lista: HTMLElement } | null>(null);
+  useEffect(() => {
+    const f = focarDepois.current;
+    if (!f) return;
+    const linha = f.lista.children[f.indice] as HTMLElement | undefined;
+    if (!linha) return;
+    focarDepois.current = null;
+    linha.focus();
+    linha.scrollIntoView?.({ block: 'nearest' });
+  });
+  const focoNaLista = Math.min(foco, entradas.length - 1);
+  const aoTeclar = (e: any, i: number, entrada: Entrada) => {
+    const acao = teclaNaLista(e.key, e.altKey, i, entradas.length);
+    if (!acao) return;
+    e.preventDefault();
+    if (acao.tipo === 'tocar') { aoTocar(entrada.track); return; }
+    const lista = (e.currentTarget as HTMLElement).parentElement;
+    if (!lista) return;
+    setFoco(acao.para);
+    focarDepois.current = { indice: acao.para, lista };
+  };
 
   const guardar = useCallback((a: Arrasto | null) => {
     ref.current = a;
@@ -121,6 +147,7 @@ export function FilaArrastavel({
 
   return (
     <View>
+      {/* As linhas são os filhos desta lista: o foco anda por eles. */}
       {entradas.map((entrada, i) => {
         const arrastada = arrasto?.ativo && arrasto.deVisivel === i;
         const desvio = arrasto?.ativo && alvo >= 0 ? deslize(i, arrasto.deVisivel, alvo) : 0;
@@ -131,6 +158,9 @@ export function FilaArrastavel({
             key={chaves[i]}
             className={saida === 'limpar' ? 'np-fila-linha np-fila-sai' : saida === 'vira' ? 'np-fila-linha np-fila-vira'
               : entradaDaLista ? 'np-fila-linha np-fila-entra' : 'np-fila-linha'}
+            tabIndex={i === focoNaLista ? 0 : -1}
+            onFocus={() => { if (foco !== i) setFoco(i); }}
+            onKeyDown={(e: any) => aoTeclar(e, i, entrada)}
             onDragStart={e => e.preventDefault()}
             onPointerDown={(e: any) => {
               if (!podeArrastar || e.button !== 0 || ref.current?.aPousar || aConfirmar) return;
@@ -261,6 +291,7 @@ export function FilaArrastavel({
               type="button"
               className="np-fila-mais"
               aria-label={`Options for ${tituloDaFaixa(entrada.track)}`}
+              tabIndex={-1}
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => { e.stopPropagation(); aoMenu(entrada.track, entrada.index); }}
             >

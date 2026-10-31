@@ -20,7 +20,7 @@ import { isShowTrackDurationSync } from '../lib/prefs';
 import { capaComBarras, molduraSemBarras } from '../lib/modoLimpo';
 import { pertoDoFim } from '../lib/grelhaQueCresce';
 import { criarRoda, PROCURAR_DEPOIS_MS, proporcaoComARoda } from '../lib/rodaDoRato';
-import { criarPilhaDeCamadas, dentesDaTecla, focoAoTab } from '../lib/acessibilidadeDoPc';
+import { criarPilhaDeCamadas, dentesDaTecla, focoAoTab, teclaNaLista } from '../lib/acessibilidadeDoPc';
 import { useDestinos } from '../navigation/destinos';
 import { duracaoDoAviso, type TipoDeAviso } from '../lib/avisoDeRemocao';
 
@@ -73,7 +73,7 @@ export const marcar = (...nomes: string[]) => ({ dataSet: { dt: nomes.join(' ') 
 export const comDica = (rotulo: string, atalho: string | undefined, ...nomes: string[]) =>
   ({ dataSet: { dt: nomes.join(' '), dica: rotulo, ...(atalho ? { atalho } : {}) } } as any);
 
-export function IconButton({ name, label, onPress, onPressIn, onPressOut, desenho, active = false, danger = false, estrela = false, marca, atalho }: {
+export function IconButton({ name, label, onPress, onPressIn, onPressOut, desenho, active = false, danger = false, estrela = false, marca, atalho, foraDoTab = false }: {
   name: keyof typeof Ionicons.glyphMap; label: string; onPress?: () => void; active?: boolean; danger?: boolean;
   /** O atalho do teclado que faz o mesmo, para a legenda ("Space", "Ctrl+→"). */
   atalho?: string;
@@ -93,9 +93,14 @@ export function IconButton({ name, label, onPress, onPressIn, onPressOut, desenh
    * que toda a gente ja percebe.
    */
   marca?: string;
+  /**
+   * Fora do Tab (A5, 31/10): o "…" de uma linha de uma lista, onde a linha é o
+   * ponto de Tab e o menu abre com a tecla de menu (ou Shift+F10).
+   */
+  foraDoTab?: boolean;
 }) {
   const cor = danger ? COR.erro : active ? COR.metalClaro : COR.textoMedio;
-  return <P {...comDica(label, atalho, 'premir')} accessibilityRole="button" accessibilityLabel={label} onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} style={({ hovered, pressed, focused }: any) => [
+  return <P {...comDica(label, atalho, 'premir')} tabIndex={foraDoTab ? -1 : undefined} accessibilityRole="button" accessibilityLabel={label} onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} style={({ hovered, pressed, focused }: any) => [
     ui.iconButton, (hovered || focused) && ui.iconButtonHover, pressed && ui.pressed, active && ui.active,
   ]}>
     {desenho ? desenho(cor) : <StateIcon name={name} size={19} color={cor} />}
@@ -1063,6 +1068,22 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
   const atual = usePlayer((st) => st.current);
   // A linha que toca, para o atalho a poder medir e levar até ela.
   const [noDaAtual, setNoDaAtual] = useState<HTMLElement | null>(null);
+  // O teclado (A5, 31/10, `teclaNaLista`): a tabela é UM ponto de Tab. A linha
+  // `foco` tem tabIndex 0 e as outras -1; as setas mudam-no e levam o foco.
+  // Mudar de sítio continua a ser a arrastar (o João preferiu-o às setas).
+  // Uma linha que ainda não está montada (os lotes) monta-se primeiro: o foco
+  // segue depois do render (`focarDepois`).
+  const [foco, setFoco] = useState(0);
+  const focarDepois = useRef<{ indice: number; tabela: HTMLElement } | null>(null);
+  useEffect(() => {
+    const f = focarDepois.current;
+    if (!f) return;
+    const linha = f.tabela.querySelectorAll<HTMLElement>(':scope > [data-dt~="fila"]')[f.indice];
+    if (!linha) return;
+    focarDepois.current = null;
+    linha.focus();
+    linha.scrollIntoView?.({ block: 'nearest' });
+  });
   if (!tracks.length) return <>{empty}</>;
   // 40 e não 48: as linhas passaram de 56 para 52 (25/9), e uma biblioteca de
   // milhares de faixas lê-se melhor com mais linhas à vista.
@@ -1073,6 +1094,22 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
     if (listKey) linhasVisiveisPorLista.set(listKey, seguinte);
     return seguinte;
   });
+  const focoNaLista = Math.min(foco, visiveis.length - 1);
+  const aoTeclar = (e: any, index: number) => {
+    const acao = teclaNaLista(e.key, e.altKey, index, tracks.length);
+    // O Enter já toca pelo Pressable (o PressResponder do RNW), como o clique.
+    if (!acao || acao.tipo === 'tocar') return;
+    e.preventDefault();
+    const tabela = (e.currentTarget as HTMLElement).parentElement;
+    if (!tabela) return;
+    if (acao.para >= limite) {
+      const ate = Math.min(tracks.length, acao.para + PASSO_DE_LINHAS);
+      if (listKey) linhasVisiveisPorLista.set(listKey, ate);
+      setLimite(ate);
+    }
+    setFoco(acao.para);
+    focarDepois.current = { indice: acao.para, tabela };
+  };
   return <View style={[ui.table, plain && ui.tablePlain]} {...marcar('lista')}
     ref={refDoAlvo(`ordem:${listKey ?? 'sem-chave'}`, reordenar && listKey ? alvoDaOrdem(listKey, reordenar.aoMover) : null)}
     onLayout={(e) => { const w = e.nativeEvent.layout.width; setLargura((antes) => (Math.abs(antes - w) > 1 ? w : antes)); }}>
@@ -1092,6 +1129,8 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
         <Text style={ui.divisoriaTexto}>{divisoria!.rotulo.toUpperCase()}</Text><View style={ui.divisoriaLinha} />
       </View> : null}
       <P ref={aTocar && saltoParaAtual ? setNoDaAtual : undefined} onPress={() => onPlay(track,contexto?.(track))}
+      tabIndex={index === focoNaLista ? 0 : -1} onFocus={() => { if (foco !== index) setFoco(index); }}
+      onKeyDown={(e: any) => aoTeclar(e, index)}
       onContextMenu={((event: any) => { event.preventDefault(); onMore?.(track,contexto?.(track)); }) as any}
       onPointerDown={((event: any) => comecarArrasto(event, track, { lista: listKey, indice: index })) as any}
       {...marcar('fila')}
@@ -1124,7 +1163,7 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
       {caraDaLinha && <View style={{ width: larguraDaCara, alignItems: larguraDaCara > 34 ? 'flex-end' : 'center' }}>{caraDaLinha(track)}</View>}
       {showTime && <Text numberOfLines={1} style={[ui.trackMeta, { width: LARGURA_DURACAO, textAlign: 'right' }]}>{formatTime(track.durationSeconds)}</Text>}
       <View {...marcar('mais')}>
-        <IconButton name="ellipsis-horizontal" label={`Actions for ${track.title}`} onPress={() => onMore?.(track,contexto?.(track))} />
+        <IconButton name="ellipsis-horizontal" label={`Actions for ${track.title}`} foraDoTab onPress={() => onMore?.(track,contexto?.(track))} />
       </View></P>
       </React.Fragment>;
     })}

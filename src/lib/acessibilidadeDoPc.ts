@@ -117,3 +117,41 @@ export function posicaoDaDica(
 /** O tempo com o rato parado em cima antes de a legenda aparecer. Com o foco
  * do teclado aparece logo: quem anda com o Tab precisa dela já. */
 export const ESPERA_DA_DICA_MS = 450;
+
+/**
+ * As teclas numa lista de músicas do PC (A5 da auditoria de elevação, 31/10):
+ * a `TrackTable` e a fila. Era o Tab linha a linha (5000 paragens nas Liked
+ * Songs, mais o "…" de cada uma) e as setas não faziam nada; reordenar só
+ * com o rato.
+ *
+ * A lista é UM ponto de Tab (o índice itinerante: a linha com o foco tem
+ * `tabIndex` 0 e as outras -1). ↑/↓ andam uma, Page Up/Down dez, Home e End
+ * as pontas. Enter toca, como o clique (o Espaço é o tocar/pausar da janela
+ * inteira, `atalhosDaJanela`, apanhado antes). O menu é a tecla de menu ou
+ * Shift+F10, que o browser já entrega como `contextmenu` à linha com o foco.
+ * **Mudar uma música de sítio é a arrastar, não com setas** (o João, 31/10:
+ * "preferia que fosse dragable em vez de setas"): o Alt+↑/↓ da auditoria saiu.
+ * `null`: a tecla não é da lista (ou já está na ponta), e segue o seu caminho.
+ */
+export type TeclaNaLista = { tipo: 'foco'; para: number } | { tipo: 'tocar' };
+export const SALTO_DA_PAGINA = 10;
+
+export function teclaNaLista(key: string, alt: boolean, indice: number, total: number): TeclaNaLista | null {
+  if (total <= 0 || alt) return null;
+  const i = Math.max(0, Math.min(total - 1, indice));
+  const para = (n: number) => Math.max(0, Math.min(total - 1, n));
+  switch (key) {
+    case 'ArrowDown': case 'ArrowUp': {
+      const j = para(i + (key === 'ArrowDown' ? 1 : -1));
+      return j === i ? null : { tipo: 'foco', para: j };
+    }
+    case 'PageDown': case 'PageUp': {
+      const j = para(i + (key === 'PageDown' ? SALTO_DA_PAGINA : -SALTO_DA_PAGINA));
+      return j === i ? null : { tipo: 'foco', para: j };
+    }
+    case 'Home': return i === 0 ? null : { tipo: 'foco', para: 0 };
+    case 'End': return i === total - 1 ? null : { tipo: 'foco', para: total - 1 };
+    case 'Enter': return { tipo: 'tocar' };
+    default: return null;
+  }
+}

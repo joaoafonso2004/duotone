@@ -206,9 +206,12 @@ export function injectDesktopDocumentStyles() {
     .np-fila-capa { position: relative; flex: none; border-radius: ${RAIO.ctrl}px; overflow: hidden; }
     .np-fila-tocar { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
       background: rgba(0,0,0,.5); opacity: 0; transition: opacity var(--dt-rapido) var(--dt-curva); }
-    .np-fila-linha:hover .np-fila-tocar { opacity: 1; }
+    .np-fila-linha:hover .np-fila-tocar, .np-fila-linha:focus-visible .np-fila-tocar { opacity: 1; }
     .np-fila-pega, .np-fila-mais { opacity: 0; transition: opacity var(--dt-rapido) var(--dt-curva); display: flex; }
     .np-fila-linha:hover .np-fila-pega, .np-fila-linha:hover .np-fila-mais, .np-fila-pega-viva { opacity: 1; }
+    /* Com o teclado (A5, 31/10): a linha com o foco mostra o mesmo que com o rato, e o anel fica por dentro. */
+    .np-fila-linha:focus-visible .np-fila-pega, .np-fila-linha:focus-visible .np-fila-mais { opacity: 1; }
+    .np-fila-linha[tabindex]:focus-visible { outline-offset: -2px; }
     .np-fila-mais { background: none; border: 0; padding: 6px; border-radius: ${RAIO.cartao}px; cursor: pointer; }
     .np-fila-mais:hover { background: ${ESTADO.hover}; }
     .np-fila-mais:focus-visible { opacity: 1; outline: 2px solid ${COR.texto}; }

@@ -42,7 +42,8 @@ caso('a barra da página tem o Share, e o More passou para o ••• de cima',
 
 caso('a edição tem o nome em cima e o gesto da fila, sem setas', () => {
   assert.match(pagina, /accessibilityLabel="Playlist name"/);
-  assert.match(pagina, /<LinhaArrastavel \{\.\.\.arrasto\.propsDaLinha\(index\)\} podeArrastar>/);
+  // Com as ações do VoiceOver (A5, 31/10) a seguir: no rotor, e não setas no ecrã.
+  assert.match(pagina, /<LinhaArrastavel \{\.\.\.arrasto\.propsDaLinha\(index\)\} podeArrastar[\s>]/);
   assert.match(pagina, /<DeslizarParaTirar/);
   assert.ok(!pagina.includes('chevron-up'), 'as setas voltaram');
   assert.match(ler('src/components/QueueSheet.tsx'), /useArrastarLista\(/, 'a fila e a playlist usam o mesmo arrasto');
