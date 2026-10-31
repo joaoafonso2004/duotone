@@ -32,7 +32,9 @@ export const MAXIMO_S = 15 * 60;
  * utilizador ouve um mix É a faixa.
  */
 const NAO_E_MUSICA = [
-  'reaction', 'reagindo', 'react',
+  // As outras formas de reação estão no REACAO, por palavra inteira (31/10):
+  // 'react' como pedaço de palavra deitava fora "Reactor".
+  'reaction',
   'interview', 'entrevista',
   'podcast', 'episode', 'episodio',
   'tutorial', 'how to', 'como fazer',
@@ -68,9 +70,22 @@ const DESPORTO_NO_TITULO = [
   /\b(?:goals?|golos?|skills?|dribles?)\s*(?:&|and|e|\+|\/)\s*(?:goals?|golos?|assists?|assistencias?|skills?|dribles?)\b/,
 ];
 
+/**
+ * Uma reação, em inglês, português e espanhol (31/10: "TJI REAGE A VÍCIOS"
+ * chegou a um amigo do João pelas recomendações -- a lista só tinha "reaction",
+ * "react" e "reagindo"). Por palavra inteira, e também no NOME DO CANAL: há
+ * canais de reações que publicam com o título da música a que reagem. As outras
+ * palavras não se procuram no canal: "Huey Lewis and the News" é música.
+ */
+const REACAO = /\b(?:reage|reagem|reagi|reagimos|reagir|reagindo|reacao|reacoes|reacciono|reaccionamos|reacciona|reaccionan|reaccionando|reaccion|reaction|reactions|reacts|reacting|react to)\b/;
+
+const semAcentos = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
 export type FaixaParaAvaliar = {
   title: string;
   durationSeconds?: number | null;
+  /** O artista ou o canal, quando se sabe. */
+  artist?: string | null;
 };
 
 export function pareceMusica(t: FaixaParaAvaliar): boolean {
@@ -84,12 +99,15 @@ export function pareceMusica(t: FaixaParaAvaliar): boolean {
     if (d < MINIMO_S || d > MAXIMO_S) return false;
   }
 
-  const semAcentos = titulo.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  if ((EPOCA.test(semAcentos) && MONTAGEM.test(semAcentos))
-    || DESPORTO_NO_TITULO.some((sinal) => sinal.test(semAcentos))) return false;
+  const limpo = semAcentos(titulo);
+  if (REACAO.test(limpo) || REACAO.test(semAcentos(t.artist ?? ''))) return false;
+  if ((EPOCA.test(limpo) && MONTAGEM.test(limpo))
+    || DESPORTO_NO_TITULO.some((sinal) => sinal.test(limpo))) return false;
   if (DURACAO_NO_TITULO.test(titulo)) return false;
+  // Sem acentos (31/10): "An\u00e1lise", "Not\u00edcias" e "Epis\u00f3dio" passavam, porque a
+  // lista est\u00e1 escrita sem eles.
   for (const palavra of NAO_E_MUSICA) {
-    if (titulo.includes(palavra)) return false;
+    if (limpo.includes(palavra)) return false;
   }
   return true;
 }

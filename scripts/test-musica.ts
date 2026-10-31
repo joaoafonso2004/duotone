@@ -48,6 +48,21 @@ nao('resumo de um jogo em portugues', { title: 'Resumo do jogo: Benfica - Porto'
 nao('golos e dribles em portugues', { title: 'Golos e dribles de um jogador', durationSeconds: 255 });
 nao('melhores jogadas em portugues', { title: 'Melhores jogadas de um jogador', durationSeconds: 255 });
 
+// O caso de 31/10: um vídeo de reação chegou a um amigo do João pelas recomendações.
+nao('uma reacao em portugues', { title: 'TJI REAGE A VÍCIOS', durationSeconds: 300 });
+nao('reagem, no plural', { title: 'Brasileiros Reagem a Rap Tuga', durationSeconds: 420 });
+nao('reação com acento', { title: 'Minha reação ao álbum novo', durationSeconds: 600 });
+nao('em espanhol', { title: 'Reacciono a Bizarrap', durationSeconds: 500 });
+nao('em espanhol, a reaccionar', { title: 'REACCIONANDO A VÍCIOS', durationSeconds: 500 });
+nao('um canal de reações que publica com o título da música', { title: 'VÍCIOS', artist: 'TJI Reage', durationSeconds: 300 });
+nao('reacts no inglês', { title: 'Producer Reacts to Dillaz', durationSeconds: 500 });
+nao('palavras com acento passam a contar', { title: 'Análise do álbum', durationSeconds: 300 });
+nao('notícias com acento', { title: 'Notícias da semana', durationSeconds: 300 });
+nao('episódio com acento', { title: 'Episódio 3', durationSeconds: 300 });
+sim('o canal só conta para as reações: Huey Lewis and the News é música', { title: 'The Power of Love', artist: 'Huey Lewis and the News', durationSeconds: 230 });
+sim('uma música com "react" dentro de outra palavra não cai pela regra das reações', { title: 'Chain Reactor', artist: 'Artista', durationSeconds: 230 });
+sim('um artista normal com o título normal', { title: 'Vícios', artist: 'Dillaz', durationSeconds: 210 });
+
 console.log('\nos limites fazem sentido');
 check('o minimo corta clipes mas nao musicas curtas', MINIMO_S >= 45 && MINIMO_S <= 90, String(MINIMO_S));
 check('o maximo corta sets mas nao musicas longas',
