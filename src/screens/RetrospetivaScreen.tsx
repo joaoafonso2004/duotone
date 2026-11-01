@@ -3,10 +3,11 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fetchRetrospetiva, type ResultadoRetrospetiva } from '../api/retrospetiva';
 import { EmptyState } from '../components/EmptyState';
+import { SkeletonDeEstatisticas } from '../components/Skeleton';
 import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import { formatListeningTime } from '../lib/listeningStats';
 import { fraseDoAno } from '../lib/retrospetiva';
@@ -97,7 +98,7 @@ export function RetrospetivaScreen({ navigation, route }: Props) {
         )}
 
         {aCarregar ? (
-          <ActivityIndicator color={colors.text} style={{ marginTop: 64 }} />
+          <View style={{ marginTop: 16 }}><SkeletonDeEstatisticas /></View>
         ) : resultado?.unavailable ? (
           <EmptyState
             icon="cloud-offline-outline"

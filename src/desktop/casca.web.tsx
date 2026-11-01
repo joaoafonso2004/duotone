@@ -60,6 +60,7 @@ import { useCoracaoAoCarregar } from '../hooks/useCoracaoAoCarregar';
 
 import { avisarErro } from '../lib/avisoDeRemocao';
 import { cssDasMolas } from '../lib/molasEmCss';
+import { INCLINACAO_DO_CARREGAMENTO, LUZ_DO_CARREGAMENTO_MS, OPACIDADE_DO_CARREGAMENTO } from '../lib/luz';
 const P = Pressable as any;
 const V = View as any;
 
@@ -329,9 +330,18 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="pagina"] [data-dt~="cartao"]:nth-child(10){ animation-delay: 108ms }
     [data-dt~="pagina"] [data-dt~="cartao"]:nth-child(11){ animation-delay: 120ms }
     [data-dt~="pagina"] [data-dt~="cartao"]:nth-child(12){ animation-delay: 132ms }
-    /* O "Loading…" só aparece se a espera passar de um quarto de segundo:
-       uma troca rápida não pisca um spinner. */
-    [data-dt~="carregar"]{ animation: dt-aparecer 150ms var(--dt-curva) 250ms backwards; }
+    /* Uma só luz a carregar (C10, 1/11): as formas do que vem, em metal escuro, só
+       aparecem se a espera passar de um quarto de segundo (uma troca rápida não
+       pisca nada). Todas partilham o MESMO gradiente, preso à janela: cada forma
+       mostra o seu bocado da mesma banda, e lê-se uma luz só a passar pela região;
+       o fundo não acende. Aos 4 s o Carregando tira o "carregando" e a luz pára. */
+    [data-dt~="formas"]{ animation: dt-aparecer 150ms var(--dt-curva) 250ms backwards; }
+    [data-dt~="forma"]{ background-color: ${COR.elevado}; }
+    [data-dt~="carregando"] [data-dt~="forma"]{
+      background-image: linear-gradient(${INCLINACAO_DO_CARREGAMENTO}deg, transparent 42%, rgba(233,234,238,${OPACIDADE_DO_CARREGAMENTO}) 50%, transparent 58%);
+      background-size: 220vw 100%; background-attachment: fixed;
+      animation: dt-luz-unica ${LUZ_DO_CARREGAMENTO_MS}ms ease-in-out infinite; }
+    @keyframes dt-luz-unica{ from{ background-position: 10vw 0; } to{ background-position: -130vw 0; } }
     [data-dt~="lista"] [data-dt~="fila"]:nth-child(2){ animation-delay: 10ms }
     [data-dt~="lista"] [data-dt~="fila"]:nth-child(3){ animation-delay: 20ms }
     [data-dt~="lista"] [data-dt~="fila"]:nth-child(4){ animation-delay: 30ms }
@@ -636,11 +646,14 @@ export function injectDesktopDocumentStyles() {
       #duotone-dica{ transition: none !important; transform: none !important; }
       [data-dt~="fila"], [data-dt~="dialogo"], [data-dt~="veu"], [data-dt~="aviso"],
       [data-dt~="menu-amigo"], [data-dt~="aviso-msg"],
-      [data-dt~="pagina"], [data-dt~="pagina"] [data-dt~="cartao"], [data-dt~="carregar"],
+      [data-dt~="pagina"], [data-dt~="pagina"] [data-dt~="cartao"], [data-dt~="formas"],
+      [data-dt~="carregando"] [data-dt~="forma"],
       [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"],
       .np-fila-sai, .np-fila-vira, .np-fila-entra,
       [data-dt~="radio-onda"], [data-dt~="radio-anel"], [data-dt~="salto-atual"],
       [data-dt~="ie-shuffle"][data-anima] [data-dt~="ie-linha"], [data-dt~="ie-jam"]::before, [data-dt~="ie-jam"]::after{ animation: none !important; }
+      /* Com menos movimento, as formas sem luz (uma banda parada lia-se como um risco). */
+      [data-dt~="carregando"] [data-dt~="forma"]{ background-image: none !important; }
       [data-dt~="premir"], [data-dt~="desliza"], [data-dt~="campo"], [data-dt~="fila"] [data-dt~="toca"],
       [data-dt~="fila"] [data-dt~="mais"], [data-dt~="fila"] [data-dt~="numero"],
       [data-dt~="cartao"], [data-dt~="coracaoDoCartao"], [data-dt~="a-sair"], [data-dt~="main-a-voltar"],

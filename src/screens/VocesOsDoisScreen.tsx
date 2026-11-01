@@ -3,10 +3,11 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { lerMisturaDosDois, lerVocesOsDois, valeAPena, type VocesOsDois } from '../api/vocesOsDois';
 import { EmptyState } from '../components/EmptyState';
+import { SkeletonDeEstatisticas } from '../components/Skeleton';
 import { PillButton } from '../components/PillButton';
 import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import type { RootStackParamList } from '../navigation/RootNavigator';
@@ -85,7 +86,7 @@ export function VocesOsDoisScreen({ route, navigation }: Props) {
   return (
     <Screen encolhe={cab} title="You two" subtitle={nome ? `You and ${nome}` : undefined} onBack={() => navigation.goBack()}>
       {aCarregar ? (
-        <ActivityIndicator color={tema.color} style={{ marginTop: cab.espaco + spacing.xxl }} />
+        <View style={{ marginTop: cab.espaco + 8 }}><SkeletonDeEstatisticas /></View>
       ) : !valeAPena(dados) ? (
         <View style={{ flex: 1, paddingTop: cab.espaco }}>
         <EmptyState

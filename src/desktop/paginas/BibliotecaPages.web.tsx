@@ -54,9 +54,10 @@ import type { Track } from '../../types';
 import { crescer, faltaMostrar, PRIMEIRO_LOTE, quantosMostrar } from '../../lib/grelhaQueCresce';
 import { styles } from '../estilos.web';
 import { BotaoVoltar,
-  Artwork, Button, ContentScroll, Dialog, Empty, Field, IconButton, Loading, marcar, Page,
+  Artwork, Button, ContentScroll, Dialog, Empty, Field, IconButton, marcar, Page,
   capaDaFaixa, Chips, PrateleiraDeMisturas, Separadores, Shelf, ShelfDeLancamentos, TrackTable, type ColunaOrdenavel,
-} from '../ui.web';
+} from '../ui.web';
+import { Carregando } from '../Carregando.web';
 import { useMisturaDoDia } from '../../state/misturaDoDia';
 import { marcarArtistaAberto, useNovosLancamentos } from '../../state/novosLancamentos';
 import { legendaDoLancamento, type Lancamento } from '../../lib/novosLancamentos';
@@ -246,7 +247,7 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
           <Text style={styles.sectionTitle}>In your library</Text>
           <TrackTable tracks={naBiblioteca} onPlay={(t) => tocarMusica(t, naBiblioteca, undefined, { tipo: 'pesquisa', nome: query })} onMore={more} />
         </> : null}
-        {estado.rodape === 'a-carregar' ? <View style={{ height: 200 }}><Loading /></View>
+        {estado.rodape === 'a-carregar' ? <Carregando forma="linhas" quantas={3} />
           : estado.rodape === 'falhou' ? <FalhaDaPesquisaOnline mensagem={errorMsg} aoTentar={pesquisarAgora} />
           : results.length ? <>
             {naBiblioteca.length ? <Text style={[styles.sectionTitle, { marginTop: 24 }]}>More results</Text> : null}
@@ -262,7 +263,7 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
             <TrackTable tracks={resultadosVisiveis} showSavedBadge onPlay={(t) => tocarMusica(t, undefined, undefined, { tipo: 'pesquisa', nome: query })} onMore={more} />
           </> : null}
       </>
-      : estado.tipo === 'a-carregar' ? <View style={{ height: 320 }}><Loading /></View>
+      : estado.tipo === 'a-carregar' ? <Carregando forma="linhas" quantas={6} aoTentar={pesquisarAgora} />
       : estado.tipo === 'falhou' ? <Empty icon="cloud-offline-outline" title={FRASES_DA_PESQUISA.falhou} body={errorMsg ?? FRASES_DA_PESQUISA.semMotivo}
           action={<Button onPress={pesquisarAgora}>{FRASES_DA_PESQUISA.tentarDeNovo}</Button>} />
       : estado.tipo === 'sem-resultados' ? <Empty icon="search-outline" title={FRASES_DA_PESQUISA.semResultados} body={FRASES_DA_PESQUISA.semResultadosCorpo} />
@@ -447,7 +448,7 @@ function ResultadosDeArtistas({ artistas, loading, falhou, aoTentar, aoAbrir, ao
   /** A chave do artista com o menu aberto: o cartão fica marcado. */
   escolhido: string | null;
 }) {
-  if (loading) return <View style={{ height: 320 }}><Loading /></View>;
+  if (loading) return <Carregando forma="grelha" aoTentar={aoTentar} />;
   if (!artistas.length) return falhou
     ? <FalhaDaPesquisa aoTentar={aoTentar} />
     : <Empty icon="person-outline" title={FRASES_DA_PESQUISA.porTipo.artistas} body={FRASES_DA_PESQUISA.semResultadosCorpo} />;
@@ -501,7 +502,7 @@ function ResultadosEmCapas({ itens, loading, falhou, aoTentar, icone, vazio, aoA
   /** O id com o menu aberto: o cartão fica marcado. */
   escolhido: string | null;
 }) {
-  if (loading) return <View style={{ height: 320 }}><Loading /></View>;
+  if (loading) return <Carregando forma="grelha" aoTentar={aoTentar} />;
   if (!itens.length) return falhou
     ? <FalhaDaPesquisa aoTentar={aoTentar} />
     : <Empty icon={icone} title={vazio} body={FRASES_DA_PESQUISA.semResultadosCorpo} />;
@@ -569,7 +570,7 @@ export function SongsPage(props: CommonPageProps) {
         void data.refresh().then((ok) => { if (!ok && comLista) avisarErro("Couldn't refresh your liked songs."); });
       }} />
     </View>
-    <ContentScroll scrollKey="songs">{data.loading ? <View style={{ height: 350 }}><Loading /></View> : data.semLista ? <Empty icon="alert-circle-outline" title="Couldn't load your library" body="Check your connection. Nothing was removed: your songs are still saved." action={<Button onPress={() => void data.refresh()}>Try again</Button>} /> : <TrackTable plain saltoParaAtual listKey={`songs:${ordem ?? 'recent'}`} ordenacao={{ modo: ordem, aoMudar: setOrdem }} tracks={filteredTracks} onPlay={(t) => props.tocarMusica(t, filteredTracks, undefined, { tipo: 'guardadas', nome: 'Liked Songs' })} onMore={props.more} empty={query ? <Empty icon="search-outline" title={FRASES_DOS_ESTADOS.semCorrespondencias.titulo} body={FRASES_DOS_ESTADOS.semCorrespondencias.corpo(query, 'songs')} /> : <Empty icon="heart-outline" title={FRASES_DOS_ESTADOS.semGostadas.titulo} body={FRASES_DOS_ESTADOS.semGostadas.corpo} />} />}</ContentScroll>
+    <ContentScroll scrollKey="songs">{data.loading ? <Carregando forma="linhas" quantas={10} aoTentar={() => void data.refresh()} /> : data.semLista ? <Empty icon="alert-circle-outline" title="Couldn't load your library" body="Check your connection. Nothing was removed: your songs are still saved." action={<Button onPress={() => void data.refresh()}>Try again</Button>} /> : <TrackTable plain saltoParaAtual listKey={`songs:${ordem ?? 'recent'}`} ordenacao={{ modo: ordem, aoMudar: setOrdem }} tracks={filteredTracks} onPlay={(t) => props.tocarMusica(t, filteredTracks, undefined, { tipo: 'guardadas', nome: 'Liked Songs' })} onMore={props.more} empty={query ? <Empty icon="search-outline" title={FRASES_DOS_ESTADOS.semCorrespondencias.titulo} body={FRASES_DOS_ESTADOS.semCorrespondencias.corpo(query, 'songs')} /> : <Empty icon="heart-outline" title={FRASES_DOS_ESTADOS.semGostadas.titulo} body={FRASES_DOS_ESTADOS.semGostadas.corpo} />} />}</ContentScroll>
   </Page></>;
 }
 
@@ -681,7 +682,7 @@ export function ArtistsPage({ navigate, notify }: { navigate: (route: Route) => 
       {data.semLista ? null : <Text style={styles.songsResultCount}>{query ? `${filteredArtists.length} of ` : ''}{artists.length} {artists.length === 1 ? 'artist' : 'artists'}</Text>}
       {data.semLista ? null : <Chips rotulo="Sort artists" valor={ordemDaGrelha} opcoes={OPCOES_DOS_ARTISTAS} aoMudar={setOrdemDaGrelha} />}
     </View>
-    <ContentScroll scrollKey="artists" aoChegarAoFim={mostrarMais}>{data.loading ? <View style={{ height: 350 }}><Loading /></View> : data.semLista ? <Empty icon="alert-circle-outline" title="Couldn't load your library" body="Check your connection. Nothing was removed: your songs are still saved." action={<Button onPress={() => void data.refresh()}>Try again</Button>} /> : filteredArtists.length ? <>
+    <ContentScroll scrollKey="artists" aoChegarAoFim={mostrarMais}>{data.loading ? <Carregando forma="grelha" quantas={12} aoTentar={() => void data.refresh()} /> : data.semLista ? <Empty icon="alert-circle-outline" title="Couldn't load your library" body="Check your connection. Nothing was removed: your songs are still saved." action={<Button onPress={() => void data.refresh()}>Try again</Button>} /> : filteredArtists.length ? <>
       {!query && ordemDaGrelha === 'plays' && destaque ? <ArtistaEmRepeticao nome={destaque.grupo.nome} faixas={destaque.grupo.faixas} jogadas={destaque.jogadas}
         aoTocar={() => tocarArtista(destaque.grupo.nome, destaque.grupo.faixas)} aoMontar={guardarRetrato(RETRATO.artistaEmDestaque(destaque.grupo.chave))}
         aoAbrir={() => viajar(retratoDe(RETRATO.artistaEmDestaque(destaque.grupo.chave)), () => navigate({ name: 'artist', value: destaque.grupo.nome }))} /> : null}
@@ -772,7 +773,7 @@ export function MisturaPage({ id, titulo, back, ...props }: {
       <BotaoVoltar onPress={back} />
     </View>}>
     <ContentScroll scrollKey={`mistura:${id}`}>
-      {!prontas && !mistura ? <View style={{ height: 320 }}><Loading /></View>
+      {!prontas && !mistura ? <Carregando forma="linhas" />
         : !mistura ? <Empty icon="sparkles-outline" title={FRASES_DOS_ESTADOS.misturaQueSaiu.titulo}
             body={FRASES_DOS_ESTADOS.misturaQueSaiu.corpo} />
         : <TrackTable listKey={`mistura:${id}`} tracks={faixas} contexto={contexto}
@@ -990,7 +991,7 @@ export function ArtistPage({ name, back, corNaJanela = false, ...props }: { name
           </View>
         </View>
 
-        {data.loading ? <View style={{ height: 320 }}><Loading /></View> : <View style={artistStyles.duas}>
+        {data.loading ? <Carregando forma="linhas" /> : <View style={artistStyles.duas}>
           <View style={artistStyles.colunaDasMusicas}>
             <View style={artistStyles.cabecalhoDaSeccao}>
               <Text style={artistStyles.tituloDaSeccao}>Songs</Text>
@@ -1009,14 +1010,14 @@ export function ArtistPage({ name, back, corNaJanela = false, ...props }: { name
             </View>
             {/* Todas, sem botão: as tuas primeiro (com o coração), uma linha, e as
                 outras dele, que entram quando chegarem. A tabela monta ao rolar. */}
-            {aProcurarMusicas && !musicas.length ? <View style={{ height: 280 }}><Loading /></View> : <>
+            {aProcurarMusicas && !musicas.length ? <Carregando forma="linhas" quantas={5} /> : <>
               <TrackTable plain colunaDoArtista={false} showSavedBadge tracks={musicasFiltradas} listKey={`artista:${chaveDoArtista}`}
                 divisoria={{ antesDe: tuasNaLista, rotulo: `More from ${name}` }}
                 caraDaLinha={detalheDaFaixa} larguraDaCara={96}
                 onPlay={(t) => props.tocarMusica(t, musicas, undefined, { tipo: 'artista', nome: name })} onMore={props.more}
                 empty={filtro.trim() ? <Empty icon="search" title={FRASES_DOS_ESTADOS.semCorrespondencias.titulo} body={FRASES_DOS_ESTADOS.semCorrespondencias.corpo(filtro, 'songs')} />
                   : <Empty icon="musical-notes-outline" title={FRASES_DOS_ESTADOS.artistaSemMusicas.titulo} body={FRASES_DOS_ESTADOS.artistaSemMusicas.corpo} />} />
-              {aProcurarMusicas ? <View style={{ height: 120 }}><Loading /></View> : null}
+              {aProcurarMusicas ? <Carregando forma="linhas" quantas={2} /> : null}
             </>}
           </View>
 
@@ -1024,7 +1025,7 @@ export function ArtistPage({ name, back, corNaJanela = false, ...props }: { name
           <View style={artistStyles.coluna}>
             {pagina?.maisRecente ? <UltimoLancamento album={pagina.maisRecente} onPress={() => void abrirAlbum(pagina.maisRecente!)}
               aoMenu={(e) => abrirMenuDoDisco(discoNoMenu(pagina.maisRecente!), e)} escolhido={discoDoMenu === pagina.maisRecente.id} /> : null}
-            {aProcurarAlbuns ? <View style={{ height: 200 }}><Loading /></View> : <>
+            {aProcurarAlbuns ? <Carregando forma="capas" /> : <>
               {discos.albuns.length ? <>
                 <Text style={artistStyles.subtitulo}>Albums <Text style={artistStyles.contagem}>{discos.albuns.length}</Text></Text>
                 <View style={artistStyles.grelhaDeDiscos}>
@@ -1137,7 +1138,7 @@ function useDialogoDoAlbum(props: CommonPageProps) {
 
   const dialogoDoAlbum = <>
     <Dialog open={!!albumAberto} title={albumAberto?.title || 'Album'} onClose={fecharAlbum} width={720}>
-      {aCarregarAlbum ? <View style={{ height: 260 }}><Loading /></View> : <>
+      {aCarregarAlbum ? <Carregando forma="linhas" quantas={5} /> : <>
         <View style={artistStyles.albumDialogActions}>
           <Button icon="play" onPress={tocarAlbum} disabled={!faixasDoAlbum.length}>Play</Button>
           <Button secondary icon="download-outline" onPress={() => void guardarAlbum()} disabled={!faixasDoAlbum.length} ocupado={aGuardarAlbum}>
