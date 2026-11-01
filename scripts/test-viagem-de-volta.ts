@@ -71,7 +71,7 @@ caso('a mesma porta e os mesmos cuidados da ida: prazo, sem API ou "menos movime
   assert.match(voltar, /\} catch \{\n\s+limpar\(\);\n\s+mudar\(\);/);
 });
 caso('o nome e a marca saem aconteça o que acontecer', () => {
-  assert.match(voltar, /const limpar = \(\) => \{ destino\?\.style\.removeProperty\('view-transition-name'\); raiz\.removeAttribute\('data-viagem'\); aChegar = null; \};/);
+  assert.match(voltar, /const limpar = \(\) => \{\n\s+destino\?\.style\.removeProperty\('view-transition-name'\);\n\s+if \(esta === viagemAtual\) \{ raiz\.removeAttribute\('data-viagem'\); aChegar = null; \}\n\s+\};/);
 });
 caso('o `viagemChegou` da casca é o que acorda a volta, como na ida', () => {
   assert.match(NAVEGADOR, /useEffect\(\(\) => \{ viagemChegou\(\); \}, \[route\]\);/);

@@ -4,7 +4,8 @@
  * artista para a foto da dele. É a API de View Transitions do Chromium
  * (`document.startViewTransition`): o elemento que parte leva o nome `portrait` e
  * o que chega (o mosaico ou a foto do cabeçalho) tem o mesmo, e o navegador anima
- * um para o outro. O resto da janela troca com um esbater curto.
+ * um para o outro. A lateral e a barra ficam, e a página troca com a Passagem de
+ * luz (C6: o CSS na casca e a luz em `Luz.web.ts`, pedida pela `TransicaoDePagina`).
  *
  * **Porque tem uma ponte e não se chama só `startViewTransition(navegar)`**: a
  * rota do PC muda numa transição do React (`mudarRota`, `RootNavigator.web.tsx`),
@@ -27,14 +28,22 @@
  * montado, ou foi filtrado), o cabeçalho esbate-se sozinho.
  *
  * Sem a API, com "menos movimento" ou com a janela escondida, não viaja: navega-se
- * como sempre.
+ * como sempre. Uma viagem saltada (outra começou) rejeita o `ready`, e o `limpar` já
+ * trata dela: apanha-se só para não ser um erro por tratar.
  */
 
 export const NOME_DO_RETRATO = 'portrait';
 export const ESPERA_MAXIMA_MS = 2500;
 let aChegar: (() => void) | null = null;
+/**
+ * A viagem de agora. Começar outra com a anterior a acabar (voltar e clicar logo
+ * noutro cartão) faz o navegador saltar a anterior, e o `limpar` dela corria já:
+ * tirava a marca `data-viagem` e a promessa à viagem nova, e a página entrava
+ * outra vez, o "refresh" de 30/10 (visto no ensaio do C6, 1/11).
+ */
+let viagemAtual = 0;
 
-type ComViagem = Document & { startViewTransition?: (cb: () => Promise<void>) => { finished: Promise<unknown>; skipTransition: () => void } };
+type ComViagem = Document & { startViewTransition?: (cb: () => Promise<void>) => { finished: Promise<unknown>; ready: Promise<unknown>; skipTransition: () => void } };
 
 export function podeViajar(): boolean {
   if (typeof document === 'undefined') return false;
@@ -66,7 +75,11 @@ export function retratoDe(chave: string): HTMLElement | null {
 export function viajar(origem: HTMLElement | null, mudar: () => void): void {
   if (!origem || aChegar || !podeViajar()) { mudar(); return; }
   const raiz = document.documentElement;
-  const limpar = () => { origem.style.removeProperty('view-transition-name'); raiz.removeAttribute('data-viagem'); aChegar = null; };
+  const esta = ++viagemAtual;
+  const limpar = () => {
+    origem.style.removeProperty('view-transition-name');
+    if (esta === viagemAtual) { raiz.removeAttribute('data-viagem'); aChegar = null; }
+  };
   origem.style.setProperty('view-transition-name', NOME_DO_RETRATO);
   raiz.setAttribute('data-viagem', '');
   try {
@@ -77,6 +90,7 @@ export function viajar(origem: HTMLElement | null, mudar: () => void): void {
       mudar();
     }));
     void t.finished.then(limpar, limpar);
+    t.ready.catch(() => {});
   } catch {
     limpar();
     mudar();
@@ -92,7 +106,11 @@ export function voltarViajando(chaves: readonly string[] | null, mudar: () => vo
   if (!chaves || aChegar || !podeViajar()) { mudar(); return; }
   const raiz = document.documentElement;
   let destino: HTMLElement | null = null;
-  const limpar = () => { destino?.style.removeProperty('view-transition-name'); raiz.removeAttribute('data-viagem'); aChegar = null; };
+  const esta = ++viagemAtual;
+  const limpar = () => {
+    destino?.style.removeProperty('view-transition-name');
+    if (esta === viagemAtual) { raiz.removeAttribute('data-viagem'); aChegar = null; }
+  };
   raiz.setAttribute('data-viagem', '');
   try {
     const t = (document as ComViagem).startViewTransition!(() => new Promise<void>((cumprir) => {
@@ -109,6 +127,7 @@ export function voltarViajando(chaves: readonly string[] | null, mudar: () => vo
       mudar();
     }));
     void t.finished.then(limpar, limpar);
+    t.ready.catch(() => {});
   } catch {
     limpar();
     mudar();

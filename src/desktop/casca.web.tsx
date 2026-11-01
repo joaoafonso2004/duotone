@@ -595,11 +595,20 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="salto-atual"]{ animation: dt-linha 220ms var(--dt-curva) backwards; }
 
     /* A viagem partilhada (30/10, desktop/viagem.web.ts): o mosaico de uma playlist voa da
-       grelha para o cabeçalho da página. Enquanto dura, a página nova não entra a subir
-       (o esbater da raiz já a traz) e a raiz esbate-se depressa. */
-    ::view-transition-group(portrait){ animation-duration: 560ms; animation-timing-function: var(--dt-curva); }
+       grelha para o cabeçalho da página. A raiz é a lateral e a barra, que não mudam. */
+    ::view-transition-group(portrait){ animation-duration: var(--dt-entrada-ms); animation-timing-function: var(--dt-entrada); }
     ::view-transition-old(portrait), ::view-transition-new(portrait){ height: 100%; object-fit: cover; }
     ::view-transition-old(root), ::view-transition-new(root){ animation-duration: 220ms; }
+    /* A Passagem de luz (C6, 1/11, desktop/Luz.web.ts): só a página troca. A de agora sai depressa,
+       e a nova sobe 8 px com a mola ENTRADA. O nome só existe durante a viagem, porque um
+       view-transition-name faz da página um contexto de empilhamento. O corte é para os 8 px
+       não passarem por cima da barra do leitor enquanto ela sobe. */
+    html[data-viagem] [data-dt~="pagina-da-janela"]{ view-transition-name: dt-pagina; }
+    ::view-transition-group(dt-pagina){ overflow: clip; }
+    ::view-transition-old(dt-pagina){ animation: dt-vt-sai var(--dt-sair-ms) var(--dt-sair) both; }
+    ::view-transition-new(dt-pagina){ animation: dt-vt-entra var(--dt-entrada-ms) var(--dt-entrada) both; }
+    @keyframes dt-vt-sai{ to{ opacity:0; } }
+    @keyframes dt-vt-entra{ from{ opacity:0; transform: translateY(8px); } }
     /* A página que chega calada (30/10, o "refresh" ao voltar): a volta e a viagem não repetem a
        entrada. A marca fica na página enquanto ela está no ecrã (TransicaoDePagina) e NÃO sai com a
        viagem: tirar um "animation: none" põe a animação a correr de novo, e a página piscava a
