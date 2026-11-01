@@ -5,8 +5,9 @@ import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { useComandarOutro } from '../lib/comandarOutro';
 import { estaAcordado } from '../lib/duotoneConnect';
 import { deviceLabel } from '../lib/handoff';
+import { curvaDoPc } from '../lib/molasEmCss';
 import { useHandoffSession } from '../lib/sessionSync';
-import { COR, ESTADO, TIPO } from '../desktop/tokens.web';
+import { COR, ESTADO, RAIO, TIPO } from '../desktop/tokens.web';
 import { Artwork } from '../desktop/ui.web';
 import { BotaoContinuar, ComandoRemoto, ID_DO_BOTAO, linhaDaFila, OlhoDoOutro } from '../desktop/OutroAparelho.web';
 import { usePlayer } from '../state/player';
@@ -34,7 +35,7 @@ export function HandoffBanner() {
     const el: HTMLElement | null = cartao.current;
     if (!aviso || !el?.animate || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     el.animate([{ opacity: 0, transform: 'translateY(14px) scale(.98)' }, { opacity: 1, transform: 'none' }],
-      { duration: 420, easing: 'cubic-bezier(.2,.9,.25,1.06)' });
+      { duration: 420, easing: curvaDoPc('entrada') });
   }, [aviso, session?.deviceId]);
 
   if (!session || !aviso) return null;
@@ -47,9 +48,9 @@ export function HandoffBanner() {
     const a = el.getBoundingClientRect(), b = alvo.getBoundingClientRect();
     const dx = (b.left + b.width / 2) - (a.left + a.width / 2), dy = (b.top + b.height / 2) - (a.top + a.height / 2);
     el.animate([{ transform: 'none', opacity: 1 }, { transform: `translate(${dx}px, ${dy}px) scale(.08)`, opacity: 0 }],
-      { duration: 460, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' }).finished.then(() => {
+      { duration: 460, easing: curvaDoPc('estado'), fill: 'forwards' }).finished.then(() => {
       dismiss();
-      alvo.animate?.([{ transform: 'scale(1)' }, { transform: 'scale(1.18)' }, { transform: 'scale(1)' }], { duration: 620, easing: 'cubic-bezier(.2,.9,.25,1.06)' });
+      alvo.animate?.([{ transform: 'scale(1)' }, { transform: 'scale(1.18)' }, { transform: 'scale(1)' }], { duration: 620, easing: curvaDoPc('soltar') });
     }, dismiss);
   };
 
@@ -70,12 +71,12 @@ export function HandoffBanner() {
         <View style={{ flex: 1, minWidth: 0 }}>
           <OlhoDoOutro sessao={session} posicaoMs={positionMs} cor={cor} />
           <Text numberOfLines={1} style={[TIPO.corpo, { color: COR.texto, fontSize: 15, fontWeight: '600', marginTop: 5 }]}>{tituloDaFaixa(session.track)}</Text>
-          <Text numberOfLines={1} style={[TIPO.legenda, { color: COR.textoMedio, fontSize: 12.5, marginTop: 2 }]}>{displayArtist(session.track)}</Text>
+          <Text numberOfLines={1} style={[TIPO.legenda, { color: COR.textoMedio, marginTop: 2 }]}>{displayArtist(session.track)}</Text>
           {fila ? <Text numberOfLines={1} style={[TIPO.legenda, { color: COR.textoFraco, marginTop: 6 }]}>{fila}</Text> : null}
           {aTocarAqui ? <Text numberOfLines={1} style={[TIPO.legenda, { color: COR.textoFraco, marginTop: 2 }]}>Replaces what’s playing here</Text> : null}
         </View>
         <P accessibilityRole="button" accessibilityLabel="Dismiss" onPress={fechar}
-          style={({ hovered }: any) => [{ width: 28, height: 28, borderRadius: 7, alignItems: 'center', justifyContent: 'center', marginTop: -4, marginRight: -4, cursor: 'pointer' }, hovered && { backgroundColor: ESTADO.hover }]}>
+          style={({ hovered }: any) => [{ width: 28, height: 28, borderRadius: RAIO.cartao, alignItems: 'center', justifyContent: 'center', marginTop: -4, marginRight: -4, cursor: 'pointer' }, hovered && { backgroundColor: ESTADO.hover }]}>
           <Ionicons name="close" size={15} color={COR.textoFraco} />
         </P>
       </View>
