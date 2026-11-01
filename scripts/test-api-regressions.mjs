@@ -1361,6 +1361,83 @@ console.log('Perfil: biblioteca anterior à migração, falhas independentes e e
 }
 
 {
+  // O ✓ do menu do PC remove a gravação, não um ID possivelmente diferente
+  // do usado na playlist. A base é isolada; executa-se a API verdadeira.
+  const dados = {
+    tracks: [
+      { id: 'video-a', source: 'youtube', source_id: 'video' },
+      { id: 'video-b', source: 'youtube', source_id: 'video' },
+      { id: 'outra-faixa', source: 'youtube', source_id: 'outro-video' },
+      { id: 'outra-fonte', source: 'spotify', source_id: 'video' },
+    ],
+    playlist_tracks: [
+      { playlist_id: 'escolhida', track_id: 'video-a' },
+      { playlist_id: 'escolhida', track_id: 'video-b' },
+      { playlist_id: 'outra-playlist', track_id: 'video-b' },
+      { playlist_id: 'escolhida', track_id: 'outra-faixa' },
+      { playlist_id: 'escolhida', track_id: 'outra-fonte' },
+    ],
+  };
+  let falhaLeitura = false, falhaRemocao = false, invalidacoes = 0;
+  const mundo = ambiente(() => { throw new Error('Este teste não usa rede'); }, {
+    'src/api/library.ts': {},
+    'src/api/afinidade.ts': { esquecerAfinidade: () => { invalidacoes++; } },
+    'src/lib/cacheDaBiblioteca.ts': { esquecerAlargada: () => {} },
+    'src/lib/supabase.ts': { supabase: {
+      from: (tabela) => {
+        const filtros = [];
+        let apagar = false;
+        const corresponde = (row) => filtros.every((f) => f(row));
+        const q = {
+          select: () => q,
+          match: (valores) => { filtros.push(row => Object.entries(valores).every(([k, v]) => row[k] === v)); return q; },
+          eq: (coluna, valor) => { filtros.push(row => row[coluna] === valor); return q; },
+          in: (coluna, valores) => { filtros.push(row => valores.includes(row[coluna])); return q; },
+          delete: () => { apagar = true; return q; },
+          then: (ok, falha) => Promise.resolve().then(() => {
+            if (tabela === 'tracks' && falhaLeitura) return { data: null, error: new Error('Leitura recusada') };
+            if (apagar && falhaRemocao) return { data: null, error: new Error('Remoção recusada') };
+            const rows = dados[tabela].filter(corresponde);
+            if (apagar) dados[tabela] = dados[tabela].filter(row => !corresponde(row));
+            return { data: apagar ? null : rows, error: null };
+          }).then(ok, falha),
+        };
+        return q;
+      },
+    } },
+  });
+  const playlists = mundo.carregar('src/api/playlists.ts');
+  const faixa = { id: 'id-de-outro-contexto', source: 'youtube', sourceId: 'video' };
+  assert.equal((await playlists.playlistsComAFaixa(faixa)).ids.has('escolhida'), true);
+  await playlists.removeTrackFromPlaylistBySource('escolhida', faixa);
+  assert.deepEqual(dados.playlist_tracks, [
+    { playlist_id: 'outra-playlist', track_id: 'video-b' },
+    { playlist_id: 'escolhida', track_id: 'outra-faixa' },
+    { playlist_id: 'escolhida', track_id: 'outra-fonte' },
+  ], 'só remove a gravação da playlist escolhida, incluindo IDs duplicados');
+  assert.equal(dados.tracks.length, 4, 'o catálogo das músicas não é alterado');
+  const reaberta = await playlists.playlistsComAFaixa(faixa);
+  assert.equal(reaberta.ids.has('escolhida'), false, 'ao reabrir, o ✓ desapareceu');
+  assert.equal(reaberta.ids.has('outra-playlist'), true, 'o ✓ da outra playlist mantém-se');
+  assert.equal(invalidacoes, 1, 'a descoberta sabe que a playlist mudou');
+
+  dados.playlist_tracks.push({ playlist_id: 'escolhida', track_id: 'video-b' });
+  const antes = structuredClone(dados);
+  falhaLeitura = true;
+  await assert.rejects(() => playlists.removeTrackFromPlaylistBySource('escolhida', faixa), /Leitura recusada/);
+  falhaLeitura = false;
+  falhaRemocao = true;
+  await assert.rejects(() => playlists.removeTrackFromPlaylistBySource('escolhida', faixa), /Remoção recusada/);
+  assert.deepEqual(dados, antes, 'uma falha conserva a associação');
+  assert.equal(invalidacoes, 1, 'uma falha não publica uma mudança que não ocorreu');
+
+  falhaRemocao = false;
+  await playlists.removeTrackFromPlaylistBySource('escolhida', { source: 'youtube', sourceId: 'inexistente' });
+  assert.deepEqual(dados, antes, 'sem correspondência no catálogo não remove outra música');
+  console.log('Playlist marcada: remove a gravação, atualiza o ✓ e preserva outras músicas e playlists.');
+}
+
+{
   // Afinidade: a cache é da conta, esquece-se quando uma playlist muda, uma
   // leitura velha não fica guardada e a leitura vai às páginas.
   let conta = 'conta-A', leituras = 0, paginas = [], suspender = null;

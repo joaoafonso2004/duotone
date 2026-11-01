@@ -1,10 +1,10 @@
-import { addTracksToPlaylist, createPlaylist } from '../api/playlists';
+import { addTracksToPlaylist, createPlaylist, removeTrackFromPlaylistBySource } from '../api/playlists';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
 import { usePlaylists } from '../state/playlists';
 import type { Playlist, Track } from '../types';
 import { invalidarCacheDaPlaylist } from './paginas/PlaylistPages.web';
 
-import { avisarErro, avisarInfo } from '../lib/avisoDeRemocao';
+import { avisarErro } from '../lib/avisoDeRemocao';
 /**
  * O que o painel "Add to playlist ›" faz quando se escolhe (24/10,
  * `EscolherPlaylist.web.tsx`): o menu de uma música e o de uma mensagem com
@@ -17,14 +17,13 @@ export function mudouAPlaylist(id: string): void {
 }
 
 export async function porNaPlaylist(t: Track, p: Playlist, jaLaEsta: boolean, notify: (texto: string) => void): Promise<void> {
-  // O servidor não a punha duas vezes; dizer que já lá está é a resposta certa.
-  if (jaLaEsta) { avisarInfo(`Already in ${p.name}.`); return; }
   try {
-    await addTracksToPlaylist(p.id, [t]);
+    if (jaLaEsta) await removeTrackFromPlaylistBySource(p.id, t);
+    else await addTracksToPlaylist(p.id, [t]);
     mudouAPlaylist(p.id);
-    notify(`Added to ${p.name}.`);
+    notify(jaLaEsta ? `Removed from ${p.name}.` : `Added to ${p.name}.`);
   } catch (e) {
-    avisarErro(mensagemDeErro(e, "Couldn't add to the playlist."));
+    avisarErro(mensagemDeErro(e, jaLaEsta ? "Couldn't remove from the playlist." : "Couldn't add to the playlist."));
   }
 }
 

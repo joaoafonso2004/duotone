@@ -10,6 +10,10 @@
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import vm from 'node:vm';
+
+const ts = createRequire(import.meta.url)('typescript');
 
 const ler = (f) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 let falhas = 0;
@@ -35,15 +39,11 @@ caso('o botão do Now Playing abre o mesmo painel, sozinho, no botão', () => {
   assert.equal(casca.match(/aoAdicionarAPlaylist=\{abrirPlaylistsSozinhas\}/g)?.length, 2, 'as duas montagens do Now Playing');
   assert.match(casca, /corpo=\{painelDasPlaylists\(escolhaSolta\.faixa, \(\) => setEscolhaSolta\(null\)\)\}/);
 });
-caso('com o ✓, não a põe outra vez: diz que já lá está', () => {
-  assert.match(porNa, /if \(jaLaEsta\) \{ avisarInfo\(`Already in \$\{p\.name\}\.`\); return; \}/);
-});
 caso('criar põe a música lá, e a lista das Playlists sabe já da nova', () => {
   assert.match(porNa, /const p = await createPlaylist\(nome\);\n\s+await addTracksToPlaylist\(p\.id, \[t\]\);\n[\s\S]{0,160}carregar\(true\)/);
 });
 caso('os erros pela frase legível', () => {
   // Um erro vai pelo avisarErro (A1, 31/10): pelo notify saía com o visto verde.
-  assert.match(porNa, /avisarErro\(mensagemDeErro\(e, "Couldn't add to the playlist\."\)\)/);
   assert.match(porNa, /avisarErro\(mensagemDeErro\(e, "Couldn't create the playlist\."\)\)/);
 });
 
@@ -70,6 +70,62 @@ caso('clicar ou rodar a roda dentro do painel não fecha o menu', () => {
   assert.match(menu, /const dentro = \(alvo: any\) => !!\(caixa\.current\?\.contains\?\.\(alvo\) \|\| painel\.current\?\.contains\?\.\(alvo\)\);/);
   assert.match(menu, /const roda = \(e: WheelEvent\) => \{ if \(!dentro\(e\.target\)\) fechar\.current\(\); \};/);
 });
+
+// A ação real, com apenas os pedidos e as superfícies da app substituídos.
+function acaoIsolada(falhar = false) {
+  const escritas = [], invalidadas = [], eventos = [], erros = [], avisos = [];
+  const escrever = async (tipo, id, faixa) => {
+    escritas.push({ tipo, id, faixa });
+    if (falhar) throw new Error('Falha de rede simulada');
+  };
+  const duplos = {
+    '../api/playlists': {
+      addTracksToPlaylist: (id, faixas) => escrever('adicionar', id, faixas[0]),
+      removeTrackFromPlaylistBySource: (id, faixa) => escrever('remover', id, faixa),
+    },
+    '../lib/mensagemDeErro': { mensagemDeErro: (_e, frase) => frase },
+    '../state/playlists': { usePlaylists: { getState: () => ({ carregar: async () => {} }) } },
+    './paginas/PlaylistPages.web': { invalidarCacheDaPlaylist: (id) => invalidadas.push(id) },
+    '../lib/avisoDeRemocao': { avisarErro: (texto) => erros.push(texto) },
+  };
+  const exports = {};
+  const codigo = ts.transpileModule(porNa, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
+  vm.runInNewContext(codigo, {
+    exports, CustomEvent,
+    window: { dispatchEvent: (e) => eventos.push({ tipo: e.type, id: e.detail?.id }) },
+    require: (nome) => { assert.ok(nome in duplos, `Import sem duplo: ${nome}`); return duplos[nome]; },
+  });
+  return { executar: exports.porNaPlaylist, escritas, invalidadas, eventos, erros, avisos };
+}
+
+const faixa = { source: 'youtube', sourceId: 'video', title: 'Faixa' };
+const playlist = { id: 'p1', name: 'A minha playlist' };
+for (const marcada of [false, true]) {
+  const verbo = marcada ? 'remover' : 'adicionar';
+  try {
+    const a = acaoIsolada();
+    const escrita = a.executar(faixa, playlist, marcada, (texto) => a.avisos.push(texto));
+    assert.equal(a.avisos.length, 0, 'só confirma depois de guardar');
+    assert.equal(a.eventos.length, 0, 'só atualiza a página depois de guardar');
+    await escrita;
+    assert.deepEqual(a.escritas, [{ tipo: verbo, id: 'p1', faixa }]);
+    assert.deepEqual(a.invalidadas, ['p1']);
+    assert.deepEqual(a.eventos, [
+      { tipo: 'duotone:refresh-playlist', id: 'p1' },
+      { tipo: 'duotone:refresh-playlists', id: undefined },
+    ]);
+    assert.deepEqual(a.avisos, [marcada ? 'Removed from A minha playlist.' : 'Added to A minha playlist.']);
+    assert.deepEqual(a.erros, []);
+
+    const falha = acaoIsolada(true);
+    await falha.executar(faixa, playlist, marcada, (texto) => falha.avisos.push(texto));
+    assert.deepEqual(falha.avisos, [], 'uma recusa do servidor nunca aparece como sucesso');
+    assert.deepEqual(falha.eventos, []);
+    assert.deepEqual(falha.invalidadas, []);
+    assert.deepEqual(falha.erros, [marcada ? "Couldn't remove from the playlist." : "Couldn't add to the playlist."]);
+    console.log(`  ok - ${verbo}: persiste, atualiza a playlist e comunica erros`);
+  } catch (e) { falhas++; console.error(`  FALHOU - ${verbo}\n    ${e.message}`); }
+}
 
 if (falhas) { console.error(`\n  ${falhas} caso(s) a falhar.`); process.exit(1); }
 console.log('\nAdd to playlist no PC: o painel ao lado do menu, o ✓, criar ali, e as teclas passaram.');

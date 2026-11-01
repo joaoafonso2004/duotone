@@ -490,6 +490,28 @@ export async function removeTrackFromPlaylist(
   mudouUmaPlaylist();
 }
 
+/** Remove esta gravação da playlist, mesmo que tenha IDs repetidos no catálogo. */
+export async function removeTrackFromPlaylistBySource(
+  playlistId: string,
+  track: Pick<Track, 'source' | 'sourceId'>,
+): Promise<void> {
+  const { data, error } = await supabase
+    .from('tracks')
+    .select('id')
+    .match({ source: track.source, source_id: track.sourceId });
+  if (error) throw error;
+  const ids = (data ?? []).map((row: { id: string }) => row.id);
+  if (!ids.length) return;
+
+  const { error: erroAoRemover } = await supabase
+    .from('playlist_tracks')
+    .delete()
+    .eq('playlist_id', playlistId)
+    .in('track_id', ids);
+  if (erroAoRemover) throw erroAoRemover;
+  mudouUmaPlaylist();
+}
+
 /** O que saiu de uma playlist, para o "Undo" (3/10) a repor no mesmo lugar. */
 export type LinhaTiradaDaPlaylist = { playlistId: string; trackId: string; position: number; addedAt: string };
 

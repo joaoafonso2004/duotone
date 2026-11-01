@@ -19,12 +19,12 @@ const CAPA = 28;
  * Era um diálogo ao centro com caixas iguais, sem capas, sem saber onde a
  * música já estava e sem forma de criar uma playlist ali.
  *
- * - Procura em cima, com o foco: escrever filtra logo. Enter com uma só põe-na lá.
+ * - Procura em cima, com o foco: escrever filtra logo. Enter escolhe a única visível.
  * - "New playlist": escreve-se o nome ali; com a procura escrita e sem nenhuma
  *   com esse nome, a linha já é `New playlist "…"` e cria de uma vez.
  * - O ✓ nas que já têm a música, pelas regras da folha do iPhone
  *   (`lib/marcasDasPlaylists.ts`): duas leituras por abertura, nada em polling.
- *   Escolher uma com ✓ não a põe outra vez: diz que já lá está.
+ *   Escolher uma com ✓ tira a música; sem ✓, acrescenta-a.
  * - Escolher fecha o menu, como qualquer linha de um menu.
  *
  * Trata das suas teclas (`TECLAS_PROPRIAS`): ↑↓ andam pelo campo e pelas
@@ -190,7 +190,7 @@ function Linha({ icone, capa, rotulo, marcada = false, aoCarregar }: {
     <Pressable
       accessibilityRole={'menuitem' as any}
       accessibilityState={{ checked: marcada }}
-      accessibilityLabel={marcada ? `${rotulo}, already has this song` : rotulo}
+      accessibilityLabel={marcada ? `${rotulo}, remove this song` : rotulo}
       {...marcar('menu-linha')}
       onPress={aoCarregar}
       style={{ flexDirection: 'row', alignItems: 'center', gap: ESP.md, minHeight: 38, paddingVertical: capa ? 5 : 9,
