@@ -18,7 +18,7 @@ import { useAparencia } from '../state/aparencia';
 
 const ICONES_DOS_SEPARADORES: Record<string, keyof typeof Ionicons.glyphMap> = {
   Search: 'home',
-  Songs: 'musical-notes',
+  Songs: ICONES.gostadas,
   Artists: ICONES.artistas,
   Playlists: ICONES.playlists,
   Profile: ICONES.perfil,
@@ -29,8 +29,10 @@ const ICONES_DOS_SEPARADORES: Record<string, keyof typeof Ionicons.glyphMap> = {
  * `docs/barra-home-folhas.html`): a "Search" já era a página principal (os
  * amigos, o Jump back in, a Daily mix, as prateleiras), e passou a dizê-lo. A
  * rota continua `Search` -- é por esse nome que a app inteira navega até lá.
+ * O mesmo com as `Songs`: chamam-se "Liked Songs" como no PC (1/11, decisão do
+ * João, pendente desde 5/10), e a rota não muda.
  */
-const NOMES_DOS_SEPARADORES: Record<string, string> = { Search: 'Home' };
+const NOMES_DOS_SEPARADORES: Record<string, string> = { Search: 'Home', Songs: 'Liked Songs' };
 
 const TAMANHO = 24;
 
@@ -223,7 +225,10 @@ export function IconesDosSeparadores({ state, navigation }: Pick<MaterialTopTabB
               {route.name === 'Profile' && hasNotification && <View style={styles.ponto} />}
             </SeparadorActivo>
             {/* Sem rótulos (10/10, personalização): só os ícones; o nome fica no VoiceOver. */}
-            {rotulos ? <Text numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA.fixa} style={[styles.nome, { color: cor }]}>{nome}</Text> : null}
+            {/* "Liked Songs" é o nome mais comprido (1/11): cabe a 11 pt num iPhone de
+                375 pt, mas com a letra maior do sistema já cortava. Encolhe só até
+                ao tamanho de base, nunca abaixo dos 11 pt. */}
+            {rotulos ? <Text numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA.fixa} adjustsFontSizeToFit minimumFontScale={1 / ESCALA_MAXIMA.fixa} style={[styles.nome, { color: cor }]}>{nome}</Text> : null}
           </Pressable>
         );
       })}

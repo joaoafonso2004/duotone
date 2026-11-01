@@ -84,7 +84,7 @@ export const PRIMARY: {
   icon: keyof typeof Ionicons.glyphMap;
 }[] = [
   { id: 'search', label: 'Home', icon: 'home-outline' },
-  { id: 'songs', label: 'Liked Songs', icon: 'heart-outline' },
+  { id: 'songs', label: 'Liked Songs', icon: `${ICONES.gostadas}-outline` },
   { id: 'artists', label: 'Artists', icon: `${ICONES.artistas}-outline` },
   { id: 'playlists', label: 'Playlists', icon: `${ICONES.playlists}-outline` },
   { id: 'social', label: 'Social', icon: `${ICONES.social}-outline` },

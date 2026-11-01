@@ -114,6 +114,12 @@ caso('Artists usa o microfone nos dois lados', () => {
   assert.match(ler('src/navigation/BarraDeSeparadores.tsx'), /Artists: ICONES\.artistas/);
   assert.match(ler('src/desktop/rotas.ts'), /icon: `\$\{ICONES\.artistas\}-outline`/);
 });
+caso('"Liked Songs" e o coração nos dois lados (N1/N2, escolha do João a 1/11)', () => {
+  const barra = ler('src/navigation/BarraDeSeparadores.tsx');
+  assert.match(barra, /Songs: ICONES\.gostadas/);
+  assert.match(barra, /NOMES_DOS_SEPARADORES[^=]*= \{[^}]*Songs: 'Liked Songs'/);
+  assert.match(ler('src/desktop/rotas.ts'), /label: 'Liked Songs', icon: `\$\{ICONES\.gostadas\}-outline`/);
+});
 caso('o Jam usa os auscultadores, não o ícone do Social', () => {
   assert.match(ler('src/desktop/casca.web.tsx'), /name=\{jam \? ICONES\.jam : `\$\{ICONES\.jam\}-outline`\}/);
   assert.match(ler('src/components/AmigosAOuvir.tsx'), /sessao \? ICONES\.jam/);
