@@ -23,7 +23,8 @@ import { criarRoda, PROCURAR_DEPOIS_MS, proporcaoComARoda } from '../lib/rodaDoR
 import { criarPilhaDeCamadas, dentesDaTecla, focoAoTab, teclaNaLista } from '../lib/acessibilidadeDoPc';
 import { useDestinos } from '../navigation/destinos';
 import { duracaoDoAviso, type TipoDeAviso } from '../lib/avisoDeRemocao';
-import { direcaoDoAviso } from '../lib/luz';
+import { direcaoDoAviso, poseDoVazio } from '../lib/luz';
+import { DiscosDoVazio } from '../components/DiscosDoVazio';
 import { varrerLuz } from './Luz.web';
 
 /**
@@ -286,11 +287,20 @@ export function ContentScroll({ children, scrollKey, aoChegarAoFim }: {
   </ScrollView>;
 }
 
+/**
+ * Um vazio (ou uma falha no sítio do conteúdo): os dois discos do símbolo numa
+ * pose que sai do ícone (C10, 1/11: `poseDoVazio`), o título e a frase.
+ */
 export function Empty({ icon, title, body, action }: { icon: keyof typeof Ionicons.glyphMap; title: string; body: string; action?: ReactNode }) {
-  return <View style={ui.empty}><View style={ui.emptyIcon}><Ionicons name={icon} size={30} color={COR.metalClaro} /></View><Text style={ui.emptyTitle}>{title}</Text><Text style={ui.emptyBody}>{body}</Text>{action}</View>;
+  return <View style={ui.empty}><DiscosDoVazio pose={poseDoVazio(icon)} /><Text style={ui.emptyTitle}>{title}</Text><Text style={ui.emptyBody}>{body}</Text>{action}</View>;
 }
 
-export function Loading() { return <View style={ui.loading} {...marcar('carregar')}><ActivityIndicator color={COR.metalClaro} /><Text style={ui.loadingText}>Loading…</Text></View>; }
+/**
+ * Só para o arranque da app, antes de haver sessão: aí não há forma nenhuma do
+ * que vem. Uma página que carrega mostra as formas dela (`Carregando.web.tsx`,
+ * C10): a roda com "Loading…" numa caixa de altura fixa fazia a página saltar.
+ */
+export function Loading() { return <View style={ui.loading}><ActivityIndicator color={COR.metalClaro} /><Text style={ui.loadingText}>Loading…</Text></View>; }
 
 export function formatTime(seconds: number | null) {
   if (!seconds) return '—';
@@ -1419,7 +1429,6 @@ export const ui = StyleSheet.create({
   fieldAtalho: { fontFamily: FONT.mono, fontSize: 10, color: COR.textoMedio, borderWidth: 1, borderColor: COR.linha, borderRadius: 4, paddingVertical: 3, paddingHorizontal: 7 },
 
   empty: { minHeight: 330, alignItems: 'center', justifyContent: 'center', padding: ESP.xxl },
-  emptyIcon: { width: 60, height: 60, borderRadius: RAIO.superficie, backgroundColor: COR.elevado, borderWidth: 1, borderColor: COR.linhaSuave, alignItems: 'center', justifyContent: 'center', marginBottom: ESP.lg },
   emptyTitle: { ...TIPO.seccao, color: COR.texto, marginBottom: ESP.sm },
   emptyBody: { ...TIPO.legenda, color: COR.textoMedio, lineHeight: 19, maxWidth: 420, textAlign: 'center', marginBottom: ESP.lg },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: ESP.md },

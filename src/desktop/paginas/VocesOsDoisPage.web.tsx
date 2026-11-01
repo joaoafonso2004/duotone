@@ -8,7 +8,8 @@ import { useTheme } from '../../state/theme';
 import type { DiscoveryContext } from '../../lib/contextoDaDescoberta';
 import type { Track } from '../../types';
 import { styles } from '../estilos.web';
-import { BotaoVoltar, Button, ContentScroll, Empty, Loading, Page } from '../ui.web';
+import { BotaoVoltar, Button, ContentScroll, Empty, Page } from '../ui.web';
+import { Carregando } from '../Carregando.web';
 import { COR } from '../tokens.web';
 
 const V = View as any;
@@ -52,7 +53,7 @@ export function VocesOsDoisPage({ userId, nome, back, play }: {
 
   return <Page title="You two" subtitle={nome ? `You and ${nome}` : undefined} action={<BotaoVoltar onPress={back} />}>
     <ContentScroll>
-      {aCarregar ? <View style={{ height: 320 }}><Loading /></View>
+      {aCarregar ? <Carregando forma="blocos" />
         : !valeAPena(d) || !d ? <Empty icon="sparkles-outline" title="Not enough yet" body={`Once you and ${primeiro} have both listened for a while, this page fills up with what you share — and what you don't.`} />
         : <View style={{ maxWidth: 760, width: '100%', alignSelf: 'center', gap: 14 }}>
           <V style={[styles.statsHero, { alignItems: 'center', backgroundImage: `linear-gradient(135deg, ${tema.gradient[0]}, ${tema.gradient[1]})` } as any]}>

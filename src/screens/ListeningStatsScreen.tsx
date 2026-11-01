@@ -3,9 +3,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
+import {  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,7 +12,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fetchListeningStats, type StatsResult } from '../api/listeningStats';
-import { EmptyState } from '../components/EmptyState';
+import { EmptyState } from '../components/EmptyState';
+import { SkeletonDeEstatisticas } from '../components/Skeleton';
 import { abrirResumoDoMes, nomeDoResumo } from '../components/ResumoDoMes';
 import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import { SegmentedControl } from '../components/SegmentedControl';
@@ -132,7 +131,7 @@ export function ListeningStatsScreen({ navigation, route }: Props) {
         )}
 
         {loading ? (
-          <ActivityIndicator color={colors.text} style={{ marginTop: 64 }} />
+          <View style={{ marginTop: 16 }}><SkeletonDeEstatisticas /></View>
         ) : result?.unavailable ? (
           <EmptyState
             icon="cloud-offline-outline"

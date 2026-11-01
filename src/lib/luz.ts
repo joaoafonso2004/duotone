@@ -97,6 +97,46 @@ export function duracaoDoCiclo(pedido: number): number {
   return Math.max(0, Math.min(CICLO_MAXIMO_MS, pedido));
 }
 
+/*
+ * Uma só luz a carregar (C10, 1/11): as formas do que vai chegar, com a altura
+ * certa, e UM reflexo em diagonal a passar pela região inteira (não um brilho
+ * por bloco). Aos 4 s o reflexo pára (a regra 4) e aparece "Still loading…",
+ * com "Try again" quando quem carrega sabe tentar outra vez.
+ */
+
+/** Uma passagem do reflexo pela região. */
+export const LUZ_DO_CARREGAMENTO_MS = 1600;
+/** O reflexo, em diagonal: a mesma inclinação nas duas plataformas (105°). */
+export const INCLINACAO_DO_CARREGAMENTO = 105;
+/** O pico do reflexo das formas: uma luz no metal escuro, não um flash. */
+export const OPACIDADE_DO_CARREGAMENTO = 0.16;
+
+export type FaseDoCarregamento = 'luz' | 'ainda';
+
+/** Até aos 4 s o reflexo anda; depois pára, e diz-se "Still loading…". */
+export function faseDoCarregamento(passadosMs: number): FaseDoCarregamento {
+  return passadosMs < CICLO_MAXIMO_MS ? 'luz' : 'ainda';
+}
+
+export const FRASES_DO_CARREGAMENTO = { ainda: 'Still loading…', tentar: 'Try again' } as const;
+
+/**
+ * Os vazios (C10): o par de discos do símbolo numa pose por estado, em vez de
+ * um ícone num círculo. A pose sai do ícone que cada vazio já dizia:
+ * - `par`: os dois lado a lado, à espera (ainda não há nada);
+ * - `espaco`: um disco e um lugar tracejado ao lado (cabe mais um: a fila, uma playlist);
+ * - `procura`: os dois afastados, sem se tocarem (nada bate certo com o que se procura);
+ * - `eclipse`: um disco por cima do outro, com a orla acesa (sem rede, ou uma falha).
+ */
+export type PoseDoVazio = 'par' | 'espaco' | 'procura' | 'eclipse';
+
+export function poseDoVazio(icone: string): PoseDoVazio {
+  if (/^(cloud-offline|alert-circle|warning|wifi|close-circle)/.test(icone)) return 'eclipse';
+  if (/^search/.test(icone)) return 'procura';
+  if (/^(add|list|reorder)/.test(icone)) return 'espaco';
+  return 'par';
+}
+
 /**
  * O registo da regra 2. É pelo RELÓGIO e não por "acabei": uma animação
  * cortada a meio (o aviso que sai, o ecrã que muda) nunca chega a avisar, e

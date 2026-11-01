@@ -2,9 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import React, { useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
+import {  FlatList,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -23,7 +21,8 @@ import { useImportacoes } from '../state/importacoes';
 import { extractArtist } from '../lib/artistName';
 import { ArtworkCollage } from '../components/ArtworkCollage';
 import { BottomSheet } from '../components/BottomSheet';
-import { EmptyState } from '../components/EmptyState';
+import { EmptyState } from '../components/EmptyState';
+import { SkeletonDeFaixas } from '../components/Skeleton';
 import { Input } from '../components/Input';
 import { PillButton } from '../components/PillButton';
 import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
@@ -181,7 +180,7 @@ export function ImportYouTubeScreen({ navigation }: Props) {
       >
 
       {loading ? (
-        <ActivityIndicator color={theme.color} style={{ marginTop: cab.espaco + 48 }} />
+        <View style={{ marginTop: cab.espaco + 8 }}><SkeletonDeFaixas linhas={6} /></View>
       ) : !data ? (
         <View style={{ flex: 1, paddingTop: cab.espaco }}>
         <EmptyState

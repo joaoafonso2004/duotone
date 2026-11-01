@@ -59,7 +59,8 @@ import { estadoDoGuardar, mensagemDeFalhaAoGuardar } from '../lib/guardarPlaylis
 import { BottomSheet } from '../components/BottomSheet';
 import { CabecalhoDaPlaylist } from '../components/CabecalhoDaPlaylist';
 import { ConfirmSheet } from '../components/ConfirmSheet';
-import { EmptyState } from '../components/EmptyState';
+import { EmptyState } from '../components/EmptyState';
+import { SkeletonDeFaixas } from '../components/Skeleton';
 import { PillButton } from '../components/PillButton';
 import { Input } from '../components/Input';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -827,7 +828,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
       {/* O estado de erro das outras listas (20/10): o texto do erro estava a
           vermelho, cru, e o "Try again" era só uma palavra. */}
       {loadError ? <View style={{paddingTop:cab.espaco}}><EmptyState icon="cloud-offline-outline" title="Couldn't load this playlist" subtitle={loadError}><PillButton label="Try again" onPress={()=>void load()} /></EmptyState></View> : loading ? (
-        <ActivityIndicator color={theme.color} style={{ marginTop: cab.espaco + 48 }} />
+        <View style={{ marginTop: cab.espaco + 8 }}><SkeletonDeFaixas /></View>
       ) : rascunho ? (
         // A edição (28/9): arrasta-se pela pega ou com meio segundo de dedo
         // parado, como na fila, e desliza-se para tirar. Nada vai ao servidor
@@ -1162,7 +1163,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             </View>
 
             {loadingLibrary ? (
-              <ActivityIndicator color={theme.color} style={{ marginTop: 48 }} />
+              <View style={{ marginTop: 8 }}><SkeletonDeFaixas linhas={6} /></View>
             ) : filteredLibrary.length === 0 ? (
               <EmptyState
                 icon="musical-notes-outline"

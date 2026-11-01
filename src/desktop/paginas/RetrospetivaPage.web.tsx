@@ -7,7 +7,8 @@ import { displayArtist, tituloDaFaixa } from '../../lib/artistName';
 import { useTheme } from '../../state/theme';
 import type { Track } from '../../types';
 import { styles } from '../estilos.web';
-import { BotaoVoltar, ContentScroll, Empty, Loading, Page } from '../ui.web';
+import { BotaoVoltar, ContentScroll, Empty, Page } from '../ui.web';
+import { Carregando } from '../Carregando.web';
 import { COR, ESTADO, RAIO } from '../tokens.web';
 import { StatCell, StatsChart } from './ProfilePage.web';
 
@@ -51,7 +52,7 @@ export function RetrospetivaPage({ back, play, userId, ano: anoInicial }: {
 
   return <Page title="Year in review" action={<View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>{anos}<BotaoVoltar onPress={back} /></View>}>
     <ContentScroll>
-      {aCarregar ? <View style={{ height: 320 }}><Loading /></View>
+      {aCarregar ? <Carregando forma="blocos" />
         : resultado?.unavailable ? <Empty icon="cloud-offline-outline" title="Stats unavailable" body="Your listening history couldn't be loaded. Try again later." />
         : !r || !r.temDados ? <Empty icon="sparkles-outline" title="No year to tell yet" body="Listen for a few days and your year in review shows up here." />
         : <>
