@@ -31,7 +31,6 @@ export function useFilaDoLeitor({ more, notify }: Pick<CommonPageProps, 'more' |
   const autoplayRadio = usePlayer((s) => s.autoplayRadio);
   const radioErro = usePlayer((s) => s.radioError);
   const doRadio = usePlayer((s) => s.doRadio);
-  const radioTipo = usePlayer((s) => s.radioTipo);
   const aPreparar = usePlayer((s) => s.radioMode === 'preparing');
   const radioLigado = usePlayer((s) => s.radioMode === 'on');
   const emJam = useOuvirJuntos((s) => !!s.sessao);
@@ -130,7 +129,7 @@ export function useFilaDoLeitor({ more, notify }: Pick<CommonPageProps, 'more' |
     saida: (aLimpar ? 'limpar' : aVirar ? 'vira' : null) as 'limpar' | 'vira' | null,
     /** A fila que a Radio acabou de trazer entra a virar. */
     entrada: (novaDaRadio ? 'vira' : null) as 'vira' | null,
-    inicioDoGrupo, tipoDoGrupo: radioTipo, aLimpar,
+    inicioDoGrupo, aLimpar,
     aGuardar, setAGuardar, pedirNome, guardar, aGravar,
     notaDoFim: fimDaFila({ emJam: emJam || !!seguido, repeatMode, autoplayRadio, vazia: !upNext.length }),
     aoTocar: (t: Track) => { if (!seguido) void playTrack(t, queue); },

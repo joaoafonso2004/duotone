@@ -552,9 +552,6 @@ export function injectDesktopDocumentStyles() {
     }
     .np-fila-entra{ transform-origin: 50% 0; animation: dt-fila-entra 620ms var(--dt-curva) backwards; }
     @keyframes dt-fila-entra{ from{ opacity: 0; transform: perspective(900px) rotateX(88deg); } to{ opacity: 1; transform: none; } }
-    /* O separador do grupo da Radio entra com a fila e apaga-se quando ela sai. */
-    [data-dt~="grupo-radio"]{ animation: dt-linha 260ms var(--dt-curva) backwards; }
-    [data-dt~="grupo-radio"][data-dt~="grupo-sai"]{ opacity: 0; transition: opacity 240ms var(--dt-curva); }
     /* O Radio ligado: os arcos respiram (quietos com a musica em pausa), e um
        anel abre-se quando a fila nova chega. */
     [data-dt~="radio-onda"]{ animation: dt-radio-onda 1.8s ease-in-out infinite; }
@@ -634,10 +631,9 @@ export function injectDesktopDocumentStyles() {
       [data-dt~="menu-amigo"], [data-dt~="aviso-msg"],
       [data-dt~="pagina"], [data-dt~="pagina"] [data-dt~="cartao"], [data-dt~="carregar"],
       [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"],
-      .np-fila-sai, .np-fila-vira, .np-fila-entra, [data-dt~="grupo-radio"],
+      .np-fila-sai, .np-fila-vira, .np-fila-entra,
       [data-dt~="radio-onda"], [data-dt~="radio-anel"], [data-dt~="salto-atual"],
       [data-dt~="ie-shuffle"][data-anima] [data-dt~="ie-linha"], [data-dt~="ie-jam"]::before, [data-dt~="ie-jam"]::after{ animation: none !important; }
-      [data-dt~="grupo-radio"][data-dt~="grupo-sai"]{ transition: none !important; }
       [data-dt~="premir"], [data-dt~="desliza"], [data-dt~="campo"], [data-dt~="fila"] [data-dt~="toca"],
       [data-dt~="fila"] [data-dt~="mais"], [data-dt~="fila"] [data-dt~="numero"],
       [data-dt~="cartao"], [data-dt~="coracaoDoCartao"], [data-dt~="a-sair"], [data-dt~="main-a-voltar"],
