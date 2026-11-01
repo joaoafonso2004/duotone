@@ -135,7 +135,7 @@ caso('a mola (25/10): parada nas Playlists da lateral abre a página, e larga-se
   assert.match(motor, /g\.molaTempo = mola \? setTimeout\(\(\) => abrirMola\(mola\), MOLA_MS\) : null;/);
   assert.match(motor, /!g\.molasAbertas\.has\(debaixo\.chave\)/);
   // Largar, desistir (Esc) ou perder o foco: volta-se para onde se estava.
-  assert.match(motor, /if \(debaixo && porCima\?\.faz\) debaixo\.alvo\.aoLargar\(ativo, e\.clientX, e\.clientY, debaixo\.no\);\n\s+voltar\?\.\(\);/);
+  assert.match(motor, /if \(debaixo && porCima\?\.faz\) \{\n\s+debaixo\.alvo\.aoLargar\(ativo, e\.clientX, e\.clientY, debaixo\.no\);[\s\S]{0,420}?\n\s+voltar\?\.\(\);/);
   assert.match(motor, /limparVisuais\(\);\n\s+\/\/ Desistir também volta[^\n]*\n\s+const voltar = gesto\.voltar;/);
   assert.match(motor, /gesto = null;\n\s+voltar\?\.\(\);/);
   // O item enche-se enquanto conta, e com menos movimento aparece cheio.
