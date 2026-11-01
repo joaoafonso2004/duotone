@@ -252,7 +252,7 @@ export function mensagem(tipo: TipoFalha): string {
     case 'tempo-esgotado':
       return 'This track did not start. Retrying another way…';
     case 'desconhecido':
-      return 'Could not play this track.';
+      return "Couldn't play this track.";
   }
 }
 

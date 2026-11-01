@@ -1,5 +1,5 @@
 import { CapaComTransicao } from './CapaComTransicao';
-import { sentidoDaTransicao, type Sentido } from '../lib/transicaoDaCapa';
+import { sentidoDaTransicao, type Sentido } from '../lib/transicaoDaCapa';
 import { pausouDeForaHaPouco } from '../lib/pausaDeFora';
 import { CapaFlutuante3D } from './CapaFlutuante3D';
 import { CAPA_FLUTUANTE } from '../lib/capaFlutuante3D';
@@ -78,8 +78,6 @@ import { deveGuardar } from '../lib/duploToque';
 import { registarAccoesDaFila, useFilaNativa } from '../state/filaNativa';
 import { PlayerControlRow } from './PlayerControlRow';
 import { accoesDoMenu, PlayerActionsSheet, type PlayerAction } from './PlayerActionsSheet';
-import { mandarComando, useAparelhos } from '../lib/connectSync';
-import { avisoDoPedido, type TipoDePedido } from '../lib/duotoneConnect';
 import { RecommendationPreferences } from './RecommendationPreferences';
 import { menuDaFaixa, MOTIVOS, type IdDaAcao } from '../lib/menuDaFaixa';
 import { alternarDownload, downloadNoMenuDe, podeDescarregar, tocaSemRede } from '../lib/descarregarFaixa';
@@ -90,7 +88,7 @@ import { EstrelaInteligente } from './BrilhoInteligente';
 import { EqualizadorSheet } from './EqualizadorSheet';
 import { ShareFriendSheet } from './ShareFriendSheet';
 import { irParaNoIphone, navigationRef } from '../navigation/RootNavigator';
-import { endSession, publishSession, publishSessionNow, takeOverSession } from '../lib/sessionSync';
+import { endSession, publishSession, publishSessionNow } from '../lib/sessionSync';
 import { useAutoplayRadio } from '../lib/radioSync';
 import {
   addAudioInterruptionListeners, addAudioOutputRemovedListener, addRemoteCommandListeners,
@@ -370,12 +368,6 @@ export function PlayerRoot() {
   const [optionsVisible, setOptionsVisible] = useState(false);
   const ancoraDasOpcoes = useRef<View>(null);
   const [ancora, setAncora] = useState<Ancora | null>(null);
-  /** O menu tem duas páginas: as acções, e as durações do temporizador. */
-  const [paginaDoMenu, setPaginaDoMenu] = useState<'raiz' | 'aparelhos' | 'comando'>('raiz');
-  // O aparelho cujo comando esta aberto (a terceira pagina do menu).
-  const [aComandar, setAComandar] = useState<string | null>(null);
-  // Os outros aparelhos desta conta. Só vai à rede com a página aberta.
-  const { aparelhos, sessaoDe, aCarregar: aProcurarAparelhos } = useAparelhos(paginaDoMenu === 'aparelhos');
   // Aqui em cima, antes de qualquer `return`: um hook depois de uma saída
   // antecipada muda a ordem dos hooks entre renderizações, e isso já pôs esta
   // app a não arrancar uma vez. O lint apanhou-o -- foi para isto que entrou.
@@ -384,7 +376,6 @@ export function PlayerRoot() {
 
   const abrirOpcoes = () => {
     hapticSelection();
-    setPaginaDoMenu('raiz');
     // Medido no ECRÃ, que é onde o menu se vai colocar. Se a medição falhar
     // não se abre nada: um menu no canto superior esquerdo, longe do botão
     // que se tocou, seria pior do que menu nenhum.
@@ -394,17 +385,6 @@ export function PlayerRoot() {
     });
   };
   const [partilhaAberta, setPartilhaAberta] = useState(false);
-  // O botão "Devices" de baixo (10/10, personalização): a página dos aparelhos
-  // do mesmo menu, aberta junto a ele.
-  const ancoraDosAparelhos = useRef<View>(null);
-  const abrirAparelhos = () => {
-    hapticSelection();
-    setPaginaDoMenu('aparelhos');
-    ancoraDosAparelhos.current?.measureInWindow((x, y, width, height) => {
-      setAncora({ x, y, width, height });
-      setOptionsVisible(true);
-    });
-  };
   const [recomendacoesAbertas, setRecomendacoesAbertas] = useState(false);
   const [scrubbing, setScrubbing] = useState(false);
   /**
@@ -1038,7 +1018,7 @@ export function PlayerRoot() {
     } catch (e: any) {
       setSaved(wasSaved);
       useSaved.getState().markSaved(current, wasSaved);
-      avisarErro(mensagemDeErro(e, 'Could not update library.'));
+      avisarErro(mensagemDeErro(e, "Couldn't update library."));
     }
   };
 
@@ -1329,7 +1309,7 @@ export function PlayerRoot() {
       case 'nao-interessa':
         fecharMenu();
         if (faixa) void naoInteressa(faixa).then(() => avisarFeito(AVISO_DO_NAO_INTERESSA))
-          .catch((e) => avisarErro(mensagemDeErro(e, 'Could not save this preference.')));
+          .catch((e) => avisarErro(mensagemDeErro(e, "Couldn't save this preference.")));
         return;
       default: return;
     }
@@ -1338,99 +1318,14 @@ export function PlayerRoot() {
   const accoesDaFaixa: PlayerAction[] = [
     ...accoesDoMenu(menuDoLeitor, fazerNaFaixa),
     /* Modo carro, a abrir o grupo do leitor: e a unica que se procura com o
-       carro ja a andar, e o traco por cima encontra-se sem ler a lista. */
+       carro ja a andar, e o traco por cima encontra-se sem ler a lista.
+       O "Play on another device" (Duotone Connect) saiu a 1/11, a pedido do
+       João: quase nunca encontrava o outro aparelho. O comando do outro
+       aparelho continua no aviso do "Continue here" (HandoffBanner). */
     { label: 'Car mode', icon: 'car-sport-outline', inicioDeGrupo: true, onPress: () => {
       fecharEEntao(() => setModoCarro(true));
     } },
-    /* Duotone Connect: mandar isto para outro aparelho teu. Fica aqui, ao pé
-       do modo carro, porque as duas são a mesma pergunta -- "onde é que isto
-       vai tocar?" -- e não uma ação sobre a faixa.
-
-       Estas duas são as únicas do grupo. A música do dia e o temporizador
-       saíram a pedido do João (12/9) -- o temporizador continua nas
-       Definições. */
-    { label: 'Play on another device', icon: 'desktop-outline',
-      onPress: () => setPaginaDoMenu('aparelhos') },
   ];
-
-  /**
-   * Os aparelhos, como página do mesmo menu.
-   *
-   * Os que não estão à escuta aparecem na mesma, apagados e a dizer porquê --
-   * a regra dos menus. Um iPhone com a app fechada não recebe ordem nenhuma, e
-   * esconder isso dava um aparelho que desaparecia sem explicação.
-   */
-  const aparelhosDoMenu: PlayerAction[] = aparelhos.length
-    ? aparelhos.map((a) => ({
-        label: a.nome,
-        icon: (a.tipo === 'desktop' ? 'desktop-outline' : 'phone-portrait-outline') as PlayerAction['icon'],
-        motivo: a.motivo,
-        nota: a.aTocar ? 'Playing now' : null,
-        onPress: () => {
-          const alvo = a;
-          // O que esta a TOCAR abre o comando; o resto recebe a musica. Mandar
-          // "assumir" a um aparelho que ja esta a tocar era passar-lhe a fila
-          // por cima do que ele tinha -- e o que se quer dali e mexer nele.
-          if (alvo.aTocar) {
-            hapticSelection();
-            setAComandar(alvo.deviceId);
-            setPaginaDoMenu('comando');
-            return;
-          }
-          fecharEEntao(() => {
-            void mandarComando(alvo.deviceId, 'assumir').then((estado) => {
-              if (estado === 'feito') { hapticNotification(); return; }
-              (estado === 'pendente' ? avisarInfo : avisarErro)(avisoDoPedido(estado, alvo.nome, 'assumir'));
-            });
-          });
-        },
-      }))
-    : [{
-        label: aProcurarAparelhos ? 'Looking for devices…' : 'No other devices',
-        icon: 'ellipse-outline',
-        motivo: aProcurarAparelhos ? null : 'Open Duotone on your PC and try again',
-        disabled: true,
-        onPress: () => {},
-      }];
-
-  /**
-   * O comando do outro aparelho, como terceira pagina do mesmo menu.
-   *
-   * Esta aqui, e nao so no banner do "continuar aqui", porque o banner
-   * dispensa-se -- e depois de dispensado ficava 15 minutos calado, sem porta
-   * nenhuma para voltar. Daqui chega-se sempre, pelo mesmo caminho: as "...",
-   * "Play on another device", o aparelho que esta a tocar.
-   *
-   * Nao se finge nada localmente: o que se ve vem da sessao dele, que chega
-   * pelo Realtime. Uma ordem que nao chegue diz-se, em vez de se assumir.
-   */
-  const comandoDoMenu: PlayerAction[] = (() => {
-    const alvo = aparelhos.find((a) => a.deviceId === aComandar);
-    const sessao = aComandar ? sessaoDe(aComandar) : null;
-    if (!alvo || !sessao) {
-      return [{
-        label: 'That device is gone', icon: 'ellipse-outline', disabled: true,
-        motivo: 'Open Duotone there and try again', onPress: () => {},
-      }];
-    }
-    const ordenar = (tipo: TipoDePedido) => {
-      void mandarComando(alvo.deviceId, tipo).then((estado) => {
-        if (estado === 'feito') { hapticSelection(); return; }
-        (estado === 'pendente' ? avisarInfo : avisarErro)(avisoDoPedido(estado, alvo.nome, tipo));
-      });
-    };
-    return [
-      { label: tituloDaFaixa(sessao.track), icon: 'musical-notes-outline', disabled: true,
-        nota: `${displayArtist(sessao.track)} \u00b7 on ${alvo.nome}`, onPress: () => {} },
-      { label: 'Previous', icon: 'play-skip-back-outline', inicioDeGrupo: true,
-        onPress: () => ordenar('anterior') },
-      { label: sessao.isPlaying ? 'Pause' : 'Play', icon: sessao.isPlaying ? 'pause-outline' : 'play-outline',
-        onPress: () => ordenar('tocar-pausa') },
-      { label: 'Next', icon: 'play-skip-forward-outline', onPress: () => ordenar('seguinte') },
-      { label: 'Continue here', icon: 'phone-portrait-outline', inicioDeGrupo: true,
-        onPress: () => { fecharEEntao(() => { void takeOverSession(sessao); }); } },
-    ];
-  })();
 
   // A personalização do título e do fundo (10/10, lib/aparencia.ts).
   const tituloAoCentro = ap.titulo === 'centro';
@@ -1494,15 +1389,6 @@ export function PlayerRoot() {
           <EqualizerIcon />
           <Text style={styles.utilityIconLabel}>EQ</Text>
         </Toque>
-      );
-      case 'aparelhos': return (
-        <View key={b} ref={ancoraDosAparelhos} collapsable={false}>
-          <Toque escala={ESCALA.icone} accessibilityRole="button" accessibilityLabel="Play on another device"
-            onPress={abrirAparelhos} style={styles.utilityIconBtn}>
-            <Ionicons name="desktop-outline" size={22} color={colors.text} />
-            <Text style={styles.utilityIconLabel}>{NOMES_DOS_BOTOES.aparelhos}</Text>
-          </Toque>
-        </View>
       );
       case 'partilhar': return (
         <Toque key={b} escala={ESCALA.icone} accessibilityRole="button" accessibilityLabel="Share"
@@ -2265,7 +2151,7 @@ export function PlayerRoot() {
         ancora={ancora}
         aoFechar={() => setOptionsVisible(false)}
         aoFechado={() => { const fn = depoisDeFechar.current; depoisDeFechar.current = null; fn?.(); }}
-        accoes={paginaDoMenu === 'comando' ? comandoDoMenu : paginaDoMenu === 'aparelhos' ? aparelhosDoMenu : accoesDaFaixa}
+        accoes={accoesDaFaixa}
       />
       <AddToPlaylistSheet
         visible={playlistOpen}

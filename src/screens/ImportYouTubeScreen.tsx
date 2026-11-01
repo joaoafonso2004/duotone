@@ -76,7 +76,7 @@ export function ImportYouTubeScreen({ navigation }: Props) {
       setData(result);
       setSelected(new Set(result.items.map((i) => i.videoId)));
     } catch (e: any) {
-      avisarErro(mensagemDeErro(e, 'Could not fetch the playlist.'));
+      avisarErro(mensagemDeErro(e, "Couldn't fetch the playlist."));
     } finally {
       setLoading(false);
     }
@@ -137,7 +137,7 @@ export function ImportYouTubeScreen({ navigation }: Props) {
       setPlaylists(usePlaylists.getState().items);
       setPickerOpen(true);
     } catch (e: any) {
-      avisarErro(mensagemDeErro(e, 'Could not load playlists.'));
+      avisarErro(mensagemDeErro(e, "Couldn't load playlists."));
     }
   };
 

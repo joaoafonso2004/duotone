@@ -556,7 +556,7 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
       // chamada de sempre, de dois argumentos.
       await definirRadioDoJam(s.id, ligado, s.radioTipo ? tipo : undefined);
     } catch {
-      set({ aviso: ligado ? 'Could not start the Jam Radio. Try again.' : 'Could not stop the Jam Radio. Try again.' });
+      set({ aviso: ligado ? "Couldn't start the Jam Radio. Try again." : "Couldn't stop the Jam Radio. Try again." });
       return;
     }
     if (get().sessao?.id === s.id) await get().actualizar();
@@ -625,7 +625,7 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
         if (get().sessao?.id === s.id && get().aviso === aviso) set({ aviso: null });
       }, 3500);
     } catch {
-      if (get().sessao?.id === s.id) set({ aviso: 'Could not queue the rest of the list.' });
+      if (get().sessao?.id === s.id) set({ aviso: "Couldn't queue the rest of the list." });
     }
   },
 
@@ -856,7 +856,7 @@ registarOuvirJuntos(() => {
       return operacao;
     },
     avisarErro: () => {
-      if (aindaAqui()) useOuvirJuntos.setState({ aviso: 'Could not update Jam. Please try again.' });
+      if (aindaAqui()) useOuvirJuntos.setState({ aviso: "Couldn't update Jam. Please try again." });
     },
   };
 });

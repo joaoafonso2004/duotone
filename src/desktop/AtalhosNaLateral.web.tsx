@@ -20,6 +20,7 @@ import type { Playlist, Track } from '../types';
 import type { Route } from './rotas';
 import { COR, ESP, ESTADO, FONT, RAIO, TIPO } from './tokens.web';
 import { comDica, Dialog, Field, IconButton, marcar } from './ui.web';
+import { FRASES_DOS_ESTADOS } from '../lib/frasesDosEstados';
 
 // Sem tipos instalados para o react-dom; só se usa o portal.
 const { createPortal } = require('react-dom') as { createPortal: (filho: React.ReactNode, onde: Element) => React.ReactElement };
@@ -319,7 +320,7 @@ function EscolherAtalho({ aberto, aoFechar }: { aberto: boolean; aoFechar: () =>
       </View>
       <ScrollView style={{ height: 420, marginTop: ESP.sm }} contentContainerStyle={{ paddingHorizontal: ESP.sm, paddingBottom: ESP.md }}>
         {candidatos.length === 0 ? (
-          <Text style={{ fontFamily: FONT.body, fontSize: 13, color: COR.textoFraco, textAlign: 'center', marginTop: 40 }}>Nothing found.</Text>
+          <Text style={{ fontFamily: FONT.body, fontSize: 13, color: COR.textoFraco, textAlign: 'center', marginTop: 40 }}>{texto.trim() ? FRASES_DOS_ESTADOS.semCorrespondencias.corpo(texto) : 'Nothing to pin yet.'}</Text>
         ) : candidatos.map((a) => {
           const fixado = estaFixado(lista, chaveDoAtalho(a));
           return (

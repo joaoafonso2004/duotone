@@ -154,7 +154,7 @@ export function SearchScreen() {
       hapticNotification();
       return { ...nova, trackCount: m.faixas.length };
     } catch (e: any) {
-      avisarErro(mensagemDeErro(e, 'Could not save this playlist.'));
+      avisarErro(mensagemDeErro(e, "Couldn't save this playlist."));
       return null;
     } finally {
       setAGuardarMistura(false);
@@ -295,7 +295,7 @@ export function SearchScreen() {
     setAAbrirMix(true);
     const ok = await tocarMixDoArtista(a.nome, { canal: a.canal }).catch(() => false);
     setAAbrirMix(false);
-    if (!ok) avisarErro('Could not load the mix.', 'Check your connection and try again.');
+    if (!ok) avisarErro("Couldn't load the mix.", 'Check your connection and try again.');
   };
   const cartaoDoDestaque = destaque ? (
     <ArtistaEmDestaque artista={destaque} aoAbrir={() => abrirArtista(destaque)}
@@ -745,7 +745,7 @@ export function SearchScreen() {
               ListEmptyComponent={
                 <EmptyState
                   icon={porTipo.falhou ? 'cloud-offline-outline' : tipoAtivo === 'artistas' ? 'person-outline' : tipoAtivo === 'albuns' ? 'albums-outline' : 'list-outline'}
-                  title={porTipo.falhou ? FRASES_DA_PESQUISA.falhou : tipoAtivo === 'artistas' ? 'No artists found' : tipoAtivo === 'albuns' ? 'No albums found' : 'No playlists found'}
+                  title={porTipo.falhou ? FRASES_DA_PESQUISA.falhou : tipoAtivo === 'artistas' ? FRASES_DA_PESQUISA.porTipo.artistas : tipoAtivo === 'albuns' ? FRASES_DA_PESQUISA.porTipo.albuns : FRASES_DA_PESQUISA.porTipo.playlists}
                   subtitle={porTipo.falhou ? FRASES_DA_PESQUISA.semMotivo : FRASES_DA_PESQUISA.semResultadosCorpo}
                 >
                   {porTipo.falhou ? <PillButton label={FRASES_DA_PESQUISA.tentarDeNovo} onPress={porTipo.repetir} /> : null}

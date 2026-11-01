@@ -45,7 +45,7 @@ export async function lerMixDoYouTube(idDaLista: string): Promise<{ titulo: stri
   try {
     primeira = await pedirVolta(idDaLista);
   } catch {
-    throw new Error('Could not read this mix. Check your connection and try again.');
+    throw new Error("Couldn't read this mix. Check your connection and try again.");
   }
   const mix = lerMixDaResposta(primeira);
   if (!mix) throw new Error('This mix has no songs we can read.');

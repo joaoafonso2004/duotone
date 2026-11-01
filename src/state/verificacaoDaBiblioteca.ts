@@ -190,7 +190,7 @@ export async function verificarBiblioteca(): Promise<void> {
     });
   } catch (e: any) {
     if (minha !== geracao) return;
-    set({ fase: 'parada', progresso: null, erro: e?.message || 'Could not check your library. Check your connection and try again.' });
+    set({ fase: 'parada', progresso: null, erro: e?.message || "Couldn't check your library. Check your connection and try again." });
   }
 }
 
@@ -205,7 +205,7 @@ async function tratar(chave: string, fn: () => Promise<void>): Promise<void> {
   try {
     await fn();
   } catch (e: any) {
-    set({ erro: e?.message || 'Could not update your library.', erroEm: chave });
+    set({ erro: e?.message || "Couldn't update your library.", erroEm: chave });
   } finally {
     set({ aTratar: null });
   }

@@ -34,6 +34,8 @@ export const FRASES_DA_PESQUISA = {
   tentarDeNovo: 'Try again',
   semResultados: 'No results',
   semResultadosCorpo: 'Try a different search term.',
+  /** A pesquisa por tipo (artistas, álbuns, playlists) sem nada desse tipo. */
+  porTipo: { artistas: 'No artists found', albuns: 'No albums found', playlists: 'No playlists found' },
   /** A parte online ainda a chegar, por baixo do que já é teu. */
   aProcurarOnline: 'Searching online…',
 } as const;

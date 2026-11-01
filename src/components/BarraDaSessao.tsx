@@ -72,7 +72,7 @@ export function BarraDaSessao({ aoAbrir, encostada = true, soAvisos = false }: {
     return () => clearTimeout(t);
   }, [acabouSemAviso, limparAviso]);
 
-  // Os avisos de erro não tinham quem os apagasse: "Could not change the aux"
+  // Os avisos de erro não tinham quem os apagasse: "Couldn't change the aux"
   // ficava na barra até outro aviso o substituir. Os de sucesso já se apagavam
   // sozinhos na store; este apanha os outros.
   React.useEffect(() => {

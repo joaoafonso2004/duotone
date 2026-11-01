@@ -31,6 +31,7 @@ import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { useFotoDoArtista } from '../hooks/useVizinhancaDoArtista';
 import { fotoNoTamanho } from '../lib/catalogo';
 import { useAlturaDosSeparadores } from '../state/doca';
+import { FRASES_DOS_ESTADOS } from '../lib/frasesDosEstados';
 
 interface ArtistGroup { name: string; chave: string; artworkUrl: string | null; count: number }
 
@@ -194,7 +195,7 @@ export function ArtistsScreen() {
             </Pressable>)}
           </View>
         </>}
-        ListEmptyComponent={<EmptyState icon="search-outline" title="No artists found" subtitle={`No artist matches "${searchQuery}".`} />}
+        ListEmptyComponent={<EmptyState icon="search-outline" title={FRASES_DOS_ESTADOS.semCorrespondencias.titulo} subtitle={FRASES_DOS_ESTADOS.semCorrespondencias.corpo(searchQuery, 'artists')} />}
         renderItem={({ item }) => renderArtist(item)} />}
   </Screen>;
 }

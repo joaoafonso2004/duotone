@@ -13,7 +13,7 @@
  *  2. A própria mensagem, se já for uma frase para pessoas -- a app atira
  *     muitas assim ("This playlist is no longer available."): começa com
  *     maiúscula, acaba em pontuação, é curta e não tem vocabulário técnico.
- *  3. O `recurso` de quem chama ("Could not add to the playlist.").
+ *  3. O `recurso` de quem chama ("Couldn't add to the playlist.").
  *
  * Errar aqui só troca uma frase por outra: nada decide o que fazer a seguir a
  * partir disto (para a reprodução, ver `lib/playbackDiagnostics.ts`). Sem imports:

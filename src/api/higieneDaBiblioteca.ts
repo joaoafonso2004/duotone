@@ -111,7 +111,7 @@ function erroDaFuncao(error: { code?: string; message?: string }): Error {
   if (error.code === 'PGRST202') return new Error('This needs a database update that is not installed yet.');
   if (error.code === '42501') return new Error('This song is not in your library any more. Check again to refresh the list.');
   if (error.code === '22023') return new Error('This song changed since the check. Check again to refresh the list.');
-  return new Error('Could not update your library. Check your connection and try again.');
+  return new Error("Couldn't update your library. Check your connection and try again.");
 }
 
 /** A mesma música duas vezes passa a uma. Ver `supabase/higiene-da-biblioteca.sql`. */

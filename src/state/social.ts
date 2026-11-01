@@ -201,11 +201,11 @@ export const useSocial = create<SocialState>((set, get) => ({
           activity[id] = Math.max(activity[id] ?? 0, Date.parse(p.createdAt));
         }
         set({ contacts,friends: friendsNow(now), groups, activity, conversationPreviews: previews, now, loading: false,
-          error: get().inboxError ? INBOX_ERROR : presence?.error ? 'Could not update presence. Try again.' : null });
+          error: get().inboxError ? INBOX_ERROR : presence?.error ? "Couldn't update presence. Try again." : null });
       } catch (e) {
         // Os fixos que falharam ficam pedidos para a próxima.
         if (lerFixos) fixosPedidos = true;
-        if (gen === generation) set({ loading: false, error: 'Could not refresh Social. What you see may be out of date.' });
+        if (gen === generation) set({ loading: false, error: "Couldn't refresh Social. What you see may be out of date." });
         console.warn('Erro ao atualizar o Social:', e);
       }
     };
@@ -232,7 +232,7 @@ export const useSocial = create<SocialState>((set, get) => ({
     try{await marcarConversaVista(id,timestamp);marcasNaConta={...marcasNaConta,[id]:timestamp};}catch{/* sem rede, ou SQL por aplicar */}
   },
 }));
-const INBOX_ERROR = 'Could not update messages or friend requests. Retrying while the app is open.';
+const INBOX_ERROR = "Couldn't update messages or friend requests. Retrying while the app is open.";
 let accountId='';
 let refreshInbox: () => Promise<void> = async () => {};
 // The Windows taskbar needs a fresh inbox even while the main window is hidden.

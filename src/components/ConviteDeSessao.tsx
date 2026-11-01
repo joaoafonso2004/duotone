@@ -77,7 +77,7 @@ export function ConviteDeSessao({ id, mensagem, minha = false, quem }: {
       setRecusa(
         /acabou/i.test(m) ? 'This session has ended.'
           : /amigo/i.test(m) ? 'You can only join a friend.'
-          : 'Could not join. Try again.'
+          : "Couldn't join. Try again."
       );
       void lerSessao(id).then(setSessao);
     } finally {

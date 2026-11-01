@@ -33,4 +33,17 @@ export const FRASES_DOS_ESTADOS = {
   letraFalhou: { titulo: "Lyrics aren't available right now", corpo: "We couldn't reach the lyrics. Try again in a moment." },
   /** O perfil mudou noutro aparelho enquanto se editava (o conflito de versão). */
   perfilMudou: 'Your profile changed on another device. Close and reopen the editor.',
+  /** Ainda sem gostadas: a escolha de músicas para uma playlist (iPhone) e as Liked Songs do PC. */
+  semGostadas: { titulo: 'No liked songs yet', corpo: 'Tap the heart on a song and it shows up here.' },
+  /**
+   * Um filtro DENTRO de uma lista que não deu nada (as Liked Songs, uma
+   * playlist, os artistas, os atalhos). Era "No results found", "No matches",
+   * "No songs found", "No artists found" e "Nothing found.", com e sem ponto.
+   * A pesquisa da Home é outra coisa: o `FRASES_DA_PESQUISA`.
+   */
+  semCorrespondencias: {
+    titulo: 'No matches',
+    corpo: (pesquisa: string, coisas?: 'songs' | 'artists') =>
+      coisas ? `No ${coisas} match “${pesquisa.trim()}”.` : `Nothing matches “${pesquisa.trim()}”.`,
+  },
 } as const;

@@ -1926,7 +1926,7 @@ export const usePlayer = create<PlayerState>()(
       void chavesDaBiblioteca().then(known=>registarSugestoesGuardadas(owner,tracks.filter(t=>!chavesDaFaixaSugerida(t).some(k=>known.has(k))))).catch(()=>{});
       return true;
     } catch {
-      if (valid()) set({ radioMode: 'off', radioError: 'Could not start Radio. Your queue is unchanged. Try again.' });
+      if (valid()) set({ radioMode: 'off', radioError: "Couldn't start Radio. Your queue is unchanged. Try again." });
       return false;
     } finally {
       if (request === radioRequest && get().radioMode === 'preparing') set({ radioMode: 'off' });

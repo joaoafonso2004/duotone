@@ -235,7 +235,7 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
             ? porTipo.albuns.map((a) => ({ id: a.id, titulo: a.titulo, legenda: legendaDoAlbumEncontrado(a), capa: a.capa, tipo: a.tipo, artista: a.artista || null }))
             : porTipo.playlists.map((p) => ({ id: p.id, titulo: p.titulo, legenda: p.legenda, capa: p.capa, tipo: 'Playlist', artista: null }))}
           icone={tipoAtivo === 'albuns' ? 'albums-outline' : 'list-outline'}
-          vazio={tipoAtivo === 'albuns' ? 'No albums found' : 'No playlists found'}
+          vazio={tipoAtivo === 'albuns' ? FRASES_DA_PESQUISA.porTipo.albuns : FRASES_DA_PESQUISA.porTipo.playlists}
           aoAbrir={(a) => void abrirAlbum({ id: a.id, title: a.titulo, artworkUrl: a.capa, channelTitle: a.legenda })}
           aoMenu={abrirMenuDoDisco} escolhido={discoDoMenu} />
       :
@@ -450,7 +450,7 @@ function ResultadosDeArtistas({ artistas, loading, falhou, aoTentar, aoAbrir, ao
   if (loading) return <View style={{ height: 320 }}><Loading /></View>;
   if (!artistas.length) return falhou
     ? <FalhaDaPesquisa aoTentar={aoTentar} />
-    : <Empty icon="person-outline" title="No artists found" body={FRASES_DA_PESQUISA.semResultadosCorpo} />;
+    : <Empty icon="person-outline" title={FRASES_DA_PESQUISA.porTipo.artistas} body={FRASES_DA_PESQUISA.semResultadosCorpo} />;
   return <View style={artistStyles.albumGrid}>{artistas.map((a) => <Pressable key={a.canal} onPress={() => aoAbrir(a)}
     accessibilityRole="button" accessibilityLabel={a.nome} {...({ onContextMenu: (e: any) => aoMenu(a, e) } as any)}
     style={({ hovered, focused }: any) => [artistStyles.artistaCard, (hovered || focused || escolhido === chaveDeArtista(a.nome)) && artistStyles.albumCardHover]}>
@@ -569,7 +569,7 @@ export function SongsPage(props: CommonPageProps) {
         void data.refresh().then((ok) => { if (!ok && comLista) avisarErro("Couldn't refresh your liked songs."); });
       }} />
     </View>
-    <ContentScroll scrollKey="songs">{data.loading ? <View style={{ height: 350 }}><Loading /></View> : data.semLista ? <Empty icon="alert-circle-outline" title="Couldn't load your library" body="Check your connection. Nothing was removed: your songs are still saved." action={<Button onPress={() => void data.refresh()}>Try again</Button>} /> : <TrackTable plain saltoParaAtual listKey={`songs:${ordem ?? 'recent'}`} ordenacao={{ modo: ordem, aoMudar: setOrdem }} tracks={filteredTracks} onPlay={(t) => props.tocarMusica(t, filteredTracks, undefined, { tipo: 'guardadas', nome: 'Liked Songs' })} onMore={props.more} empty={query ? <Empty icon="search-outline" title="No results found" body={`No liked songs match "${query}"`} /> : <Empty icon="heart-outline" title="No liked songs yet" body="Tap the heart on a track and it will appear here." />} />}</ContentScroll>
+    <ContentScroll scrollKey="songs">{data.loading ? <View style={{ height: 350 }}><Loading /></View> : data.semLista ? <Empty icon="alert-circle-outline" title="Couldn't load your library" body="Check your connection. Nothing was removed: your songs are still saved." action={<Button onPress={() => void data.refresh()}>Try again</Button>} /> : <TrackTable plain saltoParaAtual listKey={`songs:${ordem ?? 'recent'}`} ordenacao={{ modo: ordem, aoMudar: setOrdem }} tracks={filteredTracks} onPlay={(t) => props.tocarMusica(t, filteredTracks, undefined, { tipo: 'guardadas', nome: 'Liked Songs' })} onMore={props.more} empty={query ? <Empty icon="search-outline" title={FRASES_DOS_ESTADOS.semCorrespondencias.titulo} body={FRASES_DOS_ESTADOS.semCorrespondencias.corpo(query, 'songs')} /> : <Empty icon="heart-outline" title={FRASES_DOS_ESTADOS.semGostadas.titulo} body={FRASES_DOS_ESTADOS.semGostadas.corpo} />} />}</ContentScroll>
   </Page></>;
 }
 
@@ -718,7 +718,7 @@ export function ArtistsPage({ navigate, notify }: { navigate: (route: Route) => 
         <Text numberOfLines={1} style={[styles.playlistTitle, { textAlign: 'center' }]}>{nome}</Text>
         <Text style={[styles.playlistMeta, { textAlign: 'center' }]}>{faixas.length} {faixas.length === 1 ? 'track' : 'tracks'}</Text>
       </Pressable>
-    ); })}</View></> : query ? <Empty icon="search-outline" title="No artists found" body={`No artist matches "${query}".`} /> : <Empty icon="mic-outline" title="No artists yet" body="Artists are collected automatically from the tracks in your library." />}</ContentScroll>
+    ); })}</View></> : query ? <Empty icon="search-outline" title={FRASES_DOS_ESTADOS.semCorrespondencias.titulo} body={FRASES_DOS_ESTADOS.semCorrespondencias.corpo(query, 'artists')} /> : <Empty icon="mic-outline" title="No artists yet" body="Artists are collected automatically from the tracks in your library." />}</ContentScroll>
     {menuDoArtista}
   </Page>;
 }
@@ -1014,7 +1014,7 @@ export function ArtistPage({ name, back, corNaJanela = false, ...props }: { name
                 divisoria={{ antesDe: tuasNaLista, rotulo: `More from ${name}` }}
                 caraDaLinha={detalheDaFaixa} larguraDaCara={96}
                 onPlay={(t) => props.tocarMusica(t, musicas, undefined, { tipo: 'artista', nome: name })} onMore={props.more}
-                empty={filtro.trim() ? <Empty icon="search" title="No matches" body={`No songs match “${filtro.trim()}”.`} />
+                empty={filtro.trim() ? <Empty icon="search" title={FRASES_DOS_ESTADOS.semCorrespondencias.titulo} body={FRASES_DOS_ESTADOS.semCorrespondencias.corpo(filtro, 'songs')} />
                   : <Empty icon="musical-notes-outline" title={FRASES_DOS_ESTADOS.artistaSemMusicas.titulo} body={FRASES_DOS_ESTADOS.artistaSemMusicas.corpo} />} />
               {aProcurarMusicas ? <View style={{ height: 120 }}><Loading /></View> : null}
             </>}

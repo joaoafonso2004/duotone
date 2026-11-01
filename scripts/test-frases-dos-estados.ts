@@ -31,8 +31,10 @@ caso('em inglês, sem ponto final nos títulos, e "Couldn\'t" em vez de "Could n
   for (const v of Object.values(FRASES_DOS_ESTADOS)) {
     if (typeof v === 'string') textos.push(v);
     else for (const [k, t] of Object.entries(v)) {
-      textos.push(t);
-      if (k === 'titulo') assert.ok(!t.endsWith('.'), `um título não é uma frase: ${t}`);
+      // As frases com a pesquisa dentro: experimenta-se com uma.
+      const frases = typeof t === 'function' ? [t('lofi'), t('lofi', 'songs'), t('lofi', 'artists')] : [t];
+      textos.push(...frases);
+      if (k === 'titulo') assert.ok(!frases[0].endsWith('.'), `um título não é uma frase: ${frases[0]}`);
     }
   }
   for (const t of textos) {
@@ -65,9 +67,36 @@ for (const [velha, re] of [
   ['o título "Silent" do Now Playing do PC', /title="Silent"/],
   ['"No songs by this artist were found."', /No songs by this artist were found/],
   ['o erro em português do perfil', /O perfil foi alterado noutro dispositivo/],
+  // Um filtro que não deu nada (1/11): cinco títulos para o mesmo estado.
+  ['"No results found"', /No results found/],
+  ['"No artist matches" e "No track matches"', /No (?:artist|track) matches/],
+  ['"No songs found"', /No songs found/],
+  ['"Nothing found."', /Nothing found\./],
+  ['"Search library songs" e "your Library first"', /Search library songs|your Library first/],
 ] as const) {
   caso(velha, () => assert.deepEqual(onde(re), []));
 }
+
+console.log('\n"Couldn\'t", nunca "Could not" (1/11: eram 105 frases no iPhone e na API)');
+caso('nenhuma frase da app começa por "Could not" (as do servidor, "Could not find…", ficam)', () => {
+  const linhas = SRC.flatMap(({ f, s }) => s.split('\n').map((l, i) => ({ f, i: i + 1, l })))
+    .filter(({ l }) => /["'`]Could not (?!find\b)/.test(l));
+  assert.deepEqual(linhas.map(({ f, i }) => `${f}:${i}`), []);
+});
+
+console.log('\num filtro dentro de uma lista diz o mesmo nas duas');
+caso('as Liked Songs, uma playlist e os artistas, no PC e no iPhone', () => {
+  for (const [f, coisas] of [
+    ['src/desktop/paginas/BibliotecaPages.web.tsx', 'songs'],
+    ['src/desktop/paginas/BibliotecaPages.web.tsx', 'artists'],
+    ['src/desktop/paginas/PlaylistPages.web.tsx', 'songs'],
+    ['src/screens/ArtistsScreen.tsx', 'artists'],
+    ['src/screens/PlaylistDetailScreen.tsx', 'songs'],
+  ] as const) {
+    assert.match(ler(f), new RegExp(`FRASES_DOS_ESTADOS\\.semCorrespondencias\\.corpo\\(\\w+, '${coisas}'\\)`), `${f} (${coisas})`);
+  }
+  assert.equal(FRASES_DOS_ESTADOS.semCorrespondencias.corpo('  lofi ', 'songs'), 'No songs match “lofi”.');
+});
 
 console.log('\nas duas plataformas dizem o mesmo');
 caso('a playlist vazia (PC e iPhone)', () => {

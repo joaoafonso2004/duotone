@@ -106,7 +106,7 @@ export function YtPlaylistRecommendationSheet({
 
     load()
       .catch((err) => {
-        avisarErro(mensagemDeErro(err, 'Could not load playlist items.'));
+        avisarErro(mensagemDeErro(err, "Couldn't load playlist items."));
         onClose();
       })
       .finally(() => setLoading(false));
@@ -135,7 +135,7 @@ export function YtPlaylistRecommendationSheet({
       onImportDone?.();
       onClose();
     } catch (e: any) {
-      avisarErro(mensagemDeErro(e, 'Could not save playlist.'));
+      avisarErro(mensagemDeErro(e, "Couldn't save playlist."));
     } finally {
       setSaving(false);
     }

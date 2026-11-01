@@ -119,7 +119,7 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
             </View>
             <Switch
               value={!!sessao?.convidadosControlam}
-              onValueChange={(v) => { hapticSelection(); void darControlo(v).catch(() => useOuvirJuntos.setState({ aviso: 'Could not change control. Please try again.' })); }}
+              onValueChange={(v) => { hapticSelection(); void darControlo(v).catch(() => useOuvirJuntos.setState({ aviso: "Couldn't change control. Please try again." })); }}
               trackColor={{ true: tema.color, false: colors.surfaceHigh }}
             />
           </View>
@@ -145,7 +145,7 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
             <Switch
               value={!!sessao?.auxDe}
               disabled={!podeAlternarAux}
-              onValueChange={(v) => { hapticSelection(); void rodarAux(v).catch(() => useOuvirJuntos.setState({ aviso: 'Could not change the aux. Please try again.' })); }}
+              onValueChange={(v) => { hapticSelection(); void rodarAux(v).catch(() => useOuvirJuntos.setState({ aviso: "Couldn't change the aux. Please try again." })); }}
               trackColor={{ true: tema.color, false: colors.surfaceHigh }}
             />
           </View>
@@ -240,7 +240,7 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
                   <Toque
                     escala={ESCALA.icone}
                     hitSlop={10}
-                    onPress={() => { hapticSelection(); void retirarSugestao(item.id).catch(() => useOuvirJuntos.setState({ aviso: 'Could not remove song. Please try again.' })); }}
+                    onPress={() => { hapticSelection(); void retirarSugestao(item.id).catch(() => useOuvirJuntos.setState({ aviso: "Couldn't remove song. Please try again." })); }}
                     accessibilityLabel={`Remove ${tituloDaFaixa(item.track)}`}
                     style={{ padding: 4 }}
                   >
@@ -255,7 +255,7 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
 
       <Toque
         escala={ESCALA.botao}
-        onPress={() => { void abandonar().then(aoFechar).catch(() => useOuvirJuntos.setState({ aviso: 'Could not leave Jam. Please try again.' })); }}
+        onPress={() => { void abandonar().then(aoFechar).catch(() => useOuvirJuntos.setState({ aviso: "Couldn't leave Jam. Please try again." })); }}
         accessibilityLabel={acabaComigo ? 'End session' : 'Leave session'}
         style={styles.sair}
       >

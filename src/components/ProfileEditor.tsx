@@ -106,7 +106,7 @@ export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{pr
       else {setCover(image);setCoverX(0.5);setCoverY(0.5);setCoverZoom(ZOOM_MINIMO);}
       marcar();
     }
-    catch(err:any){setError(err.message || 'Could not open that image.');}
+    catch(err:any){setError(err.message || "Couldn't open that image.");}
   };
   const remover=(kind:ProfileMediaKind)=>{
     if(kind==='cover'){setCover(null);setValue(v=>({...v,cover_path:null}));}
@@ -130,7 +130,7 @@ export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{pr
   useEffect(()=>{
     if(!aEscolher)return;
     let ativo=true;setACarregar(true);setErroDasMusicas('');
-    lerFaixas(getLibrary).then(t=>{if(ativo)setTracks(t);}).catch(()=>{if(ativo)setErroDasMusicas('Could not load your songs. Close and try again.');}).finally(()=>{if(ativo)setACarregar(false);});
+    lerFaixas(getLibrary).then(t=>{if(ativo)setTracks(t);}).catch(()=>{if(ativo)setErroDasMusicas("Couldn't load your songs. Close and try again.");}).finally(()=>{if(ativo)setACarregar(false);});
     return()=>{ativo=false;};
   },[aEscolher]);
   const encontradas=tracks.filter(t=>t.id&&`${t.title} ${displayArtist(t)}`.toLowerCase().includes(query.trim().toLowerCase()));
@@ -193,7 +193,7 @@ export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{pr
       // Uma resposta perdida pode esconder uma gravação concluída: aí os
       // uploads ficam, para não se apagar a imagem que o perfil já usa.
       if(!saving)for(const file of uploaded) await removeProfileMedia(file.kind,[file.path]).catch(()=>{});
-      setError(err.message || 'Could not save. You can try again.');
+      setError(err.message || "Couldn't save. You can try again.");
     } finally {setStage('');}
   };
 

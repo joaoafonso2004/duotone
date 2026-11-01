@@ -75,7 +75,9 @@ caso('no iPhone o esqueleto e a falha já não vêm antes das tuas músicas', ()
   assert.doesNotMatch(iphone, /\) : errorMsg \? \(/);
 });
 caso('as frases cabem nas regras da interface', () => {
-  for (const f of Object.values(FRASES_DA_PESQUISA)) assert.doesNotMatch(f, /YouTube/i, f);
+  for (const v of Object.values(FRASES_DA_PESQUISA)) {
+    for (const f of typeof v === 'string' ? [v] : Object.values(v)) assert.doesNotMatch(f, /YouTube/i, f);
+  }
 });
 
 if (falhas) { console.error(`\n  ${falhas} caso(s) falharam.\n`); process.exit(1); }

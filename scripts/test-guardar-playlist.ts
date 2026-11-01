@@ -23,7 +23,7 @@ eq('a base de dados sem a migração diz isso',
   'Saving playlists from chats needs the latest server update.');
 eq('uma que deixou de estar partilhada', mensagemDeFalhaAoGuardar({ code: '42501', message: 'This playlist is no longer available' }),
   'This playlist is no longer shared with you.');
-eq('outra falha qualquer', mensagemDeFalhaAoGuardar({ message: 'Failed to fetch' }), 'Could not save this playlist. Please try again.');
+eq('outra falha qualquer', mensagemDeFalhaAoGuardar({ message: 'Failed to fetch' }), "Couldn't save this playlist. Please try again.");
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);
