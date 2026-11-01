@@ -6,11 +6,11 @@
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "scheme": "duotone",
-    "backgroundColor": "#0A0A0F",
+    "backgroundColor": "#060608",
     "newArchEnabled": true,
     "icon": "./assets/icon.png",
     "splash": {
-      "backgroundColor": "#0A0A0F",
+      "backgroundColor": "#060608",
       "resizeMode": "contain",
       "image": "./assets/splash-icon.png"
     },
@@ -46,7 +46,7 @@
       "package": "com.joao.duotone",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
-        "backgroundColor": "#0A0A0F"
+        "backgroundColor": "#060608"
       }
     },
     "web": {

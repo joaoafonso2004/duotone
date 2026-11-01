@@ -103,7 +103,7 @@ export function ResumoDoMes() {
 }
 
 type Tres = [string, string, string];
-const ESCURO = '#0B0B10';
+const ESCURO = '#060608';
 
 /**
  * As cores de cada página, das capas do mês (a cor que a app já tira de uma

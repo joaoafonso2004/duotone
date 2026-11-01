@@ -346,7 +346,7 @@ const e=StyleSheet.create({
   valor:{fontSize:16,color:colors.textSecondary},
   circulo:{width:22,height:22,borderRadius:11,alignItems:'center',justifyContent:'center'},
   numero:{width:22,height:22,borderRadius:11,backgroundColor:colors.text,alignItems:'center',justifyContent:'center'},
-  chipDaCapa:{position:'absolute',right:10,bottom:10,flexDirection:'row',alignItems:'center',gap:6,height:32,paddingHorizontal:12,borderRadius:16,backgroundColor:'rgba(10,10,15,0.62)'},
+  chipDaCapa:{position:'absolute',right:10,bottom:10,flexDirection:'row',alignItems:'center',gap:6,height:32,paddingHorizontal:12,borderRadius:16,backgroundColor:'rgba(6,6,8,0.62)'},
   // Sobreposta ao fundo da capa, com um anel da cor da folha.
   foto:{marginTop:-56,marginLeft:18,width:104,height:104,borderRadius:52,padding:4,backgroundColor:colors.surfaceHigh},
   cameraDaFoto:{position:'absolute',right:0,bottom:4,width:30,height:30,borderRadius:15,backgroundColor:'#fff',alignItems:'center',justifyContent:'center',borderWidth:3,borderColor:colors.surfaceHigh},

@@ -64,7 +64,7 @@ export function CapaDoPerfil({cover,recorte,rolagem}:{cover:string|null;recorte?
       <View onLayout={e=>setCaixa({largura:e.nativeEvent.layout.width,altura:e.nativeEvent.layout.height})}
         style={[StyleSheet.absoluteFill,{overflow:'hidden'}]}>
         <Animated.View style={[StyleSheet.absoluteFill,parallax&&{transform:parallax}]}>{imagem()}</Animated.View>
-        <LinearGradient colors={['rgba(10,10,15,0)','rgba(10,10,15,0.32)']} locations={[0.45,1]} style={StyleSheet.absoluteFill}/>
+        <LinearGradient colors={['rgba(6,6,8,0)','rgba(6,6,8,0.32)']} locations={[0.45,1]} style={StyleSheet.absoluteFill}/>
       </View>
     </DissolverEmBaixo>
     <LinearGradient colors={topo.cores} locations={topo.paragens} style={StyleSheet.absoluteFill}/>
@@ -97,7 +97,7 @@ function CorDaCapaDoPerfil({cover,alturaDaCapa}:{cover:string|null;alturaDaCapa:
 export function BotaoDeVidro({label,icon,onPress,badge=0}:{label:string;icon:keyof typeof Ionicons.glyphMap;onPress:()=>void;badge?:number}) {
   return <Pressable accessibilityRole="button" accessibilityLabel={badge?`${label}, ${badge} unread`:label} onPress={onPress} hitSlop={6}
     style={({pressed,hovered,focused}:any)=>({width:44,height:44,borderRadius:22,alignItems:'center',justifyContent:'center',
-      backgroundColor:pressed||hovered||focused?colors.surfacePressed:'rgba(10,10,15,0.5)',borderWidth:StyleSheet.hairlineWidth,borderColor:'rgba(255,255,255,0.16)'})}>
+      backgroundColor:pressed||hovered||focused?colors.surfacePressed:'rgba(6,6,8,0.5)',borderWidth:StyleSheet.hairlineWidth,borderColor:'rgba(255,255,255,0.16)'})}>
     <Ionicons name={icon} size={19} color={colors.text}/>
     {badge>0&&<View style={{position:'absolute',right:-3,top:-3,minWidth:18,height:18,borderRadius:9,paddingHorizontal:4,backgroundColor:colors.danger,justifyContent:'center',borderWidth:2,borderColor:colors.bg}}>
       <Text style={{fontSize:10,fontWeight:'800',color:'#fff',textAlign:'center'}}>{badge>99?'99+':badge}</Text>

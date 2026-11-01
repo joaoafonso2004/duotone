@@ -558,7 +558,7 @@ function CartaoDeMistura({ m, escolhido, arrastou, aoAbrir, aoMenu, aoTocar, dec
     onPress={() => { if (arrastou.current) return; aoAbrir(m); }}
     onContextMenu={((e: any) => { if (!aoMenu) return; e.preventDefault(); aoMenu(m, e); }) as any}
     style={({ hovered, pressed }: any) => [ui.cartaoDeMistura,
-      { backgroundImage: `linear-gradient(135deg, color-mix(in oklab, ${cor} 58%, #0b0b0d), color-mix(in oklab, ${cor} 14%, #0b0b0d))` } as any,
+      { backgroundImage: `linear-gradient(135deg, color-mix(in oklab, ${cor} 58%, #060608), color-mix(in oklab, ${cor} 14%, #060608))` } as any,
       hovered && ui.shelfCardHover, pressed && ui.pressed]}>
     <Text style={ui.misturaEtiqueta}>MIX · {m.faixas.length} {m.faixas.length === 1 ? 'SONG' : 'SONGS'}</Text>
     <Text numberOfLines={decada ? 1 : 2} {...(decada ? marcar('decada-nome') : {})} style={decada ? ui.misturaDecada : ui.misturaNome}>{m.nome}</Text>

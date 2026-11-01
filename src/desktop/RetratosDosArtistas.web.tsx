@@ -101,7 +101,7 @@ const estilos = StyleSheet.create({
     boxShadow: '0 14px 30px rgba(0,0,0,.45)' } as any,
   // O vinil por trás do retrato: um pouco mais pequeno, para só aparecer ao sair.
   vinil: { position: 'absolute', left: 10, top: 10, width: LADO - 20, height: LADO - 20, borderRadius: LADO, zIndex: 1,
-    backgroundImage: 'conic-gradient(#0b0b0d, #26262c, #0b0b0d 18%, #1f1f25 32%, #0b0b0d 50%, #2a2a31 68%, #0b0b0d 84%, #26262c, #0b0b0d)',
+    backgroundImage: 'conic-gradient(#060608, #26262c, #060608 18%, #1f1f25 32%, #060608 50%, #2a2a31 68%, #060608 84%, #26262c, #060608)',
     boxShadow: '0 8px 20px rgba(0,0,0,.5)', alignItems: 'center', justifyContent: 'center' } as any,
   rotulo: { width: 80, height: 80, borderRadius: 40, overflow: 'hidden' },
   furo: { position: 'absolute', width: 12, height: 12, borderRadius: 6, backgroundColor: '#060608' },

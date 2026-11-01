@@ -81,8 +81,8 @@ export function BotaoContinuar({ onPress, pequeno = false }: { onPress: () => vo
         flexDirection: 'row', alignItems: 'center', gap: 6, height: pequeno ? 30 : 34, paddingHorizontal: pequeno ? 12 : 15,
         borderRadius: RAIO.pilula, backgroundColor: COR.texto, cursor: 'pointer', flexShrink: 0,
       }, hovered && { opacity: 0.9 }, pressed && { transform: [{ scale: 0.96 }] }]}>
-      <Ionicons name="play" size={pequeno ? 12 : 13} color="#0b0b0d" />
-      <Text style={{ fontFamily: FONT.body, fontSize: pequeno ? 12 : 13, fontWeight: '600', color: '#0b0b0d' }}>Continue here</Text>
+      <Ionicons name="play" size={pequeno ? 12 : 13} color="#060608" />
+      <Text style={{ fontFamily: FONT.body, fontSize: pequeno ? 12 : 13, fontWeight: '600', color: '#060608' }}>Continue here</Text>
     </P>
   );
 }

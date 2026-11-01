@@ -8,7 +8,7 @@ import { pedirFluidez } from '../state/fluidez';
 
 type Par = [string, string];
 /** Sem capa, ou enquanto ela não se lê: o fundo da app. */
-const SEM_CAPA: Par = ['#1A1A22', '#0A0A0F'];
+const SEM_CAPA: Par = ['#1A1A22', '#060608'];
 /** Uma volta inteira do movimento: devagar, para se sentir e não se ver. */
 const VOLTA_MS = 18_000;
 /** A passagem das cores de uma música para as da seguinte. */

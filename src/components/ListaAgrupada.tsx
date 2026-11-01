@@ -83,7 +83,7 @@ export function Linha({
       {antesDoValor}
       {valor ? <Text numberOfLines={1} style={[styles.valor, desativada && styles.apagada]}>{valor}</Text> : null}
       {aCarregar ? <ActivityIndicator size="small" color={colors.textSecondary} /> : null}
-      {chevron ? <Ionicons name="chevron-forward" size={17} color="rgba(245,245,247,0.32)" /> : null}
+      {chevron ? <Ionicons name="chevron-forward" size={17} color="rgba(233,234,238,0.32)" /> : null}
     </>
   );
   if (!aoTocar) {

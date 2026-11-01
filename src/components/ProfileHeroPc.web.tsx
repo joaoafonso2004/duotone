@@ -47,7 +47,7 @@ function Pilula({ rotulo, aoCarregar, icone, branca = false, cor }: {
   return <Pressable accessibilityRole="button" accessibilityLabel={rotulo} onPress={aoCarregar}
     style={({ pressed, hovered }: any) => [estilos.pilula, branca
       ? { backgroundColor: '#fff', borderColor: 'transparent', opacity: pressed ? 0.85 : 1 }
-      : { backgroundColor: pressed || hovered ? 'rgba(10,10,15,0.7)' : 'rgba(10,10,15,0.45)', borderColor: 'rgba(255,255,255,0.28)' }]}>
+      : { backgroundColor: pressed || hovered ? 'rgba(6,6,8,0.7)' : 'rgba(6,6,8,0.45)', borderColor: 'rgba(255,255,255,0.28)' }]}>
     {icone ? <Ionicons name={icone} size={17} color={cor ?? (branca ? COR.fundo : '#fff')} /> : null}
     <Text numberOfLines={1} style={[estilos.pilulaTexto, { color: branca ? COR.fundo : '#fff' }]}>{rotulo}</Text>
   </Pressable>;

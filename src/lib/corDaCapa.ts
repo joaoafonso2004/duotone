@@ -29,7 +29,7 @@ export interface RGB {
 }
 
 /** O fundo sobre o qual a cor tem de se ler. É o da app, nas duas caras. */
-export const FUNDO: RGB = { r: 0x0a, g: 0x0a, b: 0x0f };
+export const FUNDO: RGB = { r: 0x06, g: 0x06, b: 0x08 };
 
 /** Contraste mínimo contra o fundo. O 4.5 do WCAG para texto normal. */
 const CONTRASTE_MINIMO = 4.5;
@@ -286,8 +286,8 @@ export function temaDaCapa(celulas: RGB[] | null | undefined): AccentTheme | nul
     // falha no meio -- um vermelho médio levava branco e ficava a 4.15, abaixo
     // do legível. Mede-se o contraste dos dois e fica o melhor.
     textColorOnGradient:
-      contraste(cor, { r: 0x0b, g: 0x0b, b: 0x0e }) >= contraste(cor, { r: 255, g: 255, b: 255 })
-        ? '#0B0B0E'
+      contraste(cor, FUNDO) >= contraste(cor, { r: 255, g: 255, b: 255 })
+        ? '#060608'
         : '#FFFFFF',
   };
 }
@@ -372,9 +372,8 @@ export function corDoAmbiente(celulas: RGB[] | null | undefined): string | null 
  */
 export function textoSobre(cor: string): string {
   const fundo = deHex(cor);
-  const escuro = { r: 0x0b, g: 0x0b, b: 0x0e };
   const claro = { r: 255, g: 255, b: 255 };
-  return contraste(fundo, escuro) >= contraste(fundo, claro) ? '#0B0B0E' : '#FFFFFF';
+  return contraste(fundo, FUNDO) >= contraste(fundo, claro) ? '#060608' : '#FFFFFF';
 }
 
 /** Lê "#RRGGBB" para uma cor. Devolve preto para o que não perceber. */
