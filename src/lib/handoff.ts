@@ -308,6 +308,22 @@ export function shouldOfferHandoff(
   return true;
 }
 
+/**
+ * O X do aviso (1/11, `docs/continuar-aqui-maquete.html`): "já vi esta
+ * sessão", e não 15 minutos calado. O aviso recolhe para um sítio que fica (o
+ * botão na barra do PC, a lingueta ou o mini do iPhone) e não volta a saltar.
+ * Um aparelho visto deixa de o estar quando a sessão dele sai (parou de vez ou
+ * caducou): da próxima vez que tocar, o aviso volta.
+ */
+export function vistosQueFicam(vistos: readonly string[], escolhida: RemoteSession | null): string[] {
+  return vistos.filter((id) => escolhida?.deviceId === id);
+}
+
+/** O aviso salta para uma oferta que ainda não se viu. */
+export function deveAvisar(oferta: RemoteSession | null, vistos: readonly string[]): boolean {
+  return !!oferta && !vistos.includes(oferta.deviceId);
+}
+
 /** Etiqueta curta para o banner: o nome guardado, "PC", ou "phone". Em inglês, como a interface. */
 export function deviceLabel(session: RemoteSession): string {
   const name = (session.deviceName || '').trim();

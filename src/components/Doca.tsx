@@ -11,6 +11,8 @@ import { definirAlturaDosSeparadores, desvioDaMusica, desvioDoVidro, desvioDosIc
 import { pedirFluidez } from '../state/fluidez';
 import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
+import { useOutroAparelho } from '../state/outroAparelho';
+import { LinguetaDoOutroAparelho, MiniDoOutroAparelho } from './OutroAparelho';
 
 /**
  * A base de baixo do iPhone: o mini-player e os separadores numa peça só de
@@ -38,7 +40,9 @@ export function Doca() {
   // desce com a linha a sair, e não 300 ms depois (3/10).
   const comMusicaNaLoja = usePlayer((s) => !!s.current && !s.closing);
   const aFechar = useDoca((s) => s.aFechar);
-  const temMusica = comMusicaNaLoja && !aFechar;
+  // O outro aparelho a tocar e nada aqui (1/11): a linha da música é a dele.
+  const doOutro = useOutroAparelho((s) => !!s.oferta);
+  const temMusica = (comMusicaNaLoja && !aFechar) || (doOutro && !comMusicaNaLoja);
   const alturaDosSeparadores = useAlturaDosSeparadores();
   const reduzido = useReducedMotion();
   const primeira = useRef(true);
@@ -79,6 +83,10 @@ export function Doca() {
           {separadores ? <IconesDosSeparadores state={separadores.state} navigation={separadores.navigation} /> : null}
         </View>
       </Animated.View>
+      {/* O outro aparelho (1/11): a lingueta no canto do vidro com música aqui,
+          o mini dele na linha da música sem nada aqui. */}
+      {modo === 'separadores' && comMusicaNaLoja ? <LinguetaDoOutroAparelho alturaDoVidro={altura} /> : null}
+      {modo !== 'escondida' && !comMusicaNaLoja ? <MiniDoOutroAparelho /> : null}
     </View>
   );
 }

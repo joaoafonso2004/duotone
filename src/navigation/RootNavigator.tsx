@@ -31,6 +31,7 @@ import React, { useEffect } from 'react';
 import { Animated, StyleSheet, View, ActivityIndicator } from 'react-native';
 import { escalaDoFundo, raioDoFundo, veuDoFundo } from '../state/transicaoDoLeitor';
 import { HandoffBanner } from '../components/HandoffBanner';
+import { FolhaDoOutroAparelho } from '../components/OutroAparelho';
 import { PlayerRoot } from '../components/PlayerRoot';
 import { PreEscutaDoRefrao } from '../components/PreEscutaDoRefrao';
 import { Doca } from '../components/Doca';
@@ -516,6 +517,8 @@ export function RootNavigator() {
             </BarreiraDeErros>
             {/* "A tocar no PC — continuar aqui". Fica por cima do mini-player. */}
             <HandoffBanner />
+            {/* A folha do outro aparelho (1/11): da lingueta e do mini dele. */}
+            <FolhaDoOutroAparelho />
             {/* O que um amigo está a ouvir (9/10): aberta do Social e da Home. */}
             <FolhaDoAmigo />
             {/* O que se tirou, com "Undo" (3/10, lib/avisoDeRemocao.ts). */}

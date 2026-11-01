@@ -35,6 +35,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { useTheme } from '../state/theme';
 import { styles } from './estilos.web';
+import { BarraDoOutroAparelho, BotaoDoOutroAparelho } from './OutroAparelho.web';
 import { COR, cssDasFontes, ESP, ESTADO, FONT, RAIO } from './tokens.web';
 import { useLateralRecolhida } from './estadoDasBarras.web';
 import { ANEL_DO_REFRAO, Artwork, comDica, formatTime, IconButton, ui, marcar, useProcurarAoLargar } from './ui.web';
@@ -995,7 +996,8 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
     onPanResponderRelease: (_e,g)=>{if(confirmaSwipe(g.dx,g.dy,g.vx,swipeWidth.current))void closePlayerSmoothly().then(()=>setDragX(0));else setDragX(0);setTimeout(()=>{swiping.current=false;},200);},
     onPanResponderTerminate:()=>{setDragX(0);swiping.current=false;},
   })).current;
-  if (!p.current) return null;
+  // Sem nada a tocar aqui, a barra é a do outro aparelho, se houver um a tocar (1/11).
+  if (!p.current) return <BarraDoOutroAparelho />;
 
   // Largar uma música na barra põe-na a seguir à que toca (24/10).
   return <V ref={refDoAlvo('barra-do-leitor', p.current ? alvoDaBarra() : null)} style={[styles.player,{opacity:p.closeGain*Math.max(0.2,1-dragX/swipeWidth.current),transform:[{translateX:reducedMotion?0:dragX+(1-p.closeGain)*180}]}]}>
@@ -1065,6 +1067,8 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
       <IndicadorDeVisibilidade discordLigado={discordLigado} onJam={onJam} onAviso={onAviso} />
       <IconButton name={jam ? ICONES.jam : `${ICONES.jam}-outline`} label={jam ? 'Manage Jam' : 'Start a Jam'} active={!!jam} onPress={onJam}
         desenho={(cor) => <IconeJam ligada={!!jam} cor={cor} />} />
+      {/* O outro aparelho a tocar (1/11): o nome dele, aceso, abre o cartão. */}
+      <BotaoDoOutroAparelho />
       <BarraDoVolume />
       <IconButton name="close" label="Close player" onPress={()=>void closePlayerSmoothly()} />
     </View>

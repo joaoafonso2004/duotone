@@ -1,193 +1,95 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Pressable, Text, View } from 'react-native';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
-import { deviceLabel, resumoDaFila } from '../lib/handoff';
-import { mandarComando } from '../lib/connectSync';
-import { avisoDoPedido, estaAcordado, type TipoDePedido } from '../lib/duotoneConnect';
+import { useComandarOutro } from '../lib/comandarOutro';
+import { estaAcordado } from '../lib/duotoneConnect';
+import { deviceLabel } from '../lib/handoff';
 import { useHandoffSession } from '../lib/sessionSync';
-import { COR, ESTADO, RAIO, TIPO } from '../desktop/tokens.web';
+import { COR, ESTADO, TIPO } from '../desktop/tokens.web';
+import { Artwork } from '../desktop/ui.web';
+import { BotaoContinuar, ComandoRemoto, ID_DO_BOTAO, linhaDaFila, OlhoDoOutro } from '../desktop/OutroAparelho.web';
 import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
 
 const P = Pressable as any;
 
-function fmt(ms: number): string {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
-}
-
 /**
- * Versão desktop do banner de handoff (o resolver do Expo escolhe este
- * ficheiro na web/Electron). Mesma lógica que o do telemóvel — só muda o
- * sítio e o vocabulário visual: flutua por cima da PlayerBar, com hover.
+ * O aviso de chegada do outro aparelho, no PC (1/11, `docs/continuar-aqui-maquete.html`).
+ *
+ * É só a CHEGADA: o X recolhe-o, a voar, para o botão com o nome do aparelho na
+ * barra do leitor (`desktop/OutroAparelho.web.tsx`), que fica enquanto o outro
+ * tocar. Não o cala 15 minutos como antes: marca a sessão como vista.
+ * Também é aqui que vive o `useHandoffSession` (uma vez só): o resto lê a store.
  */
 export function HandoffBanner() {
-  const theme = useTheme((s) => s.theme);
+  const cor = useTheme((s) => s.theme.color);
   const aTocarAqui = usePlayer((s) => s.isPlaying && !!s.current);
-  const { session, positionMs, dismiss, adopt } = useHandoffSession();
-  // Duotone Connect: comandar o outro aparelho sem sair daqui. Só aparece se
-  // ele estiver mesmo à escuta -- ver `estaAcordado`.
-  const [aviso, setAviso] = useState('');
-  const [aMandar, setAMandar] = useState(false);
+  const { session, aviso, positionMs, dismiss, adopt } = useHandoffSession();
+  const { comandar, aMandar, aviso: avisoDoComando } = useComandarOutro(session);
+  const cartao = useRef<any>(null);
 
-  if (!session) return null;
+  // Entra a subir, como os avisos do PC (sem com "menos movimento").
+  useEffect(() => {
+    const el: HTMLElement | null = cartao.current;
+    if (!aviso || !el?.animate || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    el.animate([{ opacity: 0, transform: 'translateY(14px) scale(.98)' }, { opacity: 1, transform: 'none' }],
+      { duration: 420, easing: 'cubic-bezier(.2,.9,.25,1.06)' });
+  }, [aviso, session?.deviceId]);
 
-  const comandavel = estaAcordado(session);
-  const comandar = (tipo: TipoDePedido) => {
-    setAMandar(true);
-    void mandarComando(session.deviceId, tipo).then((estado) => {
-      setAMandar(false);
-      // Só se diz alguma coisa quando corre mal: quando corre bem, o próprio
-      // banner muda (a faixa, a pausa) e isso é a confirmação.
-      if (estado === 'feito') { setAviso(''); return; }
-      setAviso(avisoDoPedido(estado, deviceLabel(session), tipo));
-      setTimeout(() => setAviso(''), 5000);
-    });
+  if (!session || !aviso) return null;
+
+  // O X: o cartão voa para o botão da barra, e só depois se marca como visto.
+  const fechar = () => {
+    const el: HTMLElement | null = cartao.current;
+    const alvo = document.getElementById(ID_DO_BOTAO);
+    if (!el?.animate || !alvo || matchMedia('(prefers-reduced-motion: reduce)').matches) { dismiss(); return; }
+    const a = el.getBoundingClientRect(), b = alvo.getBoundingClientRect();
+    const dx = (b.left + b.width / 2) - (a.left + a.width / 2), dy = (b.top + b.height / 2) - (a.top + a.height / 2);
+    el.animate([{ transform: 'none', opacity: 1 }, { transform: `translate(${dx}px, ${dy}px) scale(.08)`, opacity: 0 }],
+      { duration: 460, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' }).finished.then(() => {
+      dismiss();
+      alvo.animate?.([{ transform: 'scale(1)' }, { transform: 'scale(1.18)' }, { transform: 'scale(1)' }], { duration: 620, easing: 'cubic-bezier(.2,.9,.25,1.06)' });
+    }, dismiss);
   };
 
-  // Ver o HandoffBanner.tsx: a fila do outro aparelho entra por cima da
-  // deste, e diz-se isso antes de se carregar.
-  const { proxima, depois } = resumoDaFila(session);
-
+  const nome = deviceLabel(session);
   const durationMs = (session.track.durationSeconds ?? 0) * 1000;
   const fraction = durationMs > 0 ? Math.min(1, positionMs / durationMs) : 0;
+  const fila = linhaDaFila(session);
+  const nota = avisoDoComando || (!estaAcordado(session) ? `${nome} isn't taking commands right now. Open Duotone there to control it.` : '');
 
   return (
-    <View style={s.wrap}>
-      <View style={s.card}>
-        <View style={[s.iconWrap, { backgroundColor: theme.soft }]}>
-          <Ionicons
-            name={session.deviceKind === 'desktop' ? 'desktop-outline' : 'phone-portrait-outline'}
-            size={16}
-            color={theme.color}
-          />
+    <View ref={cartao} style={{
+      position: 'absolute', left: 24, bottom: 96, zIndex: 30, width: 430, borderRadius: 12, overflow: 'hidden',
+      borderWidth: 1, borderColor: COR.linha, backgroundImage: 'linear-gradient(180deg, #1A1A22, #131319)',
+      boxShadow: '0 1px 0 rgba(255,255,255,.06) inset, 0 22px 50px rgba(0,0,0,.6)',
+    } as any}>
+      <View style={{ flexDirection: 'row', gap: 14, padding: 14, paddingBottom: 10 }}>
+        <Artwork track={session.track} size={64} />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <OlhoDoOutro sessao={session} posicaoMs={positionMs} cor={cor} />
+          <Text numberOfLines={1} style={[TIPO.corpo, { color: COR.texto, fontSize: 15, fontWeight: '600', marginTop: 5 }]}>{tituloDaFaixa(session.track)}</Text>
+          <Text numberOfLines={1} style={[TIPO.legenda, { color: COR.textoMedio, fontSize: 12.5, marginTop: 2 }]}>{displayArtist(session.track)}</Text>
+          {fila ? <Text numberOfLines={1} style={[TIPO.legenda, { color: COR.textoFraco, marginTop: 6 }]}>{fila}</Text> : null}
+          {aTocarAqui ? <Text numberOfLines={1} style={[TIPO.legenda, { color: COR.textoFraco, marginTop: 2 }]}>Replaces what’s playing here</Text> : null}
         </View>
-
-        {session.track.artworkUrl ? (
-          <Image source={{ uri: session.track.artworkUrl }} style={s.art} />
-        ) : null}
-
-        <View style={s.texts}>
-          <View style={s.eyebrowRow}>
-            {/* O ponto diz que isto é ao vivo, e não uma fotografia: a faixa, a
-                pausa e os saltos chegam pelo Realtime e o tempo anda ao
-                segundo. Inline e não no StyleSheet, para a regra de "reduzir
-                movimento" da casca (que procura o keyframe no `style`) o
-                apanhar. Em pausa não pulsa, porque não há nada a acontecer. */}
-            {session.isPlaying ? (
-              <View style={[s.aoVivo, { backgroundColor: theme.color }, {
-                animationName: 'duotone-respirar', animationDuration: '1.6s',
-                animationTimingFunction: 'ease-in-out', animationIterationCount: 'infinite',
-              } as any]} />
-            ) : null}
-            <Text numberOfLines={1} style={[s.eyebrow, { color: theme.color }]}>
-              {session.isPlaying ? 'PLAYING ON' : 'PAUSED ON'} {deviceLabel(session).toUpperCase()}
-              {durationMs > 0 ? ` · ${fmt(positionMs)} / ${fmt(durationMs)}` : ''}
-            </Text>
-          </View>
-          <Text numberOfLines={1} style={s.title}>{tituloDaFaixa(session.track)}</Text>
-          <Text numberOfLines={1} style={s.artist}>{displayArtist(session.track)}</Text>
-          {proxima ? (
-            <Text numberOfLines={1} style={s.aSeguir}>
-              Next: {tituloDaFaixa(proxima)}{depois ? ` · ${depois} more` : ''}
-            </Text>
-          ) : null}
-          {aTocarAqui ? <Text numberOfLines={1} style={s.aSeguir}>Replaces what’s playing here</Text> : null}
-          {aviso ? <Text numberOfLines={2} style={[s.aSeguir, { color: COR.textoMedio }]}>{aviso}</Text> : null}
-        </View>
-
-        {/* Comandar à distância. As ordens vão pela tabela de pedidos e o
-            aparelho do outro lado executa-as; o que se vê aqui volta pelo
-            Realtime da sessão, por isso não se finge nada localmente. */}
-        {comandavel ? (
-          <View style={s.remoto}>
-            <P accessibilityLabel={`Previous on ${deviceLabel(session)}`} disabled={aMandar}
-              onPress={() => comandar('anterior')}
-              style={({ hovered }: any) => [s.botaoRemoto, hovered && s.closeHover]}>
-              <Ionicons name="play-skip-back" size={14} color={COR.textoMedio} />
-            </P>
-            <P accessibilityLabel={`${session.isPlaying ? 'Pause' : 'Play'} on ${deviceLabel(session)}`} disabled={aMandar}
-              onPress={() => comandar('tocar-pausa')}
-              style={({ hovered }: any) => [s.botaoRemoto, hovered && s.closeHover]}>
-              <Ionicons name={session.isPlaying ? 'pause' : 'play'} size={15} color={COR.texto} />
-            </P>
-            <P accessibilityLabel={`Next on ${deviceLabel(session)}`} disabled={aMandar}
-              onPress={() => comandar('seguinte')}
-              style={({ hovered }: any) => [s.botaoRemoto, hovered && s.closeHover]}>
-              <Ionicons name="play-skip-forward" size={14} color={COR.textoMedio} />
-            </P>
-          </View>
-        ) : null}
-
-        <P
-          onPress={() => void adopt()}
-          style={({ hovered, pressed }: any) => [
-            s.cta,
-            { backgroundColor: theme.color },
-            hovered && s.ctaHover,
-            pressed && s.pressed,
-          ]}
-        >
-          {/* Ver a nota no HandoffBanner.tsx: branco fixo sobre o acento
-              `steel` (#E9EAEE) dava um botão sem letras nenhumas. É também
-              o que o botão primário do desktop faz -- metal claro com texto
-              escuro, ui.button em src/desktop/ui.web.tsx. */}
-          <Ionicons name="play" size={13} color={theme.textColorOnGradient} />
-          <Text style={[s.ctaText, { color: theme.textColorOnGradient }]}>
-            Continue here
-          </Text>
-        </P>
-
-        <P
-          onPress={dismiss}
-          accessibilityLabel="Dismiss"
-          style={({ hovered }: any) => [s.close, hovered && s.closeHover]}
-        >
+        <P accessibilityRole="button" accessibilityLabel="Dismiss" onPress={fechar}
+          style={({ hovered }: any) => [{ width: 28, height: 28, borderRadius: 7, alignItems: 'center', justifyContent: 'center', marginTop: -4, marginRight: -4, cursor: 'pointer' }, hovered && { backgroundColor: ESTADO.hover }]}>
           <Ionicons name="close" size={15} color={COR.textoFraco} />
         </P>
       </View>
-
-      {/* Progresso projetado a partir da última escrita do outro dispositivo. */}
-      <View style={s.trackLine}>
-        <View style={[s.trackFill, { width: `${fraction * 100}%`, backgroundColor: theme.color }]} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingBottom: nota ? 8 : 12 }}>
+        <ComandoRemoto sessao={session} comandar={comandar} aMandar={aMandar} />
+        <View style={{ flex: 1 }} />
+        <BotaoContinuar onPress={() => void adopt()} />
+      </View>
+      {nota ? <Text style={[TIPO.legenda, { color: COR.textoFraco, paddingHorizontal: 14, paddingBottom: 12 }]}>{nota}</Text> : null}
+      {/* Progresso projetado a partir da última escrita do outro aparelho. */}
+      <View style={{ height: 3, backgroundColor: 'rgba(255,255,255,.06)' }}>
+        <View style={{ height: 3, width: `${fraction * 100}%`, backgroundColor: cor }} />
       </View>
     </View>
   );
 }
 
-const s = StyleSheet.create({
-  wrap: {
-    position: 'absolute',
-    left: 24,
-    bottom: 96,
-    zIndex: 30,
-    borderRadius: RAIO.cartao,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: COR.linha,
-    backgroundColor: COR.elevado,
-    boxShadow: '0 14px 40px rgba(0,0,0,.5)',
-  } as any,
-  card: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 10, paddingHorizontal: 12 },
-  iconWrap: { width: 30, height: 30, borderRadius: RAIO.cartao, alignItems: 'center', justifyContent: 'center' },
-  art: { width: 38, height: 38, borderRadius: RAIO.ctrl, backgroundColor: COR.elevado },
-  texts: { minWidth: 170, maxWidth: 280 },
-  eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  aoVivo: { width: 6, height: 6, borderRadius: 3 },
-  eyebrow: { ...TIPO.micro, flexShrink: 1 },
-  title: { ...TIPO.corpo, color: COR.texto, fontWeight: '600', marginTop: 3 },
-  artist: { ...TIPO.legenda, color: COR.textoMedio, marginTop: 2 },
-  aSeguir: { ...TIPO.legenda, color: COR.textoFraco, marginTop: 3 },
-  cta: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingHorizontal: 13, borderRadius: RAIO.pilula, cursor: 'pointer' } as any,
-  ctaHover: { opacity: 0.88 },
-  pressed: { opacity: 0.72 },
-  // A cor vem do tema, no sítio de uso.
-  ctaText: { ...TIPO.legenda, fontWeight: '700' },
-  remoto: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 2 },
-  botaoRemoto: { width: 28, height: 28, borderRadius: RAIO.cartao, alignItems: 'center', justifyContent: 'center', cursor: 'pointer' } as any,
-  close: { width: 26, height: 26, borderRadius: RAIO.cartao, alignItems: 'center', justifyContent: 'center', cursor: 'pointer' } as any,
-  closeHover: { backgroundColor: ESTADO.hover },
-  trackLine: { height: 2, backgroundColor: 'rgba(255,255,255,.08)' },
-  trackFill: { height: 2 },
-});
