@@ -55,18 +55,6 @@ export interface Pedido {
   detalhe: string | null;
 }
 
-export interface AparelhoDisponivel {
-  deviceId: string;
-  /** "PC", "phone", ou o nome que o aparelho guardou. */
-  nome: string;
-  tipo: DeviceKind;
-  aTocar: boolean;
-  /** Dá para lhe mandar uma ordem agora? */
-  acordado: boolean;
-  /** Quando não dá, a frase que a interface mostra. */
-  motivo: string | null;
-}
-
 /** O aparelho está à escuta agora -- e não só "a sessão dele ainda vale". */
 export function estaAcordado(sessao: RemoteSession, agora: number = Date.now()): boolean {
   return freshnessMs(sessao, agora) <= ACORDADO_MS;

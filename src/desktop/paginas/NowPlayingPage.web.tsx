@@ -16,14 +16,9 @@ import { trackKey } from '../../lib/shuffle';
 import { chaveDaFaixa } from '../../lib/equalizer';
 import { PainelEqualizador } from '../PainelEqualizador.web';
 import { GlitchArtwork } from '../glitch/GlitchArtwork.web';
-import { mandarComando, useAparelhos } from '../../lib/connectSync';
-import { avisoDoPedido, type EstadoDoPedido, type TipoDePedido } from '../../lib/duotoneConnect';
-import { avisarErro, avisarFeito, avisarInfo } from '../../lib/avisoDeRemocao';
-import { extrapolatedPositionMs } from '../../lib/handoff';
-import { takeOverSession } from '../../lib/sessionSync';
 import { styles } from '../estilos.web';
 import { COR, ESP, ESTADO, TIPO } from '../tokens.web';
-import { BotaoVoltar, Artwork, Button, Dialog, Empty, IconButton, marcar, Page, ui } from '../ui.web';
+import { BotaoVoltar, Artwork, Dialog, Empty, IconButton, marcar, Page, ui } from '../ui.web';
 import { FundoDaCapa } from '../FundoDaCapa.web';
 import { preCarregarCapaGrande, useCapaGrande } from '../useCapaGrande.web';
 import { disposicaoDoLeitor } from '../../lib/leitorDoPc';
@@ -36,101 +31,6 @@ import { comCatalogo, garantirCatalogo, useCatalogoDeFaixas } from '../../state/
 
 
 import { FRASES_DOS_ESTADOS } from '../../lib/frasesDosEstados';
-/** O aviso de um pedido ao outro aparelho, com o tipo dele: a enviar, feito, ou falhou (A1, 31/10). */
-function avisarPedido(estado: EstadoDoPedido, texto: string) {
-  if (estado === 'pendente') avisarInfo(texto);
-  else if (estado === 'feito') avisarFeito(texto);
-  else avisarErro(texto);
-}
-function fmtRelogio(ms: number): string {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
-}
-
-/**
- * O comando do outro aparelho, dentro do dialogo dos aparelhos.
- *
- * Vivia so no banner do "continuar aqui", que se dispensa -- e depois de
- * dispensado ficava 15 minutos calado, sem porta nenhuma para voltar. Daqui
- * chega-se sempre pelo mesmo caminho: "Play on another device", e o aparelho
- * que esta a tocar.
- *
- * Nao se finge nada localmente: os botoes mandam ordens, e o que se mostra vem
- * da sessao do outro lado, que chega pelo Realtime. A posicao e projetada (o
- * `tique` obriga a recontar de segundo a segundo), como no banner.
- */
-function ComandoDoAparelho({ nome, sessao, tique, aoVoltar, aoOrdenar, aoTrazer }: {
-  nome: string;
-  sessao: ReturnType<ReturnType<typeof useAparelhos>['sessaoDe']>;
-  tique: number;
-  aoVoltar: () => void;
-  aoOrdenar: (tipo: TipoDePedido) => void;
-  aoTrazer: () => void;
-}) {
-  void tique;
-  if (!sessao?.track) {
-    return (
-      <View style={{ gap: ESP.md }}>
-        <Empty icon="phone-portrait-outline" title={`${nome} stopped`}
-          body="It is not playing anything now. Open Duotone there and try again." />
-        <Button secondary icon="arrow-back" onPress={aoVoltar}>Back to devices</Button>
-      </View>
-    );
-  }
-  const posicao = extrapolatedPositionMs(sessao);
-  const duracao = (sessao.track.durationSeconds ?? 0) * 1000;
-  const fracao = duracao > 0 ? Math.min(1, posicao / duracao) : 0;
-  const Botao = Pressable as any;
-  const botao = ({ hovered }: any) => [{
-    width: 40, height: 40, borderRadius: 999, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: hovered ? COR.hover : COR.painel, cursor: 'pointer',
-  }] as any;
-  return (
-    <View style={{ gap: ESP.md }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESP.md }}>
-        <Artwork track={sessao.track} size={56} />
-        <View style={{ flex: 1 }}>
-          <Text style={ui.eyebrow}>{sessao.isPlaying ? 'PLAYING ON' : 'PAUSED ON'} {nome.toUpperCase()}</Text>
-          <Text numberOfLines={1} style={[styles.destinationText, { flex: 0, marginTop: 2 }]}>
-            {tituloDaFaixa(sessao.track)}
-          </Text>
-          <Text numberOfLines={1} style={{ color: COR.textoMedio, fontSize: 12 }}>
-            {displayArtist(sessao.track)}
-          </Text>
-        </View>
-      </View>
-
-      <View style={{ gap: 4 }}>
-        <View style={{ height: 3, borderRadius: 999, backgroundColor: COR.linha }}>
-          <View style={{ height: 3, borderRadius: 999, width: `${fracao * 100}%`, backgroundColor: COR.metalClaro }} />
-        </View>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-          <Text style={{ color: COR.textoFraco, fontSize: 11 }}>{fmtRelogio(posicao)}</Text>
-          <Text style={{ color: COR.textoFraco, fontSize: 11 }}>{duracao > 0 ? fmtRelogio(duracao) : '--:--'}</Text>
-        </View>
-      </View>
-
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: ESP.lg }}>
-        <Botao accessibilityLabel={`Previous on ${nome}`} onPress={() => aoOrdenar('anterior')} style={botao}>
-          <Ionicons name="play-skip-back" size={18} color={COR.texto} />
-        </Botao>
-        <Botao accessibilityLabel={`${sessao.isPlaying ? 'Pause' : 'Play'} on ${nome}`}
-          onPress={() => aoOrdenar('tocar-pausa')} style={botao}>
-          <Ionicons name={sessao.isPlaying ? 'pause' : 'play'} size={20} color={COR.texto} />
-        </Botao>
-        <Botao accessibilityLabel={`Next on ${nome}`} onPress={() => aoOrdenar('seguinte')} style={botao}>
-          <Ionicons name="play-skip-forward" size={18} color={COR.texto} />
-        </Botao>
-      </View>
-
-      <View style={{ flexDirection: 'row', gap: ESP.sm }}>
-        <Button secondary icon="arrow-back" onPress={aoVoltar}>Back to devices</Button>
-        <Button icon="play" onPress={aoTrazer}>Continue here</Button>
-      </View>
-    </View>
-  );
-}
-
 /** A capa mantém o glitch; o gesto revela as letras na face adjacente. */
 /**
  * Um botão da linha de ações do Now Playing: só o ícone, sem caixa. Acende ao
@@ -213,14 +113,6 @@ export function NowPlayingPage({
   // A preferencia e lida uma vez e depois vem por evento, como a opacidade dos
   // paineis: as Definicoes sao outro ecra e este fica montado.
   const [eqAberto, setEqAberto] = useState(false);
-  // Duotone Connect: mandar o que toca aqui para outro aparelho da conta.
-  const [aparelhosAberto, setAparelhosAberto] = useState(false);
-  const [aMandar, setAMandar] = useState<string | null>(null);
-  const { aparelhos, sessaoDe, aCarregar: aProcurarAparelhos } = useAparelhos(aparelhosAberto);
-  // O aparelho cujo comando esta aberto. O dialogo e o mesmo: primeiro a
-  // lista, depois o comando de quem esta a tocar.
-  const [aComandar, setAComandar] = useState<string | null>(null);
-  const [tiqueDoRemoto, setTiqueDoRemoto] = useState(0);
   const [glitch, setGlitch] = useState<GlitchMode>('reactive');
   const [effectIntensity, setEffectIntensityState] = useState<EffectIntensity>('normal');
   // O realce do nome do artista. Vive aqui e não no `style` do `Pressable`
@@ -241,12 +133,6 @@ export function NowPlayingPage({
       window.removeEventListener('duotone:effect-intensity', ouvirIntensidade);
     };
   }, []);
-
-  useEffect(() => {
-    if (!aComandar || !aparelhosAberto) return;
-    const id = setInterval(() => setTiqueDoRemoto((n) => n + 1), 1000);
-    return () => clearInterval(id);
-  }, [aComandar, aparelhosAberto]);
 
   const escolherIntensidade = (intensidade: EffectIntensity) => {
     setEffectIntensityState(intensidade);
@@ -372,9 +258,6 @@ export function NowPlayingPage({
           {(cor) => <Ionicons name="share-social-outline" size={19} color={cor} />}
         </AcaoDoLeitor>
         <View style={styles.npIconesFio} />
-        <AcaoDoLeitor rotulo="Play on another device" onPress={() => setAparelhosAberto(true)}>
-          {(cor) => <Ionicons name="desktop-outline" size={19} color={cor} />}
-        </AcaoDoLeitor>
         {/* O mini leitor (electron/miniLeitor.cjs): sem ícone na barra
             do leitor, que já tem que chegue -- abre-se daqui, do
             tabuleiro ou por um atalho que alguém crie. */}
@@ -518,81 +401,6 @@ export function NowPlayingPage({
           </View>
         </ScrollView>
       )}
-      {/* Os outros aparelhos desta conta. Os que não estão à escuta aparecem
-          na mesma, apagados e a dizer porquê -- a regra dos menus. */}
-      <Dialog
-        open={aparelhosAberto}
-        title={aComandar ? `Controlling ${aparelhos.find((a) => a.deviceId === aComandar)?.nome ?? 'device'}` : 'Play on another device'}
-        onClose={() => { if (!aMandar) { setAparelhosAberto(false); setAComandar(null); } }}
-      >
-        {aComandar ? (
-          <ComandoDoAparelho
-            nome={aparelhos.find((a) => a.deviceId === aComandar)?.nome ?? 'Device'}
-            sessao={sessaoDe(aComandar)}
-            tique={tiqueDoRemoto}
-            aoVoltar={() => setAComandar(null)}
-            aoOrdenar={(tipo) => {
-              const alvo = aComandar;
-              if (!alvo) return;
-              void mandarComando(alvo, tipo).then((estado) => {
-                if (estado === 'feito') return;
-                avisarPedido(estado, avisoDoPedido(estado, aparelhos.find((a) => a.deviceId === alvo)?.nome ?? 'Device', tipo));
-              });
-            }}
-            aoTrazer={() => {
-              const sessao = aComandar ? sessaoDe(aComandar) : null;
-              if (!sessao) return;
-              void takeOverSession(sessao);
-              setAparelhosAberto(false);
-              setAComandar(null);
-            }}
-          />
-        ) : aparelhos.length ? (
-          <View style={{ gap: 6 }}>
-            {aparelhos.map((a) => (
-              <Pressable
-                key={a.deviceId}
-                disabled={!a.acordado || !!aMandar}
-                accessibilityState={{ disabled: !a.acordado }}
-                onPress={() => {
-                  // O que esta a TOCAR abre o comando; o resto recebe a
-                  // musica. Mandar "assumir" a quem ja toca era passar-lhe a
-                  // fila por cima -- e dali o que se quer e mexer nele.
-                  if (a.aTocar) { setAComandar(a.deviceId); return; }
-                  setAMandar(a.deviceId);
-                  void mandarComando(a.deviceId, 'assumir').then((estado) => {
-                    setAMandar(null);
-                    avisarPedido(estado, avisoDoPedido(estado, a.nome, 'assumir'));
-                    if (estado === 'feito') setAparelhosAberto(false);
-                  });
-                }}
-                style={({ hovered }: any) => [styles.destination, hovered && a.acordado && styles.settingHover, !a.acordado && ({ cursor: 'default' } as any)]}
-              >
-                <Ionicons
-                  name={a.tipo === 'desktop' ? 'desktop-outline' : 'phone-portrait-outline'}
-                  size={18}
-                  color={COR.texto}
-                  style={{ opacity: a.acordado ? 1 : 0.4 }}
-                />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.destinationText, { flex: 0 }, !a.acordado && { opacity: 0.4 }]}>{a.nome}</Text>
-                  {a.motivo || a.aTocar ? (
-                    <Text style={{ color: COR.textoFraco, fontSize: 11, marginTop: 2 }}>
-                      {aMandar === a.deviceId ? 'Sending…' : a.motivo ?? 'Playing now · open the controls'}
-                    </Text>
-                  ) : null}
-                </View>
-              </Pressable>
-            ))}
-          </View>
-        ) : (
-          <Empty
-            icon="desktop-outline"
-            title={aProcurarAparelhos ? 'Looking for devices…' : 'No other devices'}
-            body="Open Duotone on your iPhone or another PC with the same account, and it shows up here."
-          />
-        )}
-      </Dialog>
       <Dialog open={eqAberto} title="Equaliser" onClose={() => setEqAberto(false)} width={560} semVeu>
         <PainelEqualizador
           ganhos={eqGanhos}

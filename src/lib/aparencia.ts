@@ -14,8 +14,9 @@
  * Puro, sem imports: `scripts/test-aparencia.ts`.
  */
 
-export type BotaoDoLeitor = 'fila' | 'eq' | 'visibilidade' | 'aparelhos' | 'partilhar' | 'letras';
-export const BOTOES_DO_LEITOR: readonly BotaoDoLeitor[] = ['fila', 'visibilidade', 'eq', 'aparelhos', 'partilhar', 'letras'];
+// O "Devices" saiu a 1/11 com o Play on another device; guardado de antes, lê-se como desconhecido e cai.
+export type BotaoDoLeitor = 'fila' | 'eq' | 'visibilidade' | 'partilhar' | 'letras';
+export const BOTOES_DO_LEITOR: readonly BotaoDoLeitor[] = ['fila', 'visibilidade', 'eq', 'partilhar', 'letras'];
 export const MAXIMO_DE_BOTOES = 4;
 
 /** As secções da Home do iPhone, pela ordem de sempre (`SearchScreen`). */
@@ -267,7 +268,7 @@ export function veuDoLeitor(brilho: number): { opacidadeDoVeu: number; escurecer
 }
 
 export const NOMES_DOS_BOTOES: Record<BotaoDoLeitor, string> = {
-  fila: 'Queue', eq: 'EQ', visibilidade: 'Who sees it', aparelhos: 'Devices', partilhar: 'Share', letras: 'Lyrics',
+  fila: 'Queue', eq: 'EQ', visibilidade: 'Who sees it', partilhar: 'Share', letras: 'Lyrics',
 };
 
 /**

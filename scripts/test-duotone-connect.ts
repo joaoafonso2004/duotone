@@ -11,9 +11,8 @@
  */
 import assert from 'node:assert/strict';
 import {
-  ACORDADO_MS, VALIDADE_DO_PEDIDO_MS, aparelhoQueToca, aparelhosDisponiveis, avisoDoPedido,
-  devoExecutar, estaAcordado, estadoDoPedido, motivoDeNaoAlcancar, pedidoExpirou,
-  ESQUECER_APARELHO_MS, fantasmasDeSessoes, podeExecutarNoArranque,
+  ACORDADO_MS, VALIDADE_DO_PEDIDO_MS, avisoDoPedido,
+  devoExecutar, estaAcordado, estadoDoPedido, pedidoExpirou, podeExecutarNoArranque,
   type Pedido,
 } from '../src/lib/duotoneConnect.ts';
 import { SESSAO_PAUSADA_TTL_MS, type RemoteSession } from '../src/lib/handoff.ts';
@@ -57,47 +56,6 @@ caso('o relógio deste aparelho só entra por diferença', () => {
   assert.ok(!estaAcordado(lidaHaUmMinuto, AGORA + 3 * 60_000));
 });
 
-console.log('\na lista de "Play on…"');
-caso('o próprio aparelho nunca aparece na lista', () => {
-  const lista = aparelhosDisponiveis([sessao({ deviceId: 'eu' }), sessao({ deviceId: 'pc' })], 'eu', AGORA);
-  assert.deepEqual(lista.map((a) => a.deviceId), ['pc']);
-});
-caso('primeiro o que está acordado, e entre esses o que toca', () => {
-  // Nomes distintos de propósito: com o mesmo nome estes seriam o MESMO
-  // aparelho visto três vezes, e a lista colapsa-os (ver mais abaixo).
-  const lista = aparelhosDisponiveis([
-    sessao({ deviceId: 'dormente', deviceName: 'Portátil', idadeMs: 20 * 60_000 }),
-    sessao({ deviceId: 'parado', deviceName: 'Torre', idadeMs: 10_000 }),
-    sessao({ deviceId: 'a-tocar', deviceName: 'Sala', idadeMs: 4_000, isPlaying: true }),
-  ], 'eu', AGORA);
-  assert.deepEqual(lista.map((a) => a.deviceId), ['a-tocar', 'parado', 'dormente']);
-});
-caso('o que não está acordado fica na lista, apagado e a dizer porquê', () => {
-  const [phone] = aparelhosDisponiveis([
-    sessao({ deviceId: 'phone', deviceKind: 'ios', idadeMs: 20 * 60_000 }),
-  ], 'eu', AGORA);
-  assert.equal(phone!.acordado, false);
-  assert.equal(phone!.motivo, 'Open Duotone on your iPhone');
-  assert.equal(phone!.aTocar, false, 'não se diz que toca o que já não responde');
-});
-caso('o nome sai do aparelho, e sem nome é "PC" ou "phone"', () => {
-  const lista = aparelhosDisponiveis([
-    sessao({ deviceId: 'a', deviceName: 'Sala' }),
-    sessao({ deviceId: 'b', deviceKind: 'ios' }),
-    sessao({ deviceId: 'c', deviceKind: 'desktop' }),
-  ], 'eu', AGORA);
-  assert.deepEqual(lista.map((a) => a.nome).sort(), ['PC', 'Sala', 'phone']);
-});
-caso('o motivo é em inglês e diz o que fazer', () => {
-  assert.equal(motivoDeNaoAlcancar('ios'), 'Open Duotone on your iPhone');
-  assert.equal(motivoDeNaoAlcancar('desktop'), 'Open Duotone on that PC');
-});
-caso('o aparelho que toca é o alvo dos comandos -- e não há nenhum se estiver dormente', () => {
-  const sessoes = [sessao({ deviceId: 'pc', idadeMs: 3_000, isPlaying: true, deviceName: 'PC' })];
-  assert.equal(aparelhoQueToca(sessoes, 'eu', AGORA)?.nome, 'PC');
-  assert.equal(aparelhoQueToca(sessoes, 'eu', AGORA + 30 * 60_000), null);
-});
-
 console.log('\numa ordem velha não se executa');
 function pedido(over: Partial<Pedido> = {}): Pedido {
   return {
@@ -133,81 +91,6 @@ caso('o que se diz a quem manda, em inglês e curto', () => {
     assert.ok(frase.length <= 64, frase);
     assert.ok(!/[ãõçáéíóú]/i.test(frase), frase);
   }
-});
-
-console.log('\numa linha por aparelho, e nao uma por instalacao');
-caso('sete fantasmas do mesmo iPhone dao UMA linha', () => {
-  // O caso real do Joao a 12/9: uma instalacao por versao, cada uma com o seu
-  // device_id e todas com o nome "iPhone".
-  const fantasmas = [1, 2, 3, 4, 5, 6, 7].map((i) => sessao({
-    deviceId: `iphone-${i}`, deviceKind: 'ios', idadeMs: i * 60 * 60_000,
-  }));
-  const lista = aparelhosDisponiveis(fantasmas, 'pc', AGORA);
-  assert.equal(lista.length, 1);
-  // Fica o mais recente, e diz porque nao da para o comandar.
-  assert.equal(lista[0].deviceId, 'iphone-1');
-  assert.equal(lista[0].motivo, motivoDeNaoAlcancar('ios'));
-});
-
-caso('com o verdadeiro acordado, os fantasmas desaparecem', () => {
-  const lista = aparelhosDisponiveis([
-    sessao({ deviceId: 'velho-a', deviceKind: 'ios', idadeMs: 3 * 60 * 60_000 }),
-    sessao({ deviceId: 'velho-b', deviceKind: 'ios', idadeMs: 20 * 60_000 }),
-    sessao({ deviceId: 'agora', deviceKind: 'ios', idadeMs: 3_000, isPlaying: true }),
-  ], 'pc', AGORA);
-  assert.equal(lista.length, 1);
-  assert.equal(lista[0].deviceId, 'agora');
-  assert.ok(lista[0].aTocar);
-});
-
-caso('dois aparelhos DIFERENTES continuam a ser dois', () => {
-  const lista = aparelhosDisponiveis([
-    sessao({ deviceId: 'pc-casa', deviceKind: 'desktop', deviceName: 'PC', idadeMs: 4_000 }),
-    sessao({ deviceId: 'telemovel', deviceKind: 'ios', idadeMs: 4_000 }),
-  ], 'outro', AGORA);
-  assert.equal(lista.length, 2);
-});
-
-caso('dois com o mesmo nome, ambos acordados, ficam ambos', () => {
-  // Nao se colapsa o que esta mesmo la: um deles responde a ordem.
-  const lista = aparelhosDisponiveis([
-    sessao({ deviceId: 'um', deviceKind: 'ios', idadeMs: 4_000 }),
-    sessao({ deviceId: 'dois', deviceKind: 'ios', idadeMs: 9_000 }),
-  ], 'pc', AGORA);
-  assert.equal(lista.length, 2);
-});
-
-caso('um aparelho que nunca mais abriu a app sai da lista', () => {
-  const velho = sessao({ deviceId: 'antigo', deviceKind: 'ios', idadeMs: ESQUECER_APARELHO_MS + 60_000 });
-  assert.equal(aparelhosDisponiveis([velho], 'pc', AGORA).length, 0);
-  const quase = sessao({ deviceId: 'antigo', deviceKind: 'ios', idadeMs: ESQUECER_APARELHO_MS - 60_000 });
-  assert.equal(aparelhosDisponiveis([quase], 'pc', AGORA).length, 1);
-});
-
-caso('os que a lista esconde sao os que se podem apagar', () => {
-  const sessoes = [
-    sessao({ deviceId: 'pc', deviceKind: 'desktop', idadeMs: 4_000 }),
-    sessao({ deviceId: 'agora', deviceKind: 'ios', idadeMs: 3_000, isPlaying: true }),
-    sessao({ deviceId: 'fantasma-1', deviceKind: 'ios', idadeMs: 2 * 60 * 60_000 }),
-    sessao({ deviceId: 'fantasma-2', deviceKind: 'ios', idadeMs: 5 * 60 * 60_000 }),
-    sessao({ deviceId: 'eu', deviceKind: 'ios', idadeMs: 1_000 }),
-  ];
-  const lista = aparelhosDisponiveis(sessoes, 'eu', AGORA).map((a) => a.deviceId);
-  const apagar = fantasmasDeSessoes(sessoes, 'eu', AGORA);
-  assert.deepEqual(apagar.sort(), ['fantasma-1', 'fantasma-2']);
-  // O proprio aparelho NUNCA entra: apagar a propria linha era desaparecer do
-  // "continuar aqui" dos outros.
-  assert.ok(!apagar.includes('eu'));
-  // E o que se apaga e exatamente o que a lista nao mostra.
-  assert.equal(apagar.some((id) => lista.includes(id)), false);
-});
-
-caso('sem fantasmas nao se apaga nada', () => {
-  const sessoes = [
-    sessao({ deviceId: 'pc', deviceKind: 'desktop', idadeMs: 4_000 }),
-    sessao({ deviceId: 'telemovel', deviceKind: 'ios', idadeMs: 9_000 }),
-  ];
-  assert.deepEqual(fantasmasDeSessoes(sessoes, 'eu', AGORA), []);
 });
 
 console.log('\nabrir a app nao pode por musica a tocar');
