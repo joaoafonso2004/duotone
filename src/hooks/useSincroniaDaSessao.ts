@@ -54,7 +54,7 @@ export function useSincroniaDaSessao(): void {
       guardarRetoma: ms => usePlayer.setState({ resumePositionMs: ms }),
     });
     void aplicar().catch(() => {
-      if (!cancelado) useOuvirJuntos.setState({ aviso: 'Could not play this Jam track. Please try again.' });
+      if (!cancelado) useOuvirJuntos.setState({ aviso: "Couldn't play this Jam track. Please try again." });
     });
     return () => { cancelado = true; };
   }, [assinatura, faixaLocal, fonteLocal]);

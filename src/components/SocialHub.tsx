@@ -218,7 +218,7 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
       if(loading){reload=true;return;}loading=true;reload=false;perdida=false;ultimaCarga=Date.now();
       try{const rows=conversation.kind==='group'?await getGroupMessages(conversation.id):await getChatMessages(conversation.id);
         if(active){if(firstLoad){setHasOlder(rows.length===100);firstLoad=false;}setMessages(previous=>mergeMessages(previous,rows));useSocial.getState().rememberConversation(key,rows);const last=rows.filter(m=>m.sender.id!==myId).at(-1);if(last&&canRead())await useSocial.getState().markRead(key,last.createdAt);}}
-      catch(e:any){if(active)setError(e.message || 'Could not refresh this conversation.');}
+      catch(e:any){if(active)setError(e.message || "Couldn't refresh this conversation.");}
       finally{loading=false;if(active){setChatLoading(false);if(reload)void load();}}
     };
     // Realtime entrega mensagens novas imediatamente. Esta consulta é apenas

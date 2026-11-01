@@ -150,7 +150,7 @@ export function SettingsScreen({ navigation }: Props) {
     try {
       const err = await resetPassword();
       hapticNotification();
-      if (err) avisarErro(mensagemDeErro(err, 'Could not send the reset email.'));
+      if (err) avisarErro(mensagemDeErro(err, "Couldn't send the reset email."));
       else avisarFeito('Check your email', 'We sent you a link to reset your password.');
     } finally {
       setResettingPw(false);
@@ -318,7 +318,7 @@ export function SettingsScreen({ navigation }: Props) {
       );
       setResumoDoCatalogo(resumoDoVarrimento(r));
     } catch {
-      setResumoDoCatalogo('Could not finish. Check your connection and try again.');
+      setResumoDoCatalogo("Couldn't finish. Check your connection and try again.");
     } finally {
       setProgresso(null);
       setAIdentificar(false);
@@ -351,7 +351,7 @@ export function SettingsScreen({ navigation }: Props) {
         desfazer: async () => { await reporGuardadas(tiradas); void useSaved.getState().refresh(); },
       });
     } catch (e: any) {
-      avisarErro(mensagemDeErro(e, 'Could not clear the library.'));
+      avisarErro(mensagemDeErro(e, "Couldn't clear the library."));
     } finally {
       setClearingLibrary(false);
     }
@@ -368,7 +368,7 @@ export function SettingsScreen({ navigation }: Props) {
       await signOut();
       Alert.alert('Deleted', 'Your account has been deleted.');
     } catch (e: any) {
-      avisarErro(mensagemDeErro(e, 'Could not delete your account.'));
+      avisarErro(mensagemDeErro(e, "Couldn't delete your account."));
     } finally {
       setDeletingAccount(false);
     }

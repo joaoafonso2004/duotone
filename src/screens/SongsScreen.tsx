@@ -120,7 +120,7 @@ export function SongsScreen() {
       const result=await lerFaixas(getLikedSongs);
       if(run===generation.current)setTracks(result);
     }catch{
-      if(run===generation.current)setLoadError('Could not refresh your liked songs. Your last saved list is shown.');
+      if(run===generation.current)setLoadError("Couldn't refresh your liked songs. Your last saved list is shown.");
     }
   },[offline,userId]);
   useFocusEffect(useCallback(()=>{void load();return()=>{generation.current++;};},[load]));
@@ -170,7 +170,7 @@ export function SongsScreen() {
         },
       });
     } catch (e: any) {
-      avisarErro(mensagemDeErro(e, 'Could not remove tracks.'));
+      avisarErro(mensagemDeErro(e, "Couldn't remove tracks."));
     }
   };
 

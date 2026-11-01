@@ -129,7 +129,7 @@ export const usePlaylists = create<Playlists>((set, get) => ({
         // por cima de um vazio.
         set(get().items.length > 0
           ? { estado: 'pronto' }
-          : { estado: 'pronto', erro: 'Could not load your playlists. Please try again.' });
+          : { estado: 'pronto', erro: "Couldn't load your playlists. Please try again." });
       })
       .finally(() => {
         if (atual === geracao) emCurso = null;

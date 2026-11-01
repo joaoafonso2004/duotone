@@ -127,7 +127,7 @@ export function linhasDoEstado(estado: EstadoDasMigracoes): string[] {
   if (estado.tipo === 'sem-verificador') {
     return ['Unknown: run supabase/estado-das-migracoes.sql once in the SQL Editor to enable this check.'];
   }
-  if (estado.tipo === 'erro') return [`Could not check: ${estado.mensagem}`];
+  if (estado.tipo === 'erro') return [`Couldn't check: ${estado.mensagem}`];
   if (!estado.emFalta.length) return [`All ${MIGRACOES.length} SQL files are applied.`];
   return [
     `${estado.emFalta.length} of ${MIGRACOES.length} SQL files are missing. Run them in the SQL Editor:`,

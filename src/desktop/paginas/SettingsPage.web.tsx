@@ -90,7 +90,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
       );
       setResumoDoCatalogo(resumoDoVarrimento(r));
     } catch {
-      setResumoDoCatalogo('Could not finish. Check your connection and try again.');
+      setResumoDoCatalogo("Couldn't finish. Check your connection and try again.");
     } finally {
       setProgresso(null);
       setAIdentificar(false);

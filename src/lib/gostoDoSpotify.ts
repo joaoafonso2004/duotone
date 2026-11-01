@@ -179,6 +179,6 @@ export function mensagemDoSpotify(tipo: FalhaDoSpotify): string | null {
     case 'nao-registado': return "This Spotify account isn't allowed yet. Ask to be added.";
     case 'sem-acesso': return 'Spotify refused. Your account may need to be added to the app.';
     case 'vazio': return 'Your Spotify has no listening history to read yet.';
-    case 'rede': return 'Could not reach Spotify. Try again.';
+    case 'rede': return "Couldn't reach Spotify. Try again.";
   }
 }

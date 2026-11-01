@@ -44,5 +44,5 @@ export function mensagemDeFalhaAoGuardar(erro: { code?: string; message?: string
     return 'Saving playlists from chats needs the latest server update.';
   }
   if (erro?.code === '42501') return 'This playlist is no longer shared with you.';
-  return 'Could not save this playlist. Please try again.';
+  return "Couldn't save this playlist. Please try again.";
 }

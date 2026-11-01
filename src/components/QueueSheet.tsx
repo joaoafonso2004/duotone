@@ -226,7 +226,7 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
       case 'guardar':
         setSelection(null);
         void alternarGuardada(t).then((ficou) => { if (ficou) hapticNotification(); })
-          .catch((e: any) => avisarErro(mensagemDeErro(e, 'Could not update your library.')));
+          .catch((e: any) => avisarErro(mensagemDeErro(e, "Couldn't update your library.")));
         return;
       case 'por-em-playlist': setPanel('playlist'); return;
       case 'ver-artista': setSelection(null); onVerArtista?.(nomeDoArtista); return;
@@ -236,7 +236,7 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
       case 'nao-interessa':
         setSelection(null);
         void naoInteressa(t).then(() => avisarFeito(AVISO_DO_NAO_INTERESSA))
-          .catch((e: any) => avisarErro(mensagemDeErro(e, 'Could not save this preference.')));
+          .catch((e: any) => avisarErro(mensagemDeErro(e, "Couldn't save this preference.")));
         return;
       case 'tirar-da-fila': {
         const latest = usePlayer.getState();
@@ -274,7 +274,7 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
       guardada: lida ? naLoja : false,
       disponivel: !compacto.guardar.indisponivel,
       alternar: () => alternarGuardada(selection.track)
-        .catch((e: any) => avisarErro(mensagemDeErro(e, 'Could not update your library.'))),
+        .catch((e: any) => avisarErro(mensagemDeErro(e, "Couldn't update your library."))),
     } : null,
   } : null;
   const menuDaLinha = (
@@ -545,7 +545,7 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
           avisarFeito(`Saved “${nome.trim()}” · ${contarMusicas(faixas.length)}`);
           setPanel('actions');
         } catch (e) {
-          avisarErro(mensagemDeErro(e, 'Could not save the queue.'));
+          avisarErro(mensagemDeErro(e, "Couldn't save the queue."));
         } finally {
           setAGuardarFila(false);
         }

@@ -10,6 +10,7 @@ import { correspondeAPesquisa } from '../lib/searchText';
 import type { OrdemDoArtista } from '../lib/prefs';
 import { colors, ESCALA_MAXIMA, radii, spacing } from '../theme';
 import type { Track } from '../types';
+import { FRASES_DOS_ESTADOS } from '../lib/frasesDosEstados';
 
 type Item = { tipo: 'grupo'; rotulo: string } | { tipo: 'faixa'; faixa: Track };
 const chave = (t: Track) => `${t.source}:${t.sourceId}`;
@@ -88,7 +89,7 @@ export function MusicasDoArtistaSheet({
         keyboardDismissMode="on-drag"
         initialNumToRender={14}
         windowSize={7}
-        ListEmptyComponent={<Text style={styles.vazio}>No songs match “{pesquisa.trim()}”.</Text>}
+        ListEmptyComponent={<Text style={styles.vazio}>{FRASES_DOS_ESTADOS.semCorrespondencias.corpo(pesquisa, 'songs')}</Text>}
         renderItem={({ item }) => item.tipo === 'grupo'
           ? <Text maxFontSizeMultiplier={ESCALA_MAXIMA.lista} style={styles.grupo}>{item.rotulo}</Text>
           : <TrackRow track={item.faixa} showSavedBadge acompanharATocar contextLabel={detalhe(item.faixa)}

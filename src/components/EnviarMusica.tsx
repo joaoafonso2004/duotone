@@ -10,6 +10,7 @@ import { usePlaylists } from '../state/playlists';
 import { colors, radii, spacing, type } from '../theme';
 import type { Playlist, Track } from '../types';
 import { BottomSheet, BottomSheetScrollView } from './BottomSheet';
+import { FRASES_DA_PESQUISA } from '../lib/estadoDaPesquisa';
 
 /**
  * Mandar música a partir da conversa (9/10, docs/PLANO-SOCIAL-IOS.md, fase 2):
@@ -72,7 +73,7 @@ export function EnviarMusica({ visible, onClose, onEnviar }: {
         {q.length >= 2 ? (
           aProcurar && !resultados.length ? <ActivityIndicator color={colors.text} style={{ marginVertical: spacing.xl }} />
             : resultados.length ? resultados.map((t) => faixa(t))
-              : <Text style={styles.vazio}>No songs found.</Text>
+              : <Text style={styles.vazio}>{FRASES_DA_PESQUISA.semResultados}</Text>
         ) : (
           <>
             {atual ? faixa(atual, 'Now playing') : null}

@@ -103,7 +103,7 @@ export function SocialTrackActions({ track, onClose, onArtist, extra }: {
       await alternarGuardada(track);
       onClose();
     } catch (e: any) {
-      setError(e?.message || 'Could not update your library.');
+      setError(e?.message || "Couldn't update your library.");
     } finally {
       setBusy(false);
     }

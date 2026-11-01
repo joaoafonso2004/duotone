@@ -133,12 +133,12 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef,aoMenuDaF
         highlightsLidos:h.status==='fulfilled',
       });
       setSectionErrors({
-        most:m.status==='rejected'?'Could not load your most played songs.':'',
-        recent:r.status==='rejected'?'Could not load listening history.':'',
-        playlists:l.status==='rejected'?(missingProfilePlaylistColumns(l.reason)?PROFILE_SHARING_UNAVAILABLE:'Could not load playlists.'):'',
-        copies:c.status==='rejected'?'Could not check your saved playlists.':'',
+        most:m.status==='rejected'?"Couldn't load your most played songs.":'',
+        recent:r.status==='rejected'?"Couldn't load listening history.":'',
+        playlists:l.status==='rejected'?(missingProfilePlaylistColumns(l.reason)?PROFILE_SHARING_UNAVAILABLE:"Couldn't load playlists."):'',
+        copies:c.status==='rejected'?"Couldn't check your saved playlists.":'',
       });
-    }catch{if(id===request.current)setError('Could not open this profile. Please try again.');}finally{if(id===request.current&&!silencioso)setLoading(false);}
+    }catch{if(id===request.current)setError("Couldn't open this profile. Please try again.");}finally{if(id===request.current&&!silencioso)setLoading(false);}
   },[userId,own]);
   // Limpar só quando se troca de pessoa: o que está no ecrã passa a ser de
   // outra conta e não pode ficar à vista. Uma mudança de amizade ou uma ação
@@ -207,7 +207,7 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef,aoMenuDaF
       await saveProfileCustomization(appearanceOf(profile),profile.profile.name,profile.profile.username,{...highlights,moment:null});
       setHighlights(h=>({...h,moment:null}));
       void load(true);
-    }catch(e:any){ setError(e?.message || 'Could not remove the song. Please try again.'); }
+    }catch(e:any){ setError(e?.message || "Couldn't remove the song. Please try again."); }
     finally{ setATirarMoment(false); }
   };
 
@@ -224,7 +224,7 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef,aoMenuDaF
       confirmed=true;
       if(generation!==request.current)return;
       setGuardadas(g=>{const n=new Set(g);if(tinha)n.delete(pl.id);else n.add(pl.id);return n;});
-    } catch{ if(generation===request.current)setPlaylistMutationError('Could not update your saved playlists. Please try again.'); }
+    } catch{ if(generation===request.current)setPlaylistMutationError("Couldn't update your saved playlists. Please try again."); }
     finally { mutation.current=false;setOcupada(null);if(confirmed&&mounted.current&&view.current.active&&view.current.userId===userId&&view.current.myId===myId)void load(true); }
   };
 
@@ -350,7 +350,7 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef,aoMenuDaF
         onVocesOsDois={onVocesOsDois&&profile?.canView&&friend?.status==='accepted'?()=>onVocesOsDois(profile.profile.name||profile.profile.username||undefined):undefined}
         onEdit={()=>setEditing(true)} onSocial={onSocial} onStats={abrirEstatisticas} onBack={onBack}
         onMessage={()=>onMessage(userId)} onRefresh={()=>void load()} pending={friend?.status==='pending'}
-        onAddFriend={()=>{void sendFriendRequest(userId).then(()=>useSocial.getState().refresh()).catch(()=>setError('Could not send the friend request. Please try again.'));}}/>
+        onAddFriend={()=>{void sendFriendRequest(userId).then(()=>useSocial.getState().refresh()).catch(()=>setError("Couldn't send the friend request. Please try again."));}}/>
       :<View {...(menuNoTopo as any)}>
       <ProfileHero profile={profile} own={own} cover={cover} unread={unread} botoesFora={!web} rolagem={web?undefined:rolagem}
         status={!own&&profile?.canView?(friend?.online?'● Online now':ultimaAtividade(friend?.lastSeenAt,now)):undefined}
@@ -358,7 +358,7 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef,aoMenuDaF
         aoMedirNome={setFimDoNome}
         onEdit={()=>setEditing(true)} onSocial={onSocial} onStats={abrirEstatisticas} onBack={onBack}
         onMessage={()=>onMessage(userId)} onRefresh={()=>void load()} pending={friend?.status==='pending'}
-        onAddFriend={()=>{void sendFriendRequest(userId).then(()=>useSocial.getState().refresh()).catch(()=>setError('Could not send the friend request. Please try again.'));}}/>
+        onAddFriend={()=>{void sendFriendRequest(userId).then(()=>useSocial.getState().refresh()).catch(()=>setError("Couldn't send the friend request. Please try again."));}}/>
       </View>}
       <View style={[{paddingHorizontal:SOCIAL_GUTTER,paddingTop:26,gap:24},capaPorPagina&&{position:'relative',zIndex:3,backgroundColor:colors.bg} as any]}>
       {capaPorPagina&&<LinearGradient pointerEvents="none" colors={['rgba(12,12,16,0)',colors.bg]} style={{position:'absolute',left:0,right:0,top:-130,height:130}}/>}

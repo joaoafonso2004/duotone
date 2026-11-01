@@ -73,7 +73,7 @@ export function PessoasDaPlaylist({ visible, onClose, playlistId, papel, pessoas
       setModo('lista');
       aoMudar();
     } catch (e) {
-      setErro(mensagemDeErro(e, 'Could not add collaborators.'));
+      setErro(mensagemDeErro(e, "Couldn't add collaborators."));
     } finally { setOcupado(false); }
   };
 
@@ -87,7 +87,7 @@ export function PessoasDaPlaylist({ visible, onClose, playlistId, papel, pessoas
       setFeito(`${nomeDaPessoa(p)} removed`);
       aoMudar();
     } catch (e) {
-      setErro(mensagemDeErro(e, 'Could not remove this collaborator.'));
+      setErro(mensagemDeErro(e, "Couldn't remove this collaborator."));
     } finally { setOcupado(false); }
   };
 
@@ -101,7 +101,7 @@ export function PessoasDaPlaylist({ visible, onClose, playlistId, papel, pessoas
       onClose();
       aoSair();
     } catch (e) {
-      setErro(mensagemDeErro(e, 'Could not leave this playlist.'));
+      setErro(mensagemDeErro(e, "Couldn't leave this playlist."));
     } finally { setOcupado(false); }
   };
 

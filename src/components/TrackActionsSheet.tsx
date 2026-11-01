@@ -112,7 +112,7 @@ export function TrackActionsSheet({ visible, track, onClose, actions = [], cabec
           if (ficou && !pedirOrbita({ destino: 'guardar', capa: capaParaLista(t.artworkUrl), titulo: tituloDaFaixa(t) })) hapticNotification();
           if (ficou && discoveryContext) registar('recomendacao_guardada', contextoParaAnalytics(discoveryContext));
           aoMudarBiblioteca?.();
-        }).catch((e: any) => avisarErro(mensagemDeErro(e, 'Could not update your library.')));
+        }).catch((e: any) => avisarErro(mensagemDeErro(e, "Couldn't update your library.")));
         return;
       case 'por-em-playlist': setParaPlaylist(t); return;
       case 'ver-artista':
@@ -123,7 +123,7 @@ export function TrackActionsSheet({ visible, track, onClose, actions = [], cabec
       case 'recomendacoes': setRecommendationTrack(t); return;
       case 'nao-interessa':
         void naoInteressa(t).then(() => avisarFeito(AVISO_DO_NAO_INTERESSA))
-          .catch((e: any) => avisarErro(mensagemDeErro(e, 'Could not save this preference.')));
+          .catch((e: any) => avisarErro(mensagemDeErro(e, "Couldn't save this preference.")));
         return;
       case 'tirar-da-playlist': playlist?.aoTirar(t); return;
       case 'tirar-da-fila': return;
@@ -163,7 +163,7 @@ export function TrackActionsSheet({ visible, track, onClose, actions = [], cabec
       alternar: () => alternarGuardada(track).then((ficou) => {
         if (ficou && discoveryContext) registar('recomendacao_guardada', contextoParaAnalytics(discoveryContext));
         aoMudarBiblioteca?.();
-      }).catch((e: any) => avisarErro(mensagemDeErro(e, 'Could not update your library.'))),
+      }).catch((e: any) => avisarErro(mensagemDeErro(e, "Couldn't update your library."))),
     } : null,
   } : null;
   // Nasce junto ao dedo que o pediu (5/10, lib/ultimoToque.ts), como o "⋯" do leitor.

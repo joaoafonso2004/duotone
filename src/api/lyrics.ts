@@ -26,7 +26,7 @@ function read(url:URL):Promise<any>{
         cooldownUntil=Date.now()+Math.max(1000,retry&&Number.isFinite(Number(retry))?Number(retry)*1000:Math.max(30000,Date.parse(retry??'')-Date.now()||0));
         throw Error('Lyrics are busy. Please try again shortly.');
       }
-      if(!response.ok)throw Error('Could not load lyrics. Please try again.');
+      if(!response.ok)throw Error("Couldn't load lyrics. Please try again.");
       return await response.json();
     }finally{clearTimeout(timeout);}
   });

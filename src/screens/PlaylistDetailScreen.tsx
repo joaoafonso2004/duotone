@@ -245,7 +245,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
       load();
       setAddTracksOpen(false);
     } catch (e: any) {
-      avisarErro(mensagemDeErro(e, 'Could not update playlist tracks.'));
+      avisarErro(mensagemDeErro(e, "Couldn't update playlist tracks."));
     } finally {
       setBusy(false);
     }
@@ -329,7 +329,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
       // Não saiu: volta à lista.
       setTracks((atual) => atual.some((t) => t.id === linha.id)
         ? atual : [...atual.slice(0, indice), linha, ...atual.slice(indice)]);
-      avisarErro(mensagemDeErro(e, 'Could not remove the track.'));
+      avisarErro(mensagemDeErro(e, "Couldn't remove the track."));
     });
   }, [tracks, id]);
 
@@ -465,7 +465,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   const sair = async () => {
     setBusy(true);
     try { await sairDaPlaylist(id); setSairAberto(false); depoisDeSair(); }
-    catch (e: any) { avisarErro(mensagemDeErro(e, 'Could not leave this playlist.')); }
+    catch (e: any) { avisarErro(mensagemDeErro(e, "Couldn't leave this playlist.")); }
     finally { setBusy(false); }
   };
 
@@ -489,7 +489,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
       // A grelha das Playlists mostra o nome, a contagem e as capas.
       void usePlaylists.getState().carregar(true);
     } catch (e: any) {
-      avisarErro(mensagemDeErro(e, 'Could not save the playlist.'));
+      avisarErro(mensagemDeErro(e, "Couldn't save the playlist."));
       setRascunho(null);
       void load();
     } finally {
@@ -515,7 +515,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
       // Apagar não tem volta: já se confirmou, e o aviso só informa (3/10).
       avisarRemocao({ texto: 'Playlist deleted', detalhe: name });
     } catch (e: any) {
-      avisarErro(mensagemDeErro(e, 'Could not delete.'));
+      avisarErro(mensagemDeErro(e, "Couldn't delete."));
     } finally {
       setBusy(false);
     }
@@ -525,7 +525,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
     setOptionsOpen(false);
     setMergeOpen(true);
     try { setMergeItems((await listPlaylists()).filter((playlist) => playlist.id !== id)); }
-    catch (e: any) { setMergeOpen(false); avisarErro(mensagemDeErro(e, 'Could not load your playlists.')); }
+    catch (e: any) { setMergeOpen(false); avisarErro(mensagemDeErro(e, "Couldn't load your playlists.")); }
   };
 
   const fazerMerge = async (source: Playlist) => {
@@ -537,7 +537,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
       hapticNotification();
       avisarFeito('Playlists merged', `${resultado.adicionadas} added · ${resultado.repetidas} already there. “${source.name}” was not changed.`);
     } catch (e: any) {
-      avisarErro(mensagemDeErro(e, 'Could not merge the playlists.'));
+      avisarErro(mensagemDeErro(e, "Couldn't merge the playlists."));
     } finally { setBusy(false); }
   };
 
@@ -910,7 +910,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
         </View>
       ) : playlistSearchQuery.trim() && visibleTracks.length === 0 ? (
         <View style={{ flex: 1, paddingTop: cab.espaco }}>
-        <EmptyState icon="search-outline" title="No songs found" subtitle={`No track matches "${playlistSearchQuery}".`} />
+        <EmptyState icon="search-outline" title={FRASES_DOS_ESTADOS.semCorrespondencias.titulo} subtitle={FRASES_DOS_ESTADOS.semCorrespondencias.corpo(playlistSearchQuery, 'songs')} />
         </View>
       ) : (
         <Animated.FlatList
@@ -1154,7 +1154,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             <View style={styles.modalSearchBox}>
               <Input
                 icon="search"
-                placeholder="Search library songs"
+                placeholder="Search liked songs"
                 value={addSearchQuery}
                 onChangeText={setAddSearchQuery}
                 onClear={() => setAddSearchQuery('')}
@@ -1166,8 +1166,8 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             ) : filteredLibrary.length === 0 ? (
               <EmptyState
                 icon="musical-notes-outline"
-                title="No songs found"
-                subtitle="Add songs to your Library first to add them here."
+                title={addSearchQuery.trim() ? FRASES_DOS_ESTADOS.semCorrespondencias.titulo : FRASES_DOS_ESTADOS.semGostadas.titulo}
+                subtitle={addSearchQuery.trim() ? FRASES_DOS_ESTADOS.semCorrespondencias.corpo(addSearchQuery, 'songs') : FRASES_DOS_ESTADOS.semGostadas.corpo}
               />
             ) : (
               <FlatList

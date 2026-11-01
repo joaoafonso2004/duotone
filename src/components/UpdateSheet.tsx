@@ -116,11 +116,11 @@ export function UpdateSheet() {
         setFase('a-instalar');
       } else {
         setFase('falhou');
-        setErro(resultado?.erro || 'Could not update. Try again, or download it from the site.');
+        setErro(resultado?.erro || "Couldn't update. Try again, or download it from the site.");
       }
     } catch {
       setFase('falhou');
-      setErro('Could not update. Try again, or download it from the site.');
+      setErro("Couldn't update. Try again, or download it from the site.");
     }
   };
 

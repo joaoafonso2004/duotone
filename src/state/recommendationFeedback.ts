@@ -172,10 +172,10 @@ export async function setRecommendationFeedback(item:Feedback,enabled:boolean):P
     const oposto=item.kind==='artist'?'artist_more':item.kind==='artist_more'?'artist':null;
     if(enabled&&oposto){
       const {error:limpo}=await query.delete().match({user_id:state.userId,kind:oposto,key:item.key});
-      if(limpo)throw new Error('Could not save this preference. Check your connection and try again.');
+      if(limpo)throw new Error("Couldn't save this preference. Check your connection and try again.");
     }
     const {error}=enabled?await query.upsert({user_id:state.userId,...item}):await query.delete().match({user_id:state.userId,kind:item.kind,key:item.key});
-    if(error)throw new Error('Could not save this preference. Check your connection and try again.');
+    if(error)throw new Error("Couldn't save this preference. Check your connection and try again.");
     if(run!==generation)return;
     // Fora as linhas desta chave que esta escrita substitui: a propria, e a
     // oposta quando se esta a LIGAR uma (a desligar so sai a que se pediu).

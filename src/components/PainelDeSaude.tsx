@@ -31,7 +31,7 @@ export function PainelDeSaude({ visivel, aoFechar }: { visivel: boolean; aoFecha
     setALer(true); setErro(null);
     lerPainelDeSaude(dias)
       .then((p) => { if (vivo) setPainel(p); })
-      .catch((e) => { if (vivo) setErro(mensagemDeErro(e, 'Could not read the app health.')); })
+      .catch((e) => { if (vivo) setErro(mensagemDeErro(e, "Couldn't read the app health.")); })
       .finally(() => { if (vivo) setALer(false); });
     return () => { vivo = false; };
   }, [visivel, dias]);

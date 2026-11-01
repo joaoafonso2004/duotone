@@ -129,7 +129,7 @@ export function PlaylistsScreen() {
       load();
       navigation.navigate('PlaylistDetail', { id: newPlId, name: 'Shared Playlist' });
     } catch (e: any) {
-      avisarErro(mensagemDeErro(e, 'Could not import the shared playlist.'));
+      avisarErro(mensagemDeErro(e, "Couldn't import the shared playlist."));
     } finally {
       setBusy(false);
     }
@@ -155,7 +155,7 @@ export function PlaylistsScreen() {
       load();
       navigation.navigate('PlaylistDetail', { id: pl.id, name: pl.name });
     } catch (e: any) {
-      avisarErro(mensagemDeErro(e, 'Could not create the playlist.'));
+      avisarErro(mensagemDeErro(e, "Couldn't create the playlist."));
     } finally {
       setBusy(false);
     }
@@ -179,7 +179,7 @@ export function PlaylistsScreen() {
       if (modo === 'baralhar') await leitor.playShuffled(faixas, leitor.shuffleInteligente, origem);
       else await leitor.tocarLista(faixas, leitor.shuffle, leitor.shuffleInteligente, origem);
     } catch (e: any) {
-      avisarErro(mensagemDeErro(e, 'Could not load the playlist.'));
+      avisarErro(mensagemDeErro(e, "Couldn't load the playlist."));
     }
   };
 
@@ -207,7 +207,7 @@ export function PlaylistsScreen() {
       setSairDe(null);
       load();
     } catch (e: any) {
-      avisarErro(mensagemDeErro(e, 'Could not leave this playlist.'));
+      avisarErro(mensagemDeErro(e, "Couldn't leave this playlist."));
     } finally {
       setBusy(false);
     }
@@ -223,7 +223,7 @@ export function PlaylistsScreen() {
       setDeleteFor(null);
       load();
     } catch (e: any) {
-      avisarErro(mensagemDeErro(e, 'Could not delete the playlist.'));
+      avisarErro(mensagemDeErro(e, "Couldn't delete the playlist."));
     } finally {
       setBusy(false);
     }

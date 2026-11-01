@@ -340,7 +340,7 @@ export async function savePlaylistCopy(sourceId: string): Promise<string> {
   const {data,error}=await supabase.rpc('set_profile_playlist_copy',{p_source_id:sourceId,p_save:true});
   if(error)throw error;
   mudouUmaPlaylist();
-  if(!data)throw new Error('Could not save this playlist.');
+  if(!data)throw new Error("Couldn't save this playlist.");
   return data as string;
 }
 

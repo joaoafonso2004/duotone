@@ -27,7 +27,7 @@ export async function upsertTrack(t: Track): Promise<string> {
   const { data, error } = await supabase.rpc('upsert_catalog_tracks', { entries: [catalogEntry(t)] });
   if (error) throw error;
   const row = data?.[0];
-  if (!row?.id) throw new Error('Could not save this track in the catalogue.');
+  if (!row?.id) throw new Error("Couldn't save this track in the catalogue.");
   return row.id as string;
 }
 
