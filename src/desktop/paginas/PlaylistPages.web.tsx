@@ -335,7 +335,7 @@ export function PlaylistPage({ id, title, back, share, navigate, abrirPessoas = 
       return setPlaylistOrder(id, lista.map((t) => t.id));
     };
     void guardar(depois).then(() => {
-      avisarRemocao({ tipo: 'feito', texto: 'Moved.', desfazer: () => guardar(antes).catch(() => {}) });
+      avisarRemocao({ tipo: 'feito', texto: 'Moved.', luz: 'avancar', desfazer: () => guardar(antes).catch(() => {}) });
     }).catch((e) => {
       void guardar(antes).catch(() => {});
       avisarErro(mensagemDeErro(e, "Couldn't move the song."));

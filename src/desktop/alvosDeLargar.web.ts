@@ -29,7 +29,7 @@ async function guardarNasGostadas(t: Track): Promise<void> {
     await saveToLibrary(t);
     window.dispatchEvent(new Event('duotone:refresh-library'));
     avisarRemocao({
-      tipo: 'feito', texto: 'Added to Liked Songs.',
+      tipo: 'feito', texto: 'Added to Liked Songs.', luz: 'avancar',
       desfazer: async () => {
         useSaved.getState().markSaved(t, false);
         const { trackId } = await checkIsSaved(t.source, t.sourceId);
@@ -48,7 +48,7 @@ async function porNaPlaylist(t: Track, p: { id: string; nome: string }): Promise
     const trackId = await addTrackToPlaylist(p.id, t);
     mudouAPlaylist(p.id);
     avisarRemocao({
-      tipo: 'feito', texto: `Added to ${p.nome}.`,
+      tipo: 'feito', texto: `Added to ${p.nome}.`, luz: 'avancar',
       desfazer: async () => { await removeTrackFromPlaylist(p.id, trackId); mudouAPlaylist(p.id); },
     });
   } catch (e) {
@@ -58,7 +58,7 @@ async function porNaPlaylist(t: Track, p: { id: string; nome: string }): Promise
 
 function mandarAoAmigo(t: Track, amigo: { id: string; nome: string }): void {
   avisarRemocao({
-    tipo: 'info', texto: `Sending ${tituloDaFaixa(t)} to ${amigo.nome}…`,
+    tipo: 'info', texto: `Sending ${tituloDaFaixa(t)} to ${amigo.nome}…`, luz: 'avancar',
     // O "Undo" só tem de impedir o envio: ele sai no `aoAcabar`.
     desfazer: () => {},
     aoAcabar: () => {
@@ -80,7 +80,7 @@ function porNaFila(t: Track, posicao: number): void {
   usePlayer.getState().playNext(t);
   if (posicao > 0) usePlayer.getState().reordenarProximas(0, posicao);
   avisarRemocao({
-    tipo: 'feito', texto: fraseDaOrbita(posicao === 0 ? 'seguinte' : 'fila', ''),
+    tipo: 'feito', texto: fraseDaOrbita(posicao === 0 ? 'seguinte' : 'fila', ''), luz: 'avancar',
     desfazer: () => { usePlayer.getState().reporFila(foto); },
   });
 }

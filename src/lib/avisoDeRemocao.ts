@@ -21,6 +21,8 @@
  * Sem imports: `scripts/test-aviso-de-remocao.ts`.
  */
 
+import type { DirecaoDaLuz } from './luz';
+
 /** `feito` (o de sempre, com o visto), `erro` ou `info`. */
 export type TipoDeAviso = 'feito' | 'erro' | 'info';
 
@@ -33,6 +35,11 @@ export type AvisoDeRemocao = {
   desfazer?: () => unknown;
   /** O aviso saiu sem "Undo": faz o que ficou adiado. */
   aoAcabar?: () => void;
+  /**
+   * Para onde anda a luz quando o aviso chega (S2, `lib/luz.ts`). Sem ela,
+   * um aviso com "Undo" é uma remoção (←); quem JUNTA com "Undo" diz 'avancar'.
+   */
+  luz?: DirecaoDaLuz | null;
 };
 
 export const DURACAO_COM_DESFAZER_MS = 5000;

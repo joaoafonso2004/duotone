@@ -6,6 +6,8 @@ import { FullWindowOverlay } from 'react-native-screens';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { avisos, duracaoDoAviso, type AvisoDeRemocao as Aviso } from '../lib/avisoDeRemocao';
+import { direcaoDoAviso } from '../lib/luz';
+import { BandaDeLuz } from './BandaDeLuz';
 import { textoSobre } from '../lib/corDaCapa';
 import { hapticImpact, hapticNotification } from '../lib/haptics';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
@@ -29,6 +31,9 @@ import { pedirFluidez } from '../state/fluidez';
  * `tipo` muda o ícone (visto na cor do tema, ponto de exclamação a vermelho,
  * "i" neutro) e a vibração.
  */
+/** A luz espera que o aviso suba, para passar por ele já no sítio. */
+const ATRASO_DA_LUZ_MS = 180;
+
 export function AvisoDeRemocao() {
   const aviso = useSyncExternalStore(avisos.ouvir, avisos.atual);
   const [mostrado, setMostrado] = useState<Aviso | null>(null);
@@ -134,6 +139,9 @@ export function AvisoDeRemocao() {
         <View style={styles.trilho}>
           <Animated.View style={[styles.tempo, { transform: [{ scaleX: tempo }] }]} />
         </View>
+        {/* A luz passa depois de o aviso subir (S2, 1/11): ← no que saiu, → no que
+            juntou, ↓ numa informação, nada num erro. */}
+        <BandaDeLuz direcao={direcaoDoAviso(mostrado)} chave={mostrado.id} atraso={ATRASO_DA_LUZ_MS} />
       </Animated.View>
     </View>
   );
