@@ -1,16 +1,18 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 import {
   limparPedidosVelhos, mandarPedido, ouvirPedidos, ouvirResposta, pedidosParaMim, responderPedido,
   verPedido,
 } from '../api/comandosDeAparelho';
-import { fetchOtherSessions } from '../api/playerSessions';
+import { esquecerSessoes, fetchOtherSessions, fetchOtherSessionsLeves } from '../api/playerSessions';
+import type { RemoteSession } from './handoff';
 import { usePlayer } from '../state/player';
 import { appEstaVisivel, intervaloComAppVisivel } from './appVisibility';
 import { getDeviceId } from './deviceIdentity';
 import {
-  VALIDADE_DO_PEDIDO_MS, devoExecutar, podeExecutarNoArranque,
-  type EstadoDoPedido, type Pedido, type TipoDePedido,
+  VALIDADE_DO_PEDIDO_MS, aparelhosDisponiveis, devoExecutar, fantasmasDeSessoes,
+  podeExecutarNoArranque,
+  type AparelhoDisponivel, type EstadoDoPedido, type Pedido, type TipoDePedido,
 } from './duotoneConnect';
 import { publishSessionNow, takeOverSession } from './sessionSync';
 
@@ -231,3 +233,71 @@ function esperarResposta(pedido: Pedido): Promise<EstadoDoPedido> {
  * aparecer apagado sem se ter de fechar e abrir o menu. Fechada, não gasta
  * nada -- é o mesmo cuidado do resto da app.
  */
+/**
+ * Os outros aparelhos desta conta, para quem quer listar.
+ *
+ * Devolve também as SESSÕES, e não só a lista: quem mostra a lista precisa
+ * delas para abrir o comando do aparelho que está a tocar -- o que toca lá, a
+ * posição, a fila. Antes o comando vivia só no banner do "continuar aqui",
+ * que se pode dispensar (e fica 15 min calado): fechava-se e não havia
+ * maneira nenhuma de o trazer de volta. Agora a porta é esta, e está sempre
+ * no mesmo sítio.
+ */
+export function useAparelhos(activo: boolean): {
+  aparelhos: AparelhoDisponivel[];
+  sessaoDe: (deviceId: string) => RemoteSession | null;
+  aCarregar: boolean;
+  recarregar: () => void;
+} {
+  const [sessoes, setSessoes] = useState<RemoteSession[]>([]);
+  const [meu, setMeu] = useState<string | null>(null);
+  const [aCarregar, setACarregar] = useState(false);
+  const [tique, setTique] = useState(0);
+
+  useEffect(() => { void getDeviceId().then(setMeu); }, []);
+
+  const recarregar = useCallback(() => setTique((n) => n + 1), []);
+
+  useEffect(() => {
+    if (!activo) return;
+    let vivo = true;
+    const ler = () => {
+      if (!appEstaVisivel()) return;
+      setACarregar(true);
+      // Sem as filas: a lista e o comando só mostram o que toca, e o
+      // "Continue here" lê a fila ao adotar (takeOverSession).
+      void fetchOtherSessionsLeves()
+        .then((rows) => {
+          if (!vivo) return;
+          setSessoes(rows);
+          // E apaga-se o que a lista deixou de fora. Só aqui, com a lista
+          // aberta: é o único momento em que isto interessa a alguém, e
+          // assim não se anda a mexer na tabela por tudo e por nada.
+          void getDeviceId().then((meu) => {
+            if (!meu) return;
+            const fantasmas = fantasmasDeSessoes(rows, meu).filter((id) => !esquecidos.has(id));
+            if (!fantasmas.length) return;
+            for (const id of fantasmas) esquecidos.add(id);
+            void esquecerSessoes(fantasmas).catch(() => {});
+          });
+        })
+        .catch(() => { /* sem rede fica a lista que havia */ })
+        .finally(() => { if (vivo) setACarregar(false); });
+    };
+    ler();
+    const pararIntervalo = intervaloComAppVisivel(ler, 10_000);
+    return () => { vivo = false; pararIntervalo(); };
+  }, [activo, tique]);
+
+  const sessaoDe = useCallback(
+    (deviceId: string) => sessoes.find((x) => x.deviceId === deviceId) ?? null,
+    [sessoes],
+  );
+
+  return {
+    aparelhos: meu ? aparelhosDisponiveis(sessoes, meu) : [],
+    sessaoDe,
+    aCarregar,
+    recarregar,
+  };
+}

@@ -48,10 +48,10 @@ assert.ok(ESTILOS_DA_CAPA.every((e) => e.nome !== 'Vinyl'), 'o vinil saiu (10/10
 // Os botões de baixo: no máximo quatro, pela ordem em que se ligam.
 let b = alternarBotao(['fila'], 'letras');
 assert.deepEqual(b, ['fila', 'letras']);
-b = alternarBotao(alternarBotao(alternarBotao(b, 'eq'), 'aparelhos'), 'partilhar');
+b = alternarBotao(alternarBotao(alternarBotao(b, 'eq'), 'visibilidade'), 'partilhar');
 assert.equal(b.length, MAXIMO_DE_BOTOES, 'o quinto não entra');
 assert.ok(!b.includes('partilhar'));
-assert.deepEqual(alternarBotao(b, 'letras'), ['fila', 'eq', 'aparelhos'], 'tirar um');
+assert.deepEqual(alternarBotao(b, 'letras'), ['fila', 'eq', 'visibilidade'], 'tirar um');
 assert.deepEqual(alternarBotao([], 'fila'), ['fila']);
 
 // O que está guardado: opção a opção, e o que não se reconhece fica o de omissão.
@@ -63,8 +63,9 @@ assert.equal(lido.listas, 'comfortable', 'um valor de outra versão fica o de om
 assert.equal(lido.rotulos, false);
 assert.equal(lido.brilho, 100, 'preso entre 0 e 100');
 assert.deepEqual(lido.botoes, ['eq', 'fila', 'letras', 'partilhar'], 'sem repetidos, sem desconhecidos, no máximo quatro');
+assert.deepEqual(lerAparencia({ botoes: ['aparelhos', 'fila'] }).botoes, ['fila'], 'o "Devices" guardado de antes (saiu a 1/11) cai');
 assert.deepEqual(lerAparencia({ botoes: [] }).botoes, [], 'sem botões é uma escolha');
-assert.ok(BOTOES_DO_LEITOR.every((x) => ['fila', 'eq', 'visibilidade', 'aparelhos', 'partilhar', 'letras'].includes(x)));
+assert.ok(BOTOES_DO_LEITOR.every((x) => ['fila', 'eq', 'visibilidade', 'partilhar', 'letras'].includes(x)));
 
 // Os novos guardados: valores de outra versão ficam os de omissão.
 const lido2 = lerAparencia({

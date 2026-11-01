@@ -47,7 +47,7 @@ type ChaveDeEscolha = keyof typeof ESCOLHAS;
 
 const ICONES_DOS_BOTOES: Record<BotaoDoLeitor, keyof typeof Ionicons.glyphMap> = {
   fila: 'list-outline', visibilidade: 'eye-outline', eq: 'options-outline',
-  aparelhos: 'desktop-outline', partilhar: 'share-outline', letras: 'chatbox-ellipses-outline',
+  partilhar: 'share-outline', letras: 'chatbox-ellipses-outline',
 };
 
 /**
