@@ -4,6 +4,7 @@ import { useCoracaoAoCarregar } from './hooks/useCoracaoAoCarregar';
 import { COR, cssDasFontes, FONT, RAIO } from './desktop/tokens.web';
 
 import { cssDasMolas } from './lib/molasEmCss';
+import { estiloDoDisco, estiloDoReflexo, rodarReflexo } from './desktop/DiscoDeMetal.web';
 /**
  * A janela do mini leitor do PC (entrega 2b do
  * docs/PLANO-OFFLINE-SOCIAL-DESCOBERTA-PC.md; aprovado pela pré-visualização
@@ -110,8 +111,12 @@ button { -webkit-app-region: no-drag; background: none; border: none; color: inh
 button:hover { background: rgba(233,234,238,0.08); }
 /* O anel do foco é o da janela principal: o metal, não o roxo. */
 button:focus-visible { outline: 2px solid ${COR.metalClaro}; outline-offset: 1px; }
-.play { background: ${COR.metalClaro}; color: ${COR.fundo}; }
-.play:hover { background: #ffffff; }
+/* O play é o disco de metal da barra (C3, 1/11), com os mesmos valores (DiscoDeMetal.web.ts).
+   O hover repete o metal: o button:hover de cima, mais fraco, tapava-o. */
+[data-dt~="disco-metal"] { ${estiloDoDisco()} color: #111117; position: relative; }
+[data-dt~="disco-metal"]:hover { ${estiloDoDisco()} filter: brightness(1.08); }
+[data-dt~="reflexo"] { ${estiloDoReflexo()} }
+.icone-do-play { position: relative; z-index: 1; display: flex; }
 .capa { border-radius: ${RAIO.cartao}px; background: ${COR.metalEscuro} center / cover no-repeat; flex-shrink: 0; }
 /* Arrasta-se pela BARRINHA do topo (João, 24/9), e só por ela: no Windows uma
    zona de arrasto não recebe eventos do rato. Os botões do canto ficam por cima
@@ -163,6 +168,23 @@ const ESPACO_DA_LISTA = 6;
 const ALTURA_DA_LISTA = 280;
 /** A lista fecha a animar, e só depois a janela volta ao tamanho do cartão. */
 const DURACAO_DA_LISTA = 280;
+
+/** O play do mini leitor: o disco de metal da barra. O laço roda quando o play muda, nunca ao abrir. */
+function BotaoDePlay({ aTocar, estilo, aoCarregar }: { aTocar: boolean; estilo?: React.CSSProperties; aoCarregar: () => void }) {
+  const reflexo = useRef<HTMLSpanElement>(null);
+  const antes = useRef(aTocar);
+  useEffect(() => {
+    if (antes.current === aTocar) return;
+    antes.current = aTocar;
+    rodarReflexo(reflexo.current, aTocar);
+  }, [aTocar]);
+  return (
+    <button className="play" data-dt="disco-metal" aria-label={aTocar ? 'Pause' : 'Play'} onClick={aoCarregar} style={estilo}>
+      <span ref={reflexo} data-dt="reflexo" />
+      <span className="icone-do-play">{aTocar ? icone.pausa : icone.tocar}</span>
+    </button>
+  );
+}
 
 function tempo(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -347,10 +369,8 @@ function MiniLeitor() {
     if (duracao > 0 && caixa.width > 0) mandar('procurar', ((e.clientX - caixa.left) / caixa.width) * duracao);
   };
   const tocarOuPausa = (
-    <button className="play" aria-label={r?.aTocar ? 'Pause' : 'Play'} onClick={() => mandar('tocar-pausa')}
-      style={{ width: expandido ? 44 : 38, height: expandido ? 44 : 38, borderRadius: expandido ? 22 : 19 }}>
-      {r?.aTocar ? icone.pausa : icone.tocar}
-    </button>
+    <BotaoDePlay aTocar={!!r?.aTocar} aoCarregar={() => mandar('tocar-pausa')}
+      estilo={{ width: expandido ? 44 : 38, height: expandido ? 44 : 38, borderRadius: expandido ? 22 : 19 }} />
   );
   const coracao = (
     <button aria-label={coracaoAoCarregar.mostrada ? 'Remove from Liked Songs' : 'Add to Liked Songs'} aria-pressed={coracaoAoCarregar.mostrada}
@@ -471,9 +491,7 @@ function MiniLeitor() {
         <div className="controlos">
           <div className="extra">{coracao}</div>
           <div className="extra"><button aria-label="Previous" onClick={() => mandar('anterior')} style={{ width: 30, height: 30 }}>{icone.anterior}</button></div>
-          <button className="play" aria-label={r?.aTocar ? 'Pause' : 'Play'} onClick={() => mandar('tocar-pausa')}>
-            {r?.aTocar ? icone.pausa : icone.tocar}
-          </button>
+          <BotaoDePlay aTocar={!!r?.aTocar} aoCarregar={() => mandar('tocar-pausa')} />
           <div className="extra"><button aria-label="Next" onClick={() => mandar('seguinte')} style={{ width: 30, height: 30 }}>{icone.seguinte}</button></div>
         </div>
         <div className="linha so-fechado"><div style={{ width: `${fracao * 100}%` }} /></div>
