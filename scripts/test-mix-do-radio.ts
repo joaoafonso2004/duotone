@@ -86,7 +86,8 @@ caso('o lote do Mix lê o aparelho, e passa o perfil à busca das parecidas', ()
 });
 caso('o player: o tipo é guardado, e o Mix pede ao loteDaMix', () => {
   const p = ler('src/state/player.ts');
-  assert.match(p, /tipo === 'mix'\s*\? await loteDaMix\(12,/);
+  // O Like this tem várias tentativas; o Mix mantém o seu pedido único.
+  assert.match(p, /if \(tipo === 'mix'\)\s*lote = await loteDaMix\(12,/);
   assert.match(p, /const doMix = radioMode === 'on' && radioTipo === 'mix';/);
   assert.match(p, /radioTipo: s\.radioTipo, radioContext: s\.radioContext/, 'sobrevive a reabrir');
   assert.match(p, /const tipo = get\(\)\.radioTipo;/, 'tocar numa música com o Mix ligado continua Mix');
