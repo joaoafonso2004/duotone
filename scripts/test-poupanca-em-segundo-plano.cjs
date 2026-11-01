@@ -223,6 +223,7 @@ async function main() {
       const handoff = a.carregar('src/lib/sessionSync.ts', {
         react, 'react-native': a.rn, './appVisibility': a.visibilidade, './handoff': sessao,
         '../state/player': { usePlayer }, './deviceIdentity': { getDeviceId: async () => 'phone' },
+        '../state/outroAparelho': { useOutroAparelho: Object.assign((fn) => fn({ vistos: [] }), { setState() {}, getState: () => ({ vistos: [] }) }), verOAviso() {} },
         '../api/playerSessions': { fetchOtherSessionsLeves: async () => { leituras++; return []; }, temAvisosLeves: () => true, haOutrosAparelhos: () => null },
         './supabase': { supabase: { auth: { getSession: async () => ({ data: { session: { user: { id: 'me' } } } }) },
           channel: () => ({ on() { return this; }, subscribe(fn) { estadoDoCanal = estado => fn(estado ? 'SUBSCRIBED' : 'CLOSED'); fn('SUBSCRIBED'); return this; } }),
@@ -255,6 +256,7 @@ async function main() {
     const handoff = a.carregar('src/lib/sessionSync.ts', {
       react, 'react-native': a.rn, './appVisibility': a.visibilidade, './handoff': a.carregar('src/lib/handoff.ts'),
       '../state/player': { usePlayer }, './deviceIdentity': { getDeviceId: async () => 'pc' },
+      '../state/outroAparelho': { useOutroAparelho: Object.assign((fn) => fn({ vistos: [] }), { setState() {}, getState: () => ({ vistos: [] }) }), verOAviso() {} },
       '../api/playerSessions': { fetchOtherSessionsLeves: async () => { leituras++; return []; }, temAvisosLeves: () => true, haOutrosAparelhos: () => null },
       './supabase': { supabase: { auth: { getSession: async () => ({ data: { session: { user: { id: 'me' } } } }) },
         channel: () => ({ on(_, __, fn) { aviso = fn; return this; }, subscribe(fn) { estadoDoCanal = estado => fn(estado ? 'SUBSCRIBED' : 'CLOSED'); fn('SUBSCRIBED'); return this; } }),

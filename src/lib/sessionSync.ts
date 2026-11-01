@@ -11,8 +11,10 @@ import {
 } from '../api/playerSessions';
 import { getDeviceId } from './deviceIdentity';
 import {
+  deveAvisar,
   extrapolatedPositionMs,
   pickHandoffSession,
+  vistosQueFicam,
   saltouNaBarra,
   shouldOfferHandoff,
   SESSION_DEBOUNCE_MS,
@@ -22,6 +24,7 @@ import {
 } from './handoff';
 
 import { usePlayer } from '../state/player';
+import { useOutroAparelho, verOAviso } from '../state/outroAparelho';
 import { appEstaVisivel, intervaloComAppVisivel } from './appVisibility';
 import { supabase } from './supabase';
 
@@ -52,8 +55,8 @@ const SEGURANCA_SEM_CANAL_MS = 5 * 60_000;
  */
 const RELER_AO_VOLTAR_NO_PC_MS = 10 * 60_000;
 
-/** Quanto tempo um dispositivo fica silenciado depois de o dispensarmos (ou
- * de lhe assumirmos a reprodução). Ver a nota em `shouldOfferHandoff`: a
+/** Quanto tempo um dispositivo fica silenciado depois de lhe assumirmos a
+ * reprodução (o X do aviso já não cala: ver `verOAviso`, 1/11). Ver a nota em `shouldOfferHandoff`: a
  * regra da "mesma faixa" já trata do caso normal; isto é a válvula para
  * quando o outro dispositivo continua mesmo a tocar noutra coisa. */
 const DISMISS_MS = 15 * 60 * 1000;
@@ -201,6 +204,8 @@ export async function takeOverSession(lida: RemoteSession): Promise<void> {
  */
 export function useHandoffSession(): {
   session: RemoteSession | null;
+  /** O aviso de chegada ainda não se fechou para esta sessão. */
+  aviso: boolean;
   positionMs: number;
   dismiss: () => void;
   adopt: () => Promise<void>;
@@ -323,33 +328,63 @@ export function useHandoffSession(): {
   }, [refresh]);
 
   const picked = myDeviceId ? pickHandoffSession(sessions, myDeviceId) : null;
-  const visible = picked && !isDismissed(picked.deviceId) && shouldOfferHandoff(picked, currentTrack, aTocarAqui)
+  // A oferta (1/11): o que o aviso, o botão da barra, a lingueta e o mini
+  // mostram. O X já não a cala: só a marca como vista (`verOAviso`).
+  const oferta = picked && !isDismissed(picked.deviceId) && shouldOfferHandoff(picked, currentTrack, aTocarAqui)
     ? picked
     : null;
+  const vistos = useOutroAparelho((s) => s.vistos);
+  const aviso = deveAvisar(oferta, vistos);
 
-  // Enquanto há banner, um tique por segundo move a barra de progresso (a
+  // Um aparelho visto volta a avisar quando a sessão dele sai.
+  useEffect(() => {
+    const ficam = vistosQueFicam(vistos, picked);
+    if (ficam.length !== vistos.length) useOutroAparelho.setState({ vistos: ficam });
+  }, [picked?.deviceId, vistos]);
+
+  // Para quem lê da store. Sem oferta não há cartão aberto.
+  useEffect(() => {
+    useOutroAparelho.setState(oferta ? { oferta, aviso } : { oferta: null, aviso: false, aberto: false });
+  }, [oferta, aviso]);
+
+  // Enquanto há oferta, um tique por segundo move a barra de progresso (a
   // posição é projetada, não recebida) e faz a sessão desaparecer sozinha
   // quando deixa de ser fresca.
   useEffect(() => {
-    if (!visible) return;
+    if (!oferta) return;
     return intervaloComAppVisivel(() => setTick((t) => t + 1), 1000);
-  }, [!!visible]);
+  }, [!!oferta]);
 
   const dismiss = useCallback(() => {
-    if (picked) {
-      dismissDevice(picked.deviceId);
-      setTick((t) => t + 1);
-    }
-  }, [picked?.deviceId]);
+    if (oferta) verOAviso(oferta.deviceId);
+  }, [oferta?.deviceId]);
 
   const adopt = useCallback(async () => {
-    if (visible) await takeOverSession(visible);
-  }, [visible?.deviceId, visible?.track?.sourceId]);
+    if (oferta) await takeOverSession(oferta);
+  }, [oferta?.deviceId, oferta?.track?.sourceId]);
 
   return {
-    session: visible,
-    positionMs: visible ? extrapolatedPositionMs(visible) : 0,
+    session: oferta,
+    aviso,
+    positionMs: oferta ? extrapolatedPositionMs(oferta) : 0,
     dismiss,
     adopt,
   };
+}
+
+/** "Continue here" de fora do aviso (o cartão do PC, a folha e o mini do iPhone). */
+export async function continuarAqui(): Promise<void> {
+  const { oferta } = useOutroAparelho.getState();
+  useOutroAparelho.setState({ aberto: false });
+  if (oferta) await takeOverSession(oferta);
+}
+
+/** A posição do outro aparelho, projetada, a andar de segundo a segundo enquanto ele toca. */
+export function usePosicaoDoOutro(sessao: RemoteSession | null): number {
+  const [, setTique] = useState(0);
+  useEffect(() => {
+    if (!sessao?.isPlaying) return;
+    return intervaloComAppVisivel(() => setTique((t) => t + 1), 1000);
+  }, [sessao]);
+  return sessao ? extrapolatedPositionMs(sessao) : 0;
 }
