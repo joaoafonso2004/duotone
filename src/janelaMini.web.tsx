@@ -4,7 +4,7 @@ import { useCoracaoAoCarregar } from './hooks/useCoracaoAoCarregar';
 import { COR, cssDasFontes, FONT, RAIO } from './desktop/tokens.web';
 
 import { cssDasMolas } from './lib/molasEmCss';
-import { estiloDoDisco, estiloDoReflexo, rodarReflexo } from './desktop/DiscoDeMetal.web';
+import { cssDoHoverDoDisco, estiloDoDisco, estiloDoReflexo, rodarReflexo, SIMBOLO_DA_PAUSA, SIMBOLO_DO_PLAY } from './desktop/DiscoDeMetal.web';
 import { useCapaQueSai } from './desktop/Ocultacao.web';
 /**
  * A janela do mini leitor do PC (entrega 2b do
@@ -118,7 +118,8 @@ button:focus-visible { outline: 2px solid ${COR.metalClaro}; outline-offset: 1px
 /* O play é o disco de metal da barra (C3, 1/11), com os mesmos valores (DiscoDeMetal.web.ts).
    O hover repete o metal: o button:hover de cima, mais fraco, tapava-o. */
 [data-dt~="disco-metal"] { ${estiloDoDisco()} color: #111117; position: relative; }
-[data-dt~="disco-metal"]:hover { ${estiloDoDisco()} filter: brightness(1.08); }
+[data-dt~="disco-metal"]:hover { ${estiloDoDisco()} }
+${cssDoHoverDoDisco()}
 [data-dt~="reflexo"] { ${estiloDoReflexo()} }
 .icone-do-play { position: relative; z-index: 1; display: flex; }
 .capa { border-radius: ${RAIO.cartao}px; background: ${COR.metalEscuro} center / cover no-repeat; flex-shrink: 0; }
@@ -156,8 +157,8 @@ type Resumo = ResumoDoMiniLeitor;
 const icone = {
   anterior: <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 5h2v14H6zM20 5v14L9 12z" /></svg>,
   seguinte: <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 5h2v14h-2zM4 5v14l11-7z" /></svg>,
-  tocar: <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4v16l13-8z" /></svg>,
-  pausa: <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" /></svg>,
+  tocar: <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d={SIMBOLO_DO_PLAY} /></svg>,
+  pausa: <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d={SIMBOLO_DA_PAUSA} /></svg>,
   expandir: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" /></svg>,
   encolher: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" /></svg>,
   esconder: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M8 14h8" /></svg>,

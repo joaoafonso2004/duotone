@@ -184,6 +184,35 @@ caso('a barra do PC: o disco, o laço por baixo do ícone, e só roda quando o p
   assert.match(casca, /\{\.\.\.marcar\('disco-metal'\)\}[^\n]*<View ref=\{reflexo\} \{\.\.\.marcar\('reflexo'\)\} \/><View style=\{\{ zIndex: 1 \}\}>/);
   assert.ok(!/playButton: \{[^}]*backgroundColor/.test(ler('src/desktop/estilos.web.ts')), 'um fundo no estilo tapava o metal');
 });
+caso('o símbolo fica ao centro do disco, e o hover não o mexe', () => {
+  const discoPc = ler('src/desktop/DiscoDeMetal.web.ts');
+  const estilos = ler('src/desktop/estilos.web.ts');
+  const casca = ler('src/desktop/casca.web.tsx');
+  const icones = ler('src/desktop/IconesDeEstado.web.tsx');
+  // Numa posição inteira, a margem do símbolo também fica inteira.
+  const lado = Number(/playButton: \{ width: (\d+), height: \1,/.exec(estilos)?.[1]);
+  const quadrado = Number(/IconePlayPause\(\{ tocando, tamanho = (\d+),/.exec(icones)?.[1]);
+  assert.ok(lado > 0 && quadrado > 0);
+  assert.equal((lado - quadrado) % 2, 0, `disco ${lado}, símbolo ${quadrado}`);
+  // A pausa é simétrica no quadrado de 24.
+  assert.match(discoPc, /SIMBOLO_DA_PAUSA = 'M6 4h4v16H6zM14 4h4v16h-4z'/);
+  // Os três vértices do triângulo à mesma distância do centro.
+  const t = /SIMBOLO_DO_PLAY = 'M([\d.]+) ([\d.]+)v([\d.]+)l([\d.]+)-([\d.]+)z'/.exec(discoPc);
+  assert.ok(t, 'o triângulo');
+  const [x, y, h, w] = t!.slice(1, 5).map(Number);
+  const raios = [Math.hypot(x - 12, y - 12), Math.hypot(x - 12, y + h - 12), Math.hypot(x + w - 12, y + h / 2 - 12)];
+  assert.ok(Math.max(...raios) - Math.min(...raios) < 0.05, raios.join(', '));
+  assert.ok(!/translateX\(1px\)/.test(casca), 'sem o empurrão de antes');
+  // O realce fica atrás do ícone, sem um filtro no botão inteiro.
+  assert.match(casca, /\$\{cssDoHoverDoDisco\(\)\}/);
+  assert.ok(!/:hover[^{}]*\{[^}]*filter:/.test(discoPc));
+  assert.match(casca, /style=\{\(\{ pressed \}\) => \[styles\.playButton, pressed && \{ transform: \[\{ scale: \.97 \}\] \}\]\}/);
+  assert.match(discoPc, /will-change:transform;/);
+  // O mini leitor desenha os mesmos.
+  const miniLeitor = ler('src/janelaMini.web.tsx');
+  assert.match(miniLeitor, /<path d=\{SIMBOLO_DO_PLAY\} \/>/);
+  assert.match(miniLeitor, /<path d=\{SIMBOLO_DA_PAUSA\} \/>/);
+});
 caso('o mini leitor (outro documento): o mesmo disco nos dois play, e o hover não tapa o metal', () => {
   const mini = ler('src/janelaMini.web.tsx');
   assert.equal((mini.match(/<BotaoDePlay /g) ?? []).length, 2);

@@ -43,7 +43,7 @@ import { PRE_ESCUTA_S } from '../lib/refrao';
 import { TOM_CLARO, TOM_ESCURO } from '../lib/doisTons';
 import { ligarBrilhoDoCursor } from './duotone.web';
 import { IconeJam, IconePlayPause, IconeRepeat, IconeShuffle, IconeVolume } from './IconesDeEstado.web';
-import { estiloDoDisco, estiloDoReflexo, rodarReflexo } from './DiscoDeMetal.web';
+import { cssDoHoverDoDisco, estiloDoDisco, estiloDoReflexo, rodarReflexo } from './DiscoDeMetal.web';
 import { useCapaQueSai } from './Ocultacao.web';
 import { sentidoDaOcultacao } from '../lib/ocultacao';
 import type { Track } from '../types';
@@ -298,6 +298,8 @@ export function injectDesktopDocumentStyles() {
     /* O play é um disco de metal escovado (C3, 1/11): o metal, o laço de luz que
        roda na pausa e no play (DiscoDeMetal.web.ts), e o ícone por cima. */
     [data-dt~="disco-metal"]{ ${estiloDoDisco()} }
+    /* No hover só acende: crescer redesenhava o símbolo noutro sítio (1/11). */
+    ${cssDoHoverDoDisco()}
     [data-dt~="reflexo"]{ ${estiloDoReflexo()} }
 
     /* As linhas de uma lista entram umas atras das outras -- so as primeiras:
@@ -644,7 +646,6 @@ export function injectDesktopDocumentStyles() {
     /* play / pause: o ícone que sai roda um quarto de volta e encolhe, o que entra vem do outro lado */
     [data-dt~="ie-i1"], [data-dt~="ie-i2"]{ position: absolute; inset: 0; display: grid; place-items: center;
       transition: transform 500ms var(--dt-mola), opacity 200ms var(--dt-curva); }
-    [data-dt~="ie-i1"] svg{ transform: translateX(1px); }
     [data-dt~="ie-play"][data-s="playing"] [data-dt~="ie-i1"]{ opacity: 0; transform: rotate(-90deg) scale(.35); }
     [data-dt~="ie-play"][data-s="paused"] [data-dt~="ie-i2"]{ opacity: 0; transform: rotate(90deg) scale(.35); }
     /* volume: os arcos desenham-se um a um; sem som, um traço corta o altifalante */
@@ -1106,7 +1107,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
           desenho={(cor) => <IconeShuffle estado={estadoDoShuffle(p.shuffle, p.shuffleInteligente)} cor={cor} />} />
         <IconButton name="play-skip-back" label="Previous" atalho="Ctrl+←" onPress={p.prev} />
         {p.showRewindButton && <IconButton name="play-back" label="Rewind 15 seconds" onPress={() => p.seekTo(Math.max(0, usePlayer.getState().positionMs - 15000))} />}
-        <Pressable {...comDica(p.isPlaying ? 'Pause' : 'Play', 'Space')} accessibilityRole="button" accessibilityLabel={p.isPlaying ? 'Pause' : 'Play'} onPress={p.togglePlay} {...marcar('disco-metal')} style={({ hovered, pressed }) => [styles.playButton, hovered && { transform: [{ scale: 1.05 }] }, pressed && { transform: [{ scale: .97 }] }]}><View ref={reflexo} {...marcar('reflexo')} /><View style={{ zIndex: 1 }}>{p.buffering ? <Ionicons name="hourglass-outline" size={19} color="#111117" /> : <IconePlayPause tocando={p.isPlaying} />}</View></Pressable>
+        <Pressable {...comDica(p.isPlaying ? 'Pause' : 'Play', 'Space')} accessibilityRole="button" accessibilityLabel={p.isPlaying ? 'Pause' : 'Play'} onPress={p.togglePlay} {...marcar('disco-metal')} style={({ pressed }) => [styles.playButton, pressed && { transform: [{ scale: .97 }] }]}><View ref={reflexo} {...marcar('reflexo')} /><View style={{ zIndex: 1 }}>{p.buffering ? <Ionicons name="hourglass-outline" size={20} color="#111117" /> : <IconePlayPause tocando={p.isPlaying} />}</View></Pressable>
         <IconButton name="play-skip-forward" label="Next" atalho="Ctrl+→" onPress={p.next} />
         {/* O icone e o MESMO nos dois modos: o `repeat` e o `repeat-outline`
             do Ionicons sao praticamente iguais a este tamanho, e o botao

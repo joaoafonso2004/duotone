@@ -81,7 +81,7 @@ caso('o repeat gira, e o "1" vai dentro do laço (já não é um selo no canto)'
   assert.match(ICONES, /rotate\(\$\{voltas\.current \* 360\}deg\)/);
 });
 caso('o play/pause é o giro, e a espera continua a ser a ampulheta', () => {
-  assert.match(barra, /\{p\.buffering \? <Ionicons name="hourglass-outline" size=\{19\} color="#111117" \/> : <IconePlayPause tocando=\{p\.isPlaying\} \/>\}/);
+  assert.match(barra, /\{p\.buffering \? <Ionicons name="hourglass-outline" size=\{20\} color="#111117" \/> : <IconePlayPause tocando=\{p\.isPlaying\} \/>\}/);
   assert.match(ICONES, /cor = '#111117'/, 'o símbolo é escuro sobre o metal claro, como o botão sempre foi');
   assert.match(CASCA, /\[data-dt~="ie-play"\]\[data-s="playing"\] \[data-dt~="ie-i1"\]\{ opacity: 0; transform: rotate\(-90deg\) scale\(\.35\); \}/);
   assert.match(CASCA, /\[data-dt~="ie-play"\]\[data-s="paused"\] \[data-dt~="ie-i2"\]\{ opacity: 0; transform: rotate\(90deg\) scale\(\.35\); \}/);

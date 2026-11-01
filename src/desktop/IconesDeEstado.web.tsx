@@ -1,4 +1,5 @@
 import React, { useRef } from 'react';
+import { SIMBOLO_DA_PAUSA, SIMBOLO_DO_PLAY } from './DiscoDeMetal.web';
 import { nivelDoVolume, type EstadoDoShuffle } from '../lib/estadoDosIcones';
 
 /**
@@ -60,10 +61,10 @@ export function IconeRepeat({ modo, cor, tamanho = 20 }: Base & { modo: 'off' | 
  * vem do outro lado, com mola. O círculo à volta fica quieto. Cor por omissão a
  * do botão primário (escuro sobre o metal claro).
  */
-export function IconePlayPause({ tocando, tamanho = 22, cor = '#111117' }: { tocando: boolean; tamanho?: number; cor?: string }) {
+export function IconePlayPause({ tocando, tamanho = 24, cor = '#111117' }: { tocando: boolean; tamanho?: number; cor?: string }) {
   return <span data-dt="ie ie-play" data-s={tocando ? 'playing' : 'paused'} style={caixa(cor, tamanho)}>
-    <span data-dt="ie-i1"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12-7.5z" /></svg></span>
-    <span data-dt="ie-i2"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 4h4.2v16H6zM13.8 4H18v16h-4.2z" /></svg></span>
+    <span data-dt="ie-i1"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d={SIMBOLO_DO_PLAY} /></svg></span>
+    <span data-dt="ie-i2"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d={SIMBOLO_DA_PAUSA} /></svg></span>
   </span>;
 }
 

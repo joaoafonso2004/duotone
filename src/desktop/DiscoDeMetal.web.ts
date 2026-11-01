@@ -18,9 +18,27 @@ import {
 const METAL = 'radial-gradient(circle at 50% 36%, #c4c7ce 0%, #8f929b 48%, #5c5f68 100%)';
 const ARESTAS = 'inset 0 1px 0 rgba(255,255,255,.35), inset 0 -1px 0 rgba(0,0,0,.25), 0 4px 10px rgba(0,0,0,.4)';
 
-/** As declarações do disco (o botão). */
+/**
+ * Os dois símbolos partilham o centro (12, 12) no quadrado de 24. Na barra,
+ * o disco de 36 deixa uma margem inteira de 6 px quando a posição é inteira.
+ * A pausa é simétrica; o play é um triângulo equilátero com o centro de massa
+ * e o centro do círculo no mesmo ponto, sem deslocações CSS adicionais.
+ */
+export const SIMBOLO_DO_PLAY = 'M7.381 4v16l13.856-8z';
+export const SIMBOLO_DA_PAUSA = 'M6 4h4v16H6zM14 4h4v16h-4z';
+
+/**
+ * As declarações do disco (o botão). Numa camada só dele: numa posição fracionária da
+ * barra, o metal encostava a um píxel e o símbolo a outro, e ao premir o símbolo era
+ * redesenhado. Assim o disco anda inteiro.
+ */
 export function estiloDoDisco(): string {
-  return `background:${METAL}; box-shadow:${ARESTAS}; overflow:hidden; isolation:isolate;`;
+  return `background:${METAL}; box-shadow:${ARESTAS}; overflow:hidden; isolation:isolate; will-change:transform;`;
+}
+
+/** O hover ilumina o metal por baixo do símbolo, sem filtrar nem escalar o ícone. */
+export function cssDoHoverDoDisco(): string {
+  return `[data-dt~="disco-metal"]:hover{ background:linear-gradient(rgba(255,255,255,.08),rgba(255,255,255,.08)),${METAL}; }`;
 }
 
 /** As declarações do laço (a camada por cima do metal e por baixo do ícone). */
