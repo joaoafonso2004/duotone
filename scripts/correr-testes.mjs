@@ -99,6 +99,7 @@ const TESTES = [
   `${TS} scripts/test-orbita.ts`,
   `${RESOLVER} scripts/test-luz.ts`,
   `${TS} scripts/test-uma-so-luz.ts`,
+  `${TS} scripts/test-gravacao-da-letra.ts`,
   `${TS} scripts/test-teclado-das-tabelas.ts`,
   `${TS} scripts/test-outro-aparelho.ts`,
   `${TS} scripts/test-montagem-da-capa.ts`,
