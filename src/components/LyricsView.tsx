@@ -7,6 +7,8 @@ import {useReducedMotion} from '../hooks/useReducedMotion';
 import type {Track} from '../types';
 import {tamanhoDasLetras} from '../lib/aparencia';
 import {useAparencia} from '../state/aparencia';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import {FRASES_DOS_ESTADOS} from '../lib/frasesDosEstados';
 
 const Line=memo(function Line({text,timeMs,index,active,onPress,onLayout,reduced,visible,tamanho}:{visible:boolean;text:string;timeMs:number;index:number;active:boolean;onPress:(timeMs:number)=>void;onLayout:(index:number,y:number)=>void;reduced:boolean;tamanho:{fontSize:number;lineHeight:number}}){
   const opacity=useRef(new Animated.Value(active?1:0.4)).current;
@@ -17,6 +19,23 @@ const Line=memo(function Line({text,timeMs,index,active,onPress,onLayout,reduced
 });
 
 const SEM_LINHAS:never[]=[];
+
+/**
+ * Sem letra, instrumental ou a falhar (1/11): um selo, o título e uma frase das
+ * `FRASES_DOS_ESTADOS`; só a falha tem "Try again". Era uma linha solta com o
+ * erro cru ("Failed to fetch" no PC) e um botão sem ícone.
+ */
+function SemLetra({tipo,mensagem,visible,aoRepetir}:{tipo:'semLetra'|'instrumental'|'letraFalhou';mensagem?:string;visible:boolean;aoRepetir:()=>void}){
+  const frase=FRASES_DOS_ESTADOS[tipo],falhou=tipo==='letraFalhou';
+  return <View style={styles.center}>
+    <View style={styles.selo}><Ionicons name={falhou?'cloud-offline-outline':tipo==='instrumental'?'musical-notes':'musical-notes-outline'} size={26} color="rgba(255,255,255,0.92)" /></View>
+    <Text style={styles.message}>{frase.titulo}</Text>
+    <Text style={styles.corpo}>{falhou&&mensagem?mensagem:frase.corpo}</Text>
+    {falhou&&<Pressable disabled={!visible} accessibilityRole="button" onPress={aoRepetir} style={({pressed}:any)=>[styles.retry,pressed&&{opacity:0.7}]}>
+      <Ionicons name="refresh" size={15} color="#fff" /><Text style={styles.retryTexto}>Try again</Text>
+    </Pressable>}
+  </View>;
+}
 
 /** O relógio é o da faixa, incluindo seek e speed; nunca um temporizador próprio. */
 export function LyricsView({track,visible,escala=1}:{track:Track;visible:boolean;
@@ -59,10 +78,8 @@ export function LyricsView({track,visible,escala=1}:{track:Track;visible:boolean
   const retry=()=>void ensureLyrics(track,true);
   return <View style={styles.root}>
     {!entry||entry.status==='loading'?<View style={styles.center}><ActivityIndicator color="#fff" /><Text style={styles.note}>Loading lyrics…</Text></View>:
-      entry.status==='error'||entry.status==='missing'||data?.instrumental?<View style={styles.center}>
-        <Text style={styles.message}>{data?.instrumental?'Instrumental':entry.status==='missing'?'No lyrics found for this recording':entry.message||'Could not load lyrics.'}</Text>
-        {!data?.instrumental&&<Pressable disabled={!visible} accessibilityRole="button" onPress={retry} style={styles.retry}><Text style={styles.note}>Try again</Text></Pressable>}
-      </View>:
+      entry.status==='error'||entry.status==='missing'||data?.instrumental?
+        <SemLetra tipo={data?.instrumental?'instrumental':entry.status==='missing'?'semLetra':'letraFalhou'} mensagem={entry.message} visible={visible} aoRepetir={retry} />:
       <>
         <View style={{flex:1,overflow:'hidden'}}><ScrollView ref={scroll} onLayout={e=>setHeight(e.nativeEvent.layout.height)} onContentSizeChange={()=>setRevision(v=>v+1)} {...({onWheel:pauseFollowing,style:{touchAction:'pan-y'}} as any)} onScrollBeginDrag={pauseFollowing} onTouchStart={pauseFollowing} showsVerticalScrollIndicator={false} contentContainerStyle={{paddingHorizontal:24,paddingTop:height*0.28,paddingBottom:height*0.65}}>
           {synced?lines.map((line,i)=><Line key={`${key}:${i}`} text={line.text} timeMs={line.timeMs} index={i} active={i===index} reduced={reduced} visible={visible} tamanho={tamanho.linha} onLayout={guardarAltura} onPress={tocarDaLinha} />):<Text style={[styles.words,tamanho.texto]}>{data?.plainLyrics}</Text>}
@@ -79,9 +96,14 @@ export function LyricsView({track,visible,escala=1}:{track:Track;visible:boolean
 }
 const styles=StyleSheet.create({
   root:{flex:1,paddingTop:22,paddingBottom:16},
-  center:{flex:1,alignItems:'center',justifyContent:'center',paddingHorizontal:28,gap:12},
-  message:{color:'#fff',fontSize:17,fontWeight:'600',lineHeight:24,textAlign:'center'},note:{color:'rgba(255,255,255,0.7)',fontSize:13},
-  retry:{minHeight:44,paddingHorizontal:18,justifyContent:'center',borderRadius:24,backgroundColor:'rgba(255,255,255,0.1)'},
+  center:{flex:1,alignItems:'center',justifyContent:'center',paddingHorizontal:28,gap:8},
+  selo:{width:60,height:60,borderRadius:30,alignItems:'center',justifyContent:'center',marginBottom:8,
+    backgroundColor:'rgba(255,255,255,0.08)',borderWidth:StyleSheet.hairlineWidth,borderColor:'rgba(255,255,255,0.16)'},
+  message:{color:'#fff',fontSize:19,fontWeight:'700',lineHeight:25,letterSpacing:-0.2,textAlign:'center'},note:{color:'rgba(255,255,255,0.7)',fontSize:13},
+  corpo:{color:'rgba(255,255,255,0.62)',fontSize:14,lineHeight:20,textAlign:'center',maxWidth:280},
+  retry:{minHeight:40,marginTop:12,paddingHorizontal:18,flexDirection:'row',alignItems:'center',gap:7,borderRadius:20,
+    backgroundColor:'rgba(255,255,255,0.12)',borderWidth:StyleSheet.hairlineWidth,borderColor:'rgba(255,255,255,0.18)'},
+  retryTexto:{color:'#fff',fontSize:14,fontWeight:'600'},
   line:{paddingVertical:9},words:{color:'#fff',fontSize:23,lineHeight:31,fontWeight:'700'},
   footer:{paddingHorizontal:24,paddingTop:6,flexDirection:'row',alignItems:'center',justifyContent:'flex-end'},follow:{color:'#fff',fontSize:11,fontWeight:'600'},
 });

@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {create} from 'zustand';
 import {fetchLyrics,type LyricsData} from '../api/lyrics';
 import {lyricsIdentity} from '../lib/lyricsMatch';
+import {FRASES_DOS_ESTADOS} from '../lib/frasesDosEstados';
 import {useConnectivity} from './connectivity';
 import type {Track} from '../types';
 type Entry={status:'loading'|'ready'|'missing'|'error';data:LyricsData|null;message?:string};
@@ -28,6 +29,7 @@ export function ensureLyrics(track:Track,force=false):Promise<void>{
     publish(key,{status:'loading',data:null});
     try{const identity=lyricsIdentity(track),data=await fetchLyrics(identity.title,identity.artist,track.durationSeconds??undefined,track.source==='youtube'?track.sourceId:undefined);
       cache.set(key,{at:Date.now(),data});persist();publish(key,{status:data?'ready':'missing',data});
-    }catch(e:any){publish(key,{status:'error',data:null,message:e?.name==='AbortError'?'Lyrics took too long to load. Try again.':e?.message||'Could not load lyrics. Try again.'});}
+    // Nunca o erro cru (o "Failed to fetch" de um 502 do lrclib no PC): com rede, falharam as letras.
+    }catch(e:any){publish(key,{status:'error',data:null,message:e?.name==='AbortError'?'Lyrics took too long to load. Try again.':FRASES_DOS_ESTADOS.letraFalhou.corpo});}
   })().finally(()=>pending.delete(key));pending.set(key,task);return task;
 }

@@ -61,6 +61,8 @@ const { LyricsView } = carregar('src/components/LyricsView.tsx', {
   '../hooks/useReducedMotion': { useReducedMotion: () => false },
   '../lib/aparencia': carregar('src/lib/aparencia.ts'),
   '../state/aparencia': { useAparencia: selector => selector(aparencia) },
+  '@expo/vector-icons/Ionicons': 'Icon',
+  '../lib/frasesDosEstados': carregar('src/lib/frasesDosEstados.ts'),
 });
 const props = { track: { sourceId: 'ensaio' }, visible: true };
 const desenhar = () => todos(h.render(LyricsView, props)).filter(n => n.type?.name === 'Line');
