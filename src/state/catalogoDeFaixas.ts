@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { resolverFaixa, type FaixaResolvida } from '../api/catalogo';
 import { chaveDoCatalogo, guardarNoCatalogo, lerCatalogoDeFaixas, marcarSemEdicao } from '../api/catalogoDeFaixas';
 import { displayArtist, chaveDeArtista, nomesDeConfianca, tituloDaFaixa } from '../lib/artistName';
+import { achadoServe } from '../lib/catalogoDaFaixa';
 import type { Track } from '../types';
 
 /**
@@ -163,21 +164,30 @@ export async function encherDoPartilhado(faixas: readonly Track[]): Promise<void
  * Quem precisa do ano -- ou do genero -- pergunta por ele.
  */
 export function generoDaFaixa(faixa: Track | null | undefined): string | null {
-  if (!faixa?.sourceId || !faixa?.source) return null;
-  const achado = useCatalogoDeFaixas.getState().porFaixa[chaveDoCatalogo(faixa.source, faixa.sourceId)];
+  const achado = achadoDe(faixa);
   const g = achado?.genero;
   return typeof g === 'string' && g.trim() ? g.trim() : null;
 }
 
 export function anoDaFaixa(faixa: Track | null | undefined): number | null {
-  if (!faixa?.sourceId || !faixa?.source) return null;
-  const achado = useCatalogoDeFaixas.getState().porFaixa[chaveDoCatalogo(faixa.source, faixa.sourceId)];
+  const achado = achadoDe(faixa);
   return typeof achado?.ano === 'number' ? achado.ano : null;
 }
 
-export function comCatalogo<T extends Track>(faixa: T): T {
-  if (!faixa?.sourceId || !faixa?.source) return faixa;
+/**
+ * O que o catálogo sabe desta faixa, se ainda a SERVE (1/11): a tabela
+ * partilhada tem resultados aceites antes de se separarem as versões, e um
+ * remix guardado no lugar da original não se mostra (nem o ano nem o género
+ * dele). A faixa fica como se adivinhou, que era o que acontecia sem catálogo.
+ */
+function achadoDe(faixa: Track | null | undefined): FaixaResolvida | null {
+  if (!faixa?.sourceId || !faixa?.source) return null;
   const achado = useCatalogoDeFaixas.getState().porFaixa[chaveDoCatalogo(faixa.source, faixa.sourceId)];
+  return achado && achadoServe(tituloDaFaixa(faixa), achado) ? achado : null;
+}
+
+export function comCatalogo<T extends Track>(faixa: T): T {
+  const achado = achadoDe(faixa);
   if (!achado) return faixa;
   return {
     ...faixa,

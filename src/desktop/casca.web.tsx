@@ -14,7 +14,7 @@ import { useReducedMotion } from '../hooks/useReducedMotion';
  * porque o react-native-web impõe a stack dele a cada `<Text>`.
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, PanResponder, Pressable, ScrollView, Text, View } from 'react-native';
 import { YouTubePlayerView } from '../components/YouTubePlayerView';
 import { BarreiraDeErros } from '../components/BarreiraDeErros';
@@ -44,6 +44,7 @@ import { TOM_CLARO, TOM_ESCURO } from '../lib/doisTons';
 import { ligarBrilhoDoCursor } from './duotone.web';
 import { IconeJam, IconePlayPause, IconeRepeat, IconeShuffle, IconeVolume } from './IconesDeEstado.web';
 import { estiloDoDisco, estiloDoReflexo, rodarReflexo } from './DiscoDeMetal.web';
+import { comCatalogo, useCatalogoDeFaixas } from '../state/catalogoDeFaixas';
 import { estadoDoShuffle } from '../lib/estadoDosIcones';
 import { usePontoNaBarra } from '../state/refrao';
 import { dentesDaTecla, valorDaProcura } from '../lib/acessibilidadeDoPc';
@@ -990,6 +991,11 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
     cycleRepeat: s.cycleRepeat, error: s.error, seekTo: s.seekTo,
   })));
   const jam = useOuvirJuntos((s) => s.sessao);
+  // A música como se MOSTRA: a mesma do Now Playing e do painel, com o catálogo
+  // (1/11). A barra mostrava a crua e o Now Playing a do catálogo, e quando o
+  // catálogo a corrigia pareciam duas músicas. O motor continua a receber a crua.
+  const versaoDoCatalogo = useCatalogoDeFaixas((s) => s.versao);
+  const mostrada = useMemo(() => (p.current ? comCatalogo(p.current) : null), [p.current, versaoDoCatalogo]);
   // O laço do disco roda quando o play muda (C3), e não ao montar: parado, nunca roda.
   const reflexo = useRef<any>(null);
   const tocavaAntes = useRef(p.isPlaying);
@@ -1023,11 +1029,11 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
         {...({ onContextMenu: (e: any) => { if (!aoMenuDaFaixa) return; e.preventDefault(); aoMenuDaFaixa(); } } as any)}
       >
         {/* O destino da Órbita a tocar a seguir (31/10). */}
-        <View nativeID="alvo-seguinte"><Artwork track={p.current} size={52} /></View>
+        <View nativeID="alvo-seguinte"><Artwork track={mostrada ?? p.current} size={52} /></View>
         {/* O título limpo e o artista, como em todas as listas: aqui ia o
             título cru do upload, sem artista nenhum. */}
         <View style={{ minWidth: 0, flexShrink: 1 }}>
-          <Text numberOfLines={1} style={styles.playerTitle}>{tituloDaFaixa(p.current)}</Text>
+          <Text numberOfLines={1} style={styles.playerTitle}>{tituloDaFaixa(mostrada ?? p.current)}</Text>
           {/* Uma falha diz-se no lugar do artista, a 12 px, enquanto dura (16/10,
               W5, variante A de docs/ui-seguinte.html): era uma linha de 10 px
               à direita, cortada a meio e a competir com o volume. */}
@@ -1036,7 +1042,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
                 <Ionicons name="alert-circle-outline" size={13} color={COR.aviso} />
                 <Text numberOfLines={1} style={[styles.playerArtista, { color: COR.aviso, marginTop: 0, flexShrink: 1 }]}>{p.error}</Text>
               </View>
-            : <Text numberOfLines={1} style={styles.playerArtista}>{displayArtist(p.current)}</Text>}
+            : <Text numberOfLines={1} style={styles.playerArtista}>{displayArtist(mostrada ?? p.current)}</Text>}
         </View>
       </Pressable>
     </View>
