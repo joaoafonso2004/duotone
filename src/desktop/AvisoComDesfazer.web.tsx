@@ -1,9 +1,11 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { avisos, type AvisoDeRemocao } from '../lib/avisoDeRemocao';
+import { direcaoDoAviso } from '../lib/luz';
+import { varrerLuz } from './Luz.web';
 import { COR, ESP, ESTADO, RAIO, TIPO } from './tokens.web';
-import { marcar } from './ui.web';
+import { ATRASO_DA_LUZ_MS, marcar } from './ui.web';
 
 /**
  * O aviso com "Undo" no PC (24/10): o mesmo toast de sempre, com o botão. O
@@ -16,10 +18,13 @@ import { marcar } from './ui.web';
 export function AvisoComDesfazer({ aviso }: { aviso: AvisoDeRemocao }) {
   const icone = aviso.tipo === 'erro' ? 'alert-circle' : aviso.tipo === 'info' ? 'information-circle' : 'checkmark-circle';
   const cor = aviso.tipo === 'erro' ? COR.aviso : aviso.tipo === 'info' ? COR.metalClaro : COR.ok;
-  return <View {...marcar('aviso')} accessibilityRole={'status' as any} style={{
+  // A luz passa por cada aviso novo (S2): ← no que saiu, → no que juntou.
+  const caixa = useRef<any>(null);
+  useEffect(() => { varrerLuz(caixa.current, direcaoDoAviso(aviso), ATRASO_DA_LUZ_MS); }, [aviso.id]);
+  return <View ref={caixa} {...marcar('aviso')} accessibilityRole={'status' as any} style={{
     position: 'absolute', right: ESP.xl, bottom: 110, zIndex: 110, minHeight: 42, paddingLeft: ESP.lg, paddingRight: ESP.sm,
     borderRadius: RAIO.cartao, backgroundColor: COR.elevado, borderWidth: 1, borderColor: COR.linha,
-    flexDirection: 'row', alignItems: 'center', gap: ESP.sm, boxShadow: '0 12px 34px rgba(0,0,0,.5)',
+    flexDirection: 'row', alignItems: 'center', gap: ESP.sm, boxShadow: '0 12px 34px rgba(0,0,0,.5)', overflow: 'hidden',
   } as any}>
     <Ionicons name={icone} size={18} color={cor} />
     <Text style={{ ...TIPO.legenda, color: COR.texto }}>{aviso.texto}</Text>

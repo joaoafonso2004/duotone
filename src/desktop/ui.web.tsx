@@ -23,6 +23,8 @@ import { criarRoda, PROCURAR_DEPOIS_MS, proporcaoComARoda } from '../lib/rodaDoR
 import { criarPilhaDeCamadas, dentesDaTecla, focoAoTab, teclaNaLista } from '../lib/acessibilidadeDoPc';
 import { useDestinos } from '../navigation/destinos';
 import { duracaoDoAviso, type TipoDeAviso } from '../lib/avisoDeRemocao';
+import { direcaoDoAviso } from '../lib/luz';
+import { varrerLuz } from './Luz.web';
 
 /**
  * Largura da coluna de duracao, no cabecalho E na celula.
@@ -1333,6 +1335,9 @@ export function Dialog({ open, title, children, onClose, width = 460, semVeu = f
   </View>;
 }
 
+/** A luz espera que o aviso suba (o `dt-subir`, 220 ms) para passar por ele já no sítio. */
+export const ATRASO_DA_LUZ_MS = 160;
+
 export function Toast({ message, tipo = 'feito', onDone }: { message: string; tipo?: TipoDeAviso; onDone: () => void }) {
   // O DesktopShell redesenha varias vezes por segundo enquanto a musica toca.
   // `onDone` chega como funcao inline, portanto inclui-lo nas dependencias
@@ -1340,11 +1345,15 @@ export function Toast({ message, tipo = 'feito', onDone }: { message: string; ti
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
   useEffect(() => { const id = setTimeout(() => onDoneRef.current(), duracaoDoAviso({ tipo })); return () => clearTimeout(id); }, [message, tipo]);
+  // A luz passa depois de o aviso subir (S2, 1/11): → num sucesso, ↓ numa
+  // informação, nada num erro.
+  const caixa = useRef<any>(null);
+  useEffect(() => { varrerLuz(caixa.current, direcaoDoAviso({ tipo }), ATRASO_DA_LUZ_MS); }, [message, tipo]);
   // O tipo vem com o aviso (A1, 31/10). Adivinhava-se pelo texto, e "No
   // connection…" ou "Couldn't…" saíam com o visto verde de sucesso.
   const icon = tipo === 'erro' ? 'alert-circle' : tipo === 'info' ? 'information-circle' : 'checkmark-circle';
   const colour = tipo === 'erro' ? COR.aviso : tipo === 'info' ? COR.metalClaro : COR.ok;
-  return <View style={ui.toast} {...marcar('aviso')}><Ionicons name={icon} size={18} color={colour} /><Text style={ui.toastText}>{message}</Text></View>;
+  return <View ref={caixa} style={ui.toast} {...marcar('aviso')}><Ionicons name={icon} size={18} color={colour} /><Text style={ui.toastText}>{message}</Text></View>;
 }
 
 /**
@@ -1524,6 +1533,6 @@ export const ui = StyleSheet.create({
   shelfCardTitle: { ...TIPO.corpo, color: COR.texto, fontWeight: '500' as any, marginTop: ESP.sm },
   shelfCardArtista: { ...TIPO.legenda, color: COR.textoMedio },
 
-  toast: { position: 'absolute', right: ESP.xl, bottom: 110, zIndex: 110, minHeight: 42, paddingHorizontal: ESP.lg, borderRadius: RAIO.cartao, backgroundColor: COR.elevado, borderWidth: 1, borderColor: COR.linha, flexDirection: 'row', alignItems: 'center', gap: ESP.sm, boxShadow: '0 12px 34px rgba(0,0,0,.5)' } as any,
+  toast: { position: 'absolute', right: ESP.xl, bottom: 110, zIndex: 110, minHeight: 42, paddingHorizontal: ESP.lg, borderRadius: RAIO.cartao, backgroundColor: COR.elevado, borderWidth: 1, borderColor: COR.linha, flexDirection: 'row', alignItems: 'center', gap: ESP.sm, boxShadow: '0 12px 34px rgba(0,0,0,.5)', overflow: 'hidden' } as any,
   toastText: { ...TIPO.legenda, color: COR.texto },
 });
