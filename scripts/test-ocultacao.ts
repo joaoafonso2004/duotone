@@ -78,7 +78,7 @@ caso('a barra, com a capa velha por cima da nova', () => {
 });
 caso('o Now Playing, numa camada que corta o disco sem cortar o cubo; com a letra à frente não passa', () => {
   const np = ler('src/desktop/paginas/NowPlayingPage.web.tsx');
-  assert.match(np, /caixa: caixaDaCapa, capa: track\?\.artworkUrl, ligada: !showLyrics,/);
+  assert.match(np, /caixa: caixaDaCapa, capa: track\?\.artworkUrl, ligada: !showLyrics && !luasNoEcra\(\),/);
   assert.match(np, /<View ref=\{caixaDaCapa\} pointerEvents="none" style=\{\{[^}]*overflow: 'hidden', zIndex: 3 \}\}>/);
   assert.match(np, /<img data-dt="capa-sai" src=\{capaQueSai\}/);
   assert.ok(!/np-capa-entra|np-capa-sai/.test(np + ler('src/desktop/casca.web.tsx')), 'a passagem antiga saiu');

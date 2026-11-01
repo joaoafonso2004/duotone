@@ -2,6 +2,7 @@ import { CapaComTransicao } from './CapaComTransicao';
 import { sentidoDaTransicao, type Sentido } from '../lib/transicaoDaCapa';
 import { pausouDeForaHaPouco } from '../lib/pausaDeFora';
 import { CapaFlutuante3D } from './CapaFlutuante3D';
+import { CapaComLuas, LegendaDaPassagem, useLegendaDaPassagem } from './DuasLuas';
 import { CAPA_FLUTUANTE } from '../lib/capaFlutuante3D';
 import { useMontagemDaCapa, type MontagemDaCapa } from '../hooks/useMontagemDaCapa';
 import type { Track } from '../types';
@@ -1042,6 +1043,8 @@ export function PlayerRoot() {
   // O que se desenha: o leitor aberto continua até ao fim da aterragem, embora
   // a store já o dê por fechado (ver `aterrandoRef`).
   const aberto = expanded || aterrando;
+  // O andamento e a tonalidade da passagem do AutoMix (C9): no lugar dos pontos, 3 s.
+  const legendaDaPassagem = useLegendaDaPassagem(aberto);
   const montagem = useMontagemDaCapa(
     current?.sourceId ?? null,
     Platform.OS === 'ios' && estiloDaCapaCarregado && estiloDaCapa === 'floating' && aberto,
@@ -1576,10 +1579,12 @@ export function PlayerRoot() {
                 style={[
                   styles.ponto,
                   showLyrics === paraAsLetras && { backgroundColor: theme.color, opacity: 1 },
+                  !!legendaDaPassagem && styles.pontoEscondido,
                 ]}
               />
             </Pressable>
           ))}
+          {legendaDaPassagem ? <LegendaDaPassagem texto={legendaDaPassagem} /> : null}
           {/* Preso a arrancar: no lugar dos pontos, o botão que guarda o que
               estava a acontecer (lib/relatorioDoArranque.ts). Só existe
               enquanto está preso. */}
@@ -2247,8 +2252,10 @@ const CapaDoLeitor = React.memo(function CapaDoLeitor({
   return (
     <CapaFlutuante3D size={size} enabled={capaFlutuante} montagem={montagem} transicao={transicao} forcaDaPose={forcaDaPose} aFlutuar={aFlutuar && aVista} aVista={aVista}>
       {(pose3D) => (
+        <CapaComLuas size={size} raio={capaFlutuante ? CAPA_FLUTUANTE.raio : capaInteira ? 0 : 20} pose3D={pose3D} capaDaQueSai={artSource} aVista={aVista} letras={showLyrics}>
         <ArtworkLyricsCube track={track} size={size} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar} raio={capaFlutuante ? CAPA_FLUTUANTE.raio : capaInteira ? 0 : 20} aVista={aVista}
           front={<>{artSource?<CapaComTransicao uri={artSource} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} />{!capaFlutuante && !capaInteira && <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.arestaDaCapa]} />}<DuploToqueParaGostar aoGostar={aoGostar} /></>} pose3D={pose3D} />
+        </CapaComLuas>
       )}
     </CapaFlutuante3D>
   );

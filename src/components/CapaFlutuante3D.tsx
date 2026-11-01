@@ -6,6 +6,7 @@ import { curvaDoSkip, naCurva, recuoDaCapa, type Sentido } from '../lib/transica
 import { RECUO_DO_ENCAIXE, curvaDoRecuo } from '../lib/recuoDoEncaixe';
 import type { MontagemDaCapa } from '../hooks/useMontagemDaCapa';
 import { pedirFluidez } from '../state/fluidez';
+import { luasNoEcra } from '../state/passagemAVista';
 
 // Os materiais saem de scripts/gerar-materiais-da-capa.py.
 const SOMBRA_AMBIENTE: ImageSourcePropType = require('../../assets/capa3d-sombra-ambiente.png');
@@ -179,8 +180,9 @@ export function CapaFlutuante3D({ size, enabled, montagem = null, transicao = nu
     const recuo = recuoDaCapa({
       lado: size, sentido: transicao?.sentido ?? 0, capa3D: enabled, reduzirMovimento: reduced,
     });
-    // Fechada não recua -- mas a chave fica vista, para não recuar ao abrir.
-    if (!recuo || !foreground || !aVista) return;
+    // Fechada não recua -- mas a chave fica vista, para não recuar ao abrir. Com as
+    // Duas luas também não: a capa nova já está lá, e o cubo volta por baixo dela.
+    if (!recuo || !foreground || !aVista || luasNoEcra()) return;
     // Skips seguidos: o que sobrava do anterior sai durante a ida deste, e a
     // caixa parte de onde estava, sem saltar. A fase do anterior sabe-se pelo
     // relógio (a animação é por tempo), sem perguntar ao motor nativo.

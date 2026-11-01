@@ -22,6 +22,8 @@ import { BotaoVoltar, Artwork, Dialog, Empty, IconButton, marcar, Page, ui } fro
 import { FundoDaCapa } from '../FundoDaCapa.web';
 import { preCarregarCapaGrande, useCapaGrande } from '../useCapaGrande.web';
 import { useCapaQueSai } from '../Ocultacao.web';
+import { DuasLuas } from '../DuasLuas.web';
+import { luasNoEcra } from '../../state/passagemAVista';
 import { sentidoDaOcultacao } from '../../lib/ocultacao';
 import { disposicaoDoLeitor } from '../../lib/leitorDoPc';
 import type { CommonPageProps, NavegarFn, ShareTarget } from '../rotas';
@@ -108,6 +110,8 @@ export function NowPlayingPage({
   const doRadio = usePlayer((s) => s.doRadio);
   const sugeridas = usePlayer((s) => s.sugeridas);
   const [showLyrics,setShowLyrics]=useState(false);
+  // Com as Duas luas à frente (C9), o cubo da capa fica escondido por baixo delas.
+  const [cuboEscondido, setCuboEscondido] = useState(false);
   useEffect(()=>setShowLyrics(false),[current?.source,current?.sourceId]);
   // A capa mede-se pela ÁREA da página (a janela menos a lateral e o leitor),
   // e não pela janela: é essa que tem de caber. Ver lib/leitorDoPc.ts.
@@ -155,7 +159,7 @@ export function NowPlayingPage({
   const faixaAtual = track ? `${track.source}:${track.sourceId}` : '';
   const caixaDaCapa = useRef<any>(null);
   const capaQueSai = useCapaQueSai(faixaAtual, track && capaGrande ? capaGrande : null, {
-    caixa: caixaDaCapa, capa: track?.artworkUrl, ligada: !showLyrics,
+    caixa: caixaDaCapa, capa: track?.artworkUrl, ligada: !showLyrics && !luasNoEcra(),
     sentido: () => sentidoDaOcultacao(usePlayer.getState().saltoDaFaixa, Date.now()),
   });
   const seguinte = upNext[0]?.track;
@@ -192,7 +196,7 @@ export function NowPlayingPage({
           (`np-texto-entra`, na casca). */}
       <View style={{ width: ladoCapa, height: ladoCapa }}>
         {/* O botão direito na capa abre o menu da música (24/10), o curto do leitor. */}
-        <View key={`entra:${faixaAtual}`}
+        <View key={`entra:${faixaAtual}`} style={cuboEscondido ? { opacity: 0 } : undefined}
           {...({ onContextMenu: (e: any) => { e.preventDefault(); more(track, undefined, { leitor: 'capa' }); } } as any)}>
           <ArtworkLyricsCube track={track} size={ladoCapa} artwork={track.artworkUrl} showLyrics={showLyrics} onChange={setShowLyrics}
             front={<GlitchArtwork uri={capaGrande} lado={ladoCapa} modo={glitch} intensidade={effectIntensity} />} />
@@ -206,6 +210,7 @@ export function NowPlayingPage({
               style={{ position: 'absolute', width: ladoCapa, height: ladoCapa, objectFit: 'cover' }} />
           ) : null}
         </View>
+        <DuasLuas lado={ladoCapa} capaDaQueSai={capaGrande} ligada={!showLyrics} aoEsconderCubo={setCuboEscondido} />
       </View>
       {/* As letras: dois pontos por baixo da capa, como no iPhone (decidido
           com o João a 25/9). Arrastar a capa continua a funcionar; os pontos

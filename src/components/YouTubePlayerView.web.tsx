@@ -27,6 +27,7 @@ import {
   ANTECEDENCIA_DO_PC_S, decorridoDaPassagem, deveComecarCrossfade, devePrepararSeguinte, podeCrossfade, seguemNoMesmoDisco,
   volumesDoCrossfade, type ContextoDoCrossfade,
 } from '../lib/crossfade';
+import { anunciarPassagem, desfazerPassagem } from '../state/passagemAVista';
 
 /**
  * A velocidade a que o motor anda AGORA: a escolhida, ou 1x dentro de um Jam.
@@ -398,6 +399,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   /** A que entrava cala-se e para; a que sai volta ao volume dela. `rebobinar`: a preparada volta ao 0. */
   const abortarPassagem = useCallback((rebobinar: boolean) => {
     const espera = esperaRef.current;
+    if (passagemRef.current) desfazerPassagem();
     passagemRef.current = null;
     try { espera?.pauseVideo?.(); espera?.mute?.(); espera?.setVolume?.(0); } catch {}
     if (rebobinar) { try { espera?.seekTo?.(0, true); } catch {} }
@@ -548,6 +550,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         // A velocidade DELA, e não a da que sai.
         espera.setPlaybackRate?.(seguinteRef.current?.rate ?? velocidadeDoMotor());
         espera.playVideo();
+        // As Duas luas (C9): daqui em diante andam sozinhas, o motor só diz se a desfaz.
+        anunciarPassagem({ de: faixaRef.current.sourceId, para: seguinte!, comecaEm: Date.now(), duracaoMs: (c.duracaoDoFade * 1000) / velocidadeDoMotor(), automix: null });
       } catch {
         abortarPassagem(true);
         return null;
