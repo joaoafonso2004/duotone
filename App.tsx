@@ -34,14 +34,15 @@ import {
   loadPrefsCache,
 } from './src/lib/prefs';
 import { activateKeepAwakeAsync } from 'expo-keep-awake';
-import { carregarFixados, idsProtegidos, podeLimpar } from './src/lib/downloadsFixados';
+import { carregarFixados, esquecerPedidos, podeLimpar, useDownloadsFixados } from './src/lib/downloadsFixados';
 import { loadLoudnessCache } from './src/lib/loudnessCache';
 import { supabase } from './src/lib/supabase';
 import {
   invalidateStaleAudioCache,
   loadCachedAudioIndex,
   migrateAudioCacheToDocuments,
-  pruneAudioCacheLRU,
+  iniciarLimpezaAutomaticaDoAudio,
+  pedirLimpezaDoAudio,
   limparParciaisEsquecidos,
   listarDescarregados,
   definirDescarregadorNativo,
@@ -262,6 +263,12 @@ export default function App() {
   },[offline]);
 
   useEffect(() => {
+    let saiu = false;
+    let pararLimpeza: (() => void) | undefined;
+    const hidratacoes: (() => void)[] = [];
+    const regresso = AppState.addEventListener('change', (estado) => {
+      if (estado === 'active') pedirLimpezaDoAudio();
+    });
     acompanharDownloads(); // também os downloads feitos antes de abrir o leitor
     init();
     // Hidrata preferências persistidas no arranque da app.
@@ -273,12 +280,11 @@ export default function App() {
       // precisa de espaço — era por isso que os downloads desapareciam.
       // Passaram para Documents; isto muda de sítio o que já estava lá.
       .then(() => migrateAudioCacheToDocuments())
-      // Os downloads pedidos TÊM de estar em memória antes da limpeza: sem
-      // eles, ela só protegeria a fila e apagava o que foi guardado de
-      // propósito. Na primeira abertura desta versão, o que já está em disco
-      // fica uma semana protegido (lib/downloadsExplicitos.ts).
+      // Lê os pedidos antes da limpeza, para retirar do registo os ficheiros
+      // antigos que saírem com o limite de 300 MB.
       .then(() => carregarFixados(() => listarDescarregados().map((f) => f.id)))
       .then(() => {
+      if (saiu) return;
       // Índice em memória dos downloads (badges "offline" nas listas).
       loadCachedAudioIndex();
       // Arranque sem rede com a sessão restaurada numa faixa que não está no
@@ -286,21 +292,24 @@ export default function App() {
       // do índice, que é o que diz o que está no disco.
       const ajustarSemRede = () => { usePlayer.getState().ajustarSessaoSemRede(); };
       if (usePlayer.persist.hasHydrated()) ajustarSemRede();
-      else usePlayer.persist.onFinishHydration(ajustarSemRede);
+      else hidratacoes.push(usePlayer.persist.onFinishHydration(() => { if (!saiu) ajustarSemRede(); }));
       // O que ficou a meio de tocar enquanto descarregava, noutra sessão.
       limparParciaisEsquecidos();
-      // Pruning LRU do cache de áudio — só no arranque, nunca durante a
-      // reprodução, e protegendo a fila restaurada da sessão anterior.
-      // Sem os pedidos lidos não se sabe o que proteger: fica para a próxima.
-      const prune = () => {
-        if (!podeLimpar()) return;
-        pruneAudioCacheLRU([
-          ...usePlayer.getState().queue.map((t) => t.sourceId),
-          ...idsProtegidos(),
-        ]);
+      // A fila inteira já não bloqueia a limpeza. Mantêm-se a faixa atual,
+      // a que o segundo motor pode ter preparada e as descargas em curso.
+      const ligarLimpeza = () => {
+        if (saiu || !podeLimpar()) return;
+        pararLimpeza = iniciarLimpezaAutomaticaDoAudio({
+          protegidos: () => {
+            const leitor = usePlayer.getState();
+            return [leitor.current?.sourceId, leitor.proximaFaixa()?.sourceId,
+              ...useDownloadsFixados.getState().aDescarregar].filter((id): id is string => !!id);
+          },
+          aoRemover: esquecerPedidos,
+        });
       };
-      if (usePlayer.persist.hasHydrated()) {if(!useConnectivity.getState().offline)prune();}
-      else usePlayer.persist.onFinishHydration(()=>{if(!useConnectivity.getState().offline)prune();});
+      if (usePlayer.persist.hasHydrated()) ligarLimpeza();
+      else hidratacoes.push(usePlayer.persist.onFinishHydration(ligarLimpeza));
     });
     useTheme.getState().loadTheme();
     // A personalização (10/10, state/aparencia.ts): o fundo, as listas e o leitor.
@@ -357,6 +366,12 @@ export default function App() {
       // recusar; falhar a manter o ecrã ligado não pode partir o arranque.
       if (on) activateKeepAwakeAsync().catch(() => {});
     });
+    return () => {
+      saiu = true;
+      pararLimpeza?.();
+      hidratacoes.forEach((parar) => parar());
+      regresso.remove();
+    };
   }, [init]);
 
   // Renovação automática do token do Supabase ligada ao ciclo de vida da app.

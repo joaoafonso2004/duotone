@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import AsyncStorage, { guardado } from '@react-native-async-storage/async-storage';
 import { criarAcoesDeDownload } from '../src/lib/acoesDeDownload.ts';
 import {
-  carregarFixados, esquecerPedido, esquecerTodos, idsProtegidos, marcarADescarregar, podeLimpar,
+  carregarFixados, esquecerPedido, esquecerPedidos, esquecerTodos, idsProtegidos, marcarADescarregar, podeLimpar,
   registarPedido, reporParaTestes, temPedido, useDownloadsFixados,
 } from '../src/lib/downloadsFixados.ts';
 import { PROTECAO_DA_MIGRACAO_MS } from '../src/lib/downloadsExplicitos.ts';
@@ -262,6 +262,22 @@ await caso('em falta, o botão volta a pedir (não tira)', async () => {
   await acoes.alternar(faixa('a'), 'em-falta');
   assert.ok(temPedido('a'));
   assert.deepEqual(estado.descarregados, ['a', 'a']);
+});
+
+await caso('a limpeza automática retira só os pedidos apagados e guarda o resultado', async () => {
+  await mundo({ disco: ['cache-antiga'] });
+  await registarPedido(faixa('antiga'), 1);
+  await registarPedido(faixa('recente'), 2);
+  await esquecerPedidos(['antiga', 'cache-antiga']);
+  assert.equal(temPedido('antiga'), false);
+  assert.equal(temPedido('recente'), true);
+  assert.deepEqual(Object.keys(JSON.parse(guardado.get(CHAVE)!).pedidos), ['recente']);
+  assert.deepEqual(JSON.parse(guardado.get(CHAVE_ANTIGA)!), ['recente']);
+  assert.deepEqual(useDownloadsFixados.getState().registo.migracao?.ids, []);
+  reporParaTestes();
+  await carregarFixados(() => []);
+  assert.equal(temPedido('antiga'), false, 'o pedido antigo não reaparece ao reiniciar');
+  assert.equal(temPedido('recente'), true);
 });
 
 if (falhas) {

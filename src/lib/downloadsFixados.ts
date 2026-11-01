@@ -1,11 +1,7 @@
 /**
- * Os downloads pedidos de propósito: nunca são apagados pela limpeza automática.
- *
- * O cache tem um teto de 500 MB e, quando é ultrapassado, os ficheiros mais
- * antigos saem. Isso está bem para o que foi guardado sozinho ao tocar, mas
- * não para o que alguém mandou guardar de propósito — descarregar um álbum
- * para uma viagem e encontrá-lo apagado à chegada é a pior coisa que um leitor
- * de música offline pode fazer.
+ * O registo dos downloads pedidos neste aparelho. A limpeza automática de
+ * 300 MB também remove os pedidos cujos ficheiros foram apagados, para não
+ * mostrar uma música como guardada quando já não está no telemóvel.
  *
  * Antes guardava só ids fixados à mão (o cadeado do ecrã de Downloads), e um
  * "Download" não fixava nada. Agora cada download pedido É o pedido -- ver
@@ -123,6 +119,15 @@ export async function esquecerPedido(id: string): Promise<void> {
   await gravar();
 }
 
+/** Uma limpeza pode tirar várias faixas: atualiza o registo numa gravação só. */
+export async function esquecerPedidos(ids: readonly string[]): Promise<void> {
+  const antes = useDownloadsFixados.getState().registo;
+  const depois = ids.reduce((r, id) => semPedido(r, id), antes);
+  if (depois === antes) return;
+  mudar(() => depois);
+  await gravar();
+}
+
 /** Para o "Clear YouTube cache" e o "Remover tudo": apaga também a proteção da migração. */
 export async function esquecerTodos(): Promise<void> {
   useDownloadsFixados.setState({ registo: registoVazio() });
@@ -151,7 +156,7 @@ export function idsPedidos(): string[] {
   return Object.keys(useDownloadsFixados.getState().registo.pedidos);
 }
 
-/** O que a limpeza do arranque não pode apagar. */
+/** Proteção legada; a limpeza atual usa os motores e as descargas em curso. */
 export function idsProtegidos(agora: number = Date.now()): string[] {
   return protegidosDaLimpeza(useDownloadsFixados.getState().registo, agora);
 }

@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 export const useAudioCache=create<{revision:number}>(()=>({revision:0}));
-const changed=()=>useAudioCache.setState(s=>({revision:s.revision+1}));
+const changed=()=>{
+  useAudioCache.setState(s=>({revision:s.revision+1}));
+  pedirLimpezaDoAudio();
+};
 import { AppState, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fixMp4Duration } from './mp4Fixer';
@@ -341,36 +344,125 @@ export function clearDownloadedAudioCache(): void {
   cachedIdsIndex = new Set();changed();
 }
 
-// Limite do cache de áudio. Pruning LRU corre APENAS no arranque da app —
-// nunca durante a reprodução (o pruning em pleno playback já causou crashes
-// no passado; ver histórico do smart cache).
-export const MAX_CACHE_BYTES = 500 * 1024 * 1024;
+/** Teto do áudio guardado neste aparelho, incluindo os downloads pedidos. */
+export const MAX_CACHE_BYTES = 300 * 1024 * 1024;
+/** Dá tempo aos motores nativos para largarem a fonte depois de uma troca. */
+const LIBERTAR_AUDIO_MS = 30_000;
+const audioEmUso = new Map<string, { usos: number; ate: number }>();
+type LimpezaAutomatica = {
+  protegidos: () => Iterable<string>;
+  aoRemover: (ids: string[]) => unknown;
+};
+let limpezaAutomatica: LimpezaAutomatica | null = null;
+let limpezaPendente: ReturnType<typeof setTimeout> | null = null;
+let limparEm = 0;
+let aLimpar = false;
 
-/** Remove os ficheiros menos recentes até o cache caber em MAX_CACHE_BYTES.
- * `protectedIds` (fila atual restaurada) nunca são apagados. */
-export function pruneAudioCacheLRU(protectedIds: string[] = []): void {
-  if (Platform.OS === 'web') return;
+/** Enquanto um motor tem esta faixa aberta, a limpeza não lhe toca. */
+export function protegerAudioEmUso(videoId: string): () => void {
+  if (Platform.OS === 'web' || !videoId) return () => {};
+  const r = audioEmUso.get(videoId) ?? { usos: 0, ate: 0 };
+  r.usos++;
+  r.ate = 0;
+  audioEmUso.set(videoId, r);
+  let largou = false;
+  return () => {
+    if (largou) return;
+    largou = true;
+    if (--r.usos === 0) {
+      r.ate = Date.now() + LIBERTAR_AUDIO_MS;
+      pedirLimpezaDoAudio(LIBERTAR_AUDIO_MS);
+    }
+  };
+}
+
+function idsDoAudioEmUso(): string[] {
+  const ids: string[] = [];
+  for (const [id, r] of audioEmUso) {
+    if (r.usos > 0 || r.ate > Date.now()) ids.push(id);
+    else audioEmUso.delete(id);
+  }
+  return ids;
+}
+
+/** Uma verificação depois das escritas/trocas; não há polling permanente. */
+export function pedirLimpezaDoAudio(atrasoMs = 1000): void {
+  if (Platform.OS === 'web' || !limpezaAutomatica || aLimpar) return;
+  const quando = Date.now() + atrasoMs;
+  if (limpezaPendente !== null && limparEm <= quando) return;
+  if (limpezaPendente !== null) clearTimeout(limpezaPendente);
+  limparEm = quando;
+  limpezaPendente = setTimeout(() => {
+    limpezaPendente = null;
+    const config = limpezaAutomatica;
+    if (!config) return;
+    aLimpar = true;
+    try {
+      limparParciaisEsquecidos();
+      const ids = pruneAudioCacheLRU([...config.protegidos()]);
+      if (ids.length) Promise.resolve(config.aoRemover(ids)).catch(() => {});
+    } catch {
+      // Uma falha ao consultar o estado não interrompe a reprodução.
+    } finally {
+      aLimpar = false;
+      // Uma troca pode ainda estar no período de libertação do motor.
+      const agora = Date.now();
+      for (const r of audioEmUso.values()) {
+        if (r.usos === 0 && r.ate > agora) pedirLimpezaDoAudio(r.ate - agora);
+      }
+    }
+  }, atrasoMs);
+}
+
+/** Liga-se depois de restaurar a sessão e de ler o registo de downloads. */
+export function iniciarLimpezaAutomaticaDoAudio(config: LimpezaAutomatica): () => void {
+  if (Platform.OS === 'web') return () => {};
+  limpezaAutomatica = config;
+  pedirLimpezaDoAudio(0);
+  return () => {
+    if (limpezaAutomatica !== config) return;
+    limpezaAutomatica = null;
+    if (limpezaPendente !== null) clearTimeout(limpezaPendente);
+    limpezaPendente = null;
+  };
+}
+
+/** Remove as faixas mais antigas; nunca apaga áudio em uso ou em descarga. */
+export function pruneAudioCacheLRU(protectedIds: string[] = [], limiteBytes = MAX_CACHE_BYTES): string[] {
+  if (Platform.OS === 'web') return [];
+  const removidas: string[] = [];
+  let mudou = false;
   try {
+    const protegidos = [...protectedIds, ...idsDoAudioEmUso(), ...downloads.keys(), ...emCurso.keys()];
     const ficheiros = listarDescarregados();
-    // A DECISAO vive em limpezaDoCache.ts, testada sem tocar em disco: e a
-    // unica coisa nesta app que apaga musica do telemovel.
-    const aApagar = new Set(escolherParaApagar(ficheiros, protectedIds, MAX_CACHE_BYTES));
-    if (aApagar.size === 0) return;
-
-    for (const entry of audioDir().list()) {
-      if (!(entry instanceof File)) continue;
-      const id = idDoFicheiro(entry.name);
-      if (!id || !aApagar.has(id)) continue;
-      try {
-        entry.delete();
-        cachedIdsIndex?.delete(id);changed();
-      } catch {
-        // ficheiro em uso ou já removido — segue para o próximo
+    let total = ficheiros.reduce((n, f) => n + Math.max(0, f.bytes), 0);
+    if (total <= limiteBytes) return [];
+    // Pedir a ordem completa permite continuar se um ficheiro recusar sair.
+    const porIdade = escolherParaApagar(ficheiros, protegidos, 0);
+    for (const id of porIdade) {
+      if (total <= limiteBytes) break;
+      const versoes = [ficheiroAac(id), ficheiroOpus(id)];
+      for (const f of versoes) {
+        try {
+          if (!f.exists) continue;
+          const bytes = f.size ?? 0;
+          f.delete();
+          total -= bytes;
+          mudou = true;
+        } catch {
+          // Um ficheiro em uso não impede tentar outra faixa antiga.
+        }
+      }
+      if (versoes.every((f) => !f.exists)) {
+        cachedIdsIndex?.delete(id);
+        removidas.push(id);
       }
     }
   } catch {
-    // pruning é oportunista; falhar aqui nunca pode impedir o arranque
+    // A limpeza nunca pode interromper o leitor.
   }
+  if (mudou) changed();
+  return removidas;
 }
 
 /** Descobre o tamanho total do ficheiro via Content-Range, quando a API não o deu. */
@@ -1298,7 +1390,9 @@ export function limparParciaisEsquecidos(agora: number = Date.now()): void {
   try {
     for (const entry of audioDir().list()) {
       if (!(entry instanceof File) || !entry.name.startsWith(PREFIX) || !entry.name.endsWith('.part')) continue;
-      const criado = Number(/-(\d{12,})-[a-z0-9]*\.part$/.exec(entry.name)?.[1]);
+      const partes = /^(.+)-(\d{12,})-[a-z0-9]*\.part$/.exec(entry.name.slice(PREFIX.length));
+      if (partes && (downloads.has(partes[1]) || emCurso.has(partes[1]))) continue;
+      const criado = Number(partes?.[2]);
       if (Number.isFinite(criado) && agora - criado < PARCIAL_ESQUECIDO_MS) continue;
       try { entry.delete(); } catch { /* em uso: fica para a próxima */ }
     }

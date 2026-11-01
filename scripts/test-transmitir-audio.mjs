@@ -503,7 +503,7 @@ await check('a limpeza e o "Clear cache" veem as duas versões', async () => {
   h.disk.set(`${DOC}yt-opus-v1-a.m4a`, new Uint8Array(10));
   h.disk.set(`${DOC}yt-opus-v1-b.m4a`, new Uint8Array(10));
   h.cache.pruneAudioCacheLRU(['b']);
-  // 30 bytes cabem nos 500 MB: nada sai. Com o teto a sério não se chega aqui
+  // 30 bytes cabem nos 300 MB: nada sai. Com o teto a sério não se chega aqui
   // num teste, por isso o que se prova é que o "Clear cache" as leva todas.
   assert.equal(h.disk.size, 3);
   h.disk.set(`${DOC}yt-opus-v1-c-123-x.part`, new Uint8Array(1));

@@ -27,7 +27,7 @@ import { targetVolume } from '../lib/loudness';
 import { getLoudnessDb, rememberLoudnessDb } from '../lib/loudnessCache';
 import {
   cachedAudioFile, downloadProgressiveAudio, DOWNLOAD_ABORTED, removerOpusDaFaixa, temOpusEmDisco, transmitirAudio,
-  verificarCancelamentos, type DownloadOptions,
+  protegerAudioEmUso, verificarCancelamentos, type DownloadOptions,
 } from '../lib/youtubeCache';
 import { evitarOpusPara } from '../lib/codecDeAudio';
 import { eConversaoDoOpus, resolverEDescarregar } from '../lib/resolverEDescarregar';
@@ -335,6 +335,15 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const closingVolume = useRef<number|null>(null);
 
   const [backend, setBackend] = useState<Backend>('resolving');
+
+  // A limpeza pode correr entre músicas: protege apenas os dois motores,
+  // não a playlist inteira. Ao largar fica uma margem para a troca nativa.
+  useEffect(() => {
+    const seguinte = usePlayer.getState().proximaFaixa();
+    const ids = new Set([track.sourceId, seguinte?.sourceId].filter((id): id is string => !!id));
+    const largar = [...ids].map(protegerAudioEmUso);
+    return () => { largar.forEach((f) => f()); };
+  }, [track.sourceId, queue, queueIndex, shuffle, percursoDoShuffle, repeatMode, sessaoJam, filaJam]);
   const _setActiveBackend = usePlayer((s) => s._setActiveBackend);
   useEffect(() => {
     _setActiveBackend(backend);

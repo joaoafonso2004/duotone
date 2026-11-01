@@ -14,7 +14,8 @@
  *   onde vier. Continua a ser o que o filtro offline e os menus usam para saber
  *   se se pode tocar.
  * - **foi pedido?** -- há um PEDIDO guardado aqui. Só esses levam o ↓, o
- *   "Remove download", a linha no ecrã de Downloads e a proteção da limpeza.
+ *   "Remove download" e a linha no ecrã de Downloads. O teto de 300 MB também
+ *   se aplica a estes ficheiros; a limpeza retira os pedidos que apaga.
  *
  * Um pedido guarda uma cópia da faixa (título, artista, capa): a lista de
  * Downloads mostra-se sem rede, e uma faixa que saiu da biblioteca continua lá.
@@ -27,13 +28,9 @@ import type { Track } from '../types';
 const DIA_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Quanto tempo os ficheiros que já estavam em disco na primeira abertura desta
- * versão ficam a salvo da limpeza. Não há maneira de saber quais deles foram
- * downloads a sério (antes disto, tocar e descarregar davam o mesmo ficheiro),
- * e em vez de um ecrã para os rever -- que só serviria uma vez -- ficam uma
- * semana protegidos. Quem quiser guardar algum carrega em "Download", que
- * sobre um ficheiro que já existe não gasta rede nenhuma. Decisão do João
- * (22/9).
+ * Prazo da proteção legada, conservado no formato do registo para versões
+ * anteriores. A limpeza atual de 300 MB protege o áudio em uso, sem esta
+ * exceção que deixava os ficheiros antigos ultrapassarem o teto.
  */
 export const PROTECAO_DA_MIGRACAO_MS = 7 * DIA_MS;
 
@@ -128,7 +125,7 @@ export function semPedido(r: Registo, id: string): Registo {
   return { pedidos, migracao };
 }
 
-/** O que a limpeza automática não pode apagar agora. */
+/** Proteção da política antiga, mantida para a compatibilidade do registo. */
 export function protegidosDaLimpeza(r: Registo, agora: number): string[] {
   const ids = new Set(Object.keys(r.pedidos));
   if (r.migracao && agora < r.migracao.ate) for (const id of r.migracao.ids) ids.add(id);
@@ -136,8 +133,8 @@ export function protegidosDaLimpeza(r: Registo, agora: number): string[] {
 }
 
 /**
- * A primeira abertura desta versão: os fixados antigos passam a pedidos, e o
- * resto do que está em disco fica protegido `PROTECAO_DA_MIGRACAO_MS`.
+ * Converte os fixados antigos em pedidos e conserva os dados da migração
+ * legada para a compatibilidade do registo.
  */
 export function migrarDosFixados(fixados: readonly string[], emDisco: readonly string[], agora: number): Registo {
   const pedidos: Record<string, PedidoDeDownload> = {};

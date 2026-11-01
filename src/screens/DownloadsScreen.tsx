@@ -41,9 +41,9 @@ interface Linha {
  *
  * Mostrava os FICHEIROS em disco -- incluindo cada música que só tinha tocado
  * -- e para um download não ser apagado era preciso fixá-lo com o cadeado. Agora
- * a lista são os downloads que alguém pediu (lib/downloadsExplicitos.ts): todos
- * ficam protegidos da limpeza, sem segundo passo. O que tocou e ficou em disco
- * é a cache, numa linha só, e sai sozinho acima do limite.
+ * a lista são os downloads que alguém pediu (lib/downloadsExplicitos.ts).
+ * Downloads e cache partilham o teto de 300 MB: os mais antigos saem
+ * automaticamente e deixam de aparecer como descarregados.
  *
  * Os títulos vêm da cópia guardada com o pedido, por isso a lista mostra-se sem
  * rede e mostra faixas que já saíram da biblioteca. Só os pedidos que vieram
@@ -106,7 +106,7 @@ export function DownloadsScreen({ navigation }: Props) {
     [gostadas, ficheiros, registo],
   );
 
-  const { linhas, bytesDosDownloads, emFalta, cache, protegidasAte, protegidas } = useMemo(() => {
+  const { linhas, bytesDosDownloads, emFalta, cache } = useMemo(() => {
     const linhas: Linha[] = pedidosPorOrdem(registo).map((id) => {
       const p = registo.pedidos[id];
       return {
@@ -125,16 +125,11 @@ export function DownloadsScreen({ navigation }: Props) {
       cacheBytes += bytes;
       cacheFaixas++;
     }
-    const m = registo.migracao;
-    const agora = Date.now();
-    const protegidas = m && agora < m.ate ? m.ids.filter((id) => ficheiros.has(id) && !(id in registo.pedidos)).length : 0;
     return {
       linhas,
       bytesDosDownloads,
       emFalta: linhas.filter((l) => l.situacao === 'em-falta'),
       cache: { bytes: cacheBytes, faixas: cacheFaixas },
-      protegidasAte: m?.ate ?? 0,
-      protegidas,
     };
   }, [registo, aDescarregar, ficheiros, daBiblioteca]);
 
@@ -325,16 +320,9 @@ export function DownloadsScreen({ navigation }: Props) {
                   em vez de misteriosa. */}
               <Text style={styles.notaDoFundo}>
                 Cache: {formatCacheSize(cache.bytes)} from {cache.faixas} played {cache.faixas === 1 ? 'song' : 'songs'}.
-                {' '}Above {formatCacheSize(MAX_CACHE_BYTES)} in total, the oldest cached songs are removed
-                automatically. Downloads are never removed.
+                {' '}Audio saved on this phone is limited to {formatCacheSize(MAX_CACHE_BYTES)}.
+                {' '}Older cached songs and downloads are removed automatically. The song playing now is kept.
               </Text>
-              {protegidas > 0 ? (
-                <Text style={styles.notaDoFundo}>
-                  {protegidas} {protegidas === 1 ? 'song you already had stays protected' : 'songs you already had stay protected'}
-                  {' '}until {new Date(protegidasAte).toLocaleDateString()}. To keep one, tap Download in its
-                  menu — it uses no data.
-                </Text>
-              ) : null}
             </View>
 
             <Pressable onPress={limparTudo} style={({ pressed }) => [styles.limpar, pressed && { opacity: 0.7 }]}>

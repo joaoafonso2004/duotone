@@ -79,9 +79,10 @@ function harness(fetchImpl) {
     get name() { return this.uri.split('/').at(-1); }
     get exists() { return disk.has(this.uri); }
     get size() { return disk.get(this.uri)?.length ?? 0; }
+    get modificationTime() { return disk.get(this.uri)?.modificadoEm ?? 0; }
     create() { disk.set(this.uri, new Uint8Array()); }
     write(data) { disk.set(this.uri, Uint8Array.from(data)); }
-    delete() { disk.delete(this.uri); }
+    delete() { if (disk.get(this.uri)?.naoApagar) throw new Error('Ficheiro em uso'); disk.delete(this.uri); }
     moveSync(dest) { disk.set(dest.uri, disk.get(this.uri)); disk.delete(this.uri); this.uri = dest.uri; }
   }
   const dir = (uri) => ({ uri, list: () => [...disk.keys()].filter((key) => key.startsWith(`${uri}/`)).map((key) => new File({ uri }, key.slice(uri.length + 1))) });
@@ -671,6 +672,87 @@ for (const redeMelhora of [true, false]) {
     }
   });
 }
+
+const MB = 1024 * 1024;
+const audioEmDisco = (h, id, mb, modificadoEm, extra = {}) => {
+  h.disk.set(`file:///document/yt-audio-${id}.m4a`, { length: mb * MB, modificadoEm, ...extra });
+};
+
+await check('600 MB passam a 300 MB: apaga só as duas faixas mais antigas', async () => {
+  const h = harness(() => response());
+  for (const [id, dia] of [['nova', 4], ['velha', 1], ['recente', 3], ['antiga', 2]]) audioEmDisco(h, id, 150, dia);
+  h.disk.set('file:///document/outro-documento', { length: 100 * MB });
+  h.cache.loadCachedAudioIndex();
+  assert.equal(h.cache.MAX_CACHE_BYTES, 300 * MB);
+  const ids = h.cache.pruneAudioCacheLRU();
+  assert.deepEqual([...ids], ['velha', 'antiga']);
+  assert.equal(h.cache.getAudioCacheBytes(), 300 * MB);
+  assert.equal(h.cache.isAudioCached('velha'), false);
+  assert.equal(h.cache.isAudioCached('nova'), true);
+  assert.equal(h.disk.has('file:///document/outro-documento'), true);
+});
+
+await check('a limpeza soma AAC e Opus e retira as duas versões da faixa antiga', async () => {
+  const h = harness(() => response());
+  audioEmDisco(h, 'velha', 100, 1);
+  h.disk.set('file:///document/yt-opus-v1-velha.m4a', { length: 100 * MB, modificadoEm: 1 });
+  audioEmDisco(h, 'nova', 150, 2);
+  h.cache.loadCachedAudioIndex();
+  assert.deepEqual([...h.cache.pruneAudioCacheLRU()], ['velha']);
+  assert.equal(h.cache.getAudioCacheBytes(), 150 * MB);
+  assert.equal(h.cache.isAudioCached('velha'), false);
+});
+
+await check('um ficheiro bloqueado não impede limpar o próximo, e mantém o índice', async () => {
+  const h = harness(() => response());
+  audioEmDisco(h, 'bloqueada', 150, 1, { naoApagar: true });
+  audioEmDisco(h, 'antiga', 150, 2);
+  audioEmDisco(h, 'nova', 150, 3);
+  h.cache.loadCachedAudioIndex();
+  assert.deepEqual([...h.cache.pruneAudioCacheLRU()], ['antiga']);
+  assert.equal(h.cache.getAudioCacheBytes(), 300 * MB);
+  assert.equal(h.cache.isAudioCached('bloqueada'), true);
+});
+
+await check('áudio em uso e a transição ficam protegidos até os motores largarem', async () => {
+  const h = harness(() => response());
+  audioEmDisco(h, 'a-tocar', 200, 1);
+  audioEmDisco(h, 'seguinte', 200, 2);
+  const largarUm = h.cache.protegerAudioEmUso('a-tocar');
+  const largarDois = h.cache.protegerAudioEmUso('a-tocar');
+  const removidas = [];
+  const parar = h.cache.iniciarLimpezaAutomaticaDoAudio({ protegidos: () => ['seguinte'], aoRemover: ids => removidas.push(...ids) });
+  await h.time.advance(0);
+  assert.equal(h.cache.getAudioCacheBytes(), 400 * MB, 'não interrompe nenhum dos motores para cumprir o teto');
+  largarUm();
+  await h.time.advance(31_000);
+  assert.equal(h.cache.getAudioCacheBytes(), 400 * MB, 'o segundo motor ainda usa a faixa');
+  largarDois();
+  largarDois();
+  await h.time.advance(29_999);
+  assert.equal(h.cache.getAudioCacheBytes(), 400 * MB, 'espera que a troca nativa acabe');
+  await h.time.advance(1);
+  assert.equal(h.cache.getAudioCacheBytes(), 200 * MB);
+  assert.deepEqual(removidas, ['a-tocar']);
+  parar();
+  assert.equal(h.time.pending(), 0, 'não deixa um relógio a acordar permanentemente');
+});
+
+await check('um novo download volta a aplicar o teto sem reiniciar a app', async () => {
+  const h = harness(() => response());
+  h.disk.set('file:///document/yt-audio-antiga.m4a', { length: 300 * MB - 8, modificadoEm: -1 });
+  h.cache.loadCachedAudioIndex();
+  const removidas = [];
+  const parar = h.cache.iniciarLimpezaAutomaticaDoAudio({ protegidos: () => [], aoRemover: ids => removidas.push(...ids) });
+  await h.time.advance(0);
+  await h.download('nova');
+  assert.ok(h.cache.getAudioCacheBytes() > 300 * MB);
+  await h.time.advance(1000);
+  assert.equal(h.cache.getAudioCacheBytes(), audio.length);
+  assert.equal(h.cache.isAudioCached('nova'), true);
+  assert.deepEqual(removidas, ['antiga']);
+  parar();
+});
 
 if (failures) {
   console.error(`\n${failures} teste(s) de esperas falharam (sem aguardar relógios reais).`);

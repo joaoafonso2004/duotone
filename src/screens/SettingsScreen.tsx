@@ -63,7 +63,7 @@ import {
   setCrossfadeSegundos,
   setIntensidadeDoSmartShuffle,
 } from '../lib/prefs';
-import { formatCacheSize, getAudioCacheBytes, isAudioCached } from '../lib/youtubeCache';
+import { formatCacheSize, getAudioCacheBytes, isAudioCached, MAX_CACHE_BYTES } from '../lib/youtubeCache';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useAuth } from '../state/auth';
 import { BarraVelocidade } from '../components/BarraVelocidade';
@@ -605,7 +605,7 @@ export function SettingsScreen({ navigation }: Props) {
 
         {/* O "Clear cache" apaga TODO o áudio guardado, os downloads feitos de
             propósito incluídos -- e o rodapé di-lo antes de se carregar. */}
-        <Grupo titulo="Storage" rodape={[efeitos.cache, 'Songs are kept on the phone so they play with the screen locked.']}>
+        <Grupo titulo="Storage" rodape={[efeitos.cache, 'Songs are kept on the phone so they play with the screen locked.', `${formatCacheSize(MAX_CACHE_BYTES)} storage limit. Older cached songs and downloads are removed automatically.`]}>
           <Linha icone="arrow-down-circle" rotulo="Downloads" valor={formatCacheSize(cacheBytes)} chevron aoTocar={() => navigation.navigate('Downloads')} />
           <Linha icone="trash" rotulo="Clear cache" acao aoTocar={() => void doClearCache()} />
         </Grupo>
