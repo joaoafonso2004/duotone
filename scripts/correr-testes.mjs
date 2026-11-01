@@ -101,7 +101,7 @@ const TESTES = [
   `${RESOLVER} scripts/test-compasso.ts`,
   `${RESOLVER} scripts/test-duas-luas.ts`,
   `${TS} scripts/test-uma-so-luz.ts`,
-  `${TS} scripts/test-gravacao-da-letra.ts`,
+  `${TS} scripts/test-linhas-da-letra.ts`,
   `${TS} scripts/test-iman.ts`,
   `${RESOLVER} scripts/test-ocultacao.ts`,
   `${TS} scripts/test-teclado-das-tabelas.ts`,

@@ -4,14 +4,12 @@ import type {Track} from '../types';
 
 /**
  * Uma linha da letra sincronizada, no iPhone (o verso da capa, 🔒): a ativa
- * acende e as outras ficam a 40 %, como sempre. A gravação da linha (C7) é só
- * do PC, no par `LinhaDaLetra.web.tsx`.
+ * acende e as outras ficam a 40 %, como sempre. Os tons e a risca do refrão são
+ * só do PC, no par `LinhaDaLetra.web.tsx`.
  */
 export type EstadoDaLinha='passada'|'ativa'|'seguinte'|'futura';
 export type PropsDaLinha={
   visible:boolean;text:string;timeMs:number;
-  /** Quando a linha seguinte começa (a gravação do PC usa-o). */
-  fimMs:number;
   index:number;estado:EstadoDaLinha;
   /** A linha onde o refrão começa (a risca do PC). */
   refrao:boolean;
