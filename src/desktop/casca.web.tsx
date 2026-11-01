@@ -238,7 +238,7 @@ export function injectDesktopDocumentStyles() {
     html[data-a-redimensionar], html[data-a-redimensionar] *{ cursor: col-resize !important; user-select: none !important; }
     html[data-a-redimensionar] [data-dt~="painel-do-leitor"]{ transition: none !important; }
     /* O fundo do Now Playing: a capa nova entra por cima da anterior. */
-    [data-dt~="np-fundo"]{ animation: dt-np-fundo 700ms var(--dt-curva) both; }
+    [data-dt~="np-fundo"]{ animation: dt-np-fundo var(--dt-compasso, 700ms) var(--dt-curva) both; }
     /* A cor da capa a encher a janela ao abrir o Now Playing (26/9). */
     [data-dt~="janela-cor"]{ animation: dt-np-fundo 450ms var(--dt-curva) both; }
     /* E a sair (20/10, pedido do João: entrava devagar e saía num fotograma).
@@ -388,10 +388,12 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="atalho-tirar"]{ opacity: 0; transition: opacity var(--dt-rapido) var(--dt-curva), background-color var(--dt-rapido) var(--dt-curva); }
     [data-dt~="atalho"]:hover [data-dt~="atalho-tirar"], [data-dt~="atalho-tirar"]:focus-visible{ opacity: 1; }
     [data-dt~="atalho-tirar"]:hover{ background-color: rgba(233,234,238,0.10); }
-    /* A que esta a tocar nao esconde as barrinhas nem mostra o numero. */
-    [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]{ animation: dt-pular 900ms ease-in-out infinite; }
-    [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]:nth-child(2){ animation-delay: 150ms }
-    [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]:nth-child(3){ animation-delay: 300ms }
+    /* A que esta a tocar nao esconde as barrinhas nem mostra o numero. Andam no andamento da
+       musica quando ele se sabe (S3, CompassoNoCss), e nos 900 ms de sempre quando nao. O
+       atraso e uma parte da volta: sem isso, a 180 BPM as duas de um tempo andavam quase juntas. */
+    [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]{ animation: dt-pular var(--dt-barra-1, 900ms) ease-in-out infinite; }
+    [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]:nth-child(2){ animation-duration: var(--dt-barra-2, 900ms); animation-delay: calc(var(--dt-barra-2, 900ms) / 6); }
+    [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]:nth-child(3){ animation-duration: var(--dt-barra-3, 900ms); animation-delay: calc(var(--dt-barra-3, 900ms) / 3); }
     /* Em pausa, as barras ficam quietas e baixas (27/9). */
     [data-dt~="fila"] [data-dt~="barras"][data-dt~="parado"] [data-dt~="barra"]{ animation: none; height: 4px; }
     @keyframes dt-pular{ 0%,100%{ height:4px } 50%{ height:13px } }

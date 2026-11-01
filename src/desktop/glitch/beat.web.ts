@@ -21,7 +21,11 @@
  * A suavizacao do analyser e uma media entre fotogramas: e exatamente ela que
  * faz o efeito chegar DEPOIS da batida. Por isso a cadeia de detecao nao pode
  * ter nenhuma, e por isso sao duas e nao uma.
+ *
+ * O andamento (S3, `lib/compasso.ts`) sai dos mesmos ataques: nao ha outra analise,
+ * so a lembranca de quando foram os ultimos.
  */
+import { andamentoDosAtaques } from '../../lib/compasso';
 
 export type EstadoCaptura =
   /** Ainda nao se pediu nada. */
@@ -40,6 +44,8 @@ export type Captura = {
   batida(): number;
   /** Presenca 0..1 de pratos, hats e transientes altos. Nao dispara sozinho. */
   agudos(): number;
+  /** O andamento dos ultimos ataques, se ja se puder acreditar nele. */
+  andamento(): { bpm: number; confianca: number } | null;
   /** Os 256 bins suavizados que desenham as linhas do equalizador. O array e
    * sempre o mesmo: quem chama pode envia-lo para a GPU sem alocar. */
   espetro(): Uint8Array;
@@ -60,6 +66,10 @@ const INTERVALO_NORMAL_MS = 145;
 const INTERVALO_RAPIDO_MS = 72;
 /** Uma janela de ~1 s de fluxo para o limiar adaptativo. */
 const JANELA = 30;
+/** Os ultimos ataques, uns 30 s de musica, para o andamento. */
+const ATAQUES_GUARDADOS = 64;
+/** Um silencio maior do que isto (uma pausa, uma ponte) desencontra a grelha: recomeca-se. */
+const SILENCIO_QUE_RECOMECA_MS = 3000;
 
 async function pedirFluxo(): Promise<MediaStream> {
   const md = navigator.mediaDevices as any;
@@ -108,6 +118,7 @@ export function iniciarCaptura(aoMudarEstado?: (e: EstadoCaptura) => void): Capt
   const espetro = new Uint8Array(256);
 
   const fluxos = new Float32Array(JANELA);
+  const ataques: number[] = [];
   let escritos = 0;
   let cursor = 0;
   let rmsAnterior = 0;
@@ -248,6 +259,9 @@ export function iniciarCaptura(aoMudarEstado?: (e: EstadoCaptura) => void): Capt
         && pico < 0.55;
 
       if (escritos >= 12 && rms > 0.008 && fluxo > limiar && (passouJanelaNormal || ataqueRapidoSeparado)) {
+        if (agoraMs - ultimaBatidaMs > SILENCIO_QUE_RECOMECA_MS) ataques.length = 0;
+        ataques.push(agoraMs);
+        if (ataques.length > ATAQUES_GUARDADOS) ataques.shift();
         ultimaBatidaMs = agoraMs;
         const excesso = Math.min(1, (fluxo - limiar) / (limiar + 1e-6));
         // O detetor ja foi medido contra batidas reais; aqui nao se muda o
@@ -301,6 +315,7 @@ export function iniciarCaptura(aoMudarEstado?: (e: EstadoCaptura) => void): Capt
     },
     batida: () => pico,
     agudos: () => energiaAguda,
+    andamento: () => andamentoDosAtaques(ataques),
     espetro: () => espetro,
     definirAtiva(ativa) {
       desejadaAtiva=ativa;
