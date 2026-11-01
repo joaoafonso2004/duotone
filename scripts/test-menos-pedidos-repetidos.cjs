@@ -81,6 +81,7 @@ async function main() {
       displayArtist: (t) => t.artist, chaveDeArtista: (n) => String(n).toLowerCase(),
       nomesDeConfianca: () => new Set(), tituloDaFaixa: (t) => t.title,
     },
+    '../lib/catalogoDaFaixa': { achadoServe: () => true },
   });
   const faixa = (id) => ({ source: 'youtube', sourceId: id, title: id, artist: 'X', durationSeconds: 200 });
   const biblioteca = Array.from({ length: 30 }, (_, i) => faixa(`f${i}`));

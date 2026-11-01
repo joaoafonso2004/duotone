@@ -124,7 +124,7 @@ caso('o menu voa para a fila, para a barra e para as Liked Songs; sem voo, a fra
 });
 caso('os destinos estão marcados: a capa da barra e as Liked Songs da lateral', () => {
   const casca = ler('src/desktop/casca.web.tsx');
-  assert.match(casca, /<View nativeID="alvo-seguinte"><Artwork track=\{p\.current\} size=\{52\} \/><\/View>/);
+  assert.match(casca, /<View nativeID="alvo-seguinte"><Artwork track=\{mostrada \?\? p\.current\} size=\{52\} \/><\/View>/);
   assert.match(casca, /marcar\('premir', \.\.\.\(id \? \[`nav-\$\{id\}`\] : \[\]\)\)/);
   const orbita = ler('src/desktop/Orbita.web.ts');
   for (const alvo of ['#seta-do-painel-do-leitor', '#aba-do-leitor-fila', '#alvo-seguinte', '[data-dt~="nav-songs"]']) {

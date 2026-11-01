@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
+import { comCatalogo, useCatalogoDeFaixas } from '../state/catalogoDeFaixas';
 import { trackKey } from '../lib/shuffle';
 import { usePlayer } from '../state/player';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
@@ -123,7 +124,8 @@ export function usePonteDoLeitor(opcoes: Opcoes): void {
     };
     const publicar = () => {
       const p = usePlayer.getState();
-      const t = p.current;
+      // A mesma que a barra e o Now Playing mostram (com o catálogo, 1/11).
+      const t = p.current ? comCatalogo(p.current) : null;
       ultimaPosicao = Date.now();
       lerFila();
       ponte.publicarNoMiniLeitor!({
@@ -131,7 +133,7 @@ export function usePonteDoLeitor(opcoes: Opcoes): void {
         artista: t ? displayArtist(t) : null,
         capa: t ? capaDoMini(t) : null,
         aTocar: p.isPlaying,
-        guardada: t ? useSaved.getState().isSaved(t) : false,
+        guardada: p.current ? useSaved.getState().isSaved(p.current) : false,
         posicaoMs: p.positionMs,
         duracaoMs: t?.durationSeconds ? t.durationSeconds * 1000 : p.durationMs,
         fila,
@@ -151,6 +153,7 @@ export function usePonteDoLeitor(opcoes: Opcoes): void {
           if (mudou || (s.positionMs !== antes.positionMs && Date.now() - ultimaPosicao >= 500)) publicar();
         }),
         useSaved.subscribe((s, antes) => { if (s.keys !== antes.keys) publicar(); }),
+        useCatalogoDeFaixas.subscribe((s, antes) => { if (s.versao !== antes.versao) publicar(); }),
         useOuvirJuntos.subscribe((s, antes) => { if (s.fila !== antes.fila || !!s.sessao !== !!antes.sessao) publicar(); }),
         useSeguirAmigo.subscribe((s, antes) => { if (s.aSeguir !== antes.aSeguir || s.seguindo !== antes.seguindo) publicar(); }),
       ];

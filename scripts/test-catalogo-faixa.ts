@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import { aceitar, escolher, titulosCasam, duracoesCasam, normalizar } from '../src/lib/catalogoDaFaixa.ts';
+import {
+  achadoServe, aceitar, artistaDeVerdade, escolher, mesmaVersao, titulosCasam, duracoesCasam, normalizar, versoesDoTitulo,
+} from '../src/lib/catalogoDaFaixa.ts';
 import { chaveDeArtista } from '../src/lib/artistName.ts';
 
 const mesmaChave = (a: string, b: string) => !!chaveDeArtista(a) && chaveDeArtista(a) === chaveDeArtista(b);
@@ -51,4 +53,34 @@ assert.equal(escolhido?.candidato.artista, 'Playboi Carti');
 assert.equal(escolhido?.prova, 'artista');
 assert.equal(escolher(carti, [], mesmaChave), null);
 
-console.log('Catálogo da faixa: título, duração, e a recusa dos títulos genéricos passaram.');
+// --- outra versão não é a mesma faixa (1/11) ---
+// O caso real: a original "Fuera Del Planeta" (Eloy) virou o remix no Now Playing do PC,
+// com "Remix" a fazer de artista. O título normalizado era igual e a duração batia.
+const fuera = { titulo: 'Fuera Del Planeta', artista: 'Eloy', artistaFiavel: false, duracaoSegundos: 224 };
+assert.equal(aceitar(fuera, { titulo: 'Fuera Del Planeta (Remix)', artista: 'Remix', duracao: 224 }, mesmaChave), null,
+  'um remix não entra no lugar da original');
+assert.equal(aceitar(fuera, { titulo: 'Fuera Del Planeta (Remix)', artista: 'Eloy', duracao: 224 }, mesmaChave), null,
+  'nem com o artista certo');
+assert.equal(aceitar(fuera, { titulo: 'Fuera Del Planeta', artista: 'Eloy', duracao: 225 }, mesmaChave), 'duracao');
+// Ao contrário também: a versão que temos não vira a original.
+assert.equal(aceitar({ ...fuera, titulo: 'Fuera Del Planeta (Remix)' }, { titulo: 'Fuera Del Planeta', artista: 'Eloy', duracao: 224 }, mesmaChave), null);
+assert.equal(aceitar({ ...fuera, titulo: 'Fuera Del Planeta (Remix)' }, { titulo: 'Fuera Del Planeta (Remix)', artista: 'Eloy', duracao: 224 }, mesmaChave), 'duracao',
+  'o remix que temos aceita o mesmo remix');
+assert.deepEqual([...versoesDoTitulo('Song (Slowed + Reverb)')].sort(), ['reverb', 'slowed']);
+assert.deepEqual([...versoesDoTitulo('Canção (Ao Vivo)')], ['live']);
+assert.deepEqual([...versoesDoTitulo('Sped Up Version')], ['sped up']);
+assert.equal(mesmaVersao('Live Your Life', 'Live Your Life'), true, 'uma palavra do nome nos dois lados não separa nada');
+assert.equal(mesmaVersao('Song (Acoustic)', 'Song'), false);
+assert.equal(mesmaVersao('Remixed', 'Remixed'), true);
+assert.equal(versoesDoTitulo('Remixed').size, 0, 'por palavra inteira');
+// Um artista que é uma etiqueta não é ninguém.
+assert.equal(artistaDeVerdade('Remix'), false);
+assert.equal(artistaDeVerdade('Various Artists'), false);
+assert.equal(artistaDeVerdade('Eloy'), true);
+assert.equal(aceitar(fuera, { titulo: 'Fuera Del Planeta', artista: 'Various Artists', duracao: 224 }, mesmaChave), null);
+// O que já está guardado (na tabela partilhada) passa pela mesma regra ao mostrar-se.
+assert.equal(achadoServe('Fuera Del Planeta', { titulo: 'Fuera Del Planeta (Remix)', artista: 'Remix' }), false);
+assert.equal(achadoServe('Fuera Del Planeta', { titulo: 'Fuera del Planeta', artista: 'Eloy' }), true);
+assert.equal(achadoServe('Fuera Del Planeta', {}), true, 'sem título nem artista não há nada a recusar');
+
+console.log('Catálogo da faixa: título, duração, a recusa dos títulos genéricos e das outras versões passaram.');
