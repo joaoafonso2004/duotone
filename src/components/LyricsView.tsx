@@ -1,5 +1,5 @@
-import React,{memo,useCallback,useEffect,useMemo,useRef,useState} from 'react';
-import {ActivityIndicator,Animated,Pressable,ScrollView,StyleSheet,Text,View} from 'react-native';
+import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
+import {ActivityIndicator,Pressable,ScrollView,StyleSheet,Text,View} from 'react-native';
 import {usePlayer} from '../state/player';
 import {ensureLyrics,lyricsCacheKey,useLyrics} from '../state/lyrics';
 import {activeLyricIndex} from '../lib/lyricsParser';
@@ -9,14 +9,12 @@ import {tamanhoDasLetras} from '../lib/aparencia';
 import {useAparencia} from '../state/aparencia';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import {FRASES_DOS_ESTADOS} from '../lib/frasesDosEstados';
+// A linha é um par de plataforma (1/11): no PC grava-se (C7), no iPhone fica como era (🔒).
+import {LinhaDaLetra,useLinhaDoRefrao,type EstadoDaLinha} from './LinhaDaLetra';
 
-const Line=memo(function Line({text,timeMs,index,active,onPress,onLayout,reduced,visible,tamanho}:{visible:boolean;text:string;timeMs:number;index:number;active:boolean;onPress:(timeMs:number)=>void;onLayout:(index:number,y:number)=>void;reduced:boolean;tamanho:{fontSize:number;lineHeight:number}}){
-  const opacity=useRef(new Animated.Value(active?1:0.4)).current;
-  useEffect(()=>{const animation=Animated.timing(opacity,{toValue:active?1:0.4,duration:reduced?0:220,useNativeDriver:true});animation.start();return()=>animation.stop();},[active,reduced]);
-  return <Pressable disabled={!visible} onLayout={e=>onLayout(index,e.nativeEvent.layout.y)} accessibilityRole="button" accessibilityLabel={text?`Play from: ${text}`:'Instrumental break'} accessibilityState={{selected:active}} onPress={()=>onPress(timeMs)} style={styles.line}>
-    <Animated.Text style={[styles.words,tamanho,{opacity}]}>{text||'♪'}</Animated.Text>
-  </Pressable>;
-});
+const estadoDaLinha=(i:number,ativa:number):EstadoDaLinha=>i<ativa?'passada':i===ativa?'ativa':i===ativa+1?'seguinte':'futura';
+/** Sem linha seguinte, a última dura isto (o mesmo que uma linha costuma durar). */
+const ULTIMA_LINHA_MS=4000;
 
 const SEM_LINHAS:never[]=[];
 
@@ -63,6 +61,9 @@ export function LyricsView({track,visible,escala=1}:{track:Track;visible:boolean
   // cada aviso do motor -- também com o leitor fechado e o ecrã desligado, que
   // elas ficam montadas no verso da capa. Assim só quando a linha muda.
   const index=usePlayer(useCallback((s:{positionMs:number})=>synced?activeLyricIndex(lines,s.positionMs):-1,[synced,lines]));
+  // Os tempos das linhas: quando cada uma acaba (a gravação do PC) e onde o refrão começa (a risca).
+  const tempos=useMemo(()=>lines.map(l=>l.timeMs),[lines]);
+  const linhaDoRefrao=useLinhaDoRefrao(track,synced?tempos:SEM_LINHAS);
   useEffect(()=>{offsets.current={};previous.current=-1;setManual(false);void ensureLyrics(track);},[key]);
   useEffect(()=>()=>{if(resume.current)clearTimeout(resume.current);},[]);
   useEffect(()=>{
@@ -82,7 +83,7 @@ export function LyricsView({track,visible,escala=1}:{track:Track;visible:boolean
         <SemLetra tipo={data?.instrumental?'instrumental':entry.status==='missing'?'semLetra':'letraFalhou'} mensagem={entry.message} visible={visible} aoRepetir={retry} />:
       <>
         <View style={{flex:1,overflow:'hidden'}}><ScrollView ref={scroll} onLayout={e=>setHeight(e.nativeEvent.layout.height)} onContentSizeChange={()=>setRevision(v=>v+1)} {...({onWheel:pauseFollowing,style:{touchAction:'pan-y'}} as any)} onScrollBeginDrag={pauseFollowing} onTouchStart={pauseFollowing} showsVerticalScrollIndicator={false} contentContainerStyle={{paddingHorizontal:24,paddingTop:height*0.28,paddingBottom:height*0.65}}>
-          {synced?lines.map((line,i)=><Line key={`${key}:${i}`} text={line.text} timeMs={line.timeMs} index={i} active={i===index} reduced={reduced} visible={visible} tamanho={tamanho.linha} onLayout={guardarAltura} onPress={tocarDaLinha} />):<Text style={[styles.words,tamanho.texto]}>{data?.plainLyrics}</Text>}
+          {synced?lines.map((line,i)=><LinhaDaLetra key={`${key}:${i}`} text={line.text} timeMs={line.timeMs} fimMs={tempos[i+1]??line.timeMs+ULTIMA_LINHA_MS} index={i} estado={estadoDaLinha(i,index)} refrao={i===linhaDoRefrao} reduced={reduced} visible={visible} tamanho={tamanho.linha} onLayout={guardarAltura} onPress={tocarDaLinha} />):<Text style={[styles.words,tamanho.texto]}>{data?.plainLyrics}</Text>}
         </ScrollView>
         </View>
         {/* Só aparece rodapé quando há mesmo o que dizer. O "LYRICS" em cima e

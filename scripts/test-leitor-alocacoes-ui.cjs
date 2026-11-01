@@ -63,15 +63,17 @@ const { LyricsView } = carregar('src/components/LyricsView.tsx', {
   '../state/aparencia': { useAparencia: selector => selector(aparencia) },
   '@expo/vector-icons/Ionicons': 'Icon',
   '../lib/frasesDosEstados': carregar('src/lib/frasesDosEstados.ts'),
+  // A linha é um par de plataforma (1/11): aqui a do iPhone, a verdadeira.
+  './LinhaDaLetra': carregar('src/components/LinhaDaLetra.tsx', { react: h.React, 'react-native': rn }),
 });
 const props = { track: { sourceId: 'ensaio' }, visible: true };
-const desenhar = () => todos(h.render(LyricsView, props)).filter(n => n.type?.name === 'Line');
+const desenhar = () => todos(h.render(LyricsView, props)).filter(n => n.type?.name === 'LinhaDaLetra');
 const antes = desenhar();
 player.positionMs = 6000;
 const depois = desenhar();
 assert.equal(antes.length, 100);
-assert.equal(depois.filter((n, i) => !propsIguais(n.props, antes[i].props)).length, 2,
-  'avançar um verso só invalida a linha antiga e a nova, em vez das cem');
+assert.equal(depois.filter((n, i) => !propsIguais(n.props, antes[i].props)).length, 3,
+  'avançar um verso só invalida a linha antiga, a nova e a seguinte (que passa a 70 %), em vez das cem');
 depois[7].props.onPress(depois[7].props.timeMs);
 assert.equal(player.positionMs, 14000, 'o toque continua a procurar a posição certa');
 props.visible = false;

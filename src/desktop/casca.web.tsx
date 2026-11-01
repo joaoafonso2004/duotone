@@ -342,6 +342,11 @@ export function injectDesktopDocumentStyles() {
       background-size: 220vw 100%; background-attachment: fixed;
       animation: dt-luz-unica ${LUZ_DO_CARREGAMENTO_MS}ms ease-in-out infinite; }
     @keyframes dt-luz-unica{ from{ background-position: 10vw 0; } to{ background-position: -130vw 0; } }
+    /* A linha da letra que se canta grava-se (C7, 1/11): uma cópia em metal claro
+       descobre-se da esquerda para a direita durante o tempo da linha. A duração,
+       o atraso (o que já passou) e o play/pausa vão no estilo (LinhaDaLetra.web.tsx). */
+    [data-dt~="gravacao"]{ clip-path: inset(0 100% 0 0); animation-name: dt-gravar; animation-timing-function: linear; animation-fill-mode: both; }
+    @keyframes dt-gravar{ from{ clip-path: inset(0 100% 0 0); } to{ clip-path: inset(0 0 0 0); } }
     [data-dt~="lista"] [data-dt~="fila"]:nth-child(2){ animation-delay: 10ms }
     [data-dt~="lista"] [data-dt~="fila"]:nth-child(3){ animation-delay: 20ms }
     [data-dt~="lista"] [data-dt~="fila"]:nth-child(4){ animation-delay: 30ms }
@@ -654,6 +659,8 @@ export function injectDesktopDocumentStyles() {
       [data-dt~="ie-shuffle"][data-anima] [data-dt~="ie-linha"], [data-dt~="ie-jam"]::before, [data-dt~="ie-jam"]::after{ animation: none !important; }
       /* Com menos movimento, as formas sem luz (uma banda parada lia-se como um risco). */
       [data-dt~="carregando"] [data-dt~="forma"]{ background-image: none !important; }
+      /* A linha cantada acende inteira de uma vez. */
+      [data-dt~="gravacao"]{ animation: none !important; clip-path: none !important; }
       [data-dt~="premir"], [data-dt~="desliza"], [data-dt~="campo"], [data-dt~="fila"] [data-dt~="toca"],
       [data-dt~="fila"] [data-dt~="mais"], [data-dt~="fila"] [data-dt~="numero"],
       [data-dt~="cartao"], [data-dt~="coracaoDoCartao"], [data-dt~="a-sair"], [data-dt~="main-a-voltar"],
