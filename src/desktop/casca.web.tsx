@@ -43,6 +43,7 @@ import { PRE_ESCUTA_S } from '../lib/refrao';
 import { TOM_CLARO, TOM_ESCURO } from '../lib/doisTons';
 import { ligarBrilhoDoCursor } from './duotone.web';
 import { IconeJam, IconePlayPause, IconeRepeat, IconeShuffle, IconeVolume } from './IconesDeEstado.web';
+import { estiloDoDisco, estiloDoReflexo, rodarReflexo } from './DiscoDeMetal.web';
 import { estadoDoShuffle } from '../lib/estadoDosIcones';
 import { usePontoNaBarra } from '../state/refrao';
 import { dentesDaTecla, valorDaProcura } from '../lib/acessibilidadeDoPc';
@@ -289,6 +290,10 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="premir"]:active{ transform: scale(.97); transition: transform var(--dt-premir-ms) var(--dt-premir),
       background-color var(--dt-rapido) var(--dt-curva), border-color var(--dt-rapido) var(--dt-curva),
       box-shadow var(--dt-normal) var(--dt-curva); }
+    /* O play é um disco de metal escovado (C3, 1/11): o metal, o laço de luz que
+       roda na pausa e no play (DiscoDeMetal.web.ts), e o ícone por cima. */
+    [data-dt~="disco-metal"]{ ${estiloDoDisco()} }
+    [data-dt~="reflexo"]{ ${estiloDoReflexo()} }
 
     /* As linhas de uma lista entram umas atras das outras -- so as primeiras:
        escalonar duzentas seria uma lista a montar-se durante dois segundos. */
@@ -985,6 +990,14 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
     cycleRepeat: s.cycleRepeat, error: s.error, seekTo: s.seekTo,
   })));
   const jam = useOuvirJuntos((s) => s.sessao);
+  // O laço do disco roda quando o play muda (C3), e não ao montar: parado, nunca roda.
+  const reflexo = useRef<any>(null);
+  const tocavaAntes = useRef(p.isPlaying);
+  useEffect(() => {
+    if (tocavaAntes.current === p.isPlaying) return;
+    tocavaAntes.current = p.isPlaying;
+    rodarReflexo(reflexo.current, p.isPlaying);
+  }, [p.isPlaying]);
   const [dragX,setDragX]=useState(0);
   const swipeWidth=useRef(360),swiping=useRef(false);
   const reducedMotion=useReducedMotion();
@@ -1033,7 +1046,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
           desenho={(cor) => <IconeShuffle estado={estadoDoShuffle(p.shuffle, p.shuffleInteligente)} cor={cor} />} />
         <IconButton name="play-skip-back" label="Previous" atalho="Ctrl+←" onPress={p.prev} />
         {p.showRewindButton && <IconButton name="play-back" label="Rewind 15 seconds" onPress={() => p.seekTo(Math.max(0, usePlayer.getState().positionMs - 15000))} />}
-        <Pressable {...comDica(p.isPlaying ? 'Pause' : 'Play', 'Space')} accessibilityRole="button" accessibilityLabel={p.isPlaying ? 'Pause' : 'Play'} onPress={p.togglePlay} style={({ hovered, pressed }) => [styles.playButton, hovered && { transform: [{ scale: 1.05 }] }, pressed && { transform: [{ scale: .97 }] }]}>{p.buffering ? <Ionicons name="hourglass-outline" size={19} color="#111117" /> : <IconePlayPause tocando={p.isPlaying} />}</Pressable>
+        <Pressable {...comDica(p.isPlaying ? 'Pause' : 'Play', 'Space')} accessibilityRole="button" accessibilityLabel={p.isPlaying ? 'Pause' : 'Play'} onPress={p.togglePlay} {...marcar('disco-metal')} style={({ hovered, pressed }) => [styles.playButton, hovered && { transform: [{ scale: 1.05 }] }, pressed && { transform: [{ scale: .97 }] }]}><View ref={reflexo} {...marcar('reflexo')} /><View style={{ zIndex: 1 }}>{p.buffering ? <Ionicons name="hourglass-outline" size={19} color="#111117" /> : <IconePlayPause tocando={p.isPlaying} />}</View></Pressable>
         <IconButton name="play-skip-forward" label="Next" atalho="Ctrl+→" onPress={p.next} />
         {/* O icone e o MESMO nos dois modos: o `repeat` e o `repeat-outline`
             do Ionicons sao praticamente iguais a este tamanho, e o botao

@@ -7,8 +7,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  CICLO_MAXIMO_MS, criarLuz, DEGRAU_MS, direcaoDoAviso, duracaoDoCiclo, LARGURA_DA_BANDA, LUZ_A_PASSAR_MS, LUZ_MS,
-  OPACIDADE_DA_BANDA, OPACIDADE_DO_DEGRAU, trajetoDaBanda, TRAVAO,
+  CICLO_MAXIMO_MS, criarLuz, DEGRAU_MS, direcaoDoAviso, duracaoDoCiclo, ESTREITEZA_DO_LACO, lacoConico, LARGURA_DA_BANDA,
+  LUZ_A_PASSAR_MS, LUZ_MS, OPACIDADE_DA_BANDA, OPACIDADE_DO_DEGRAU, quedaDoReflexo, trajetoDaBanda, TRAVAO, voltaDoDisco,
 } from '../src/lib/luz.ts';
 import { curvasDoPc } from '../src/lib/molasEmCss.ts';
 
@@ -132,6 +132,64 @@ caso('os avisos que JUNTAM com "Undo" dizem que é → (senão liam-se como remo
   assert.ok(comDesfazer.length >= 4, `encontrei ${comDesfazer.length}`);
   for (const a of comDesfazer) assert.match(a, /luz: 'avancar'/, a);
   assert.match(ler('src/desktop/paginas/PlaylistPages.web.tsx'), /texto: 'Moved\.', luz: 'avancar'/);
+});
+
+console.log('\nC3: o laço em disco (o play do PC)');
+caso('o laço tem as duas cunhas a 45° e a 225°, e nada a 0°, 90°, 180° e 270° (como o sprite)', () => {
+  const laco = lacoConico();
+  const alfa = (g: number) => Number(new RegExp(`rgba\\(255,255,255,([\\d.]+)\\) ${g}deg`).exec(laco)?.[1]);
+  assert.equal(alfa(45), 1);
+  assert.equal(alfa(225), 1);
+  for (const g of [0, 90, 180, 270]) assert.equal(alfa(g), 0, `${g}°`);
+  assert.ok(alfa(52.5) > alfa(60) && alfa(60) > alfa(67.5), 'a cunha estreita a afastar-se do meio');
+  assert.equal(ESTREITEZA_DO_LACO, 6);
+});
+caso('a luz é mais forte a meio do raio: nada no centro, quase toda a meio, menos na borda', () => {
+  const queda = quedaDoReflexo();
+  const em = (p: number) => Number(new RegExp(`rgba\\(255,255,255,([\\d.]+)\\) ${p}%`).exec(queda)?.[1]);
+  assert.equal(em(0), 0);
+  assert.ok(em(50) > 0.99 && em(60) > 0.99);
+  assert.ok(em(100) < em(50) && em(100) > 0);
+});
+caso('a pausa trava meia volta (o travão); o play arranca um quarto com ressalto (SOLTAR)', () => {
+  assert.deepEqual(voltaDoDisco(false), { graus: 180, curva: 'travar' });
+  assert.deepEqual(voltaDoDisco(true), { graus: 90, curva: 'soltar' });
+  assert.ok(curvasDoPc().soltar.pico > 1.1, 'o SOLTAR passa do sítio');
+});
+caso('o dedo manda: o play ocupa a luz sem perguntar, e nunca encurta uma que já lá está', () => {
+  let t = 0;
+  const luz = criarLuz(() => t);
+  luz.ocupar(400);
+  assert.equal(luz.pedir(), false, 'um aviso que chega enquanto o disco roda é o degrau');
+  luz.ocupar(100);
+  t = 300;
+  assert.equal(luz.ocupada(), true, 'os 100 não encurtaram os 400');
+  t = 401;
+  assert.equal(luz.pedir(), true);
+});
+caso('o DiscoDeMetal parte do ângulo em que está, usa as curvas do PC, ocupa a luz e respeita menos movimento', () => {
+  const d = ler('src/desktop/DiscoDeMetal.web.ts');
+  assert.match(d, /const de = anguloAgora\(el\);/);
+  assert.match(d, /const c = curvasDoPc\(\)\[curva\];/);
+  assert.match(d, /ocuparLuz\(/);
+  assert.match(d, /prefers-reduced-motion: reduce/);
+  assert.match(d, /mask-composite:intersect/);
+  assert.ok(!/cubic-bezier|\bease\b/.test(d));
+});
+caso('a barra do PC: o disco, o laço por baixo do ícone, e só roda quando o play MUDA', () => {
+  const casca = ler('src/desktop/casca.web.tsx');
+  assert.match(casca, /\[data-dt~="disco-metal"\]\{ \$\{estiloDoDisco\(\)\} \}/);
+  assert.match(casca, /\[data-dt~="reflexo"\]\{ \$\{estiloDoReflexo\(\)\} \}/);
+  assert.match(casca, /if \(tocavaAntes\.current === p\.isPlaying\) return;[\s\S]{0,80}rodarReflexo\(reflexo\.current, p\.isPlaying\)/);
+  assert.match(casca, /\{\.\.\.marcar\('disco-metal'\)\}[^\n]*<View ref=\{reflexo\} \{\.\.\.marcar\('reflexo'\)\} \/><View style=\{\{ zIndex: 1 \}\}>/);
+  assert.ok(!/playButton: \{[^}]*backgroundColor/.test(ler('src/desktop/estilos.web.ts')), 'um fundo no estilo tapava o metal');
+});
+caso('o mini leitor (outro documento): o mesmo disco nos dois play, e o hover não tapa o metal', () => {
+  const mini = ler('src/janelaMini.web.tsx');
+  assert.equal((mini.match(/<BotaoDePlay /g) ?? []).length, 2);
+  assert.match(mini, /\[data-dt~="disco-metal"\]:hover \{ \$\{estiloDoDisco\(\)\}/);
+  assert.match(mini, /\[data-dt~="reflexo"\] \{ \$\{estiloDoReflexo\(\)\} \}/);
+  assert.match(mini, /if \(antes\.current === aTocar\) return;[\s\S]{0,60}rodarReflexo\(reflexo\.current, aTocar\)/);
 });
 
 if (falhas) { console.log(`\n${falhas} falha(s)`); process.exit(1); }
