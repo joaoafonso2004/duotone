@@ -26,6 +26,26 @@ export function eArrasto(dx: number, dy: number, soVertical = false): boolean | 
 }
 
 /**
+ * O Íman (C5, 1/11): o destino mais próximo acende à medida que a música se
+ * aproxima, a começar a esta distância do rato. Só esse: todos a acender ao
+ * mesmo tempo não diziam para onde ela ia.
+ */
+export const RAIO_DO_IMAN_PX = 240;
+
+/** A distância do rato a um retângulo; 0 com o rato dentro dele. */
+export function distanciaAoRetangulo(
+  x: number, y: number, r: { left: number; top: number; right: number; bottom: number },
+): number {
+  return Math.hypot(Math.max(r.left - x, 0, x - r.right), Math.max(r.top - y, 0, y - r.bottom));
+}
+
+/** Quanto acende (0 a 1). Com menos movimento não há aproximação: só por cima. */
+export function pertoDoIman(distancia: number, menosMovimento = false): number {
+  if (menosMovimento) return distancia <= 0 ? 1 : 0;
+  return Math.round(Math.max(0, 1 - distancia / RAIO_DO_IMAN_PX) * 1000) / 1000;
+}
+
+/**
  * Antes de que linha entra a música, pelo meio de cada uma: por cima da metade
  * de cima de uma linha entra antes dela; abaixo da última, no fim.
  */

@@ -448,7 +448,14 @@ export function injectDesktopDocumentStyles() {
        Os atributos põe-nos o arrasto direto no DOM (não são marcas). */
     body[data-arrastar], body[data-arrastar] *{ cursor: grabbing !important; user-select: none !important; }
     [data-largar]{ transition: background-color var(--dt-rapido) var(--dt-curva), box-shadow var(--dt-rapido) var(--dt-curva); }
-    [data-largar="pode"]{ box-shadow: inset 0 0 0 1px rgba(233,234,238,.14); border-radius: ${RAIO.cartao}px; }
+    /* O Íman (C5, 1/11): o destino mais próximo acende à medida que a música se
+       aproxima. O arrasto escreve a --perto (0 a 1) só nele, um fotograma por movimento. */
+    [data-largar="pode"]{ box-shadow: inset 0 0 0 1px rgba(233,234,238,calc(.14 + .31 * var(--perto, 0))), 0 0 calc(22px * var(--perto, 0)) rgba(233,234,238,calc(.16 * var(--perto, 0)));
+      background-color: rgba(233,234,238,calc(.1 * var(--perto, 0))); border-radius: ${RAIO.cartao}px; }
+    /* A música levanta-se como uma placa de metal, e a linha de onde saiu apaga-se. */
+    [data-dt~="placa"]{ animation: dt-placa var(--dt-premir-ms) var(--dt-premir) both; }
+    @keyframes dt-placa{ from{ transform: scale(1); } to{ transform: scale(1.04); } }
+    [data-a-arrastar]{ opacity: .35; }
     [data-largar="por-cima"]{ background-color: rgba(233,234,238,.12) !important; box-shadow: inset 0 0 0 1px rgba(233,234,238,.28); border-radius: ${RAIO.cartao}px; }
     /* A mola (25/10): parada em cima das Playlists, a música enche o item da
        esquerda para a direita durante o tempo que falta para ele abrir. */
@@ -652,7 +659,7 @@ export function injectDesktopDocumentStyles() {
       [data-dt~="fila"], [data-dt~="dialogo"], [data-dt~="veu"], [data-dt~="aviso"],
       [data-dt~="menu-amigo"], [data-dt~="aviso-msg"],
       [data-dt~="pagina"], [data-dt~="pagina"] [data-dt~="cartao"], [data-dt~="formas"],
-      [data-dt~="carregando"] [data-dt~="forma"],
+      [data-dt~="carregando"] [data-dt~="forma"], [data-dt~="placa"],
       [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"],
       .np-fila-sai, .np-fila-vira, .np-fila-entra,
       [data-dt~="radio-onda"], [data-dt~="radio-anel"], [data-dt~="salto-atual"],

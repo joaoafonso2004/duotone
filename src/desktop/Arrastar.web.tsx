@@ -2,10 +2,13 @@ import React from 'react';
 import { Image, Text, View } from 'react-native';
 import { create } from 'zustand';
 import { playlistsComAFaixa } from '../api/playlists';
-import { eArrasto } from '../lib/arrastar';
+import { distanciaAoRetangulo, eArrasto, pertoDoIman } from '../lib/arrastar';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
+import { curvasDoPc } from '../lib/molasEmCss';
 import type { Track } from '../types';
+import { acender } from './Orbita.web';
 import { COR, FONT, RAIO } from './tokens.web';
+import { marcar } from './ui.web';
 
 // Sem tipos instalados para o react-dom; só se usa o portal.
 const { createPortal } = require('react-dom') as { createPortal: (filho: React.ReactNode, onde: Element) => React.ReactElement };
@@ -62,6 +65,12 @@ export const MOLA_MS = 600;
  *   que contém o elemento debaixo dele (`elementFromPoint`), por isso um
  *   diálogo por cima da lateral tapa-a, como se vê.
  * - Esc desiste, e o clique ao largar também é engolido.
+ *
+ * O Íman (C5, 1/11): a música levanta-se como uma placa de metal (a linha de
+ * onde saiu fica apagada), o destino mais próximo acende à medida que ela se
+ * aproxima (`--perto`, escrita só nele, um fotograma por movimento e só durante o
+ * arrasto) e, ao largar, a placa é puxada para lá com a mola SOLTAR e ele acende o
+ * anel da Órbita. Largada onde não faz nada, volta para a linha de onde saiu.
  */
 const alvos = new Map<string, { no: HTMLElement; alvo: Alvo }>();
 
@@ -89,7 +98,16 @@ let gesto: {
   molasAbertas: Set<string>;
   /** Como voltar para onde se estava, se uma mola abriu outra página. */
   voltar: (() => void) | null;
+  /** A linha de onde a música saiu: apaga-se enquanto se arrasta, e a placa volta para lá. */
+  linha: HTMLElement | null;
+  /** O Íman: o destino que tem agora a `--perto`, e o fotograma pedido. */
+  maisPerto: HTMLElement | null;
+  fotograma: number | null;
 } | null = null;
+
+const menosMovimento = () => {
+  try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; }
+};
 
 /** O `onPointerDown` de quem se pode arrastar. `soVertical`: num carrossel, o lado é dele. */
 export function comecarArrasto(e: any, faixa: Track, origem: OrigemDoArrasto = {}, opcoes?: { soVertical?: boolean }): void {
@@ -99,6 +117,7 @@ export function comecarArrasto(e: any, faixa: Track, origem: OrigemDoArrasto = {
   gesto = {
     faixa, origem, x0: n.clientX, y0: n.clientY, soVertical: !!opcoes?.soVertical, ativo: null, cancelado: false,
     x: n.clientX, y: n.clientY, pediuPlaylists: false, molaChave: null, molaTempo: null, molasAbertas: new Set(), voltar: null,
+    linha: (e?.currentTarget ?? n.currentTarget ?? null) as HTMLElement | null, maisPerto: null, fotograma: null,
   };
   window.addEventListener('pointermove', mover, true);
   window.addEventListener('pointerup', largar, true);
@@ -126,6 +145,7 @@ function ativar(g: NonNullable<typeof gesto>): void {
   const ativo: ArrastoAtivo = { faixa: g.faixa, origem: g.origem, playlistsComAFaixa: null };
   g.ativo = ativo;
   document.body.setAttribute('data-arrastar', '');
+  g.linha?.setAttribute?.('data-a-arrastar', '');
   try { window.getSelection?.()?.removeAllRanges(); } catch {}
   for (const r of alvos.values()) {
     if (r.alvo.aceita(ativo) && !r.alvo.insercao) r.no.setAttribute('data-largar', 'pode');
@@ -168,10 +188,65 @@ function abrirMola(chave: string): void {
   for (const ms of [0, 250, 700]) setTimeout(() => { if (gesto?.ativo === ativo) atualizar(gesto.x, gesto.y); }, ms);
 }
 
+/** O Íman: só o destino mais próximo acende, e no máximo uma vez por fotograma. */
+function pedirIman(g: NonNullable<typeof gesto>): void {
+  if (g.fotograma !== null) return;
+  g.fotograma = requestAnimationFrame(() => {
+    g.fotograma = null;
+    if (gesto !== g || !g.ativo || g.cancelado) return;
+    let melhor: HTMLElement | null = null;
+    let menor = Infinity;
+    for (const r of alvos.values()) {
+      if (!r.no.isConnected || r.alvo.insercao || !r.alvo.aceita(g.ativo)) continue;
+      const d = distanciaAoRetangulo(g.x, g.y, r.no.getBoundingClientRect());
+      if (d < menor) { menor = d; melhor = r.no; }
+    }
+    if (g.maisPerto && g.maisPerto !== melhor) g.maisPerto.style.removeProperty('--perto');
+    g.maisPerto = melhor;
+    melhor?.style.setProperty('--perto', String(pertoDoIman(menor, menosMovimento())));
+  });
+}
+
+/**
+ * A placa voa de onde está: para o destino (`deVolta` falso, a encolher até
+ * desaparecer) ou de volta à linha. Uma cópia dela, porque a verdadeira sai
+ * com o arrasto; só `transform` e opacidade, e sai do documento no fim.
+ */
+function voarAPlaca(copia: HTMLElement, de: DOMRect, para: HTMLElement, deVolta: boolean, depois?: () => void): void {
+  const alvo = para.getBoundingClientRect();
+  const dx = alvo.left + (deVolta ? 8 : alvo.width / 2) - (de.left + (deVolta ? 8 : de.width / 2));
+  const dy = alvo.top + (deVolta ? 8 : alvo.height / 2) - (de.top + (deVolta ? 8 : de.height / 2));
+  Object.assign(copia.style, { position: 'fixed', left: `${de.left}px`, top: `${de.top}px`, width: `${de.width}px`, height: `${de.height}px`, margin: '0', zIndex: '401', pointerEvents: 'none' });
+  document.body.appendChild(copia);
+  const c = curvasDoPc().soltar;
+  const duracao = Math.round(c.ms * (deVolta ? 0.7 : 0.6));
+  const a = copia.animate(
+    [{ transform: 'none', opacity: 1 }, { transform: `translate(${dx}px, ${dy}px) scale(${deVolta ? 0.96 : 0.25})`, opacity: deVolta ? 0.2 : 0 }],
+    { duration: duracao, easing: c.curva, fill: 'forwards' },
+  );
+  let feito = false;
+  const fim = () => { if (feito) return; feito = true; copia.remove(); depois?.(); };
+  a.onfinish = fim;
+  a.oncancel = () => copia.remove();
+  // Com a janela escondida o Chromium não dá o `finish`: o relógio acaba o voo à hora.
+  setTimeout(fim, duracao + 100);
+}
+
+/** Uma cópia da placa como está agora, sem a marca (a entrada não se repete). */
+function copiaDaPlaca(): { copia: HTMLElement; de: DOMRect } | null {
+  const placa = document.querySelector('[data-dt~="placa"]') as HTMLElement | null;
+  if (!placa) return null;
+  const de = placa.getBoundingClientRect();
+  const copia = placa.cloneNode(true) as HTMLElement;
+  copia.removeAttribute('data-dt');
+  return { copia, de };
+}
+
 function atualizar(x: number, y: number): void {
   const g = gesto;
   if (!g?.ativo) return;
   g.x = x; g.y = y;
+  pedirIman(g);
   const debaixo = alvoEm(x, y);
   let porCima: PorCima | null = null;
   for (const [chave, r] of alvos) {
@@ -222,8 +297,20 @@ function largar(e: PointerEvent): void {
   // Uma mola abriu outra página: depois de largar, volta-se para onde se estava.
   const voltar = g.voltar;
   g.voltar = null;
+  const linha = g.linha;
+  // O voo parte de onde a placa está, por isso a cópia tira-se antes de ela sair.
+  const voo = menosMovimento() ? null : copiaDaPlaca();
   terminar();
-  if (debaixo && porCima?.faz) debaixo.alvo.aoLargar(ativo, e.clientX, e.clientY, debaixo.no);
+  if (debaixo && porCima?.faz) {
+    debaixo.alvo.aoLargar(ativo, e.clientX, e.clientY, debaixo.no);
+    // Numa lista a música já ficou no sítio dela: só um destino puxa a placa e acende.
+    if (!debaixo.alvo.insercao) {
+      if (voo) voarAPlaca(voo.copia, voo.de, debaixo.no, false, () => acender(debaixo.no));
+      else acender(debaixo.no);
+    }
+  } else if (voo && linha?.isConnected) {
+    voarAPlaca(voo.copia, voo.de, linha, true);
+  }
   voltar?.();
 }
 
@@ -252,6 +339,10 @@ function engolirClique(): void {
 
 function limparVisuais(): void {
   document.body.removeAttribute('data-arrastar');
+  gesto?.linha?.removeAttribute?.('data-a-arrastar');
+  if (gesto?.fotograma != null) { cancelAnimationFrame(gesto.fotograma); gesto.fotograma = null; }
+  gesto?.maisPerto?.style.removeProperty('--perto');
+  if (gesto) gesto.maisPerto = null;
   for (const r of alvos.values()) r.no.removeAttribute('data-largar');
   useArrasto.setState({ ativo: null, porCima: null });
 }
@@ -282,10 +373,12 @@ export function CamadaDoArrasto() {
       position: 'fixed', zIndex: 400, left: porCima.linha.esquerda, width: Math.max(0, porCima.linha.direita - porCima.linha.esquerda),
       top: porCima.linha.topo - 1, height: 2, borderRadius: 1, backgroundColor: COR.texto, boxShadow: '0 0 0 3px rgba(233,234,238,0.12)',
     } as any} /> : null}
-    <View pointerEvents="none" style={{
+    <View pointerEvents="none" {...marcar('placa')} style={{
       position: 'fixed', zIndex: 401, left: Math.min(x + 14, largura - 320), top: y + 10, maxWidth: 300,
       flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7, paddingLeft: 7, paddingRight: 12,
-      borderRadius: RAIO.cartao, backgroundColor: '#18181F', borderWidth: 1, borderColor: '#33333C', boxShadow: '0 14px 34px rgba(0,0,0,.55)',
+      borderRadius: RAIO.cartao, backgroundImage: 'linear-gradient(180deg, #1E1E26, #14141A)', borderWidth: 1, borderColor: '#33333C',
+      // A aresta de luz em cima: é uma placa de metal que se levantou.
+      borderTopColor: 'rgba(233,234,238,.32)', boxShadow: '0 18px 40px rgba(0,0,0,.6)',
     } as any}>
       {t.artworkUrl ? <Image source={{ uri: t.artworkUrl }} style={{ width: 34, height: 34, borderRadius: RAIO.ctrl, backgroundColor: COR.elevado }} />
         : <View style={{ width: 34, height: 34, borderRadius: RAIO.ctrl, backgroundColor: COR.elevado }} />}

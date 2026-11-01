@@ -74,7 +74,7 @@ function camada(estilo: Partial<CSSStyleDeclaration>): HTMLDivElement {
 }
 
 /** O anel que acende no destino (com menos movimento, só a opacidade). */
-function acender(el: HTMLElement): void {
+export function acender(el: HTMLElement): void {
   const r = el.getBoundingClientRect();
   const lado = Math.max(r.width, r.height) + 10;
   const anel = camada({
@@ -88,6 +88,8 @@ function acender(el: HTMLElement): void {
     : [{ opacity: 0, transform: 'scale(.9)' }, { opacity: 0.6, transform: 'scale(1.05)', offset: 0.35 }, { opacity: 0, transform: 'scale(1.25)' }];
   const a = anel.animate(quadros, { duration: ANEL_MS, easing: 'linear' });
   a.onfinish = a.oncancel = () => anel.remove();
+  // Com a janela escondida o Chromium não dá o `finish`: o relógio tira-o à hora.
+  setTimeout(() => anel.remove(), ANEL_MS + 100);
 }
 
 /**
