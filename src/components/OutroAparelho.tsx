@@ -213,7 +213,7 @@ const estilos = StyleSheet.create({
   mini: { position: 'absolute', left: 0, right: 0, height: MINI_PLAYER_HEIGHT, overflow: 'hidden' },
   miniDentro: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 16, paddingRight: 10 },
   miniCapa: { width: 48, height: 48, borderRadius: radii.sm, borderCurve: 'continuous', backgroundColor: colors.surface },
-  miniTitulo: { fontSize: 13.5, fontWeight: '600', color: colors.text },
+  miniTitulo: { fontSize: 13, fontWeight: '600', color: colors.text },
   miniOnde: { fontSize: 11, fontWeight: '600' },
   miniBotao: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   miniFio: { position: 'absolute', left: 16, right: 16, bottom: 0, height: 2, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.10)' },

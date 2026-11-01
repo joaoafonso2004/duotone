@@ -117,7 +117,7 @@ export function BotaoDoOutroAparelho() {
           (hovered || aberto) && { backgroundColor: ESTADO.hover }]}>
         <View>
           <IconeDosAparelhos cor={COR.texto} />
-          <View style={{ position: 'absolute', left: 13, top: -2, borderRadius: 5, borderWidth: 2, borderColor: '#0A0A0D' }}>
+          <View style={{ position: 'absolute', left: 13, top: -2, borderRadius: RAIO.pilula, borderWidth: 2, borderColor: '#0A0A0D' }}>
             <PontoAoVivo cor={cor} aTocar={oferta.isPlaying} tamanho={7} />
           </View>
         </View>
@@ -155,9 +155,9 @@ function CartaoDoOutroAparelho({ sessao }: { sessao: RemoteSession }) {
       <View accessibilityRole={'dialog' as any} accessibilityLabel={`Playing on ${nome}`}
         style={{ position: 'absolute', right: lugar.right, bottom: lugar.bottom, width: 360, borderRadius: 12, backgroundColor: '#15151B',
           borderWidth: 1, borderColor: COR.linha, boxShadow: '0 26px 60px rgba(0,0,0,.65)', overflow: 'hidden',
-          animationName: 'dt-linha', animationDuration: '260ms', animationTimingFunction: 'cubic-bezier(.2,.9,.25,1.06)' } as any}>
+          animationName: 'dt-linha', animationDuration: '260ms', animationTimingFunction: 'var(--dt-curva)' } as any}>
         <Text style={[TIPO.seccao, { color: COR.texto, paddingHorizontal: ESP.lg, paddingTop: 14, paddingBottom: ESP.sm }]}>Playing on {nome}</Text>
-        <View style={{ marginHorizontal: 10, marginBottom: 10, borderRadius: 10, padding: ESP.md, borderWidth: 1, borderColor: COR.linha, backgroundColor: 'rgba(233,234,238,0.03)' }}>
+        <View style={{ marginHorizontal: 10, marginBottom: 10, borderRadius: RAIO.cartao, padding: ESP.md, borderWidth: 1, borderColor: COR.linha, backgroundColor: 'rgba(233,234,238,0.03)' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESP.md }}>
             <Artwork track={sessao.track} size={56} />
             <View style={{ flex: 1, minWidth: 0 }}>
@@ -167,11 +167,11 @@ function CartaoDoOutroAparelho({ sessao }: { sessao: RemoteSession }) {
             </View>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESP.sm, marginTop: ESP.md, marginBottom: 10 }}>
-            <Text style={[TIPO.numero, { fontSize: 10.5, color: COR.textoFraco }]}>{fmtRelogio(posicao)}</Text>
+            <Text style={[TIPO.numero, { fontSize: 11, color: COR.textoFraco }]}>{fmtRelogio(posicao)}</Text>
             <View style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: 'rgba(233,234,238,0.12)', overflow: 'hidden' }}>
               <View style={{ height: 4, width: `${fracao * 100}%`, backgroundColor: cor, borderRadius: 2 }} />
             </View>
-            <Text style={[TIPO.numero, { fontSize: 10.5, color: COR.textoFraco }]}>{duracao > 0 ? fmtRelogio(duracao) : '--:--'}</Text>
+            <Text style={[TIPO.numero, { fontSize: 11, color: COR.textoFraco }]}>{duracao > 0 ? fmtRelogio(duracao) : '--:--'}</Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESP.sm, justifyContent: 'space-between' }}>
             <ComandoRemoto sessao={sessao} comandar={comandar} aMandar={aMandar} />
