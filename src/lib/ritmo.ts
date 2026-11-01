@@ -51,8 +51,8 @@ export const batidaSegura = (r: Pick<Ritmo, 'confianca' | 'estavel'>): boolean =
   r.confianca >= CONFIANCA_MINIMA || (r.confianca >= CONFIANCA_COM_ESTABILIDADE && r.estavel === true);
 
 /** O andamento procura-se entre estes dois valores. */
-const BPM_MINIMO = 70;
-const BPM_MAXIMO = 180;
+export const BPM_MINIMO = 70;
+export const BPM_MAXIMO = 180;
 
 export type EnergiasDaJanela = {
   /** Quadros por segundo. */

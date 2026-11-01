@@ -1,7 +1,9 @@
 import { NavigationContext } from '@react-navigation/native';
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, AppState, Easing, StyleSheet, View } from 'react-native';
+import { useCompasso } from '../hooks/useCompasso';
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import { duracoesDasBarras } from '../lib/compasso';
 import {
   ALTURA_MAXIMA, BARRAS, FASES_PARADAS, LARGURA, PASSAGEM_MS, amostrasDaOnda, pecasDaCapsula,
 } from '../lib/barrasDaFaixa';
@@ -15,11 +17,16 @@ import { usePlayer } from '../state/player';
  * Só andam à vista: com a app atrás, o ecrã fora de foco (os separadores ficam
  * todos montados) ou o leitor aberto por cima, a onda pára onde está. Retoma do
  * princípio -- mas ninguém viu onde tinha parado.
+ *
+ * Andam no andamento da música quando ele se sabe (S3, `lib/compasso.ts`), e no
+ * ciclo de sempre quando não. Só a duração: o motor e o custo são os mesmos.
  */
 export function BarrasDaFaixa() {
   const aTocar = usePlayer((s) => s.isPlaying);
   const aVista = useAVista();
   const reduzido = useReducedMotion();
+  const bpm = useCompasso()?.bpm;
+  const duracoes = useMemo(() => duracoesDasBarras(bpm) ?? BARRAS.map((b) => b.duracaoMs), [bpm]);
   const fases = useRef(BARRAS.map(() => new Animated.Value(0))).current;
   const tocando = useRef(new Animated.Value(aTocar ? 1 : 0)).current;
   const entrada = useRef(new Animated.Value(0)).current;
@@ -68,12 +75,12 @@ export function BarrasDaFaixa() {
     const voltas = fases.map((f, i) => {
       f.setValue(0);
       return Animated.loop(Animated.timing(f, {
-        toValue: 1, duration: BARRAS[i].duracaoMs, easing: Easing.linear, useNativeDriver: true,
+        toValue: 1, duration: duracoes[i], easing: Easing.linear, useNativeDriver: true,
       }));
     });
     voltas.forEach((v) => v.start());
     return () => voltas.forEach((v) => v.stop());
-  }, [anda, reduzido, fases]);
+  }, [anda, reduzido, fases, duracoes]);
 
   return (
     <Animated.View pointerEvents="none" style={[styles.veu, { opacity: entrada }]}>

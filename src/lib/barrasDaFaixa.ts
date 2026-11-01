@@ -18,7 +18,7 @@ export const ALTURA_MINIMA = 6;
 /** Da barra ao ponto e de volta. */
 export const PASSAGEM_MS = 260;
 
-/** Cada barra com o seu ritmo, para nunca andarem juntas. */
+/** Cada barra com o seu ritmo, para nunca andarem juntas. O ciclo de quando não se sabe o andamento (`lib/compasso.ts`). */
 export const BARRAS = [
   { duracaoMs: 820, desfase: 0 },
   { duracaoMs: 1060, desfase: 0.38 },

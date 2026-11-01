@@ -5,6 +5,7 @@ import { COR, RAIO } from '../tokens.web';
 import type { EffectIntensity, GlitchMode } from '../../lib/prefs';
 import { criarRenderer, recorteDaCapa, type Recorte } from './renderer.web';
 import { iniciarCaptura, type Captura } from './beat.web';
+import { medirCompasso } from '../../state/compasso.web';
 
 /**
  * A capa do Now Playing, com o glitch equalizer por cima.
@@ -30,6 +31,8 @@ import { iniciarCaptura, type Captura } from './beat.web';
 const NIVEL_ESTATICO = 0.64;
 const SEMENTE_ESTATICA = 3.9;
 const ESPETRO_ESTATICO = new Uint8Array(256);
+/** De quanto em quanto se pergunta o andamento (S3): uns 30 mil senos por vez, sem rede, nada ao lado do shader. */
+const MEDIR_ANDAMENTO_CADA_MS = 4000;
 for (let i = 0; i < ESPETRO_ESTATICO.length; i++) {
   // Curva fixa a descer: as linhas continuam a parecer um equalizador mesmo
   // sem se abrir captura nenhuma neste modo.
@@ -128,6 +131,7 @@ export function GlitchArtwork({ uri, lado, modo, intensidade }: { uri: string | 
     let raf = 0;
     let captura: Captura | null = null;
     let ultimoDesenho=0;
+    let ultimoAndamento=0;
     const visibilidade=()=>captura?.definirAtiva(!document.hidden);
     document.addEventListener('visibilitychange',visibilidade);
 
@@ -165,6 +169,11 @@ export function GlitchArtwork({ uri, lado, modo, intensidade }: { uri: string | 
         // cria um segundo movimento continuo por baixo dela.
         const nivelDoAtaque = batida > 0 ? energiaGrave * batida * 0.18 : 0;
         r.desenhar(nivelDoAtaque, batida, agudos, (agora - inicio) / 1000, captura!.espetro());
+        if (agora - ultimoAndamento > MEDIR_ANDAMENTO_CADA_MS) {
+          ultimoAndamento = agora;
+          const andamento = captura!.andamento();
+          if (andamento) medirCompasso(andamento);
+        }
       };
       raf = requestAnimationFrame(laco);
     };

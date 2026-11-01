@@ -41,6 +41,13 @@ const emCurso = new Map<string, Promise<AnaliseDoRitmo>>();
 // Uma falha de leitura nao fica para sempre, nem se repete a cada evento do motor.
 const falhas = new Map<string, { ate: number; resultado: AnaliseDoRitmo }>();
 let vezDeAnalisar: Promise<unknown> = Promise.resolve();
+let versao = 0;
+const ouvintes = new Set<() => void>();
+
+function avisar(): void {
+  versao++;
+  ouvintes.forEach((f) => f());
+}
 
 function ler(): Promise<Guardado> {
   if (memoria) return Promise.resolve(memoria);
@@ -68,6 +75,20 @@ export function ritmoGuardado(id: string): RitmoDaFaixa | null {
   const l = memoria?.faixas[id];
   return l ? { inicio: descompactar(l.i), fim: descompactar(l.f) } : null;
 }
+
+/**
+ * Para quem quer saber quando há um ritmo novo (o relógio musical, `useCompasso`). Lê
+ * o que está guardado, para o AutoMix desligado não perder o que já foi analisado, e
+ * com um atraso: as barrinhas montam-se no toque numa música, que é quando o leitor
+ * abre, e um JSON de 400 faixas não tem de calhar aí.
+ */
+export function ouvirRitmos(f: () => void): () => void {
+  ouvintes.add(f);
+  if (!memoria) setTimeout(() => { void ler().then(avisar); }, 1500);
+  return () => { ouvintes.delete(f); };
+}
+
+export const versaoDosRitmos = (): number => versao;
 
 /**
  * O ritmo de uma faixa: o guardado, ou analisado agora do ficheiro em disco.
@@ -113,6 +134,7 @@ export async function analisarRitmoComDiagnostico(id: string, uri: string): Prom
       }
       g.faixas[id] = { i: compactar(r.inicio), f: compactar(r.fim), visto: Date.now() };
       gravar(g);
+      avisar();
       falhas.delete(chave);
       return { ritmo: r, motivo: null };
     } catch {

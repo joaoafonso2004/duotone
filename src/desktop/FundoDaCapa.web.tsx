@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { View } from 'react-native';
+import { useCompasso } from '../hooks/useCompasso.web';
 import { desfoqueLeve } from '../lib/capaGrande';
+import { msDoCompasso } from '../lib/compasso';
 import { styles } from './estilos.web';
 import { marcar } from './ui.web';
 
@@ -15,8 +17,9 @@ import { marcar } from './ui.web';
  * `backdrop-filter` -- esse refaz-se a cada pintura e foi o que deixou a 3.7.1
  * pesada (ver o CLAUDE.md, "O movimento do PC").
  *
- * Ao mudar de faixa, a capa nova entra POR CIMA da anterior (`np-fundo`, 700
- * ms), e a de baixo só sai depois: nunca se vê o fundo vazio a meio.
+ * Ao mudar de faixa, a capa nova entra POR CIMA da anterior (`np-fundo`), e a de
+ * baixo só sai depois: nunca se vê o fundo vazio a meio. Dura um compasso da música
+ * que chega quando ela já foi medida (S3, `lib/compasso.ts`), e 700 ms quando não.
  *
  * `onde`: `pagina` é o de sempre, dentro do Now Playing. `janela` (26/9, pedido
  * do João) é a mesma cor a encher a janela inteira -- lateral, barra de título
@@ -27,11 +30,13 @@ export function FundoDaCapa({ uri, onde = 'pagina', aApagar = false }: { uri: st
   aApagar?: boolean;
 }) {
   const fonte = desfoqueLeve(uri, 64)?.uri ?? null;
+  const bpm = useCompasso()?.bpm;
+  const trocaMs = bpm ? msDoCompasso(bpm) : 700;
   const [camadas, setCamadas] = useState<string[]>(() => (fonte ? [fonte] : []));
   useEffect(() => {
     if (!fonte) { setCamadas([]); return; }
     setCamadas((c) => (c[c.length - 1] === fonte ? c : [...c.slice(-1), fonte]));
-    const t = setTimeout(() => setCamadas((c) => c.slice(-1)), 900);
+    const t = setTimeout(() => setCamadas((c) => c.slice(-1)), trocaMs + 200);
     return () => clearTimeout(t);
   }, [fonte]);
   return (
