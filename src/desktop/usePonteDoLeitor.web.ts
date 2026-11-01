@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { comCatalogo, useCatalogoDeFaixas } from '../state/catalogoDeFaixas';
+import { sentidoDaOcultacao } from '../lib/ocultacao';
 import { trackKey } from '../lib/shuffle';
 import { usePlayer } from '../state/player';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
@@ -138,6 +139,7 @@ export function usePonteDoLeitor(opcoes: Opcoes): void {
         duracaoMs: t?.durationSeconds ? t.durationSeconds * 1000 : p.durationMs,
         fila,
         filaSoDeVer,
+        sentido: sentidoDaOcultacao(p.saltoDaFaixa, Date.now()),
       });
     };
     const ligar = (aberto: boolean) => {

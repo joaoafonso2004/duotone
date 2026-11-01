@@ -38,6 +38,8 @@ declare global {
     fila: { titulo: string | null; artista: string | null; capa: string | null; chave: string }[];
     /** A seguir um amigo: a lista vê-se mas não se toca. */
     filaSoDeVer: boolean;
+    /** Para que lado passa a Ocultação na próxima troca de capa (+1 seguinte, -1 anterior). */
+    sentido?: 1 | -1;
   }
   /** Um comando do mini (validado no electron/miniLeitor.cjs). */
   interface ComandoDoMiniLeitor { tipo: string; ms?: number; chave?: string; posicao?: number }

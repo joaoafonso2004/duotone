@@ -21,6 +21,8 @@ import { COR, ESP, ESTADO, TIPO } from '../tokens.web';
 import { BotaoVoltar, Artwork, Dialog, Empty, IconButton, marcar, Page, ui } from '../ui.web';
 import { FundoDaCapa } from '../FundoDaCapa.web';
 import { preCarregarCapaGrande, useCapaGrande } from '../useCapaGrande.web';
+import { useCapaQueSai } from '../Ocultacao.web';
+import { sentidoDaOcultacao } from '../../lib/ocultacao';
 import { disposicaoDoLeitor } from '../../lib/leitorDoPc';
 import type { CommonPageProps, NavegarFn, ShareTarget } from '../rotas';
 import type { Track } from '../../types';
@@ -148,19 +150,14 @@ export function NowPlayingPage({
   // A capa grande (maxres) e não a miniatura das listas: esticada a 500 px via-se
   // desfocada. A seguinte é pedida já, para o skip não esperar por ela.
   const capaGrande = useCapaGrande(track ?? { source: '', sourceId: '', artworkUrl: null });
-  // A capa da música que acabou de sair, para desaparecer por baixo da nova.
+  // A Ocultação (C2, 1/11): a capa da música que saiu fica por cima da nova até a
+  // sombra da que vem a tapar. Com a letra à frente não há capa para tapar.
   const faixaAtual = track ? `${track.source}:${track.sourceId}` : '';
-  const ultimaCapa = useRef<{ chave: string; uri: string } | null>(null);
-  const [capaQueSai, setCapaQueSai] = useState<{ chave: string; uri: string } | null>(null);
-  useEffect(() => {
-    const antes = ultimaCapa.current;
-    if (antes && antes.chave !== faixaAtual) {
-      setCapaQueSai(antes);
-      const t = setTimeout(() => setCapaQueSai(null), 650);
-      return () => clearTimeout(t);
-    }
-  }, [faixaAtual]);
-  useEffect(() => { if (faixaAtual && capaGrande) ultimaCapa.current = { chave: faixaAtual, uri: capaGrande }; }, [faixaAtual, capaGrande]);
+  const caixaDaCapa = useRef<any>(null);
+  const capaQueSai = useCapaQueSai(faixaAtual, track && capaGrande ? capaGrande : null, {
+    caixa: caixaDaCapa, capa: track?.artworkUrl, ligada: !showLyrics,
+    sentido: () => sentidoDaOcultacao(usePlayer.getState().saltoDaFaixa, Date.now()),
+  });
   const seguinte = upNext[0]?.track;
   useEffect(() => { preCarregarCapaGrande(seguinte ? comCatalogo(seguinte) : null); }, [seguinte?.sourceId]);
   if (!track) {
@@ -190,23 +187,24 @@ export function NowPlayingPage({
   // esquerda enquanto a fila rola ao lado; numa estreita, tudo rola junto.
   const coluna = (
     <View style={[styles.npLado, { width: ladoCapa }]}>
-      {/* Mudar de música é uma passagem, não um corte (26/9, pedido do João):
-          a capa anterior fica por baixo a desaparecer enquanto a nova entra
-          por cima, e o título entra logo a seguir. As animações vivem no CSS
-          da casca (`np-capa-*`, `np-texto-entra`). */}
+      {/* Mudar de música é uma passagem, não um corte (26/9, pedido do João): a
+          Ocultação (C2) por cima da capa, e o título entra logo a seguir
+          (`np-texto-entra`, na casca). */}
       <View style={{ width: ladoCapa, height: ladoCapa }}>
-        {capaQueSai ? (
-          // Um <img> a sério e não a <Image> do RNW: essa só desenha depois de
-          // voltar a carregar a imagem (mesmo em cache), e a passagem já tinha
-          // acabado -- ficava um buraco em vez da capa anterior.
-          <img key={`sai:${capaQueSai.chave}`} data-dt="np-capa-sai" src={capaQueSai.uri} alt=""
-            style={{ position: 'absolute', width: ladoCapa, height: ladoCapa, borderRadius: 14, objectFit: 'cover' }} />
-        ) : null}
         {/* O botão direito na capa abre o menu da música (24/10), o curto do leitor. */}
-        <View key={`entra:${faixaAtual}`} {...marcar('np-capa-entra')}
+        <View key={`entra:${faixaAtual}`}
           {...({ onContextMenu: (e: any) => { e.preventDefault(); more(track, undefined, { leitor: 'capa' }); } } as any)}>
           <ArtworkLyricsCube track={track} size={ladoCapa} artwork={track.artworkUrl} showLyrics={showLyrics} onChange={setShowLyrics}
             front={<GlitchArtwork uri={capaGrande} lado={ladoCapa} modo={glitch} intensidade={effectIntensity} />} />
+        </View>
+        {/* Por cima da capa, numa camada que corta o disco sem cortar o cubo da letra. */}
+        <View ref={caixaDaCapa} pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, width: ladoCapa, height: ladoCapa, borderRadius: 14, overflow: 'hidden', zIndex: 3 }}>
+          {capaQueSai ? (
+            // Um <img> a sério e não a <Image> do RNW: essa só desenha depois de
+            // voltar a carregar a imagem (mesmo em cache), e ficava um buraco.
+            <img data-dt="capa-sai" src={capaQueSai} alt=""
+              style={{ position: 'absolute', width: ladoCapa, height: ladoCapa, objectFit: 'cover' }} />
+          ) : null}
         </View>
       </View>
       {/* As letras: dois pontos por baixo da capa, como no iPhone (decidido
