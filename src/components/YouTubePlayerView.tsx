@@ -45,6 +45,8 @@ import {
   preparacaoDaCurva, type CurvaDaPassagem, type PlanoDoAutomix,
 } from '../lib/automix';
 import { analisarRitmoComDiagnostico, analisarRitmoDaFaixa, ritmoGuardado } from '../lib/ritmoGuardado';
+import { automixAVista } from '../lib/duasLuas';
+import { anunciarPassagem, desfazerPassagem } from '../state/passagemAVista';
 import { comecarArranque, marcarResolver } from '../lib/arranqueDaFaixa';
 import {
   classificar, mensagem as mensagemDaFalha, recuperacao, registar,
@@ -1009,6 +1011,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     const p = passagemRef.current;
     if (!p) return;
     reporEqDaPassagem(p);
+    desfazerPassagem();
     passagemRef.current = null;
     seguinteRef.current = null;
     // Uma entrada do AutoMix desfeita: se ainda não tinha começado, o plano
@@ -1122,6 +1125,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       // no instante da troca.
       registarNaVelocidade(`play at track start/crossfade (motorEmEspera) | ${fotoDaVelocidade(motorEmEspera)}`);
       tocarNaVelocidade(motorEmEspera,seguinteRef.current?.rate ?? st.playbackRate,aplicarVelocidadeNativa);
+      // As Duas luas (C9): daqui em diante andam sozinhas, o motor só diz se a desfaz.
+      anunciarPassagem({ de: track.sourceId, para: seguinte, comecaEm: Date.now(), duracaoMs: (passagemS(st) * 1000) / velocidadeQueToca(), automix: null });
     } catch {
       abortarPassagem();
     }
@@ -1240,6 +1245,13 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     const minha = passagemRef.current?.sourceId === seguinte.sourceId && passagemRef.current?.inicioS === plano.inicioS;
     if (ok && minha) {
       registarNaFila(`${track.sourceId}: automix scheduled (${plano.tipo})`);
+      // As Duas luas (C9): o JS sabe do plano até 3 s antes, e elas esperam pelo instante marcado.
+      anunciarPassagem({
+        de: track.sourceId, para: seguinte,
+        comecaEm: Date.now() + (Math.max(0, plano.inicioS - player.currentTime) * 1000) / velocidadeQueToca(),
+        duracaoMs: (plano.duracaoS * 1000) / velocidadeQueToca(),
+        automix: automixAVista(plano),
+      });
       return;
     }
     // Agendada depois de a passagem ter sido desfeita (uma pausa, um salto a

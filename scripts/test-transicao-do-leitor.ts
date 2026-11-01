@@ -157,7 +157,7 @@ caso('a aterragem e a abertura não se atropelam (os bugs da 4.1.6)', () => {
   assert.match(leitor, /\{current \? \(\s*<View pointerEvents=\{aberto \? 'auto' : 'none'\} style=\{\[StyleSheet\.absoluteFill, \{ opacity: aberto \? 1 : 0 \}\]\}>\s*<CapaDoLeitor/);
   assert.match(leitor, /aFlutuar=\{ap\.flutuar\} aVista=\{aberto && !filaAberta\}/);
   assert.match(leitor, /aFlutuar=\{aFlutuar && aVista\} aVista=\{aVista\}/, 'fechada não flutua');
-  assert.match(ler('src/components/CapaFlutuante3D.tsx'), /if \(!recuo \|\| !foreground \|\| !aVista\) return;/, 'fechada não recua no skip');
+  assert.match(ler('src/components/CapaFlutuante3D.tsx'), /if \(!recuo \|\| !foreground \|\| !aVista \|\| luasNoEcra\(\)\) return;/, 'fechada não recua no skip');
   assert.match(ler('src/components/ArtworkLyricsCube.tsx'), /aVista\?letrasGuardadas:null/, 'fechada sem letras montadas');
   // Os nós do voo e do mini-player não se refazem a cada desenho.
   assert.match(leitor, /if \(nosRef\.current\?\.chave !== chaveDosNos\) nosRef\.current = \{ chave: chaveDosNos, nos: criarNos\(\) \};/);
