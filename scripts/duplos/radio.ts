@@ -10,5 +10,6 @@ export function fetchRadioTracks(
   controlo.radioJaDescobertas = jaDescobertas ?? null;
   controlo.radioOuvidas = ouvidas ?? null;
   controlo.radioContextos.push([...(sementes ?? [])]); controlo.radioModos.push(modo);
+  controlo.radioExclusoes.push([...(_excluir ?? [])]);
   return controlo.radioPendentes.shift() ?? Promise.resolve([...controlo.radio]);
 }

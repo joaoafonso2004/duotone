@@ -9,7 +9,7 @@ const calls = [];
 const avisos = [];
 const player = {
   current: a, queue: [a, b, c], queueIndex: 0, shuffle: true, shuffleOrder: [0, 2, 1],
-  repeatMode: 'off', autoplayRadio: true, radioError: null, origemDaFila: null,
+  repeatMode: 'off', autoplayRadio: true, radioStopped: false, radioError: null, origemDaFila: null,
   upcomingQueue: () => [{ track: c, index: 2 }, { track: b, index: 1 }],
   playTrack: (...args) => calls.push(['play', ...args]),
   reordenarProximas: (...args) => calls.push(['move', ...args]),
@@ -104,6 +104,9 @@ player.radioMode = 'preparing';
 assert.equal(render().saida, 'vira');
 player.radioMode = 'off';
 assert.equal(render().saida, null);
+player.radioStopped = true;
+assert.equal(render().notaDoFim, 'Queue ends here', 'depois de Clear não promete que o Radio vai repor as músicas');
+player.radioStopped = false;
 state = [];
 
 jam.sessao = { id: 'jam' };

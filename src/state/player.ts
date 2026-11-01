@@ -285,7 +285,11 @@ const getInitialVolume = () => {
 export type RepeatMode = 'off' | 'all' | 'one';
 
 /** A fila antes de uma remoção, para o "Undo" (3/10, `reporFila`). */
-export type FotografiaDaFila = { queue: Track[]; queueIndex: number; shuffleOrder: string[]; atual: string | null };
+export type FotografiaDaFila = {
+  queue: Track[]; queueIndex: number; shuffleOrder: string[]; atual: string | null;
+  /** Só o Undo de Clear repõe também o reabastecimento que a limpeza desligou. */
+  radio?: Pick<PlayerState, 'radioMode' | 'radioTipo' | 'radioContext' | 'radioOwner' | 'radioStopped' | 'radioActive' | 'doRadio' | 'radioListeningSession'>;
+};
 
 /** O que vale no carro -- ver `carro` no estado. */
 /**
@@ -581,8 +585,8 @@ interface PlayerState {
    * que toca e as que já tocaram ficam, para o "anterior" continuar a ter
    * para onde voltar. Com shuffle, "a seguir" é o percurso que falta, não a
    * ordem da fila. Num Jam não faz nada -- a fila é de todos. Devolve quantas
-   * saíram. Com o rádio automático ligado, a fila volta a encher-se com ele:
-   * é o que acontece a qualquer fila que chega ao fim.
+   * saíram. Desliga o reabastecimento e cancela respostas pendentes: limpar
+   * é uma escolha explícita, não o fim natural da fila.
    */
   limparProximas: () => number;
   /** Uma cópia da fila, tirada ANTES de uma remoção, para o "Undo" (3/10). */
@@ -592,7 +596,7 @@ interface PlayerState {
    * ainda for a mesma -- com outra lista a tocar, repor era trocar-lha. Devolve
    * se repôs. Num Jam não faz nada (a fila é de todos).
    */
-  reporFila: (foto: FotografiaDaFila) => boolean;
+  reporFila: (foto: FotografiaDaFila, opcoes?: { radio?: boolean }) => boolean;
 
   seekTo: (ms: number, interno?: boolean) => Promise<void>;
 
@@ -1888,6 +1892,10 @@ export const usePlayer = create<PlayerState>()(
     // se ouve DEPOIS de o ligar (a sessão recomeça ao ligar; `ancorasDoRadio`).
     void daMusica;
     const context = [current];
+    const past = before.shuffle && before.shuffleOrder.length
+      ? before.shuffleOrder.slice(0, Math.max(0,before.shuffleOrder.indexOf(trackKey(current))))
+        .map(key => before.queue.find(t=>trackKey(t)===key)).filter((t): t is Track => !!t)
+      : before.queue.slice(0,before.queueIndex);
     set({ radioMode: 'preparing', radioError: null });
     const valid = () => request === radioRequest && playbackRequest === playRequestId && get().current === current && get().queue === before.queue
       && get().radioMode === 'preparing' && donoDoSmartShuffle() === owner && !ouvirJuntos() && !seguindoAmigo() && !useConnectivity.getState().offline;
@@ -1895,26 +1903,39 @@ export const usePlayer = create<PlayerState>()(
       const [discovered, ouvidas] = await Promise.all([chavesDasDescobertasRecentes(owner), identidadesOuvidas()]);
       if (!valid()) return false;
       const heard = before.radioListeningSession?.owner === owner ? before.radioListeningSession.tracks : [];
+      // Like this substitui Up next. Essas sugestões ainda podem servir;
+      // excluem-se a música atual e o percurso que já se ouviu.
+      const excluir = [...(tipo === 'mix' ? before.queue : [...past, current]), ...heard];
       // O Mix (18/10) parte de tudo o que se ouve, e não desta música.
-      const lote = tipo === 'mix'
-        ? await loteDaMix(12, [...before.queue, ...heard], discovered, ouvidas)
-        : filterSuggestions(await fetchRadioTracks(context, [...before.queue, ...heard], 12, discovered, 'session', ouvidas));
+      let lote: Track[] = [];
+      if (tipo === 'mix') lote = await loteDaMix(12, excluir, discovered, ouvidas);
+      else {
+        // Um lote já mostrado fica na memória de sugestões. Uma nova escolha
+        // explícita pode reutilizá-lo, sempre com a mesma música como âncora.
+        const tentativas = tentativasDoRadio([
+          { sementes: context, semMemoria: false },
+          { sementes: context, semMemoria: true },
+          { sementes: context, semMemoria: true, comRepetidas: true },
+        ], trackKey);
+        for (const tentativa of tentativas) {
+          lote = filterSuggestions(await fetchRadioTracks([...tentativa.sementes], excluir, 12,
+            tentativa.semMemoria ? new Set<string>() : discovered, tentativa.comRepetidas ? 'automatic' : 'session', ouvidas));
+          if (!valid()) return false;
+          if (lote.length) break;
+        }
+      }
       if (!valid()) return false;
       // Ao ligar, só um lançamento do artista desta música: os da sessão de
       // antes (outro género, às vezes) não são deste Radio. O Mix não é desta
       // música: sem lançamento ao ligar.
       const comNovo = tipo === 'mix' ? { lote, marcar: undefined } : await comLancamentoNovo(lote, context, [],
-        crivoDoLancamento([...before.queue, ...heard], lote, discovered, ouvidas, () => false));
+        crivoDoLancamento(excluir, lote, discovered, ouvidas, () => false));
       const tracks = espalharArtistas(comNovo.lote,
         (t) => chaveDeArtista(displayArtist(t)), [chaveDeArtista(displayArtist(current))]);
       if (!valid()) return false;
-      if (!tracks.length) { set({ radioMode: 'off', radioError: 'No related music found for this session. Your queue is unchanged.' }); return false; }
+      if (!tracks.length) { set({ radioMode: 'off', radioStopped: true, radioError: 'No related music found for this session. Your queue is unchanged.' }); return false; }
       invalidarPedidosDoSmartShuffle();
       // Preservar o percurso passado e a faixa atual; substituir só Up next.
-      const past = before.shuffle && before.shuffleOrder.length
-        ? before.shuffleOrder.slice(0, Math.max(0,before.shuffleOrder.indexOf(trackKey(current))))
-          .map(key => before.queue.find(t=>trackKey(t)===key)).filter((t): t is Track => !!t)
-        : before.queue.slice(0,before.queueIndex);
       const queue = [...past, current, ...tracks];
       const discovery = contextoDoRadioAutomatico();
       for (const track of tracks) contextosDaFila.set(trackKey(track),discovery);
@@ -1926,7 +1947,7 @@ export const usePlayer = create<PlayerState>()(
       void chavesDaBiblioteca().then(known=>registarSugestoesGuardadas(owner,tracks.filter(t=>!chavesDaFaixaSugerida(t).some(k=>known.has(k))))).catch(()=>{});
       return true;
     } catch {
-      if (valid()) set({ radioMode: 'off', radioError: "Couldn't start Radio. Your queue is unchanged. Try again." });
+      if (valid()) set({ radioMode: 'off', radioStopped: true, radioError: "Couldn't start Radio. Your queue is unchanged. Try again." });
       return false;
     } finally {
       if (request === radioRequest && get().radioMode === 'preparing') set({ radioMode: 'off' });
@@ -2050,6 +2071,7 @@ export const usePlayer = create<PlayerState>()(
       set({
         queue: merged,
         radioActive: true,
+        radioError: null,
         // Estas não vieram da lista: o Now Playing diz "From Radio" nelas.
         doRadio: [...live.doRadio, ...tracks.map((t) => trackKey(t))].slice(-200),
         shuffleOrder: live.shuffle
@@ -2735,11 +2757,15 @@ export const usePlayer = create<PlayerState>()(
   limparProximas: () => {
     if (ouvirJuntos()) return 0;
     const proximas = get().upcomingQueue();
-    if (proximas.length === 0) return 0;
+    invalidarPedidosDoSmartShuffle();
+    radioRequest++;
+    const parado = { radioMode: 'off' as const, radioStopped: true, radioError: null,
+      radioActive: false, radioContext: [], radioOwner: null, doRadio: [], sugeridas: [] };
+    if (proximas.length === 0) { set(parado); return 0; }
     const sai = new Set(proximas.map((p) => p.index));
     const { queue, queueIndex, shuffle } = get();
     const antes = [...sai].filter((i) => i < queueIndex).length;
-    set({ queue: queue.filter((_, i) => !sai.has(i)), queueIndex: queueIndex - antes, postasAMao: [] });
+    set({ queue: queue.filter((_, i) => !sai.has(i)), queueIndex: queueIndex - antes, postasAMao: [], ...parado });
     // O percurso do shuffle guarda chaves; as que saíram deixam de ter faixa.
     if (shuffle) get()._ensureShuffleOrder();
     return proximas.length;
@@ -2747,10 +2773,16 @@ export const usePlayer = create<PlayerState>()(
 
   fotografiaDaFila: () => {
     const s = get();
-    return { queue: s.queue, queueIndex: s.queueIndex, shuffleOrder: s.shuffleOrder, atual: s.current ? trackKey(s.current) : null };
+    return { queue: s.queue, queueIndex: s.queueIndex, shuffleOrder: s.shuffleOrder, atual: s.current ? trackKey(s.current) : null,
+      radio: {
+        radioMode: s.radioMode === 'preparing' ? 'off' : s.radioMode,
+        radioStopped: s.radioMode === 'preparing' || s.radioStopped,
+        radioTipo: s.radioTipo, radioContext: s.radioContext, radioOwner: s.radioOwner,
+        radioActive: s.radioActive, doRadio: s.doRadio, radioListeningSession: s.radioListeningSession,
+      } };
   },
 
-  reporFila: (foto) => {
+  reporFila: (foto, opcoes) => {
     if (ouvirJuntos()) return false;
     const s = get();
     const atual = s.current ? trackKey(s.current) : null;
@@ -2761,7 +2793,9 @@ export const usePlayer = create<PlayerState>()(
       ? foto.queueIndex
       : foto.queue.findIndex((t) => trackKey(t) === atual);
     if (i < 0) return false;
-    set({ queue: foto.queue, queueIndex: i, shuffleOrder: foto.shuffleOrder });
+    const radio = opcoes?.radio ? foto.radio : undefined;
+    if (radio) radioRequest++;
+    set({ queue: foto.queue, queueIndex: i, shuffleOrder: foto.shuffleOrder, ...(radio ? { ...radio, radioError: null } : {}) });
     return true;
   },
 

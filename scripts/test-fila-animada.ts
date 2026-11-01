@@ -140,7 +140,7 @@ caso('limpar: primeiro saem, depois muda a fila, com o Undo do iPhone', () => {
   assert.match(HOOK, /setALimpar\(true\);/);
   assert.match(HOOK, /calmo\(\) \? 0 : esperaDaSaida\(Math\.min\(upNext\.length, linhasDaFila\)\)/);
   assert.match(HOOK, /const foto = st\.fotografiaDaFila\(\);\n\s+const sairam = st\.limparProximas\(\);/);
-  assert.match(HOOK, /desfazer: \(\) => \{ usePlayer\.getState\(\)\.reporFila\(foto\); \}/);
+  assert.match(HOOK, /desfazer: \(\) => \{ usePlayer\.getState\(\)\.reporFila\(foto, \{ radio: true \}\); \}/);
 });
 caso('a Radio a trocar a fila: só a tua fila vira, nunca a de uma Jam nem a de um amigo', () => {
   assert.match(HOOK, /const aVirar = aPreparar && podeEditar;/);

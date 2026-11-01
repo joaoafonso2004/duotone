@@ -29,6 +29,7 @@ export function useFilaDoLeitor({ more, notify }: Pick<CommonPageProps, 'more' |
   const reordenarProximas = usePlayer((s) => s.reordenarProximas);
   const repeatMode = usePlayer((s) => s.repeatMode);
   const autoplayRadio = usePlayer((s) => s.autoplayRadio);
+  const radioParado = usePlayer((s) => s.radioStopped);
   const radioErro = usePlayer((s) => s.radioError);
   const doRadio = usePlayer((s) => s.doRadio);
   const aPreparar = usePlayer((s) => s.radioMode === 'preparing');
@@ -73,7 +74,7 @@ export function useFilaDoLeitor({ more, notify }: Pick<CommonPageProps, 'more' |
       if (sairam > 0) avisarRemocao({
         texto: `Cleared ${contarMusicas(sairam)}`,
         detalhe: 'from Up next',
-        desfazer: () => { usePlayer.getState().reporFila(foto); },
+        desfazer: () => { usePlayer.getState().reporFila(foto, { radio: true }); },
       });
     }, calmo() ? 0 : esperaDaSaida(Math.min(upNext.length, linhasDaFila)));
   };
@@ -131,7 +132,7 @@ export function useFilaDoLeitor({ more, notify }: Pick<CommonPageProps, 'more' |
     entrada: (novaDaRadio ? 'vira' : null) as 'vira' | null,
     inicioDoGrupo, aLimpar,
     aGuardar, setAGuardar, pedirNome, guardar, aGravar,
-    notaDoFim: fimDaFila({ emJam: emJam || !!seguido, repeatMode, autoplayRadio, vazia: !upNext.length }),
+    notaDoFim: fimDaFila({ emJam: emJam || !!seguido, repeatMode, autoplayRadio: autoplayRadio && !radioParado, vazia: !upNext.length }),
     aoTocar: (t: Track) => { if (!seguido) void playTrack(t, queue); },
     aoMenu: (t: Track, indiceReal: number) => emJam || seguido ? more(t) : more(t, undefined, { fila: indiceReal }),
     aoMover: (de: number, para: number) => { if (podeEditar) reordenarProximas(de, para); },

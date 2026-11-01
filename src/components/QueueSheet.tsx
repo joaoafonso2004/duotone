@@ -371,7 +371,7 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
               if (n > 0) avisarRemocao({
                 texto: `Cleared ${contarMusicas(n)}`,
                 detalhe: 'from Up next',
-                desfazer: () => { usePlayer.getState().reporFila(foto); },
+                desfazer: () => { usePlayer.getState().reporFila(foto, { radio: true }); },
               });
             }}
           >

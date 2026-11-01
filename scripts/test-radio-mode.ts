@@ -31,7 +31,7 @@ function reset(){
   pauses=plays=seeks=0;
 }
 const pending=()=>{let resolve!:(ts:Track[])=>void;const promise=new Promise<Track[]>(r=>{resolve=r;});controlo.radioPendentes.push(promise);return resolve;};
-async function waitForFetch(){for(let n=0;n<10&&!controlo.chamadas.radio;n++)await new Promise(r=>setTimeout(r,0));assert.equal(controlo.chamadas.radio,1);}
+async function waitForFetch(expected=1){for(let n=0;n<20&&controlo.chamadas.radio<expected;n++)await new Promise(r=>setTimeout(r,0));assert.equal(controlo.chamadas.radio,expected);}
 
 reset();
 const before=usePlayer.getState();
@@ -210,3 +210,108 @@ assert.equal(controlo.chamadas.mix,0);
 
 console.log('Radio session: listening context, strict discovery, uninterrupted audio, replenishment and cancellation races passed.');
 console.log('Radio que aprende: não acaba, aprende com um salto, sobrevive a reabrir e espera pela conta.');
+
+// Clear é uma escolha explícita: o Radio e o autoplay não desfazem a limpeza.
+for(const modo of ['musica','mix'] as const){
+  reset();
+  controlo.mix=[track('mix-clear-1'),track('mix-clear-2')];
+  assert.equal(await usePlayer.getState().startRadio(false,modo),true);
+  const antesDeLimpar=usePlayer.getState();
+  const foto=antesDeLimpar.fotografiaDaFila();
+  assert.equal(antesDeLimpar.limparProximas(),2);
+  assert.equal(usePlayer.getState().upcomingQueue().length,0);
+  assert.equal(usePlayer.getState().radioMode,'off',`${modo}: Clear desliga o reabastecimento`);
+  assert.equal(usePlayer.getState().radioStopped,true);
+  assert.equal(usePlayer.getState().radioError,null);
+  const pedidos=controlo.chamadas.radio+controlo.chamadas.mix;
+  assert.equal(await usePlayer.getState().extendQueueWithRadio(),false);
+  assert.equal(controlo.chamadas.radio+controlo.chamadas.mix,pedidos,'não volta à rede depois de Clear');
+  assert.equal(usePlayer.getState().current,antesDeLimpar.current);
+  assert.equal(usePlayer.getState().positionMs,23_000);
+  assert.deepEqual([pauses,plays,seeks],[0,0,0],'limpar não interrompe o áudio');
+  assert.equal(usePlayer.getState().reporFila(foto,{radio:true}),true);
+  assert.equal(usePlayer.getState().queue,foto.queue,'Undo repõe a fila que foi limpa');
+  assert.equal(usePlayer.getState().radioMode,'on','Undo também repõe o Radio');
+  assert.equal(usePlayer.getState().radioTipo,modo);
+  assert.equal(usePlayer.getState().radioStopped,false);
+}
+
+// Uma resposta pendente não pode preencher a fila depois de Clear.
+for(const operacao of ['ligar','prolongar'] as const){
+  reset();
+  if(operacao==='prolongar')assert.equal(await usePlayer.getState().startRadio(),true);
+  const chamadas=controlo.chamadas.radio;
+  const soltar=pending();
+  const pedido=operacao==='ligar'?usePlayer.getState().startRadio():usePlayer.getState().extendQueueWithRadio();
+  await waitForFetch(chamadas+1);
+  usePlayer.getState().limparProximas();
+  const limpa=usePlayer.getState().queue;
+  soltar([track('resposta-atrasada')]);
+  assert.equal(await pedido,false);
+  assert.equal(usePlayer.getState().queue,limpa,`${operacao}: ignora a resposta que chegou depois de Clear`);
+  assert.equal(await usePlayer.getState().extendQueueWithRadio(),false);
+  assert.equal(usePlayer.getState().upcomingQueue().length,0);
+}
+
+reset();
+const relacionada=track('relacionada');
+usePlayer.setState({queue:[past,current,relacionada],queueIndex:1,shuffle:false,shuffleOrder:[]});
+controlo.radio=[relacionada];
+assert.equal(await usePlayer.getState().startRadio(),true);
+assert.ok(!controlo.radioExclusoes[0].some(t=>t.sourceId===relacionada.sourceId),'Like this pode reutilizar Up next, que vai substituir');
+assert.ok(controlo.radioExclusoes[0].some(t=>t.sourceId===current.sourceId),'a faixa que toca continua excluída');
+assert.ok(controlo.radioExclusoes[0].some(t=>t.sourceId===past.sourceId),'o que já tocou continua excluído');
+
+// Uma sugestão já mostrada não significa que não haja música relacionada.
+for(const vazias of [1,2]){
+  reset();
+  for(let n=0;n<vazias;n++)controlo.radioPendentes.push(Promise.resolve([]));
+  controlo.radio=[track('parecida-outra-vez')];
+  assert.equal(await usePlayer.getState().startRadio(),true,'tenta de novo com a mesma música antes de declarar vazio');
+  assert.equal(controlo.chamadas.radio,vazias+1);
+  assert.ok(controlo.radioContextos.every(c=>c.length===1&&c[0]===current),'as tentativas mantêm a mesma âncora');
+  assert.equal(controlo.radioJaDescobertas?.size,0,'a tentativa seguinte liberta a memória das sugestões');
+  assert.equal(controlo.radioModos.at(-1),vazias===2?'automatic':'session');
+  assert.equal(usePlayer.getState().radioError,null);
+}
+
+reset();
+controlo.radio=[];
+const semResultados=usePlayer.getState().queue;
+assert.equal(await usePlayer.getState().startRadio(),false);
+assert.equal(controlo.chamadas.radio,3,'as tentativas têm um limite');
+assert.equal(usePlayer.getState().queue,semResultados);
+assert.equal(await usePlayer.getState().extendQueueWithRadio(),false,'uma falha não aciona o autoplay por baixo do aviso');
+usePlayer.getState().limparProximas();
+assert.equal(usePlayer.getState().radioError,null,'Clear retira o aviso da tentativa antiga');
+assert.equal(await usePlayer.getState().startRadio(),false);
+controlo.radio=[track('agora-encontrada')];
+assert.equal(await usePlayer.getState().startRadio(),true,'uma nova tentativa explícita continua possível');
+assert.equal(usePlayer.getState().radioError,null);
+console.log('Clear: sem repor a fila, respostas antigas canceladas e Undo completo. Like this: tentativas contextuais e sem aviso desatualizado.');
+
+reset();
+usePlayer.getState().limparProximas();
+assert.equal(await usePlayer.getState().extendQueueWithRadio(),false,'Clear também bloqueia o autoplay quando a pastilha já dizia Off');
+usePlayer.setState({radioError:'Aviso antigo'});
+assert.equal(usePlayer.getState().limparProximas(),0);
+assert.equal(usePlayer.getState().radioError,null,'limpar uma fila já vazia também retira o aviso antigo');
+
+reset();
+const soltarDepoisDoUndo=pending();
+const arranqueCancelado=usePlayer.getState().startRadio();
+await waitForFetch();
+const fotoPendente=usePlayer.getState().fotografiaDaFila();
+usePlayer.getState().limparProximas();
+assert.equal(usePlayer.getState().reporFila(fotoPendente,{radio:true}),true);
+assert.equal(usePlayer.getState().radioMode,'off','Undo não repõe uma pesquisa a preparar que já foi cancelada');
+soltarDepoisDoUndo([track('nao-pode-voltar')]);
+assert.equal(await arranqueCancelado,false);
+assert.equal(usePlayer.getState().queue,fotoPendente.queue,'mesmo com a referência original reposta, a resposta antiga fica cancelada');
+
+reset();
+assert.equal(await usePlayer.getState().startRadio(),true);
+usePlayer.setState({radioError:'Aviso antigo'});
+controlo.radio=[track('nova-relacionada')];
+assert.equal(await usePlayer.getState().extendQueueWithRadio(),true);
+assert.equal(usePlayer.getState().radioError,null,'uma fila reabastecida com sucesso não conserva um aviso de falha antigo');

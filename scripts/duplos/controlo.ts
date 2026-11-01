@@ -35,6 +35,7 @@ export interface Controlo {
   /** O que o rádio devolve no fim da fila. */
   radio: Track[];
   radioContextos: Track[][];
+  radioExclusoes: Track[][];
   radioModos: ('automatic' | 'session')[];
   radioPendentes: Promise<Track[]>[];
   /** A memória das descobertas que o rádio recebeu na última chamada (28/9). */
@@ -81,7 +82,7 @@ export const controlo: Controlo = {
   falharPerfil: false,
   perfisDaDescoberta: [],
   radio: [],
-  radioContextos: [], radioModos: [], radioPendentes: [],
+  radioContextos: [], radioExclusoes: [], radioModos: [], radioPendentes: [],
   radioJaDescobertas: null,
   radioOuvidas: null,
   ouvidasNoAparelho: [],
@@ -109,7 +110,7 @@ export function reporControlo(): void {
   controlo.falharPerfil = false;
   controlo.perfisDaDescoberta = [];
   controlo.radio = [];
-  controlo.radioContextos = []; controlo.radioModos = []; controlo.radioPendentes = [];
+  controlo.radioContextos = []; controlo.radioExclusoes = []; controlo.radioModos = []; controlo.radioPendentes = [];
   controlo.radioJaDescobertas = null;
   controlo.radioOuvidas = null;
   controlo.ouvidasNoAparelho = [];
