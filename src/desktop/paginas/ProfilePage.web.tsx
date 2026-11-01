@@ -18,6 +18,7 @@ import { fetchListeningStats, type StatsResult } from '../../api/listeningStats'
 import { formatListeningTime, type StatsPeriod, type TimelineBucket } from '../../lib/listeningStats';
 import { useAuth } from '../../state/auth';
 import { useTheme } from '../../state/theme';
+import { abrirResumoDoMes, nomeDoResumo } from '../../components/ResumoDoMes';
 import type { Track } from '../../types';
 import { useDestinos } from '../../navigation/destinos';
 import { styles } from '../estilos.web';
@@ -59,7 +60,7 @@ export function StatsPage({ back, play, userId }: { userId?:string; back: () => 
       <Text style={[styles.smallSegmentText, period === value && { color: COR.texto }]}>{label}</Text>
     </P>))}</View>;
 
-  return <Page title={userId&&userId!==ownId?"Listening stats":"Your listening"} action={<View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>{periodPicker}{podeIrPara('retrospetiva') ? <Button secondary icon="sparkles-outline" onPress={() => irPara({ tipo: 'retrospetiva', userId })}>Year in review</Button> : null}<BotaoVoltar onPress={back} /></View>}>
+  return <Page title={userId&&userId!==ownId?"Listening stats":"Your listening"} action={<View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>{periodPicker}{/* O mês passado, para o rever (1/11). Só nas tuas. */}{(!userId || userId === ownId) && (stats?.totalPlays ?? 0) > 0 ? <Button secondary icon="calendar-outline" onPress={abrirResumoDoMes}>{`Your ${nomeDoResumo()}`}</Button> : null}{podeIrPara('retrospetiva') ? <Button secondary icon="sparkles-outline" onPress={() => irPara({ tipo: 'retrospetiva', userId })}>Year in review</Button> : null}<BotaoVoltar onPress={back} /></View>}>
     <ContentScroll>
       {loading ? <View style={{ height: 320 }}><Loading /></View>
         : result?.unavailable ? <Empty icon="cloud-offline-outline" title="Stats unavailable" body="Your listening history couldn't be loaded. Try again later." />

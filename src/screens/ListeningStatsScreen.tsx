@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fetchListeningStats, type StatsResult } from '../api/listeningStats';
 import { EmptyState } from '../components/EmptyState';
+import { abrirResumoDoMes, nomeDoResumo } from '../components/ResumoDoMes';
 import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import { SegmentedControl } from '../components/SegmentedControl';
 import {
@@ -97,6 +98,22 @@ export function ListeningStatsScreen({ navigation, route }: Props) {
             onChange={setPeriodIndex}
           />
         </View>
+
+        {/* O resumo do mês passado, para o rever (1/11): antes aparecia uma vez,
+            nos primeiros dias do mês, e perdia-se. Só nas tuas estatísticas. */}
+        {!route.params?.userId && !loading && !result?.unavailable && (stats?.totalPlays ?? 0) > 0 && (
+          <Pressable
+            onPress={abrirResumoDoMes}
+            style={({ pressed }) => [styles.retro, pressed && { opacity: 0.7 }]}
+          >
+            <Ionicons name="calendar" size={18} color={theme.color} />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={[type.body, { fontWeight: '700' }]}>{`Your ${nomeDoResumo()}`}</Text>
+              <Text style={type.caption}>Your month in music, again</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+          </Pressable>
+        )}
 
         {/* A retrospetiva sai do MESMO histórico; só faz sentido oferecê-la
             quando há algum. */}
