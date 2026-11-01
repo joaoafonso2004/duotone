@@ -23,6 +23,14 @@ export const FRASES_DOS_ESTADOS = {
   misturaQueSaiu: { titulo: 'This mix is gone', corpo: "Mixes are rebuilt as you listen. Go back to Home and pick one of today's mixes." },
   /** Um artista de quem não se encontrou nenhuma música. */
   artistaSemMusicas: { titulo: 'No songs yet', corpo: "We couldn't find songs by this artist." },
+  /**
+   * A letra (1/11): no verso da capa do iPhone e no painel e no Now Playing do PC.
+   * Uma falha nunca mostra o erro cru (era "Failed to fetch" no PC com o lrclib
+   * em baixo): com rede, quem falhou foram as letras, não a ligação.
+   */
+  semLetra: { titulo: 'No lyrics for this song', corpo: "We looked, but this version doesn't have lyrics yet." },
+  instrumental: { titulo: 'Instrumental', corpo: 'No words on this one, just the music.' },
+  letraFalhou: { titulo: "Lyrics aren't available right now", corpo: "We couldn't reach the lyrics. Try again in a moment." },
   /** O perfil mudou noutro aparelho enquanto se editava (o conflito de versão). */
   perfilMudou: 'Your profile changed on another device. Close and reopen the editor.',
 } as const;

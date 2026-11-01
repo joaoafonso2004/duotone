@@ -46,6 +46,16 @@ caso('só se nomeiam sítios que existem: Home, Search e Liked Songs', () => {
   assert.match(FRASES_DOS_ESTADOS.misturaQueSaiu.corpo, /Go back to Home/);
 });
 
+caso('a letra que não há: as frases daqui, e nunca o erro cru (o "Failed to fetch" do PC, 1/11)', () => {
+  const vista = ler('src/components/LyricsView.tsx');
+  assert.match(vista, /const frase=FRASES_DOS_ESTADOS\[tipo\]/);
+  assert.match(vista, /tipo=\{data\?\.instrumental\?'instrumental':entry\.status==='missing'\?'semLetra':'letraFalhou'\}/);
+  assert.ok(!/No lyrics found for this recording|Could not load lyrics/.test(vista));
+  const estado = ler('src/state/lyrics.ts');
+  assert.match(estado, /:FRASES_DOS_ESTADOS\.letraFalhou\.corpo\}\);\}/);
+  assert.ok(!/e\?\.message/.test(estado), 'a mensagem do erro não chega ao ecrã');
+});
+
 console.log('\nas frases velhas saíram');
 for (const [velha, re] of [
   ['"Go back to Search"', /Go back to Search/],
