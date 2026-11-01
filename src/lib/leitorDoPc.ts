@@ -75,12 +75,6 @@ export function inicioDoGrupoDaRadio(chaves: readonly string[], doRadio: readonl
   return inicio;
 }
 
-/** O que o separador do grupo diz, por tipo de Radio. */
-export const ROTULO_DO_GRUPO: Record<'musica' | 'mix', string> = {
-  musica: 'Radio · songs like this one',
-  mix: 'Mix · everything you play',
-};
-
 /**
  * As animações da fila: as linhas saem em cascata (Clear) ou viram (a Radio a
  * trocar a fila) e a nova entra a virar. Só as primeiras `LINHAS_ANIMADAS` se

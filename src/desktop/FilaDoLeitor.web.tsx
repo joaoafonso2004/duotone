@@ -3,13 +3,12 @@ import { refDoAlvo } from './Arrastar.web';
 import { alvoDaFila } from './alvosDeLargar.web';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
-import { ROTULO_DO_GRUPO } from '../lib/leitorDoPc';
 import { FilaArrastavel } from './FilaArrastavel.web';
 import { RadioEmTresEstados } from './RadioEmTresEstados.web';
 import { useFilaDoLeitor } from './useFilaDoLeitor.web';
 import { styles } from './estilos.web';
-import { Button, Dialog, Field, marcar } from './ui.web';
-import { COR, ESP, ESTADO, FONT } from './tokens.web';
+import { Button, Dialog, Field } from './ui.web';
+import { COR, ESP, ESTADO } from './tokens.web';
 import type { CommonPageProps } from './rotas';
 
 const { createPortal } = require('react-dom') as { createPortal: (filho: React.ReactNode, onde: Element) => React.ReactElement };
@@ -125,9 +124,10 @@ export function LinhasDaFila({ fila, compacta = false }: { fila: Fila; compacta?
   // Largar uma música arrastada aqui põe-na no sítio da linha (24/10). Com a
   // fila vazia continua a haver onde a largar.
   const chave = useRef(`fila:${Math.random().toString(36).slice(2)}`).current;
-  // O que a Radio juntou, no fim, fica sob um separador (30/10). São duas listas
-  // arrastáveis, cada uma com as suas posições (a de baixo desloca-se pelo
-  // tamanho da de cima): arrasta-se dentro de cada uma, não de uma para a outra.
+  // O que a Radio juntou, no fim, é uma lista à parte (30/10), seguida, sem
+  // separador (o João, 1/11: não queria o texto). São duas listas arrastáveis,
+  // cada uma com as suas posições (a de baixo desloca-se pelo tamanho da de
+  // cima): arrasta-se dentro de cada uma, não de uma para a outra.
   const visiveis = fila.upNext.slice(0, fila.linhasDaFila);
   const corte = fila.inicioDoGrupo;
   const principal = corte < 0 ? visiveis : visiveis.slice(0, corte);
@@ -138,11 +138,6 @@ export function LinhasDaFila({ fila, compacta = false }: { fila: Fila; compacta?
       compacta={compacta} saida={fila.saida} entrada={entrada} />;
   return <View ref={refDoAlvo(chave, alvoDaFila()) as any} style={{ minHeight: 56 }}>
     {principal.length ? lista('principal', principal, 0, null) : null}
-    {doGrupo.length ? <View {...(fila.saida ? marcar('grupo-radio', 'grupo-sai') : marcar('grupo-radio'))} style={estilos.grupo}>
-      <Text style={estilos.grupoRotulo}>{ROTULO_DO_GRUPO[fila.tipoDoGrupo]}</Text>
-      <View style={estilos.grupoLinha} />
-      <Text style={estilos.grupoNumero}>+{doGrupo.length}</Text>
-    </View> : null}
     {doGrupo.length ? lista('radio', doGrupo, principal.length, fila.entrada) : null}
     {fila.notaDoFim && fila.upNext.length <= fila.linhasDaFila ? <Text style={styles.npFilaFim}>{fila.notaDoFim}</Text> : null}
   </View>;
@@ -157,10 +152,3 @@ export function FilaDoLeitor({ more, notify, atual }: Pick<CommonPageProps, 'mor
     <LinhasDaFila fila={fila} compacta />
   </ScrollView>;
 }
-
-const estilos = {
-  grupo: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: ESP.sm, marginTop: 14, marginBottom: 6 } as const,
-  grupoRotulo: { fontFamily: FONT.mono, fontSize: 11, letterSpacing: 1.4, textTransform: 'uppercase', color: COR.textoMedio } as const,
-  grupoLinha: { flex: 1, height: 1, backgroundColor: COR.linha } as const,
-  grupoNumero: { fontFamily: FONT.mono, fontSize: 11, color: COR.textoFraco, fontVariantNumeric: 'tabular-nums' } as any,
-};

@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  atrasoDaLinha, DURACAO_DA_SAIDA_MS, esperaDaSaida, inicioDoGrupoDaRadio, LINHAS_ANIMADAS, PASSO_DA_SAIDA_MS, ROTULO_DO_GRUPO,
+  atrasoDaLinha, DURACAO_DA_SAIDA_MS, esperaDaSaida, inicioDoGrupoDaRadio, LINHAS_ANIMADAS, PASSO_DA_SAIDA_MS,
 } from '../src/lib/leitorDoPc.ts';
 
 let falhas = 0;
@@ -39,10 +39,9 @@ caso('fila vazia, ou sem nada da Radio: sem grupo', () => {
   assert.equal(inicioDoGrupoDaRadio(['a', 'b'], []), -1);
   assert.equal(inicioDoGrupoDaRadio(['a', 'b'], ['x']), -1);
 });
-caso('o separador diz o tipo, com os nomes do menu', () => {
-  assert.deepEqual(Object.keys(ROTULO_DO_GRUPO), ['musica', 'mix']);
-  assert.match(ROTULO_DO_GRUPO.musica, /songs like this one/);
-  assert.match(ROTULO_DO_GRUPO.mix, /everything you play/);
+caso('o grupo segue a fila sem separador nem texto (o João, 1/11)', () => {
+  assert.ok(!/grupo-radio|ROTULO_DO_GRUPO|songs like this one/i.test(FILA), 'o separador saiu da fila');
+  assert.ok(!CASCA.includes('grupo-radio'), 'e as regras dele saíram da casca');
 });
 
 console.log('\nos tempos das animações');
@@ -75,7 +74,7 @@ caso('as linhas fecham a altura, mesmo com o min-height inline que elas têm', (
 caso('quem pediu menos movimento fica sem nenhuma destas animações', () => {
   const i = CASCA.lastIndexOf('prefers-reduced-motion');
   const bloco = CASCA.slice(i);
-  for (const parte of ['.np-fila-sai', '.np-fila-vira', '.np-fila-entra', '[data-dt~="grupo-radio"]',
+  for (const parte of ['.np-fila-sai', '.np-fila-vira', '.np-fila-entra',
     '[data-dt~="radio-onda"]', '[data-dt~="radio-anel"]']) assert.ok(bloco.includes(parte), `falta ${parte}`);
   assert.match(HOOK, /prefers-reduced-motion: reduce/, 'e não espera por uma saída que não vê');
 });
