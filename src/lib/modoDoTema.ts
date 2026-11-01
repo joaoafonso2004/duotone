@@ -33,7 +33,7 @@ export const STEEL: AccentTheme = {
   color: '#E9EAEE',
   soft: 'rgba(233,234,238,0.12)',
   gradient: ['#E9EAEE', '#34363E'] as const,
-  textColorOnGradient: '#0B0B0E',
+  textColorOnGradient: '#060608',
 };
 
 /**

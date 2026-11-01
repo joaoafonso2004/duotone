@@ -86,7 +86,7 @@ for (const [nome, fundo] of [['fundo', 'fundo'], ['painel', 'painel'], ['elevado
 }
 
 console.log('\no texto do iPhone');
-for (const [nome, fundo] of [['fundo', 'bg'], ['superfície', 'surface'], ['superfície alta', 'surfaceHigh']] as const) {
+for (const [nome, fundo] of [['fundo', 'bg'], ['superfície', 'surface'], ['superfície alta', 'surfaceHigh'], ['superfície premida', 'surfacePressed']] as const) {
   caso(`os três níveis de texto passam sobre a ${nome}`, () => {
     const superficie = token(IOS, fundo);
     for (const nivel of ['text', 'textSecondary', 'textTertiary']) {
@@ -109,6 +109,28 @@ caso('os tons antigos reprovariam -- e por isso este teste morde', () => {
   // Os valores que la estavam ate 12/9. Se alguem os repuser, o teste apanha.
   assert.ok(razao('#5A5C66', token(PC, 'painel')) < MINIMO, 'o #5A5C66 passaria?');
   assert.ok(razao('rgba(245,245,247,0.34)', token(IOS, 'surface')) < MINIMO, 'os 34% passariam?');
+});
+
+console.log('\num só preto e um só branco (A7)');
+caso('o iPhone e o PC têm os mesmos, e o resto segue-os', () => {
+  const preto = token(IOS, 'bg');
+  assert.equal(preto, token(PC, 'fundo'));
+  assert.equal(token(IOS, 'text'), token(PC, 'texto'));
+  assert.match(ler('src/lib/corDaCapa.ts'), /FUNDO: RGB = \{ r: 0x06, g: 0x06, b: 0x08 \}/);
+  const nativos = [...ler('app.json').matchAll(/"backgroundColor": "([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(nativos.length >= 3 && nativos.every((c) => c === preto), nativos.join(', '));
+});
+caso('os pretos e os brancos velhos não voltam ao código', () => {
+  const VELHOS = /#0a0a0f|#0b0b0e|#0b0b0d|#0b0b10|#0a0a0c|#f5f5f7|rgba\(\s*10,\s*10,\s*15|rgba\(\s*245,\s*245,\s*247/i;
+  const raiz = new URL('../src/', import.meta.url);
+  for (const f of fs.readdirSync(raiz, { recursive: true }) as string[]) {
+    if (!/\.tsx?$/.test(f)) continue;
+    const semComentarios = fs.readFileSync(new URL(f.replace(/\\/g, '/'), raiz), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '');
+    const achado = VELHOS.exec(semComentarios);
+    assert.equal(achado?.[0], undefined, f);
+  }
 });
 
 console.log('\na própria conta');

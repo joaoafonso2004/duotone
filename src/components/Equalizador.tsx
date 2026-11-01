@@ -34,7 +34,7 @@ const BOLA = 14;
 const PASSO_DA_LINHA = 4;
 const PASSO_DA_AREA = 3;
 const ESPESSURA_DA_LINHA = 2;
-const COR_DA_AREA = 'rgba(245,245,247,0.08)';
+const COR_DA_AREA = 'rgba(233,234,238,0.08)';
 
 /** Escolhido a branco: e o "ligado" da app (os interruptores das Definicoes
  * tambem acendem a `colors.text`). Com o `surfaceHigh` de sempre, na folha --

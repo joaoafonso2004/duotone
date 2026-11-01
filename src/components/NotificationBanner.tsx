@@ -57,6 +57,6 @@ const styles = StyleSheet.create({
   content:{flex:1,minWidth:0,flexDirection:'row',alignItems:'center',gap:12,padding:14},
   icon:{width:36,height:36,borderRadius:12,backgroundColor:'#292931',alignItems:'center',justifyContent:'center'},
   text:{flex:1,minWidth:0,gap:3},brand:{color:'#AAAAB4',fontSize:11,fontWeight:'700',letterSpacing:2},
-  title:{color:'#F5F5F7',fontSize:14,fontWeight:'700'},body:{color:'#CDCDD4',fontSize:13,lineHeight:18},
+  title:{color:'#E9EAEE',fontSize:14,fontWeight:'700'},body:{color:'#CDCDD4',fontSize:13,lineHeight:18},
   close:{minWidth:44,minHeight:44,alignItems:'center',justifyContent:'center',alignSelf:'stretch'},
 });

@@ -314,7 +314,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   sobre: { position: 'absolute', top: 0, left: 0, right: 0 },
-  tinta: { backgroundColor: 'rgba(10,10,15,0.72)' },
+  tinta: { backgroundColor: 'rgba(6,6,8,0.72)' },
   fio: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
     height: StyleSheet.hairlineWidth, backgroundColor: colors.border,

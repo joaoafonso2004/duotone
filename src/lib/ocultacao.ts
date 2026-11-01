@@ -24,7 +24,7 @@ export const OCULTACAO = {
 } as const;
 
 /** Enquanto a cor da música nova não chega, ou numa capa sem cor. */
-export const COR_DO_DISCO_SEM_CAPA = 'rgb(11,11,16)';
+export const COR_DO_DISCO_SEM_CAPA = 'rgb(6,6,8)';
 
 /** +1 a seguinte, -1 a anterior. Uma música que acabou sozinha também avança. */
 export function sentidoDaOcultacao(salto: SaltoDaFaixa | null | undefined, agora: number): 1 | -1 {

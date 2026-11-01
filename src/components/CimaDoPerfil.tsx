@@ -26,7 +26,7 @@ export function CimaDoPerfil({ nome, rolagem, fimDoNome, own, unread, onBack, on
       opacity: rolagem.interpolate({ inputRange: faixaDaBarraDoNome(fimDoNome, altura), outputRange: [0, 1], extrapolate: 'clamp' }),
     }]}>
       <BlurView tint="dark" intensity={60} style={StyleSheet.absoluteFill} />
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(10,10,15,0.72)' }]} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(6,6,8,0.72)' }]} />
       <Text numberOfLines={1} style={estilos.nomeNaBarra}>{nome}</Text>
     </Animated.View>
     <BotoesDoPerfil own={own} unread={unread} onBack={onBack} onSocial={onSocial} onSettings={onSettings} onStats={onStats} />

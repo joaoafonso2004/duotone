@@ -115,7 +115,7 @@ caso('só no ecrã largo (duas colunas): no estreito a fila fica como estava', (
 console.log('\no cartão de mistura');
 caso('um cartão de cor: a da primeira capa, com a etiqueta, o nome grande e três círculos que se sobrepõem', () => {
   assert.match(UI, /const cor = useCorDoAmbiente\(m\.faixas\[0\]\?\.artworkUrl \?\? null\) \?\? '#3a3a46';/);
-  assert.match(UI, /linear-gradient\(135deg, color-mix\(in oklab, \$\{cor\} 58%, #0b0b0d\), color-mix\(in oklab, \$\{cor\} 14%, #0b0b0d\)\)/);
+  assert.match(UI, /linear-gradient\(135deg, color-mix\(in oklab, \$\{cor\} 58%, #060608\), color-mix\(in oklab, \$\{cor\} 14%, #060608\)\)/);
   assert.match(UI, /\.slice\(0, 3\)/);
   assert.match(UI, /MIX · \{m\.faixas\.length\}/);
 });

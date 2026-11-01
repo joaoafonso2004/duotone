@@ -110,7 +110,7 @@ export function CartaoDaMisturaDoDia({ aoAbrir, destaque = false }: {
               alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.8 : 1,
             })}
           >
-            <Ionicons name="play" size={22} color="#000" style={{ marginLeft: 2 }} />
+            <Ionicons name="play" size={22} color="#060608" style={{ marginLeft: 2 }} />
           </Pressable>
         )}
       </Pressable>

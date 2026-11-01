@@ -165,7 +165,7 @@ export function BotaoDeTocar({ label, onPress, lado = 64, desligado = false }: {
       style={({ pressed }) => [styles.tocar, { width: lado, height: lado, borderRadius: lado / 2 },
         pressed && { transform: [{ scale: 0.96 }] }, desligado && { opacity: 0.5 }]}>
       {/* O `marginLeft` acerta o centro ótico do triângulo. */}
-      <Ionicons name="play" size={Math.round(lado * 0.4)} color="#0B0B0E" style={{ marginLeft: Math.round(lado * 0.06) }} />
+      <Ionicons name="play" size={Math.round(lado * 0.4)} color="#060608" style={{ marginLeft: Math.round(lado * 0.06) }} />
     </Pressable>
   );
 }
@@ -350,19 +350,19 @@ const styles = StyleSheet.create({
   sombraDeCima: { position: 'absolute', left: 0, right: 0, top: 0, height: 140 },
   baixo: { position: 'absolute', left: spacing.xl, right: spacing.xl, bottom: 0 },
   nome: { fontSize: 58, lineHeight: 56, fontWeight: '800', letterSpacing: -2, color: colors.text },
-  meta: { fontSize: 15, color: 'rgba(245,245,247,0.78)', marginTop: 10 },
+  meta: { fontSize: 15, color: 'rgba(233,234,238,0.78)', marginTop: 10 },
   metaForte: { color: colors.text, fontWeight: '600' },
   accoes: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 18 },
   vidro: {
-    alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(10,10,15,0.42)',
+    alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(6,6,8,0.42)',
     borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.2)',
   },
-  vidroAtivo: { backgroundColor: 'rgba(245,245,247,0.22)', borderColor: 'rgba(255,255,255,0.45)' },
+  vidroAtivo: { backgroundColor: 'rgba(233,234,238,0.22)', borderColor: 'rgba(255,255,255,0.45)' },
   vidroCarregado: { backgroundColor: colors.surfacePressed },
   pilula: { flexDirection: 'row', gap: 8, height: 42, borderRadius: 21, paddingLeft: 12, paddingRight: 16 },
   pilulaTexto: { fontSize: 15, fontWeight: '600', color: colors.text },
   tocar: {
-    alignItems: 'center', justifyContent: 'center', backgroundColor: '#F5F5F7',
+    alignItems: 'center', justifyContent: 'center', backgroundColor: '#E9EAEE',
     shadowColor: '#000', shadowOpacity: 0.45, shadowRadius: 15, shadowOffset: { width: 0, height: 10 },
   },
   seccao: {
@@ -393,7 +393,7 @@ const styles = StyleSheet.create({
   },
   sobreDentro: { position: 'absolute', left: 18, right: 18, bottom: 18 },
   sobreValor: { fontSize: 40, lineHeight: 42, fontWeight: '800', letterSpacing: -1, color: colors.text },
-  sobreRotulo: { fontSize: 13, color: 'rgba(245,245,247,0.75)', marginTop: 2 },
+  sobreRotulo: { fontSize: 13, color: 'rgba(233,234,238,0.75)', marginTop: 2 },
   sobreLinha: {
     flexDirection: 'row', gap: 22, marginTop: 16, paddingTop: 14,
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.22)',

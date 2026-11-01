@@ -123,7 +123,7 @@ export function AuthScreen() {
     <Pressable onPress={Keyboard.dismiss} style={styles.root}>
       {/* Background Gradient */}
       <LinearGradient
-        colors={['#0F0F12', '#0A0A0C']}
+        colors={['#0F0F12', '#060608']}
         style={StyleSheet.absoluteFill}
       />
 
@@ -286,7 +286,7 @@ export function AuthScreen() {
               ]}
             >
               {loading ? (
-                <ActivityIndicator color="#000" size="small" />
+                <ActivityIndicator color={colors.bg} size="small" />
               ) : (
                 <Text style={styles.submitBtnText}>
                   {mode === 0 ? 'Sign in' : 'Create account'}
@@ -303,7 +303,7 @@ export function AuthScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#0A0A0C',
+    backgroundColor: '#060608',
   },
 
   scrollContent: {
@@ -404,7 +404,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   submitBtn: {
-    backgroundColor: '#E5E5EA',
+    backgroundColor: colors.text,
     borderRadius: 27,
     borderCurve: 'continuous',
     minHeight: 54,
@@ -416,6 +416,6 @@ const styles = StyleSheet.create({
   submitBtnText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#000000',
+    color: colors.bg,
   },
 });

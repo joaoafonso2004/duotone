@@ -369,7 +369,7 @@ function PaginaDaMusica({ resumo, escala, reduzido, aoTocarTop5 }: PropsDaPagina
       <Entra i={9} reduzido={reduzido} style={{ marginTop: 'auto', alignSelf: 'flex-start' }}>
         <Pressable accessibilityRole="button" onPress={aoTocarTop5}
           style={({ pressed }) => [e.botaoBranco, pressed && { transform: [{ scale: 0.96 }] }]}>
-          <Ionicons name="play" size={15} color="#0A0A0F" />
+          <Ionicons name="play" size={15} color="#060608" />
           <Text style={e.botaoBrancoTexto}>Play your top 5</Text>
         </Pressable>
       </Entra>
@@ -526,7 +526,7 @@ const e = StyleSheet.create({
   nomeDaMusica: { fontSize: 15, fontWeight: '700', color: '#fff' },
   artistaDaMusica: { fontSize: 13, fontWeight: '500', color: 'rgba(255,255,255,0.62)' },
   botaoBranco: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 46, paddingHorizontal: 20, borderRadius: 23, backgroundColor: '#fff' },
-  botaoBrancoTexto: { fontSize: 15, fontWeight: '700', color: '#0A0A0F' },
+  botaoBrancoTexto: { fontSize: 15, fontWeight: '700', color: '#060608' },
   horaDoPico: { fontSize: 30, fontWeight: '800', letterSpacing: -1, color: '#fff' },
   horaDoPicoLegenda: { fontSize: 12, color: 'rgba(255,255,255,0.7)' },
   tipo: { fontSize: 30, lineHeight: 33, fontWeight: '800', letterSpacing: -1, color: '#fff' },

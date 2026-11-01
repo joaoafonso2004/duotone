@@ -353,7 +353,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.md,
     gap: spacing.sm,
-    backgroundColor: 'rgba(10,10,15,0.94)',
+    backgroundColor: 'rgba(6,6,8,0.94)',
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
   },

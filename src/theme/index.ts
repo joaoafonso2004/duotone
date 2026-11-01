@@ -1,19 +1,20 @@
 import { Platform } from 'react-native';
 
 export const colors = {
-  bg: '#0A0A0F',
+  bg: '#060608',
   surface: '#14141C',
   surfaceHigh: '#1D1D28',
   surfacePressed: '#242433',
   border: 'rgba(255,255,255,0.08)',
   borderStrong: 'rgba(255,255,255,0.14)',
 
-  text: '#F5F5F7',
-  textSecondary: 'rgba(245,245,247,0.58)',
-  // 34% dava 2,9 de contraste sobre a superficie (medido a 12/9, WCAG), e o
-  // minimo para texto normal e 4,5. A 48% da 4,7 e continua a ser o terceiro
-  // nivel, abaixo do secundario a 58%.
-  textTertiary: 'rgba(245,245,247,0.48)',
+  text: '#E9EAEE',
+  // O branco e o preto são os do PC (A7, 1/11). O branco é um pouco menos forte
+  // do que o de antes, por isso os níveis subiram: o segundo a 62% (6,6 sobre o
+  // fundo, o que tinha), e o terceiro a 52%, que dá 4,5 ou mais até na superfície
+  // premida, o mínimo para texto normal. A 48% ficava nos 4,2.
+  textSecondary: 'rgba(233,234,238,0.62)',
+  textTertiary: 'rgba(233,234,238,0.52)',
 
   accent: '#8B5CF6',
   accentAlt: '#EC4899',
@@ -36,7 +37,7 @@ export const colors = {
 export const gradients = {
   aurora: ['#7C3AED', '#DB2777'] as const,
   auroraDim: ['rgba(124,58,237,0.35)', 'rgba(219,39,119,0.25)'] as const,
-  fadeDown: ['rgba(10,10,15,0)', '#0A0A0F'] as const,
+  fadeDown: ['rgba(6,6,8,0)', '#060608'] as const,
 };
 
 export const spacing = {

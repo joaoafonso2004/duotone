@@ -182,7 +182,7 @@ export const DISSOLVE_DESDE = 0.56;
 export const EXTENSAO_DO_AMBIENTE = 520;
 
 type Degrade = { cores: readonly [string, string, ...string[]]; paragens: readonly [number, number, ...number[]] };
-const veu = (a: number) => `rgba(10,10,15,${a})`;
+const veu = (a: number) => `rgba(6,6,8,${a})`;
 
 /** O escurecimento do topo da capa, para as horas e os botões. */
 export function veuDoTopo(): Degrade {

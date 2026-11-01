@@ -1465,7 +1465,7 @@ export function PlayerRoot() {
               <Image source={VINHETA_DA_CAPA_3D} style={StyleSheet.absoluteFill} contentFit="fill" />
             </View>
             <LinearGradient
-              colors={['rgba(10,10,15,0)', 'rgba(10,10,15,0.75)', colors.bg]}
+              colors={['rgba(6,6,8,0)', 'rgba(6,6,8,0.75)', colors.bg]}
               locations={[0.55, 0.78, 1]}
               style={StyleSheet.absoluteFill}
               pointerEvents="none"
@@ -1473,7 +1473,7 @@ export function PlayerRoot() {
           </>
         ) : (
           <LinearGradient
-            colors={['rgba(10,10,15,0.30)', 'rgba(10,10,15,0.72)', colors.bg]}
+            colors={['rgba(6,6,8,0.30)', 'rgba(6,6,8,0.72)', colors.bg]}
             locations={[0, 0.55, 1]}
             style={StyleSheet.absoluteFill}
             pointerEvents="none"

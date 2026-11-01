@@ -26,7 +26,6 @@ import { createMaterialTopTabNavigator } from '@react-navigation/material-top-ta
 import { BarraDeSeparadores } from './BarraDeSeparadores';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect } from 'react';
 import { Animated, StyleSheet, View, ActivityIndicator } from 'react-native';
 import { escalaDoFundo, raioDoFundo, veuDoFundo } from '../state/transicaoDoLeitor';
@@ -300,10 +299,6 @@ function Tabs() {
 function Splash() {
   return (
     <View style={styles.splash}>
-      <LinearGradient
-        colors={['#0F0F12', '#0A0A0C']}
-        style={StyleSheet.absoluteFill}
-      />
       <ActivityIndicator size="large" color="#8E8E93" />
     </View>
   );
@@ -464,7 +459,7 @@ export function RootNavigator() {
             <View
               style={[
                 StyleSheet.absoluteFill,
-                { backgroundColor: fundoApp === 'oled' ? '#000' : 'rgba(10, 10, 15, 0.88)' }
+                { backgroundColor: fundoApp === 'oled' ? '#000' : 'rgba(6, 6, 8, 0.88)' }
               ]}
             />
 
@@ -559,6 +554,7 @@ export function RootNavigator() {
 const styles = StyleSheet.create({
   splash: {
     flex: 1,
+    backgroundColor: colors.bg,
     alignItems: 'center',
     justifyContent: 'center',
   },

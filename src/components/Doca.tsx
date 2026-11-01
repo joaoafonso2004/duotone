@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
   // texto das listas por baixo dos nomes dos separadores ("you were good to
   // me" entre "Songs" e "Artists"): mais desfoque e um pouco mais de tinta. A
   // cor do que passa continua a ver-se; as letras não.
-  tinta: { backgroundColor: 'rgba(10,10,15,0.74)' },
+  tinta: { backgroundColor: 'rgba(6,6,8,0.74)' },
   icones: {
     position: 'absolute',
     left: 0,

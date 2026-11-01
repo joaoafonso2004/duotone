@@ -105,7 +105,7 @@ export function FundoDaApp() {
         transition={300}
       />
       <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(10, 10, 15, 0.88)' }]} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(6, 6, 8, 0.88)' }]} />
     </View>
   );
 }

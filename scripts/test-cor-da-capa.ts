@@ -162,7 +162,7 @@ const t1 = misturarTemas(STEEL, temaDaCapa([rgb(200, 40, 40)])!, 1);
 check('a mistura de temas começa no steel', t0.color === STEEL.color, t0.color);
 check('e acaba na cor da capa', t1.color === temaDaCapa([rgb(200, 40, 40)])!.color, t1.color);
 check('o texto por cima nunca fica a meio tom',
-  ['#0B0B0E', '#FFFFFF'].includes(misturarTemas(STEEL, t1, 0.5).textColorOnGradient));
+  ['#060608', '#FFFFFF'].includes(misturarTemas(STEEL, t1, 0.5).textColorOnGradient));
 
 // --- Migração --------------------------------------------------------------
 // Exigência do plano: quem tinha uma das cores que desapareceram não pode
@@ -188,8 +188,8 @@ for (const mau of ['#FFFFFF', '', 'rgba(1,2)', 'seja o que for'])
 
 // O número da contagem e o texto dos botões por cima da cor do tema (2/10):
 // era branco, e numa capa clara não se lia.
-check('capa clara: texto escuro', textoSobre('#EDEDED') === '#0B0B0E');
-check('capa dourada: texto escuro', textoSobre('#C9A86A') === '#0B0B0E');
+check('capa clara: texto escuro', textoSobre('#EDEDED') === '#060608');
+check('capa dourada: texto escuro', textoSobre('#C9A86A') === '#060608');
 check('capa escura: texto claro', textoSobre('#2A1F5C') === '#FFFFFF');
 for (const cor of ['#EDEDED', '#C9A86A', '#7C5CFF', '#E35454', '#2A1F5C', '#00C2FF'])
   check(`o texto sobre ${cor} lê-se (≥ 4,5)`, contraste(deHex(cor), deHex(textoSobre(cor))) >= 4.5,

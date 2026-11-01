@@ -250,7 +250,7 @@ function PreviaDoLeitor({ ap, capa }: { ap: Aparencia; capa: EstiloDaCapa }) {
         : ap.fundoLeitor === 'preto' || !uri ? <View style={[StyleSheet.absoluteFill, { backgroundColor: ap.fundoLeitor === 'preto' ? '#000' : '#1a1a22' }]} />
         : <Image source={{ uri }} style={StyleSheet.absoluteFill} blurRadius={ap.fundoLeitor === 'cor' ? 60 : 18} contentFit="cover" />}
       {ap.fundoLeitor !== 'preto' ? (
-        <LinearGradient colors={['rgba(10,10,15,0.30)', 'rgba(10,10,15,0.72)', 'rgba(10,10,15,0.95)']} style={[StyleSheet.absoluteFill, { opacity: veu.opacidadeDoVeu }]} />
+        <LinearGradient colors={['rgba(6,6,8,0.30)', 'rgba(6,6,8,0.72)', 'rgba(6,6,8,0.95)']} style={[StyleSheet.absoluteFill, { opacity: veu.opacidadeDoVeu }]} />
       ) : null}
       {veu.escurecer > 0 && ap.fundoLeitor !== 'preto' ? <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: veu.escurecer }]} /> : null}
 
