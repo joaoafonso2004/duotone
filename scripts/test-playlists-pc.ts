@@ -100,12 +100,12 @@ caso('a promessa da viagem espera pela rota nova (a transição do React é ass�
   assert.match(NAVEGADOR, /import \{ viagemChegou, voltarViajando \} from '\.\.\/desktop\/viagem\.web';/);
 });
 caso('o nome sai do cartão e a marca da raiz também, aconteça o que acontecer', () => {
-  assert.match(VIAGEM, /origem\.style\.removeProperty\('view-transition-name'\); raiz\.removeAttribute\('data-viagem'\); aChegar = null;/);
+  assert.match(VIAGEM, /origem\.style\.removeProperty\('view-transition-name'\);\n\s+if \(esta === viagemAtual\) \{ raiz\.removeAttribute\('data-viagem'\); aChegar = null; \}/);
   assert.match(VIAGEM, /void t\.finished\.then\(limpar, limpar\);/);
   assert.match(VIAGEM, /\} catch \{\n\s+limpar\(\);\n\s+mudar\(\);/);
 });
-caso('o CSS: 560 ms no mosaico, a raiz esbate-se depressa, e a página nova chega calada (marca na página, não em `html[data-viagem]`)', () => {
-  assert.match(CASCA, /::view-transition-group\(portrait\)\{ animation-duration: 560ms; animation-timing-function: var\(--dt-curva\); \}/);
+caso('o CSS: o mosaico com a mola ENTRADA (a da página que sobe), a raiz esbate-se depressa, e a página nova chega calada (marca na página, não em `html[data-viagem]`)', () => {
+  assert.match(CASCA, /::view-transition-group\(portrait\)\{ animation-duration: var\(--dt-entrada-ms\); animation-timing-function: var\(--dt-entrada\); \}/);
   assert.match(CASCA, /::view-transition-old\(root\), ::view-transition-new\(root\)\{ animation-duration: 220ms; \}/);
   assert.match(CASCA, /\[data-dt~="pagina"\]\[data-chegada="calada"\],/);
   assert.match(CASCA, /::view-transition-group\(\*\), ::view-transition-old\(\*\), ::view-transition-new\(\*\)\{ animation: none !important; \}/);

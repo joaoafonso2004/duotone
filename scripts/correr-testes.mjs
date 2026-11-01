@@ -320,6 +320,7 @@ const TESTES = [
   `${RESOLVER} scripts/test-artistas-pc.ts`,
   `${TS} scripts/test-social-pc.ts`,
   `${RESOLVER} scripts/test-viagem-de-volta.ts`,
+  `${RESOLVER} scripts/test-passagem-de-luz.ts`,
   `${RESOLVER} scripts/test-ajustes-do-pc.ts`,
   `${TS} scripts/test-look-do-pc.ts`,
   `${TS} scripts/test-largura-das-barras.ts`,

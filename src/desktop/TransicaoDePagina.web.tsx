@@ -1,5 +1,6 @@
 import React, { useLayoutEffect, useRef } from 'react';
 import { View } from 'react-native';
+import { passarLuzNaPagina } from './Luz.web';
 import { marcar } from './ui.web';
 
 /**
@@ -28,6 +29,11 @@ import { marcar } from './ui.web';
  * (`data-chegada`) fica na página até à rota seguinte: o CSS que a lê é um
  * `animation: none`, e tirá-lo ao fim da viagem punha a animação a correr de novo
  * (a página piscava a zero e voltava a entrar, o "refresh" do João).
+ *
+ * **A Passagem de luz** (C6, 1/11): numa viagem, esta entrada de CSS fica calada e
+ * quem traz a página é a transição (`::view-transition-new(dt-pagina)`, 8 px com
+ * a mola ENTRADA), com a luz a passar pelo topo dela: da direita ao abrir, da
+ * esquerda ao voltar.
  */
 export function TransicaoDePagina({ chave, aSair = false, volta = false, children }: {
   chave: string; aSair?: boolean; volta?: boolean; children: React.ReactNode;
@@ -43,8 +49,9 @@ export function TransicaoDePagina({ chave, aSair = false, volta = false, childre
     no.style.animation = 'none';
     void no.offsetHeight;
     no.style.animation = '';
+    if (document.documentElement.hasAttribute('data-viagem')) passarLuzNaPagina(no, volta);
   }, [chave]);
-  return <View ref={ref} style={{ flex: 1, minHeight: 0 }} {...(aSair ? marcar('pagina', 'a-sair') : marcar('pagina'))}>
+  return <View ref={ref} style={{ flex: 1, minHeight: 0 }} {...(aSair ? marcar('pagina', 'pagina-da-janela', 'a-sair') : marcar('pagina', 'pagina-da-janela'))}>
     {children}
   </View>;
 }

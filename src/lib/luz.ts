@@ -92,6 +92,23 @@ export function direcaoDoAviso(a: {
   return a.tipo === 'info' ? 'chegada' : 'avancar';
 }
 
+/*
+ * A passagem de luz entre páginas (C6, 1/11, por agora só no PC): numa viagem, a
+ * banda passa pelo topo da página que chega. Aqui a luz diz de onde a página
+ * vem, como a Ocultação na troca de música: a que se abre chega da direita, a
+ * que se volta a ver chega da esquerda. Os nomes são os da banda (`trajetoDaBanda`):
+ * `voltar` é a banda que anda para a esquerda.
+ */
+export function direcaoDaPassagem(volta: boolean): DirecaoDaLuz {
+  return volta ? 'avancar' : 'voltar';
+}
+/** Mais fraca do que nos avisos: a faixa é a largura da página, não um cartão. */
+export const OPACIDADE_DA_PASSAGEM = 0.13;
+/** O topo da página que chega: o cabeçalho com a capa ao abrir, o título ao voltar à grelha. */
+export function alturaDaPassagem(volta: boolean): number {
+  return volta ? 120 : 300;
+}
+
 /** Quanto tempo uma luz a carregar pode andar em ciclo (regra 4). */
 export function duracaoDoCiclo(pedido: number): number {
   return Math.max(0, Math.min(CICLO_MAXIMO_MS, pedido));
