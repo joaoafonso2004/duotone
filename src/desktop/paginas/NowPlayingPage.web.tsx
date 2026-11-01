@@ -125,6 +125,16 @@ export function NowPlayingPage({
   // porque o que muda é a cor do TEXTO, e essa tem de ser posta no `<Text>`.
   const [sobreOArtista, setSobreOArtista] = useState(false);
   const [noArtista, setNoArtista] = useState(false);
+  // Estes hooks também correm sem música: fechar a barra mantém esta página montada.
+  const [abaDaFila, setAbaDaFila] = useState<AbaDoCartao>('fila');
+  const [letraGrande, setLetraGrande] = useState(false);
+  useEffect(() => { setLetraGrande(false); }, [current?.source, current?.sourceId]);
+  useEffect(() => {
+    if (!letraGrande) return;
+    const aoEscape = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); setLetraGrande(false); } };
+    window.addEventListener('keydown', aoEscape);
+    return () => window.removeEventListener('keydown', aoEscape);
+  }, [letraGrande]);
   useEffect(() => {
     Promise.all([getGlitchMode(), getEffectIntensity()]).then(([modo, intensidade]) => {
       setGlitch(modo);
@@ -282,17 +292,6 @@ export function NowPlayingPage({
   );
 
   const cabecaDaFila = <CabecaDaFila fila={fila} />;
-  // O cartão da fila tem duas abas (30/10, da maquete): a fila e a letra, no mesmo sítio.
-  const [abaDaFila, setAbaDaFila] = useState<AbaDoCartao>('fila');
-  // A letra grande (31/10): a letra passa para a largura toda, com a capa pequena ao lado.
-  const [letraGrande, setLetraGrande] = useState(false);
-  useEffect(() => { setLetraGrande(false); }, [current?.source, current?.sourceId]);
-  useEffect(() => {
-    if (!letraGrande) return;
-    const aoEscape = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); setLetraGrande(false); } };
-    window.addEventListener('keydown', aoEscape);
-    return () => window.removeEventListener('keydown', aoEscape);
-  }, [letraGrande]);
   const linhas = <LinhasDaFila fila={fila} />;
 
   return (

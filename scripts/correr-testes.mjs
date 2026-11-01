@@ -49,6 +49,7 @@ const TESTES = [
   'scripts/test-artist-favorites-sync.cjs',
   'scripts/test-queue-drop.cjs',
   'scripts/test-saida-do-leitor.cjs',
+  'scripts/test-fecho-now-playing.cjs',
   'scripts/test-currently-playing-ui.cjs',
   'scripts/test-arrastar-fila-rolada.cjs',
   'scripts/test-atualizar-preset.cjs',

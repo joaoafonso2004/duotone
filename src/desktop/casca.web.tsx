@@ -662,12 +662,22 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="ie-jam"][data-s="on"]::after{ animation: dt-ie-onda 2400ms ease-out 1200ms infinite; }
     @keyframes dt-ie-onda{ from{ opacity: .9; transform: scale(.7); } to{ opacity: 0; transform: scale(1.6); } }
 
+    /* A primeira música abre espaço sem um salto. O nó mantém-se nos skips;
+       o recorte só dura a entrada, para depois deixar passar os efeitos dos botões. */
+    [data-dt~="entrada-da-barra"] { display: grid; grid-template-rows: 1fr; flex-shrink: 0; animation: dt-barra-entra 420ms var(--dt-entrada) backwards; }
+    [data-dt~="entrada-da-barra"] > div { min-height: 0; }
+    @keyframes dt-barra-entra {
+      from { grid-template-rows: 0fr; opacity: 0; transform: translateY(12px); overflow: hidden; }
+      to { grid-template-rows: 1fr; opacity: 1; transform: translateY(0); overflow: hidden; }
+    }
+
     /* Quem pediu menos movimento no Windows nao leva nada disto. O estado
        final e o mesmo: aqui so morre o caminho ate la. */
     @media (prefers-reduced-motion: reduce){
       [data-dt~="painel-do-leitor"] { transition: none !important; }
       [data-dt~="separador"]::after{ transition: none !important; }
       #duotone-dica{ transition: none !important; transform: none !important; }
+      [data-dt~="entrada-da-barra"],
       [data-dt~="fila"], [data-dt~="dialogo"], [data-dt~="veu"], [data-dt~="aviso"],
       [data-dt~="menu-amigo"], [data-dt~="aviso-msg"],
       [data-dt~="pagina"], [data-dt~="pagina"] [data-dt~="cartao"], [data-dt~="formas"],
@@ -1074,7 +1084,8 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
   if (!p.current) return <BarraDoOutroAparelho />;
 
   // Largar uma música na barra põe-na a seguir à que toca (24/10).
-  return <V ref={refDoAlvo('barra-do-leitor', p.current ? alvoDaBarra() : null)} style={[styles.player,{opacity:p.closeGain*Math.max(0.2,1-dragX/swipeWidth.current),transform:[{translateX:reducedMotion?0:dragX+(1-p.closeGain)*180}]}]}>
+  return <div data-dt="entrada-da-barra"><div>
+    <V ref={refDoAlvo('barra-do-leitor', p.current ? alvoDaBarra() : null)} style={[styles.player,{opacity:p.closeGain*Math.max(0.2,1-dragX/swipeWidth.current),transform:[{translateX:reducedMotion?0:dragX+(1-p.closeGain)*180}]}]}>
     {/* O motor: se rebentar, volta a montar sozinho e retoma a faixa. */}
     <BarreiraDeErros onde="leitor" discreta><YouTubePlayerView track={p.current} /></BarreiraDeErros>
     <View style={styles.playerTrack} {...dragClose.panHandlers} onLayout={e=>{swipeWidth.current=e.nativeEvent.layout.width;}}>
@@ -1146,5 +1157,6 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
       <BarraDoVolume />
       <IconButton name="close" label="Close player" onPress={()=>void closePlayerSmoothly()} />
     </View>
-  </V>;
+    </V>
+  </div></div>;
 }
