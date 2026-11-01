@@ -44,6 +44,9 @@ import { TOM_CLARO, TOM_ESCURO } from '../lib/doisTons';
 import { ligarBrilhoDoCursor } from './duotone.web';
 import { IconeJam, IconePlayPause, IconeRepeat, IconeShuffle, IconeVolume } from './IconesDeEstado.web';
 import { estiloDoDisco, estiloDoReflexo, rodarReflexo } from './DiscoDeMetal.web';
+import { useCapaQueSai } from './Ocultacao.web';
+import { sentidoDaOcultacao } from '../lib/ocultacao';
+import type { Track } from '../types';
 import { comCatalogo, useCatalogoDeFaixas } from '../state/catalogoDeFaixas';
 import { estadoDoShuffle } from '../lib/estadoDosIcones';
 import { usePontoNaBarra } from '../state/refrao';
@@ -251,10 +254,10 @@ export function injectDesktopDocumentStyles() {
     @keyframes dt-np-fundo{ from{ opacity:0 } to{ opacity:1 } }
     /* A troca de música no Now Playing (26/9): a capa nova entra por cima da
        que sai, e o título vem logo atrás. */
-    [data-dt~="np-capa-entra"]{ animation: dt-np-capa-entra 460ms var(--dt-curva) both; }
-    @keyframes dt-np-capa-entra{ from{ opacity:0; transform: scale(.975) } to{ opacity:1; transform: none } }
-    [data-dt~="np-capa-sai"]{ animation: dt-np-capa-sai 600ms var(--dt-curva) both; }
-    @keyframes dt-np-capa-sai{ from{ opacity:1 } to{ opacity:0 } }
+    /* A Ocultação (C2, 1/11): a capa velha fica inteira até o disco a tapar
+       (Ocultacao.web.ts). Com menos movimento não há disco, e ela esbate-se. */
+    @media (prefers-reduced-motion: reduce){ [data-dt~="capa-sai"]{ animation: dt-capa-sai 160ms linear both; } }
+    @keyframes dt-capa-sai{ from{ opacity:1 } to{ opacity:0 } }
     [data-dt~="np-texto-entra"]{ animation: dt-np-texto-entra 380ms var(--dt-curva) 90ms both; }
     @keyframes dt-np-texto-entra{ from{ opacity:0; transform: translateY(6px) } to{ opacity:1; transform: none } }
 
@@ -995,6 +998,23 @@ function SeguirNaBarra() {
   );
 }
 
+/**
+ * A capa da barra, com a Ocultação (C2, 1/11): a velha fica por cima da nova até
+ * a sombra da música que vem a tapar.
+ */
+function CapaDaBarra({ faixa }: { faixa: Track }) {
+  const caixa = useRef<any>(null);
+  const velha = useCapaQueSai(`${faixa.source}:${faixa.sourceId}`, faixa, {
+    caixa, capa: faixa.artworkUrl, sentido: () => sentidoDaOcultacao(usePlayer.getState().saltoDaFaixa, Date.now()),
+  });
+  return (
+    <View ref={caixa} style={{ width: 52, height: 52, borderRadius: RAIO.ctrl, overflow: 'hidden' }}>
+      <Artwork track={faixa} size={52} />
+      {velha ? <View {...marcar('capa-sai')} style={{ position: 'absolute', left: 0, top: 0 }}><Artwork track={velha} size={52} /></View> : null}
+    </View>
+  );
+}
+
 export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLigado = false, onAviso, aoMenuDaFaixa }: {
   currentIsSaved: boolean; toggleSaveCurrent: () => void; onJam: () => void;
   /** O botão direito na música que toca (24/10): o menu dela, com o "Open Now Playing". */
@@ -1056,7 +1076,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
         {...({ onContextMenu: (e: any) => { if (!aoMenuDaFaixa) return; e.preventDefault(); aoMenuDaFaixa(); } } as any)}
       >
         {/* O destino da Órbita a tocar a seguir (31/10). */}
-        <View nativeID="alvo-seguinte"><Artwork track={mostrada ?? p.current} size={52} /></View>
+        <View nativeID="alvo-seguinte"><CapaDaBarra faixa={mostrada ?? p.current} /></View>
         {/* O título limpo e o artista, como em todas as listas: aqui ia o
             título cru do upload, sem artista nenhum. */}
         <View style={{ minWidth: 0, flexShrink: 1 }}>

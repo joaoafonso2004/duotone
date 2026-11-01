@@ -5,6 +5,7 @@ import { COR, cssDasFontes, FONT, RAIO } from './desktop/tokens.web';
 
 import { cssDasMolas } from './lib/molasEmCss';
 import { estiloDoDisco, estiloDoReflexo, rodarReflexo } from './desktop/DiscoDeMetal.web';
+import { useCapaQueSai } from './desktop/Ocultacao.web';
 /**
  * A janela do mini leitor do PC (entrega 2b do
  * docs/PLANO-OFFLINE-SOCIAL-DESCOBERTA-PC.md; aprovado pela pré-visualização
@@ -111,6 +112,9 @@ button { -webkit-app-region: no-drag; background: none; border: none; color: inh
 button:hover { background: rgba(233,234,238,0.08); }
 /* O anel do foco é o da janela principal: o metal, não o roxo. */
 button:focus-visible { outline: 2px solid ${COR.metalClaro}; outline-offset: 1px; }
+/* A Ocultação: com menos movimento, a capa velha esbate-se (Ocultacao.web.ts). */
+@media (prefers-reduced-motion: reduce) { [data-dt~="capa-sai"] { animation: dt-capa-sai 160ms linear both; } }
+@keyframes dt-capa-sai { from { opacity: 1; } to { opacity: 0; } }
 /* O play é o disco de metal da barra (C3, 1/11), com os mesmos valores (DiscoDeMetal.web.ts).
    O hover repete o metal: o button:hover de cima, mais fraco, tapava-o. */
 [data-dt~="disco-metal"] { ${estiloDoDisco()} color: #111117; position: relative; }
@@ -168,6 +172,19 @@ const ESPACO_DA_LISTA = 6;
 const ALTURA_DA_LISTA = 280;
 /** A lista fecha a animar, e só depois a janela volta ao tamanho do cartão. */
 const DURACAO_DA_LISTA = 280;
+
+/** A capa do mini leitor, com a Ocultação da barra (C2, 1/11). */
+function CapaDoMini({ uri, sentido, style }: { uri: string | null; sentido: 1 | -1; style?: React.CSSProperties }) {
+  const caixa = useRef<HTMLDivElement>(null);
+  const ultimoSentido = useRef(sentido);
+  ultimoSentido.current = sentido;
+  const velha = useCapaQueSai(uri ?? '', uri, { caixa, capa: uri, sentido: () => ultimoSentido.current });
+  return (
+    <div ref={caixa} className="capa" style={{ ...style, ...(uri ? { backgroundImage: `url("${uri}")` } : null), position: 'relative', overflow: 'hidden' }}>
+      {velha ? <div data-dt="capa-sai" style={{ position: 'absolute', inset: 0, background: `center / cover no-repeat url("${velha}")` }} /> : null}
+    </div>
+  );
+}
 
 /** O play do mini leitor: o disco de metal da barra. O laço roda quando o play muda, nunca ao abrir. */
 function BotaoDePlay({ aTocar, estilo, aoCarregar }: { aTocar: boolean; estilo?: React.CSSProperties; aoCarregar: () => void }) {
@@ -363,7 +380,6 @@ function MiniLeitor() {
   const duracao = r?.duracaoMs ?? 0;
   const posicao = r ? Math.min(duracao || Infinity, r.posicaoMs + (r.aTocar ? Math.max(0, agora - recebidoEm) : 0)) : 0;
   const fracao = duracao > 0 ? Math.min(1, posicao / duracao) : 0;
-  const capa = r?.capa ? { backgroundImage: `url("${r.capa}")` } : undefined;
   const procurar = (e: React.MouseEvent<HTMLDivElement>) => {
     const caixa = e.currentTarget.getBoundingClientRect();
     if (duracao > 0 && caixa.width > 0) mandar('procurar', ((e.clientX - caixa.left) / caixa.width) * duracao);
@@ -402,7 +418,7 @@ function MiniLeitor() {
         <div className="arrasto" />
         {pega}
         {canto}
-        <div className="capa" style={{ width: 224, height: 224, ...capa, boxShadow: '0 0 60px rgba(111,122,140,0.35)' }} />
+        <CapaDoMini uri={r?.capa ?? null} sentido={r?.sentido ?? 1} style={{ width: 224, height: 224, boxShadow: '0 0 60px rgba(111,122,140,0.35)' }} />
         <div style={{ width: '100%', textAlign: 'center', minWidth: 0 }}>
           <div className="titulo" style={{ fontSize: 16 }}>{r?.titulo ?? 'Nothing playing'}</div>
           <div className="artista" style={{ fontSize: 13 }}>{r?.artista ?? ''}</div>
@@ -473,7 +489,7 @@ function MiniLeitor() {
           <button aria-label="Close mini player" onClick={() => mandar('fechar')}>{icone.fechar}</button>
         </div>
         <div className="moldura">
-          <div className="capa" style={capa} />
+          <CapaDoMini uri={r?.capa ?? null} sentido={r?.sentido ?? 1} />
           <div className="sobre-a-capa so-aberto">
             <button className="sobre-a-capa" aria-label="Expand" onClick={() => mandar('expandir')}>{icone.expandir}</button>
           </div>

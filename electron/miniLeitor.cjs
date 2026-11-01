@@ -229,6 +229,8 @@ function resumoValido(r) {
     fila,
     /** A seguir um amigo, a lista é a dele: vê-se, não se toca. */
     filaSoDeVer: r.filaSoDeVer === true,
+    /** Para que lado passa a Ocultação na próxima troca de capa. */
+    sentido: r.sentido === -1 ? -1 : 1,
   };
 }
 

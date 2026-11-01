@@ -113,7 +113,7 @@ caso('só passam comandos da lista, e o seek é um número com juízo', () => {
 caso('o resumo só leva os campos do mini, e a capa só em https', () => {
   const r = m.resumoValido({ titulo: 'Boondocks', artista: 'Juice WRLD', capa: 'https://i.ytimg.com/vi/x/mqdefault.jpg',
     aTocar: true, guardada: false, posicaoMs: 1000.4, duracaoMs: 182000, sessao: 'segredo' });
-  assert.deepEqual(Object.keys(r).sort(), ['aTocar', 'artista', 'capa', 'duracaoMs', 'fila', 'filaSoDeVer', 'guardada', 'posicaoMs', 'titulo']);
+  assert.deepEqual(Object.keys(r).sort(), ['aTocar', 'artista', 'capa', 'duracaoMs', 'fila', 'filaSoDeVer', 'guardada', 'posicaoMs', 'sentido', 'titulo']);
   assert.deepEqual(r.fila, [], 'sem lista, uma lista vazia');
   assert.equal(r.posicaoMs, 1000);
   assert.equal(m.resumoValido({ capa: 'file:///C:/x.png' }).capa, null);
