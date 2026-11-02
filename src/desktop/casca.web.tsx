@@ -1052,7 +1052,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
     current: s.current, closeGain: s.closeGain,
     shuffle: s.shuffle, shuffleInteligente: s.shuffleInteligente, toggleShuffle: s.toggleShuffle,
     prev: s.prev, next: s.next, showRewindButton: s.showRewindButton, isPlaying: s.isPlaying,
-    buffering: s.buffering, togglePlay: s.togglePlay, repeatMode: s.repeatMode,
+    togglePlay: s.togglePlay, repeatMode: s.repeatMode,
     cycleRepeat: s.cycleRepeat, error: s.error, seekTo: s.seekTo,
   })));
   const jam = useOuvirJuntos((s) => s.sessao);
@@ -1118,7 +1118,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
           desenho={(cor) => <IconeShuffle estado={estadoDoShuffle(p.shuffle, p.shuffleInteligente)} cor={cor} />} />
         <IconButton name="play-skip-back" label="Previous" atalho="Ctrl+←" onPress={p.prev} />
         {p.showRewindButton && <IconButton name="play-back" label="Rewind 15 seconds" onPress={() => p.seekTo(Math.max(0, usePlayer.getState().positionMs - 15000))} />}
-        <Pressable {...comDica(p.isPlaying ? 'Pause' : 'Play', 'Space')} accessibilityRole="button" accessibilityLabel={p.isPlaying ? 'Pause' : 'Play'} onPress={p.togglePlay} {...marcar('disco-metal')} style={({ pressed }) => [styles.playButton, pressed && { transform: [{ scale: .97 }] }]}><View ref={reflexo} {...marcar('reflexo')} /><View style={{ zIndex: 1 }}>{p.buffering ? <Ionicons name="hourglass-outline" size={20} color="#111117" /> : <IconePlayPause tocando={p.isPlaying} />}</View></Pressable>
+        <Pressable {...comDica(p.isPlaying ? 'Pause' : 'Play', 'Space')} accessibilityRole="button" accessibilityLabel={p.isPlaying ? 'Pause' : 'Play'} onPress={p.togglePlay} {...marcar('disco-metal')} style={({ pressed }) => [styles.playButton, pressed && { transform: [{ scale: .97 }] }]}><View ref={reflexo} {...marcar('reflexo')} /><View style={{ zIndex: 1 }}><IconePlayPause tocando={p.isPlaying} /></View></Pressable>
         <IconButton name="play-skip-forward" label="Next" atalho="Ctrl+→" onPress={p.next} />
         {/* O icone e o MESMO nos dois modos: o `repeat` e o `repeat-outline`
             do Ionicons sao praticamente iguais a este tamanho, e o botao

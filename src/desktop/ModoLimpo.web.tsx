@@ -145,7 +145,7 @@ function EcraLimpo() {
   // Sem a posição: essa vive na `BarraDoModoLimpo`. Com o `usePlayer()` sem
   // seletor o ecrã inteiro redesenhava-se a cada segundo (auditoria, §1.5).
   const p = usePlayer(useShallow((s) => ({
-    current: s.current, isPlaying: s.isPlaying, buffering: s.buffering,
+    current: s.current, isPlaying: s.isPlaying,
     prev: s.prev, next: s.next, togglePlay: s.togglePlay,
   })));
   const versaoDoCatalogo = useCatalogoDeFaixas((s) => s.versao);
@@ -300,7 +300,7 @@ function EcraLimpo() {
             onPress={p.togglePlay}
             style={({ hovered }: any) => [estilos.botaoTocar, hovered && { transform: [{ scale: 1.05 }] }]}
           >
-            <Ionicons name={p.buffering ? 'hourglass-outline' : p.isPlaying ? 'pause' : 'play'} size={18} color="#111117" />
+            <Ionicons name={p.isPlaying ? 'pause' : 'play'} size={18} color="#111117" />
           </Pressable>
           <Botao nome="play-skip-forward" rotulo="Next" aoCarregar={p.next} />
         </View>
