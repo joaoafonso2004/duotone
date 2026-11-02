@@ -42,6 +42,9 @@ export type SessaoDeEscuta = {
    * música ou o Mix da sala. `null` sem a migração, e aí não há menu.
    */
   radioTipo?: TipoDoRadioDaSala | null;
+  /** Com limpar-fila-do-jam.sql: invalida lotes anteriores ao Clear. */
+  filaVersao?: number;
+  filaAutomaticaPausada?: boolean;
   acabouEm: number | null;
 };
 
@@ -71,6 +74,9 @@ export function sessaoDaLinha(r: any): SessaoDeEscuta {
     radio: typeof r.radio === 'boolean' ? r.radio : null,
     // O tipo (23/10, supabase/radio-tipo-no-jam.sql); sem a migração, `null`.
     radioTipo: r.radio_tipo === 'mix' || r.radio_tipo === 'musica' ? r.radio_tipo : null,
+    ...(r.queue_revision != null && Number.isSafeInteger(Number(r.queue_revision)) ? {
+      filaVersao: Number(r.queue_revision), filaAutomaticaPausada: r.queue_autofill_paused === true,
+    } : {}),
     acabouEm: instante(r.ended_at),
   };
 }
@@ -395,14 +401,28 @@ export async function retratoDaSessao(sessao: string): Promise<Map<string, numbe
 }
 
 export async function juntarMuitasAFila(
-  sessao: string, tracks: readonly Track[]
+  sessao: string, tracks: readonly Track[], opcoes?: { versao: number; manual?: boolean },
 ): Promise<number> {
   if (!tracks.length) return 0;
-  const { data, error } = await supabase.rpc('juntar_muitas_a_fila', {
+  const chamada = opcoes
+    ? opcoes.manual ? 'juntar_lista_a_fila_da_sessao' : 'juntar_automaticas_a_fila'
+    : 'juntar_muitas_a_fila';
+  const { data, error } = await supabase.rpc(chamada, {
     p_session: sessao, p_tracks: tracks as unknown as Track[],
+    ...(opcoes ? { p_versao: opcoes.versao } : {}),
   });
   if (error) throw error;
   return typeof data === 'number' ? data : 0;
+}
+
+/** A autorização e o apagamento são uma única transação no servidor. */
+export async function limparFilaDaSessao(sessao: string): Promise<{ ids: string[]; versao: number }> {
+  const { data, error } = await supabase.rpc('limpar_fila_da_sessao', { p_session: sessao });
+  if (error) throw error;
+  if (!Array.isArray(data?.ids) || !data.ids.every((id: unknown) => typeof id === 'string') || !Number.isSafeInteger(Number(data.versao))) {
+    throw new Error("Couldn't confirm clearing the Jam queue.");
+  }
+  return { ids: data.ids, versao: Number(data.versao) };
 }
 
 export async function tirarDaFila(item: string): Promise<void> {

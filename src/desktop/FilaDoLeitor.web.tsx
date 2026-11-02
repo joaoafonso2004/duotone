@@ -81,7 +81,7 @@ export function CabecaDaFila({ fila, compacta = false, abas }: {
         onPress={fila.pedirNome} style={({ hovered }: any) => [styles.npFilaLimpar, hovered && { backgroundColor: ESTADO.hover }]}>
         <Text style={styles.npFilaLimparTexto}>Save</Text>
       </Pressable> : null}
-      {fila.podeEditar && fila.upNext.length > 0 ? <Pressable accessibilityRole="button"
+      {fila.podeLimpar && fila.upNext.length > 0 ? <Pressable accessibilityRole="button"
         accessibilityLabel={fila.aConfirmarLimpar ? `Confirm: clear ${fila.upNext.length} tracks from the queue` : 'Clear the queue'}
         onPress={fila.limpar} style={({ hovered }: any) => [styles.npFilaLimpar, hovered && { backgroundColor: ESTADO.hover }]}>
         <Text style={[styles.npFilaLimparTexto, fila.aConfirmarLimpar && { color: COR.aviso }]}>

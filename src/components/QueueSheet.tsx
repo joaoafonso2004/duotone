@@ -111,7 +111,9 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
   // sessao a local nao decide nada -- e a partilhada que e consumida no fim de
   // cada musica -- por isso mostra-la aqui era mentir com confianca.
   const filaDaSessao = useOuvirJuntos((s) => s.fila);
-  const emSessao = useOuvirJuntos((s) => !!s.sessao);
+  const sessao = useOuvirJuntos((s) => s.sessao);
+  const emSessao = !!sessao;
+  const podeLimparNaSala = useOuvirJuntos((s) => !!s.euId && s.possoControlar());
 
   const upNextLocal = React.useMemo(
     () => usePlayer.getState().upcomingQueue(),
@@ -357,14 +359,17 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
             Num Jam é o Radio da sala (6/10); a seguir um amigo, ligar deixa de
             o seguir. A pastilha sabe quando não aparece. */}
         <RadioQueueControl/>
-        {/* Tirar tudo o que vem a seguir. Num Jam a fila é de todos, e não se
-            limpa daqui. Sem pergunta (3/10): o aviso deixa desfazer. */}
-        {!emSessao && upNext.length > 0 && (
+        {/* Na Jam a autorização e o apagamento passam pelo servidor da sala. */}
+        {!seguido && (!emSessao || podeLimparNaSala) && upNext.length > 0 && (
           <Pressable
             hitSlop={10}
             accessibilityRole="button"
             accessibilityLabel="Clear the queue"
             onPress={() => {
+              if (emSessao) {
+                void useOuvirJuntos.getState().limparFila(sessao?.id).catch((e) => avisarErro(mensagemDeErro(e, "Couldn't clear the Jam queue.")));
+                return;
+              }
               const st = usePlayer.getState();
               const foto = st.fotografiaDaFila();
               const n = st.limparProximas();

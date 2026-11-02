@@ -19,7 +19,10 @@ const player = {
   fotografiaDaFila: () => ({ foto: 'antes' }),
   reporFila: (foto) => { calls.push(['repor', foto.foto]); return true; },
 };
-const jam = { sessao: null, fila: [{ track: b }] };
+const jam = { sessao: null, fila: [{ track: b }], euId: 'guest',
+  possoControlar() { return !!this.sessao && (this.sessao.hostId === this.euId || this.sessao.convidadosControlam); },
+  limparFila: async () => { calls.push(['clear-jam']); return 1; },
+};
 const amigo = { seguindo: null, aSeguir: [c] };
 const usePlayer = (select) => select(player);
 usePlayer.getState = () => player;
@@ -53,10 +56,11 @@ const { useFilaDoLeitor } = carregar('src/desktop/useFilaDoLeitor.web.ts', {
   '../lib/shuffle': { trackKey: (t) => `${t.source}:${t.sourceId}` },
   '../lib/avisoDeRemocao': {
     avisarRemocao: (aviso) => { calls.push(['aviso', aviso.texto, aviso.detalhe]); avisos.push(aviso); },
+    avisarErro: (texto) => { throw Error(texto); },
     contarMusicas: (n) => (n === 1 ? '1 song' : `${n} songs`),
   },
-  '../state/ouvirJuntos': { useOuvirJuntos: (select) => select(jam) },
-  '../state/seguirAmigo': { useSeguirAmigo: (select) => select(amigo) },
+  '../state/ouvirJuntos': { useOuvirJuntos: Object.assign((select) => select(jam), { getState: () => jam }) },
+  '../state/seguirAmigo': { useSeguirAmigo: Object.assign((select) => select(amigo), { getState: () => amigo }) },
   '../lib/leitorDoPc': leitorDoPc,
   '../lib/grelhaQueCresce': carregar('src/lib/grelhaQueCresce.ts'),
   // Guardar a fila como playlist (11/10): a API é um duplo; o nome e as faixas são puros.
@@ -109,16 +113,23 @@ assert.equal(render().notaDoFim, 'Queue ends here', 'depois de Clear não promet
 player.radioStopped = false;
 state = [];
 
-jam.sessao = { id: 'jam' };
+jam.sessao = { id: 'jam', hostId: 'host', convidadosControlam: false };
 fila = render();
 assert.equal(fila.upNext[0].track, b, 'no Jam mostra a fila da sala');
 assert.equal(fila.podeEditar, false);
+assert.equal(fila.podeLimpar, false, 'o convidado sem controlo não limpa');
 assert.equal(fila.notaDoFim, null);
 let antes = calls.length;
 fila.aoMover(0, 1); fila.limpar();
 assert.equal(calls.length, antes, 'não muda a fila da sala por uma porta lateral');
 fila.aoMenu(b, 0);
 assert.equal(calls.at(-1).length, 2, 'não passa o índice do Jam ao menu da fila pessoal');
+
+for (const anfitriao of [false, true]) for (const controlo of [false, true]) {
+  jam.sessao = { id: 'jam', hostId: anfitriao ? 'guest' : 'host', convidadosControlam: controlo };
+  assert.equal(render().podeLimpar, anfitriao || controlo, 'Clear segue dono/controlo dos convidados');
+  assert.equal(render().podeEditar, false, 'Clear não permite reordenar a fila pessoal por uma porta lateral');
+}
 
 amigo.seguindo = { userId: 'amigo' };
 fila = render();

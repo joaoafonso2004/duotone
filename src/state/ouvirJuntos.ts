@@ -5,7 +5,7 @@ import {
   continuoNaSessao, convidar, criarSessao, definirFaixa, entrar, retratoDaSessao,
   juntarAFila, juntarMuitasAFila, lerFila, lerMembros, lerSessao, marcarPronto, membroDaLinha,
   definirAux, definirRadioDoJam, fecharJamsAbandonadas, minhasSessoesAbertas, pausar, permitirControlo, relogioActualizado, retomar,
-  sair, sessaoDaLinha, itemDaLinha, tirarDaFila, avancarFila, procurarNaSessao,
+  sair, sessaoDaLinha, itemDaLinha, tirarDaFila, avancarFila, procurarNaSessao, limparFilaDaSessao,
   type ItemDaFila, type MembroDaSessao, type SessaoDeEscuta, type TipoDoRadioDaSala,
 } from '../api/ouvirJuntos';
 import { agoraNoServidor, type Estimativa } from '../lib/relogioPartilhado';
@@ -108,6 +108,8 @@ type Estado = {
   /** A lista toda de uma vez, quando se dá play numa playlist cá dentro. */
   semearFila: (tracks: readonly Track[]) => Promise<void>;
   retirarSugestao: (item: string) => Promise<void>;
+  /** Só o dono, ou convidados quando têm controlo; preserva a música atual. */
+  limparFila: (sessaoEsperada?: string) => Promise<number>;
   /**
    * Tira a primeira da fila e põe-na a tocar. Só quem manda.
    *
@@ -142,6 +144,7 @@ let geracao = 0;
 let leitura = 0;
 let avancando = false;
 let aEncher = false;
+const limpezasPendentes = new Set<string>();
 /**
  * O que o Radio da sala já pôs na fila nesta sessão (23/10): não volta a pôr,
  * nem depois de tocar nem se alguém a tirou. Esquece-se ao mudar de sessão.
@@ -193,11 +196,11 @@ async function loteDoRadioDaSala(contexto: Track[], fila: readonly Track[]): Pro
  * Junta um lote do Radio da sala à fila partilhada, lembra-o (nesta sessão e,
  * com `dono`, na memória dos 30 dias do Radio) e relê a fila.
  */
-async function juntarDoRadio(sessao: string, lote: Track[], actual: Track, dono: string | null | undefined): Promise<void> {
+async function juntarDoRadio(sessao: string, lote: Track[], actual: Track, dono: string | null | undefined, versao?: number): Promise<void> {
   const loja = useOuvirJuntos.getState();
   const porJuntar = porSemear(lote, { fila: loja.fila, track: actual }, trackKey);
   if (!porJuntar.length) return;
-  const entraram = await juntarMuitasAFila(sessao, porJuntar);
+  const entraram = await juntarMuitasAFila(sessao, porJuntar, versao !== undefined ? { versao } : undefined);
   if (entraram <= 0) return;
   for (const t of porJuntar) doRadioNaSala.add(trackKey(t));
   if (dono !== undefined) void lembrarSugestoesDoRadio(dono, porJuntar).catch(() => {});
@@ -615,7 +618,7 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     const novas = porSemear(tracks, { fila: get().fila, track: s.track ?? null }, trackKey);
     if (!novas.length) return;
     try {
-      const entraram = await juntarMuitasAFila(s.id, novas);
+      const entraram = await juntarMuitasAFila(s.id, novas, s.filaVersao !== undefined ? { versao: s.filaVersao, manual: true } : undefined);
       if (get().sessao?.id !== s.id) return;
       await get().actualizar();
       if (entraram <= 0) return;
@@ -632,6 +635,31 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
   retirarSugestao: async (item) => {
     await tirarDaFila(item);
     await get().actualizar();
+  },
+
+  limparFila: async (sessaoEsperada) => {
+    const s = get().sessao;
+    if (!s || (sessaoEsperada !== undefined && sessaoEsperada !== s.id)
+      || !get().euId || !get().possoControlar() || limpezasPendentes.has(s.id)) return 0;
+    limpezasPendentes.add(s.id);
+    try {
+      const removidas = await limparFilaDaSessao(s.id);
+      if (get().sessao?.id !== s.id) return removidas.ids.length;
+      const ids = new Set(removidas.ids);
+      // Conserva adições que já tenham chegado depois da transação do Clear.
+      set((estado) => ({ fila: estado.fila.filter((item) => !ids.has(item.id)) }));
+      await get().actualizar();
+      if (get().sessao?.id === s.id && removidas.ids.length) {
+        const aviso = `Cleared ${removidas.ids.length} song${removidas.ids.length === 1 ? '' : 's'}`;
+        set({ aviso });
+        setTimeout(() => {
+          if (get().sessao?.id === s.id && get().aviso === aviso) set({ aviso: null });
+        }, 3500);
+      }
+      return removidas.ids.length;
+    } finally {
+      limpezasPendentes.delete(s.id);
+    }
   },
 
   anunciarPosicao: async (ms) => {
@@ -675,6 +703,7 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
 
   encherSeSecar: async (opcoes) => {
     const s = get().sessao;
+    if (s?.filaAutomaticaPausada || (s && limpezasPendentes.has(s.id))) return;
     // Com o Radio da sala ligado enche-se sempre (6/10); sem ele, desligado o
     // interruptor, a fila só tem o que alguém lá pôs.
     const comRadio = s?.radio === true;
@@ -693,6 +722,7 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
       const agora = get();
       return geracao === minha && (agora.sessao?.radio === true ? comRadio : !comRadio && agora.autoFila) && agora.souAnfitriao()
         && agora.sessao?.id === s.id && !!agora.sessao.track
+        && agora.sessao.filaVersao === s.filaVersao && !agora.sessao.filaAutomaticaPausada && !limpezasPendentes.has(s.id)
         && trackKey(agora.sessao.track) === trackKey(actual)
         && (jaAgora || agora.fila.length < MINIMO_NA_FILA);
     };
@@ -709,7 +739,7 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
           [...get().fila.slice(-3).map((i) => i.track), actual].map((t) => chaveDeArtista(displayArtist(t))),
         );
         if (!doRadio.length || !vigente()) return;
-        await juntarDoRadio(s.id, doRadio, actual, dono);
+        await juntarDoRadio(s.id, doRadio, actual, dono, s.filaVersao);
         return;
       }
       const retrato = await retratoDaSessao(s.id);
@@ -730,7 +760,7 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
         undefined, undefined, 'estrito',
       );
       if (!novas.length || !vigente()) return;
-      await juntarDoRadio(s.id, novas, actual, mixDaSala ? (await memoriaDoRadio().catch(() => null))?.dono ?? null : undefined);
+      await juntarDoRadio(s.id, novas, actual, mixDaSala ? (await memoriaDoRadio().catch(() => null))?.dono ?? null : undefined, s.filaVersao);
     } catch {
       // Sem sugestões confirmadas, fica apenas o que as pessoas escolheram.
     } finally {

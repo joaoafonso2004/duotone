@@ -45,6 +45,8 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
   const darControlo = useOuvirJuntos((s) => s.darControlo);
   const rodarAux = useOuvirJuntos((s) => s.rodarAux);
   const retirarSugestao = useOuvirJuntos((s) => s.retirarSugestao);
+  const podeLimparFila = useOuvirJuntos((s) => !!s.euId && s.possoControlar());
+  const limparFila = useOuvirJuntos((s) => s.limparFila);
   const abandonar = useOuvirJuntos((s) => s.abandonar);
   const amigos = useSocial((s) => s.friends);
 
@@ -210,7 +212,17 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
           </>
         ) : null}
 
-        <Text style={styles.seccao}>UP NEXT</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Text style={styles.seccao}>UP NEXT</Text>
+          {podeLimparFila && fila.length > 0 ? <Toque escala={ESCALA.icone} hitSlop={10}
+            accessibilityRole="button" accessibilityLabel="Clear the Jam queue"
+            onPress={() => {
+              hapticSelection();
+              void limparFila(sessao?.id).catch(() => useOuvirJuntos.setState({ aviso: "Couldn't clear the Jam queue. Please try again." }));
+            }} style={{ padding: spacing.xs }}>
+            <Text style={{ ...type.caption, color: colors.textSecondary }}>Clear</Text>
+          </Toque> : null}
+        </View>
         {fila.length === 0 ? (
           <Text style={[styles.estado, { paddingHorizontal: spacing.xs, paddingBottom: spacing.sm }]}>
             Tap any song to add it here.

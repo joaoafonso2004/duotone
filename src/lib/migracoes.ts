@@ -91,6 +91,7 @@ export const MIGRACOES: readonly Migracao[] = [
   { ficheiro: 'fechar-jams-abandonadas.sql', marca: 'fn:fechar_jams_abandonadas', efeito: 'Abandoned Jams close on their own' },
   { ficheiro: 'radio-no-jam.sql', marca: 'col:listening_sessions.radio', efeito: 'Radio in a Jam' },
   { ficheiro: 'radio-tipo-no-jam.sql', marca: 'col:listening_sessions.radio_tipo', efeito: 'Radio type (song or Mix) in a Jam' },
+  { ficheiro: 'limpar-fila-do-jam.sql', marca: 'fn:limpar_fila_da_sessao', efeito: 'Clear the shared Jam queue with guest-control permissions' },
   { ficheiro: 'painel-de-saude.sql', marca: 'fn:painel_de_saude', efeito: 'App health panel' },
   { ficheiro: 'playlists-colaborativas.sql', marca: 'fn:pessoas_da_playlist', efeito: 'Collaborative playlists' },
   { ficheiro: 'playlists-ao-vivo.sql', marca: 'pub:playlist_mudancas', efeito: 'Collaborative playlists update live' },

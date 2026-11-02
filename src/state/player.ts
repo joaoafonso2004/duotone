@@ -1332,10 +1332,16 @@ export const usePlayer = create<PlayerState>()(
       ?? replayMountedSource(get().current, playableTrack, get()._yt);
     const q = originalQueue.slice();
     if (q[index]) q[index] = playableTrack;
+    // O percurso nasce com a fila, não só no primeiro Next. Uma lista nova
+    // sorteia de raiz; os saltos dentro da audição mantêm a ordem percorrida.
+    const shuffleOrder = get().shuffle
+      ? listaNova ? novaOrdemDoShuffle(q, index) : reconciliarOrdemDoShuffle(get().shuffleOrder, q, index)
+      : [];
     set({
       current: playableTrack,
       queue: q,
       queueIndex: index,
+      shuffleOrder,
       origemDaFila: origemSeguinte,
       ...(abrir ? { expanded: true } : {}),
       // Numa lista nova, as marcas do rádio da anterior deixam de valer.
@@ -1523,7 +1529,8 @@ export const usePlayer = create<PlayerState>()(
     if (tracks.length === 0) return;
     contarEscolha();
     if (ouvirJuntos()) {
-      await get().playTrack(tracks[Math.floor(Math.random() * tracks.length)], tracks, true);
+      const lista = baralhada(tracks);
+      await get().playTrack(lista[0], lista, true);
       return;
     }
     // O que estava nos botões era `sort(() => Math.random() - 0.5)`: um

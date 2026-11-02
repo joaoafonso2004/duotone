@@ -36,6 +36,8 @@ export function JanelaDoJam({ open, onClose, notify }: {
   const rodarAux = useOuvirJuntos((s) => s.rodarAux);
   const convidarMais = useOuvirJuntos((s) => s.convidarMais);
   const retirarSugestao = useOuvirJuntos((s) => s.retirarSugestao);
+  const podeLimparFila = useOuvirJuntos((s) => !!s.euId && s.possoControlar());
+  const limparFila = useOuvirJuntos((s) => s.limparFila);
   const abandonar = useOuvirJuntos((s) => s.abandonar);
   const amigos = useSocial((s) => s.friends);
   // O botão direito num participante que é teu amigo (24/10): o menu dele, sem
@@ -141,7 +143,12 @@ export function JanelaDoJam({ open, onClose, notify }: {
         </View>
       </> : null}
 
-      <Text style={styles.section}>UP NEXT</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: ESP.md, marginBottom: ESP.sm }}>
+        <Text style={[styles.section, { marginTop: 0, marginBottom: 0 }]}>UP NEXT</Text>
+        {podeLimparFila && fila.length > 0 ? <Button secondary onPress={() => {
+          void limparFila(sessao?.id).catch(() => avisarErro("Couldn't clear the Jam queue."));
+        }}>Clear</Button> : null}
+      </View>
       {fila.length ? <View style={styles.list}>{fila.map((item) => <View key={item.id} style={styles.row}>
         <Artwork track={item.track} size={38} />
         <View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={styles.title}>{tituloDaFaixa(item.track)}</Text><Text numberOfLines={1} style={styles.meta}>{displayArtist(item.track)} · {nomeDe(item.postoPor)}</Text></View>

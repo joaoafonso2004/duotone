@@ -34,7 +34,9 @@ export function useFilaDoLeitor({ more, notify }: Pick<CommonPageProps, 'more' |
   const doRadio = usePlayer((s) => s.doRadio);
   const aPreparar = usePlayer((s) => s.radioMode === 'preparing');
   const radioLigado = usePlayer((s) => s.radioMode === 'on');
-  const emJam = useOuvirJuntos((s) => !!s.sessao);
+  const sessao = useOuvirJuntos((s) => s.sessao);
+  const emJam = !!sessao;
+  const podeLimparNaSala = useOuvirJuntos((s) => !!s.euId && s.possoControlar());
   const filaDaSessao = useOuvirJuntos((s) => s.fila);
   const seguido = useSeguirAmigo((s) => s.seguindo);
   const proximasDele = useSeguirAmigo((s) => s.aSeguir);
@@ -54,6 +56,8 @@ export function useFilaDoLeitor({ more, notify }: Pick<CommonPageProps, 'more' |
     return () => clearTimeout(t);
   }, [aConfirmarLimpar]);
   const podeEditar = !emJam && !seguido;
+  const podeLimpar = !seguido && (!emJam || podeLimparNaSala);
+  useEffect(() => { setAConfirmarLimpar(false); }, [sessao?.id, podeLimpar, seguido]);
   // Limpar (30/10): as linhas saem em cascata e SÓ DEPOIS se tira da fila (a
   // store muda de uma vez e as linhas desapareciam sem ninguém as ver sair).
   // Com o Undo do aviso, como no iPhone.
@@ -61,21 +65,29 @@ export function useFilaDoLeitor({ more, notify }: Pick<CommonPageProps, 'more' |
   const limparTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (limparTimer.current) clearTimeout(limparTimer.current); }, []);
   const limpar = () => {
-    if (!podeEditar || !upNext.length || aLimpar) return;
+    if (!podeLimpar || !upNext.length || aLimpar) return;
     if (!aConfirmarLimpar) { setAConfirmarLimpar(true); return; }
     setAConfirmarLimpar(false);
     setALimpar(true);
-    limparTimer.current = setTimeout(() => {
+    const sala = sessao?.id ?? null;
+    limparTimer.current = setTimeout(async () => {
       limparTimer.current = null;
-      setALimpar(false);
-      const st = usePlayer.getState();
-      const foto = st.fotografiaDaFila();
-      const sairam = st.limparProximas();
-      if (sairam > 0) avisarRemocao({
-        texto: `Cleared ${contarMusicas(sairam)}`,
-        detalhe: 'from Up next',
-        desfazer: () => { usePlayer.getState().reporFila(foto, { radio: true }); },
-      });
+      try {
+        const jam = useOuvirJuntos.getState();
+        if ((jam.sessao?.id ?? null) !== sala || useSeguirAmigo.getState().seguindo) return;
+        if (sala) { if (jam.euId && jam.possoControlar()) await jam.limparFila(sala); return; }
+        const st = usePlayer.getState();
+        if (st.queue !== queue) return; // outra lista começou durante a animação
+        const foto = st.fotografiaDaFila();
+        const sairam = st.limparProximas();
+        if (sairam > 0) avisarRemocao({
+          texto: `Cleared ${contarMusicas(sairam)}`,
+          detalhe: 'from Up next',
+          desfazer: () => { usePlayer.getState().reporFila(foto, { radio: true }); },
+        });
+      } catch (e) {
+        avisarErro(mensagemDeErro(e, "Couldn't clear the queue."));
+      } finally { setALimpar(false); }
     }, calmo() ? 0 : esperaDaSaida(Math.min(upNext.length, linhasDaFila)));
   };
   // A Radio a trocar a fila: enquanto procura, as linhas viram e saem; quando
@@ -124,7 +136,7 @@ export function useFilaDoLeitor({ more, notify }: Pick<CommonPageProps, 'more' |
     }
   };
   return {
-    current, upNext, emJam, seguido, podeEditar, radioErro,
+    current, upNext, emJam, seguido, podeEditar, podeLimpar, radioErro,
     linhasDaFila, aConfirmarLimpar, limpar, aoRolar,
     /** O que as linhas fazem agora: 'limpar' (saem em cascata), 'vira' (a Radio a trocar), ou nada. */
     saida: (aLimpar ? 'limpar' : aVirar ? 'vira' : null) as 'limpar' | 'vira' | null,

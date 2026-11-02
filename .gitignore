@@ -63,6 +63,7 @@ test-*.mjs
 !scripts/test-sem-youtube-na-interface.mjs
 !scripts/test-presenca-com-fila-sql.mjs
 !scripts/test-jam-passa-o-anfitriao-sql.mjs
+!scripts/test-limpar-fila-do-jam-sql.mjs
 !scripts/test-radio-no-jam-sql.mjs
 !scripts/test-painel-de-saude-sql.mjs
 !scripts/test-presenca-mais-longa-sql.mjs
