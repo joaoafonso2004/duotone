@@ -5,10 +5,11 @@ import { contaComoAtivo, estaAoComputador } from './presencaAtiva';
 import * as Crypto from 'expo-crypto';
 import { supabase } from './supabase';
 import { getDeviceId } from './deviceIdentity';
-import { usePlayer } from '../state/player';
+import { ganhosEmVigor, usePlayer } from '../state/player';
 import { garantirPrivacidade, usePrivacidade } from '../state/privacidade';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { proximasParaAPresenca, posicaoProjetada } from './seguirAmigo';
+import { emitirEscutaAoVivo, type EscutaAoVivo } from './escutaAoVivo';
 
 let terminarAtual: (() => Promise<void>) | null = null;
 // O servidor mantém cada publicação válida por 120 s. Setenta e cinco deixa
@@ -74,23 +75,14 @@ function batimentoPeloServidor(): Promise<number> {
 }
 export async function terminarPresenca(): Promise<void> { await terminarAtual?.(); }
 
-/** Onde vai a música agora, para quem te segue. Só projeta com ela a soar. */
-function posicaoAgoraParaAPresenca(): number {
-  const s = usePlayer.getState();
-  return posicaoProjetada({
-    positionMs: s.positionMs,
-    positionAt: s.positionAt,
-    aSoar: s.isPlaying && s.playbackConfirmed && !s.buffering,
-    ritmo: s.playbackRate || 1,
-  }, Date.now());
-}
-
 /** Um publicador por sessão autenticada; não depende de ter o Social aberto. */
 export function iniciarPresenca(userId: string): () => void {
   let terminado = false;
   let sequencia = 0;
   let fila = Promise.resolve();
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let timerDoRitmo: ReturnType<typeof setTimeout> | undefined;
+  let pedidoEmCurso: AbortController | null = null;
   let lastPublished=0;
   /** De quanto em quanto tempo se bate: 75 s até se saber que o servidor dá 300 s de validade. */
   let batimentoMs=PRESENCE_PUBLISH_MS;
@@ -99,11 +91,34 @@ export function iniciarPresenca(userId: string): () => void {
   let falhasSeguidas = 0;
   const sessao = Crypto.randomUUID();
   const dispositivo = getDeviceId();
-  const publicar = (encerrar = false) => {
-    clearTimeout(timer);
-    lastPublished=Date.now();
+  let lerRitmoSeguido: () => number | null = () => null;
+  let pararRitmoSeguido = () => {};
+  const ritmoAgora = () => lerRitmoSeguido() ?? (useOuvirJuntos.getState().sessao ? 1 : usePlayer.getState().playbackRate || 1);
+  /** Só projeta com som confirmado e à velocidade que o motor usa. */
+  const posicaoAgoraParaAPresenca = () => {
     const s = usePlayer.getState();
-    const faixa = s.current && s.isPlaying && s.playbackConfirmed && !s.buffering && !s.error ? s.current : null;
+    return posicaoProjetada({ positionMs: s.positionMs, positionAt: s.positionAt,
+      aSoar: s.isPlaying && s.playbackConfirmed && !s.buffering, ritmo: ritmoAgora() }, Date.now());
+  };
+  const aoVivo = emitirEscutaAoVivo(userId, sessao, (): EscutaAoVivo | null => {
+    const s = usePlayer.getState(), privacidade = usePrivacidade.getState();
+    if (terminado || !privacidade.carregada || privacidade.privada || !s.current
+      || !s.isPlaying || !s.playbackConfirmed || s.buffering || s.error) return null;
+    return {
+      faixa: { ...s.current, positionMs: Math.round(posicaoAgoraParaAPresenca()), rate: ritmoAgora(),
+        durationSeconds: s.current.durationSeconds ?? (s.durationMs > 0 ? Math.round(s.durationMs / 1000) : null),
+        aSeguir: proximasParaAPresenca(useOuvirJuntos.getState().sessao
+          ? useOuvirJuntos.getState().fila.map(i => i.track) : s.upcomingQueue().map(e => e.track)),
+      }, ganhos: ganhosEmVigor(s),
+    };
+  });
+  const publicar = (encerrar = false, prioritario = false) => {
+    clearTimeout(timer);
+    timer = undefined;
+    clearTimeout(timerDoRitmo);
+    timerDoRitmo = undefined;
+    if (encerrar || prioritario) pedidoEmCurso?.abort();
+    lastPublished=Date.now();
     const seq = ++sequencia;
     // `appEstaVisivel` e nao `Platform.OS === 'web'`: no PC isto dizia SEMPRE
     // que a pessoa estava activa, sem sequer olhar para a janela. Bastava ter
@@ -114,7 +129,8 @@ export function iniciarPresenca(userId: string): () => void {
     const visivel = appEstaVisivel();
     fila = fila.catch(() => {}).then(async () => {
       // Vários estados de loading/play em fila publicam apenas o mais novo.
-      // Um envio já em curso termina; não se acumulam as transições antigas.
+      // Um início de áudio pode cancelar o envio anterior; os restantes
+      // terminam sem acumular as transições antigas.
       if (seq < sequencia && !encerrar) return;
       const { data } = await supabase.auth.getSession();
       if (data.session?.user.id !== userId) return;
@@ -129,17 +145,22 @@ export function iniciarPresenca(userId: string): () => void {
       // E espera-se pela preferência -- no arranque, publicar primeiro e ler
       // depois deixava a faixa à vista dos amigos durante uns segundos.
       await garantirPrivacidade();
+      if (seq < sequencia && !encerrar) return;
+      // Ler no envio: uma publicação em espera não pode anunciar a faixa antiga.
+      const s = usePlayer.getState();
+      const faixa = s.current && s.isPlaying && s.playbackConfirmed && !s.buffering && !s.error ? s.current : null;
       const privada = usePrivacidade.getState().privada;
       const agora = Date.now();
       const aSeguir = proximasParaAPresenca(useOuvirJuntos.getState().sessao
         ? useOuvirJuntos.getState().fila.map(i => i.track)
         : usePlayer.getState().upcomingQueue().map(e => e.track));
       const chave = JSON.stringify([ativo && !encerrar, encerrar, privada,
-        faixa?.source, faixa?.sourceId, s.playbackRate, Math.round(posicaoAgoraParaAPresenca()/1000),
+        faixa?.source, faixa?.sourceId, ritmoAgora(), Math.round(posicaoAgoraParaAPresenca()/1000),
         faixa?.durationSeconds ?? usePlayer.getState().durationMs, aSeguir.map(t => `${t.source}:${t.sourceId}`)]);
       if (!encerrar && ultimoEnviado?.chave === chave && agora - ultimoEnviado.em < 1500) return;
       // Um pedido pendurado não prende a fila: ver `ESPERA_DA_PUBLICACAO_MS`.
       const controlador = new AbortController();
+      pedidoEmCurso = controlador;
       const relogio = setTimeout(() => controlador.abort(), ESPERA_DA_PUBLICACAO_MS);
       const { error } = await supabase.rpc('publish_social_presence', {
         p_device_id: await dispositivo, p_session_id: sessao, p_sequence: seq,
@@ -160,14 +181,16 @@ export function iniciarPresenca(userId: string): () => void {
           // motor, até um segundo atrás -- e quem te segue ficava esse segundo
           // atrás de ti. Ver `posicaoProjetada`.
           positionMs: Math.round(posicaoAgoraParaAPresenca()),
-          rate: usePlayer.getState().playbackRate || 1,
+          rate: ritmoAgora(),
           // As próximas, para o Up next de quem te segue (27/9, "Listen along";
           // supabase/presenca-com-fila.sql). Num Jam, as da fila partilhada.
           aSeguir,
         },
       }).abortSignal(controlador.signal);
       clearTimeout(relogio);
+      if (pedidoEmCurso === controlador) pedidoEmCurso = null;
       if (error) {
+        if (seq !== sequencia) return;
         console.warn('Não foi possível publicar a presença:', error.message);
         // Tenta outra vez, até duas (ver `NOVAS_TENTATIVAS_MS`). Só a mais nova:
         // se entretanto houve outra publicação, é ela que conta.
@@ -183,29 +206,52 @@ export function iniciarPresenca(userId: string): () => void {
     });
     return fila;
   };
-  const changed = () => {
+  const changed = (imediata = false) => {
     if (terminado) return;
-    clearTimeout(timer);
     const s = usePlayer.getState();
-    if (!s.isPlaying || !s.current) void publicar();
-    else timer = setTimeout(() => void publicar(), 1500);
+    if (!s.isPlaying || !s.current || imediata) void publicar(false, true);
+    // Prazo limitado, em vez de reiniciar a espera a cada alteração da fila.
+    else if (!timer) timer = setTimeout(() => void publicar(), 1500);
   };
   const unsubscribe = usePlayer.subscribe((s, p) => {
-    if (s.current !== p.current || s.isPlaying !== p.isPlaying || s.playbackConfirmed !== p.playbackConfirmed || s.buffering !== p.buffering || s.error !== p.error) changed();
+    if (terminado) return;
+    const estadoMudou = s.current !== p.current || s.isPlaying !== p.isPlaying || s.playbackConfirmed !== p.playbackConfirmed || s.buffering !== p.buffering || s.error !== p.error;
+    const filaMudou = s.queue !== p.queue || s.shuffleOrder !== p.shuffleOrder;
+    const ritmoMudou = s.playbackRate !== p.playbackRate;
+    const saltou = Math.abs((s.positionMs-p.positionMs)-(s.positionAt-p.positionAt)*(s.playbackRate||1))>4000;
+    if (estadoMudou || filaMudou || ritmoMudou || saltou || ganhosEmVigor(s) !== ganhosEmVigor(p)) aoVivo.mudou();
+    if (estadoMudou) changed(!!s.current && s.isPlaying && s.playbackConfirmed && !s.buffering && !s.error
+      && (!p.playbackConfirmed || !p.isPlaying || p.buffering || !!p.error || s.current?.sourceId !== p.current?.sourceId));
     // A fila mudou (quem te segue vê as próximas): publica com o mesmo atraso.
-    else if (!terminado && s.isPlaying && (s.queue !== p.queue || s.shuffleOrder !== p.shuffleOrder)) changed();
+    else if (s.isPlaying && filaMudou) changed();
     // O avanço vem do timeUpdate nativo, que também serve o sleep timer com
     // o ecrã bloqueado. Não depender só de setInterval para o batimento iOS.
     // Uma ida na barra ou outra velocidade publicam já: sem isso o progresso
     // dos amigos mostrava um sítio que já não existia até ao batimento seguinte.
-    else if(!terminado&&s.isPlaying&&(s.playbackRate!==p.playbackRate||Math.abs((s.positionMs-p.positionMs)-(s.positionAt-p.positionAt)*(s.playbackRate||1))>4000))changed();
+    else if (s.isPlaying && ritmoMudou) {
+      // O gesto segue pelo WebSocket. Só o valor estabilizado vai à presença,
+      // sem um pedido HTTP por movimento da barra de velocidade.
+      clearTimeout(timerDoRitmo);
+      timerDoRitmo = setTimeout(() => { if (!terminado) void publicar(); }, 2000);
+    }
+    else if (s.isPlaying && saltou) changed();
     else if(!terminado&&s.positionMs!==p.positionMs&&s.isPlaying&&Date.now()-lastPublished>=batimentoMs)void publicar();
   });
   // Ligar a privada tem de tirar a faixa JÁ, e não no próximo batimento: são
   // até 75 segundos a mostrar precisamente aquilo que se quis esconder.
   const pararPrivacidade = usePrivacidade.subscribe((s, p) => {
-    if (!terminado && s.privada !== p.privada) void publicar();
+    if (terminado) return;
+    if (s.privada !== p.privada || s.carregada !== p.carregada) aoVivo.mudou();
+    if (s.privada !== p.privada) void publicar(false, true);
   });
+  // Só depois de autenticar: auth → presença → seguir → player → auth não
+  // pode inicializar as stores numa ordem diferente por causa deste canal.
+  void import('../state/seguirAmigo').then(({ ritmoDeQuemSigo, useSeguirAmigo }) => {
+    if (terminado) return;
+    lerRitmoSeguido = ritmoDeQuemSigo;
+    pararRitmoSeguido = useSeguirAmigo.subscribe((s, p) => { if (s.ritmo !== p.ritmo) aoVivo.mudou(); });
+    aoVivo.mudou();
+  }).catch(() => {});
   // O Centro de Controlo passa por inactive e volta a active: a app não foi
   // para segundo plano. Só uma mudança de estado estável publica presença.
   let estadoEstavel = AppState.currentState;
@@ -238,9 +284,11 @@ export function iniciarPresenca(userId: string): () => void {
   const terminar = async () => {
     if (terminado) return;
     terminado = true;
-    clearTimeout(timer); clearInterval(beat); clearInterval(vigiaDoPc); unsubscribe(); pararPrivacidade(); app.remove();
+    clearTimeout(timer); clearTimeout(timerDoRitmo); clearInterval(beat); clearInterval(vigiaDoPc); unsubscribe(); pararPrivacidade(); pararRitmoSeguido(); app.remove();
     if (Platform.OS === 'web') { window.removeEventListener('online', voltar); window.removeEventListener('focus', voltar); window.removeEventListener('pagehide', sair); }
+    const fecharAoVivo = aoVivo.parar();
     await publicar(true);
+    await fecharAoVivo;
   };
   const sair = () => { void terminar(); };
   if (Platform.OS === 'web') { window.addEventListener('online', voltar); window.addEventListener('focus', voltar); window.addEventListener('pagehide', sair); }

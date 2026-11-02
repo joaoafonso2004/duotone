@@ -8,6 +8,7 @@ import { registarSeguirAmigo, usePlayer } from './player';
 import { agoraNoServidor, ouvirPresencas, presencaDe, relerPresencas } from './social';
 import { useOuvirJuntos } from './ouvirJuntos';
 import { guardarEmSegundoPlano } from '../lib/descarregarFaixa';
+import { ouvirEscutaAoVivo, type EscutaAoVivo } from '../lib/escutaAoVivo';
 
 /**
  * Seguir um amigo ("Listen along", 27/9). As decisões estão em
@@ -113,6 +114,23 @@ function ligar(id: string, nome: string): () => void {
   let ultimaNoticia = Date.now();
   let adiantada: string | null = null;
   let afinacoes = 0;
+  let aoVivo: { estado: EscutaAoVivo | null; recebidoEm: number; emNoServidor: number } | null = null;
+  const faixaActual = () => {
+    const banco = faixaDele(id);
+    if (!aoVivo) return banco;
+    const directa = aoVivo.estado?.faixa ?? null;
+    // O canal antecipa a publicação HTTP. Passados 5 s, uma presença caducada
+    // ou uma faixa nova ganham ao último pacote; nunca se segue um fantasma.
+    const recente = Date.now() - aoVivo.recebidoEm < 5000;
+    // Um sinal explícito de paragem/privacidade não pode ser desfeito pela
+    // presença antiga. Só uma publicação posterior o pode substituir.
+    if (!directa) return Date.parse(banco?.updatedAt ?? '') > aoVivo.emNoServidor ? banco : null;
+    if (!banco) return recente ? directa : null;
+    const emBanco = Date.parse(banco.updatedAt ?? '');
+    const maisNova = !Number.isFinite(emBanco) || Date.parse(directa.updatedAt ?? '') >= emBanco;
+    if (chaveDaFaixa(banco) === chaveDaFaixa(directa)) return maisNova ? directa : banco;
+    return recente && maisNova ? directa : banco;
+  };
   // O relógio do Jam: mede-se ao começar e volta-se a medir quando envelhece
   // (`relogioActualizado` só vai à rede nessa altura). Sem ele, a hora das
   // presenças, como antes.
@@ -141,11 +159,11 @@ function ligar(id: string, nome: string): () => void {
   };
 
   const olhar = () => {
-    if (!vivo || aplicando > 0) return;
+    if (!vivo) return;
     // Um Jam é outra coisa: quem entra num deixa de seguir.
     if (useOuvirJuntos.getState().sessao) { useSeguirAmigo.getState().parar(null); return; }
 
-    const dele = faixaDele(id);
+    const dele = faixaActual();
     const agora = Date.now();
     semFaixaDesde = dele ? null : (semFaixaDesde ?? agora);
 
@@ -155,6 +173,9 @@ function ligar(id: string, nome: string): () => void {
     if (estado.ritmo !== ritmo || (dele && !mesmaLista(estado.aSeguir, proximas))) {
       useSeguirAmigo.setState({ ritmo, ...(dele ? { aSeguir: proximas.map(paraFaixa) } : {}) });
     }
+    const curva = aoVivo?.estado;
+    usePlayer.getState()._aplicarEqDaEscuta(curva && chaveDaFaixa(curva.faixa) === chaveDaFaixa(dele) ? curva.ganhos : null);
+    if (aplicando > 0) return;
     // A seguinte DELE vem já para o telemóvel (em Wi-Fi, atrás de tudo, como a
     // Daily mix): quando ele passar a ela, não se espera pelo download. Não
     // entra na fila de quem segue -- o crossfade e o Smart Cache passavam a ela
@@ -221,7 +242,7 @@ function ligar(id: string, nome: string): () => void {
     if (!vivo || aplicando > 0) return;
     if (chaveDaFaixa(s.current) !== chaveDaFaixa(p.current)) {
       // Escolheu outra música: deixou de o seguir. Sem aviso -- foi ele.
-      if (chaveDaFaixa(s.current) !== chaveDaFaixa(faixaDele(id))) useSeguirAmigo.getState().parar(null);
+      if (chaveDaFaixa(s.current) !== chaveDaFaixa(faixaActual())) useSeguirAmigo.getState().parar(null);
       return;
     }
     if (s.isPlaying !== p.isPlaying) pausadoPorMim = !s.isPlaying;
@@ -232,6 +253,15 @@ function ligar(id: string, nome: string): () => void {
     ultimaNoticia = Date.now();
     olhar();
   });
+  const pararAoVivo = ouvirEscutaAoVivo(id, (estado) => {
+    if (!vivo) return;
+    ultimaNoticia = Date.now();
+    const emNoServidor = horaDoServidor();
+    aoVivo = { recebidoEm: Date.now(), emNoServidor, estado: estado ? {
+      ...estado, faixa: { ...estado.faixa, updatedAt: new Date(emNoServidor).toISOString() },
+    } : null };
+    olhar();
+  }, () => { if (vivo) { if (aoVivo?.estado !== null) aoVivo = null; olhar(); } });
 
   const tique = setInterval(() => {
     medirRelogio();
@@ -243,7 +273,7 @@ function ligar(id: string, nome: string): () => void {
   }, TIQUE_MS);
 
   // Sem a presença dele cá (a lista ainda não foi lida), pede-se já.
-  if (!presencaDe(id)) void relerPresencas().then(olhar, () => {});
+  if (!faixaDele(id)) void relerPresencas().then(olhar, () => {});
   else olhar();
 
   return () => {
@@ -251,5 +281,7 @@ function ligar(id: string, nome: string): () => void {
     clearInterval(tique);
     pararDeOuvirOLeitor();
     pararDeOuvirPresencas();
+    pararAoVivo();
+    usePlayer.getState()._aplicarEqDaEscuta(null);
   };
 }

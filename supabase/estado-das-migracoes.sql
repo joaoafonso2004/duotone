@@ -63,7 +63,8 @@ begin
         resto := substr(m, 5);
         antes := split_part(resto, ':', 1);
         ok := exists (select 1 from pg_policies
-                      where schemaname = 'public' and tablename = antes
+                      where schemaname = case when position('.' in antes) > 0 then split_part(antes, '.', 1) else 'public' end
+                        and tablename = case when position('.' in antes) > 0 then split_part(antes, '.', 2) else antes end
                         and policyname = substr(resto, length(antes) + 2));
       elsif m like 'con:%' then
         resto := substr(m, 5);

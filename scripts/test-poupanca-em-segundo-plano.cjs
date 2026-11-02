@@ -103,7 +103,9 @@ async function main() {
           resposta.abortSignal = () => resposta;
           return resposta;
         } } },
-      '../state/player': { usePlayer: player },
+      '../state/player': { usePlayer: player, ganhosEmVigor: () => Array(10).fill(0) },
+      './escutaAoVivo': { emitirEscutaAoVivo: () => ({ mudou() {}, parar: async () => {} }) },
+      '../state/seguirAmigo': { ritmoDeQuemSigo: () => null, useSeguirAmigo: store({ ritmo: null }) },
       '../state/privacidade': { garantirPrivacidade: async () => {}, usePrivacidade: store({ privada: false }) },
       '../state/ouvirJuntos': { useOuvirJuntos: store({ sessao: null }) },
       './seguirAmigo': { proximasParaAPresenca: x => x, posicaoProjetada: x => x.positionMs },

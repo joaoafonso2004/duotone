@@ -17,6 +17,7 @@ import { mudarPresets, usePresets } from '../state/presets';
 import { colors, spacing, type } from '../theme';
 import { BarraVelocidade } from './BarraVelocidade';
 import { useVelocidadePresa } from '../hooks/useVelocidadePresa';
+import { useSeguirAmigo } from '../state/seguirAmigo';
 import { useEdicaoDoPreset } from '../hooks/useEdicaoDoPreset';
 import { avisarFeito } from '../lib/avisoDeRemocao';
 import { BottomSheet, BottomSheetGestureGuard, BottomSheetScrollView } from './BottomSheet';
@@ -48,6 +49,8 @@ export function EqualizadorSheet({ visible, onClose }: { visible: boolean; onClo
   const playbackRate = usePlayer((s) => s.playbackRate);
   const setPlaybackRate = usePlayer((s) => s.setPlaybackRate);
   const velocidadePresa = useVelocidadePresa();
+  const seguindo = useSeguirAmigo((s) => s.seguindo);
+  const temEqDaEscuta = usePlayer((s) => s.eqDaEscuta != null);
   const eqAtivo = usePlayer((s) => s.eqAtivo);
   const current = usePlayer((s) => s.current);
   const ajustesPorFaixa = usePlayer((s) => s.ajustesPorFaixa);
@@ -65,7 +68,7 @@ export function EqualizadorSheet({ visible, onClose }: { visible: boolean; onClo
   const segue = usePlayer(segueABase);
   const naBaseRecomendada = recomendadoLigado && segue && !carro;
   const edicao = useEdicaoDoPreset({
-    memoria, ganhos, bloqueado: recomendadoNaFaixa,
+    memoria, ganhos, bloqueado: recomendadoNaFaixa || !!seguindo,
     contexto: JSON.stringify([visible, current ? chaveDaFaixa(current) : null, carro?.presetId, carro?.aparelho]),
   });
   const mudarGanhos = (novos: number[]) => { edicao.preservarOrigem(); setEqGanhos(novos); };
@@ -103,6 +106,18 @@ export function EqualizadorSheet({ visible, onClose }: { visible: boolean; onClo
         : { icone: 'options-outline' as const, texto: 'Using your default sound', destaque: null };
 
   // O preset de um aparelho (11/10): o mesmo painel do carro, dentro desta folha.
+  if (seguindo) return (
+    <BottomSheet visible={visible} onClose={fechar}>
+      <Text accessibilityRole="header" style={type.title}>Equalizer</Text>
+      <Text style={[type.caption, { marginTop: spacing.sm, marginBottom: spacing.lg }]}>
+        Following {seguindo.nome}'s {temEqDaEscuta ? 'live EQ and speed' : 'speed · waiting for live EQ'}
+      </Text>
+      <View pointerEvents="none">
+        <BarraVelocidade titulo="Speed" valor={velocidadePresa?.ritmo ?? 1} aoMudar={() => {}} />
+        <Equalizador ganhos={ganhos} aoMudar={() => {}} semPresets moldura />
+      </View>
+    </BottomSheet>
+  );
   if (aEscolherDoAparelho && aparelho) {
     const escolhido = doAparelho?.id ?? null;
     const escolher = (id: string | null) => {

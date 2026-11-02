@@ -53,7 +53,7 @@ for (const plataforma of ['ios', 'windows']) {
   memoria = regras.criarPreset(memoria, 'u-outro', 'Other', OUTRO, 200);
   memoria = regras.definirPresetDoCarro(memoria, 'u-top', 300);
   const escritas = [], avisos = [];
-  let recomendado = false, visivel = true, relogio = 1000;
+  let recomendado = false, visivel = true, relogio = 1000, seguido = null;
   const player = { current: { source: 'youtube', sourceId: 'A' }, eqGanhos: TOP.slice(), carro: null, playbackRate: 1, eqAtivo: true, ajustesPorFaixa: {} };
   const mudar = g => { player.eqGanhos = g; recomendado = false; };
   player.setEqGanhos = mudar;
@@ -68,6 +68,7 @@ for (const plataforma of ['ios', 'windows']) {
     react: h.React, 'react-native': native,
     '../lib/equalizer': eq, '../lib/presetsDoEqualizador': regras,
     '../state/presets': presets, '../state/player': { usePlayer, ganhosEmVigor: s => s.eqGanhos, segueABase: () => false },
+    '../state/seguirAmigo': { useSeguirAmigo: select => select({ seguindo: seguido }) },
     '../hooks/useEdicaoDoPreset': edicao, '../hooks/useVelocidadePresa': { useVelocidadePresa: () => null },
     '../state/recomendado': { useRecomendadoNaFaixa: () => recomendado, useRecomendado: sel => sel({ ligado: false }), escolherRecomendadoNaFaixa: () => { recomendado = true; } },
     '../lib/avisoDeRemocao': { avisarFeito: aviso => avisos.push(aviso) },
@@ -164,5 +165,15 @@ for (const plataforma of ['ios', 'windows']) {
   antigo.props.onPress();
   assert.equal(escritas.length, antes, 'um toque atrasado não ressuscita um preset apagado');
   assert.equal(update(), undefined);
+  seguido = { id: 'amigo', nome: 'Ana' };
+  player.eqDaEscuta = TOP;
+  const ganhosAntes = player.eqGanhos, escritasAntes = escritas.length;
+  assert.match(texto(desenhar()), /Following Ana's live EQ and speed/);
+  mudarBanda(OUTRO);
+  assert.equal(player.eqGanhos, ganhosAntes, 'durante Listening with o painel é só de leitura');
+  assert.equal(escritas.length, escritasAntes);
+  assert.equal(update(), undefined, 'os ajustes do amigo não oferecem Update do preset pessoal');
+  player.eqDaEscuta = null;
+  assert.match(texto(desenhar()), /waiting for live EQ/, 'a interface não diz que recebeu um EQ que ainda não chegou');
   console.log(`${plataforma}: selecionar, editar, substituir, copiar e as guardas passaram.`);
 }

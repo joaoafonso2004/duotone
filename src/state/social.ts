@@ -129,11 +129,14 @@ function guardarPresenca(p: SocialPresence): boolean {
 }
 /** Relê só as presenças (um pedido pequeno): a rede de quem segue, se o Realtime calar. */
 export async function relerPresencas(): Promise<void> {
+  const gen = generation;
   const presence = await supabase.rpc('get_social_presence');
-  if (presence.error || !presence.data) return;
+  if (gen !== generation || presence.error || !presence.data) return;
   available = true;
   clockOffset = Date.parse(presence.data.serverTime) - Date.now();
   for (const p of presence.data.items as SocialPresence[]) guardarPresenca(p);
+  const now = agoraNoServidor();
+  useSocial.setState({ now, friends: friendsNow(now) });
 }
 let available = false;
 const friendsNow = (now: number) => rawFriends.map((friend) => {
@@ -360,8 +363,9 @@ export function iniciarSocial(userId: string): () => void {
       // Escondida, a presença fica guardada e a lista refaz-se ao voltar
       // (`acordar`), sem ir à rede: marcava o `dirty`, e no PC cada regresso
       // da janela era uma atualização inteira (6/10).
-      if (p.user_id && guardarPresenca(p) && appEstaVisivel()) {
-        useSocial.setState({ friends: friendsNow(Date.now() + clockOffset) });
+      if (p.user_id && guardarPresenca(p)) {
+        available = true;
+        if (appEstaVisivel()) useSocial.setState({ friends: friendsNow(Date.now() + clockOffset) });
       }
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships' }, aoMudarAmizades)

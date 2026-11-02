@@ -304,9 +304,9 @@ export type CarroNoLeitor = {
   aparelho?: string;
 };
 
-/** Os ganhos que se OUVEM: os do carro quando se está nele, os da faixa fora. */
-export function ganhosEmVigor(s: { carro: CarroNoLeitor | null; eqGanhos: Ganhos }): Ganhos {
-  return s.carro?.ganhos ?? s.eqGanhos;
+/** Os ganhos que se OUVEM: escuta partilhada, carro ou faixa, por esta ordem. */
+export function ganhosEmVigor(s: { carro: CarroNoLeitor | null; eqGanhos: Ganhos; eqDaEscuta?: Ganhos | null }): Ganhos {
+  return s.eqDaEscuta ?? s.carro?.ganhos ?? s.eqGanhos;
 }
 
 interface PlayerState {
@@ -441,6 +441,9 @@ interface PlayerState {
   playbackRate: number;
   /** Os dez ganhos do equalizador, em dB, aplicados pelo motor de cada plataforma. */
   eqGanhos: Ganhos;
+  /** Curva temporária do amigo; não entra nas preferências nem na memória da faixa. */
+  eqDaEscuta: Ganhos | null;
+  _aplicarEqDaEscuta: (ganhos: Ganhos | null) => void;
   /** O que cada faixa lembra da ultima vez que a ouviste. */
   ajustesPorFaixa: MemoriaDeAjustes;
   /**
@@ -753,6 +756,7 @@ function passo(estado: EstadoDeReproducao, tipo: Evento['tipo']) {
  * unico que sabe as bandas e o que elas somam quando se sobrepoem.
  */
 async function aplicarEqNoMotor(ganhos: number[]): Promise<void> {
+  ganhos = usePlayer.getState().eqDaEscuta ?? ganhos;
   const ponte = typeof window !== 'undefined' ? window.duotoneDesktop : undefined;
   if (!ponte?.aplicarEqualizador) {
     // No telemovel nao ha ponte nenhuma: quem aplica os ganhos e o modulo
@@ -1219,6 +1223,7 @@ export const usePlayer = create<PlayerState>()(
   pararNoFimDaFaixa: false,
   playbackRate: RATE_NORMAL,
   eqGanhos: PLANO,
+  eqDaEscuta: null,
   carro: null,
   ajustesPorFaixa: {},
   padraoRate: RATE_NORMAL,
@@ -2542,6 +2547,14 @@ export const usePlayer = create<PlayerState>()(
   },
 
   _setDownloadProgress: (p) => set({ downloadProgress: p }),
+
+  _aplicarEqDaEscuta: (g) => {
+    const anterior = get().eqDaEscuta;
+    const ganhos = g === null ? null : normalizarGanhos(g);
+    if (anterior === ganhos || (anterior && ganhos && anterior.every((v, i) => v === ganhos[i]))) return;
+    set({ eqDaEscuta: ganhos });
+    void aplicarEqNoMotor(ganhosEmVigor(get()));
+  },
 
   setEqGanhos: (g, comoPadrao = false) => {
     const ganhos = normalizarGanhos(g);

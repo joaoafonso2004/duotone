@@ -24,6 +24,7 @@ export type Migracao = {
 };
 
 export const MIGRACOES: readonly Migracao[] = [
+  { ficheiro: '20261102222643_escuta_ao_vivo.sql', marca: 'pol:realtime.messages:escuta: receber som', efeito: "Listen along follows live EQ and speed" },
   { ficheiro: 'social-conversation-summaries.sql', marca: 'fn:conversation_summaries', efeito: 'Compact latest messages in Social Chats' },
   { ficheiro: 'sincronizacao-economica.sql', marca: 'fn:get_play_count_changes', efeito: 'Incremental playlist and listening-history sync' },
   { ficheiro: 'schema.sql', marca: 'tab:library_tracks', efeito: 'Base tables' },

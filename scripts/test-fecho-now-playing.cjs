@@ -50,7 +50,7 @@ function ensaiar(inicial) {
     '../useFilaDoLeitor.web': { useFilaDoLeitor: () => ({ current: estado.current, upNext: [], emJam: false }) },
     '../../components/ArtworkLyricsCube': { ArtworkLyricsCube: 'Cubo' },
     '../../lib/prefs': { getGlitchMode: async () => 'off', getEffectIntensity: async () => 'normal' },
-    '../../state/player': { usePlayer: Object.assign(sel => sel(estado), { getState: () => estado }) },
+    '../../state/player': { usePlayer: Object.assign(sel => sel(estado), { getState: () => estado }), ganhosEmVigor: s => s.eqDaEscuta ?? s.eqGanhos },
     '../../lib/origemDaFila': { rotuloDaOrigem: () => null },
     '../../lib/shuffle': { trackKey: t => t.sourceId }, '../../lib/equalizer': { chaveDaFaixa: t => t.sourceId },
     '../PainelEqualizador.web': { PainelEqualizador: 'Equalizador' }, '../glitch/GlitchArtwork.web': { GlitchArtwork: 'Glitch' },

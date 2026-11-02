@@ -43,7 +43,8 @@ const msg = (id, extra = {}) => ({ id, createdAt: new Date(Date.now()).toISOStri
 /** Uma store do Social com tudo o que vai à rede contado. */
 function social(plataforma) {
   const c = { inbox: 0, amizades: 0, grupos: 0, presenca: 0, conversas: 0, previews: 0, vistas: 0, marcas: 0, removidos: 0 };
-  const ambiente = { visivel: true, proximaInbox: [], estado: 'active', canais: [], aoMudarApp: null, aoMudarJanela: null };
+  const ambiente = { visivel: true, proximaInbox: [], estado: 'active', canais: [], aoMudarApp: null, aoMudarJanela: null,
+    presencas: [], falharPresenca: false, esperarPresenca: null };
   const document = { visibilityState: 'visible', addEventListener: (_n, fn) => { ambiente.aoMudarJanela = fn; }, removeEventListener() {} };
   const window = { duotoneDesktop: {}, addEventListener() {}, removeEventListener() {} };
   const canal = () => {
@@ -68,10 +69,14 @@ function social(plataforma) {
     },
     '../lib/prefs': { getChatsVistos: async () => ({}), marcarChatVisto: async (id, ts) => ({ [id]: ts }) },
     '../lib/supabase': { supabase: {
-      rpc: async (nome) => { if (nome === 'get_social_presence') c.presenca++; return { data: { serverTime: new Date().toISOString(), items: [] }, error: null }; },
+      rpc: async (nome) => {
+        if (nome === 'get_social_presence') c.presenca++;
+        const items = ambiente.presencas; if (ambiente.esperarPresenca) await ambiente.esperarPresenca;
+        return { data: { serverTime: new Date().toISOString(), items }, error: ambiente.falharPresenca ? {} : null };
+      },
       channel: canal, removeChannel: async () => { c.removidos++; },
     } },
-    '../lib/socialPresence': { estadoDaPresenca: () => ({}) },
+    '../lib/socialPresence': load('src/lib/socialPresence.ts'),
     '../lib/social': load('src/lib/social.ts'),
     '../lib/profileMedia': { clearProfileMediaCache() {} },
     '../api/profiles': { getSocialConversations: async () => { c.conversas++; return []; } },
@@ -85,6 +90,24 @@ function social(plataforma) {
 }
 
 async function main() {
+  {
+    const { modulo, c, ambiente } = social('web');
+    ambiente.falharPresenca = true;
+    const parar = modulo.iniciarSocial('me'); await esperar(5);
+    const agora = Date.now();
+    const p = id => ({ user_id: 'ana', updated_at: new Date(agora + (id === 'b' ? 1 : 0)).toISOString(),
+      currently_playing: { source: 'youtube', sourceId: id, title: id },
+      online_until: new Date(agora + 60000).toISOString(), playing_until: new Date(agora + 60000).toISOString() });
+    ambiente.canais[0].handlers.social_presence({ new: p('a') });
+    assert.equal(modulo.useSocial.getState().friends[0].currentlyPlaying.sourceId, 'a', 'o Realtime mostra a música já, mesmo após uma leitura inicial falhada');
+    assert.equal(c.presenca, 1, 'receber uma atividade não pede outra leitura');
+    ambiente.falharPresenca = false; ambiente.presencas = [p('b')];
+    await modulo.relerPresencas();
+    assert.equal(modulo.useSocial.getState().friends[0].currentlyPlaying.sourceId, 'b', 'a recuperação redesenha a atividade sem esperar pelo tique de 30 s');
+    let concluir; ambiente.esperarPresenca = new Promise(r => { concluir = r; });
+    const antiga = modulo.relerPresencas(); parar(); concluir(); await antiga;
+    assert.equal(modulo.presencaDe('ana'), undefined, 'uma leitura da conta anterior não ressuscita presenças depois de sair');
+  }
   // --- iPhone: arranque, canal, mensagens, regresso à app ---------------------
   {
     const { modulo, c, ambiente } = social('ios');

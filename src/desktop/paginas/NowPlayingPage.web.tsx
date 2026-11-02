@@ -10,7 +10,7 @@ import {
   getGlitchMode, type GlitchMode,
   getEffectIntensity, setEffectIntensity, type EffectIntensity,
 } from '../../lib/prefs';
-import { usePlayer } from '../../state/player';
+import { ganhosEmVigor, usePlayer } from '../../state/player';
 import { rotuloDaOrigem } from '../../lib/origemDaFila';
 import { trackKey } from '../../lib/shuffle';
 import { chaveDaFaixa } from '../../lib/equalizer';
@@ -99,7 +99,7 @@ export function NowPlayingPage({
   const { current, upNext, emJam } = fila;
   // O coração reage ao carregar (16/10, lib/coracaoAoCarregar.ts).
   const coracao = useCoracaoAoCarregar(currentIsSaved, toggleSaveCurrent);
-  const eqGanhos = usePlayer((s) => s.eqGanhos);
+  const eqGanhos = usePlayer(ganhosEmVigor);
   const setEqGanhos = usePlayer((s) => s.setEqGanhos);
   const playbackRate = usePlayer((s) => s.playbackRate);
   const setPlaybackRate = usePlayer((s) => s.setPlaybackRate);

@@ -14,6 +14,7 @@ import { escolherRecomendadoNaFaixa, useRecomendado, useRecomendadoNaFaixa } fro
 import { EscolhaDoModelo, LinhaDoRecomendado } from './RecomendadoDoEq.web';
 import { BarraVelocidade } from './BarraVelocidade.web';
 import { useVelocidadePresa } from '../hooks/useVelocidadePresa';
+import { useSeguirAmigo } from '../state/seguirAmigo';
 import { useEdicaoDoPreset } from '../hooks/useEdicaoDoPreset';
 import { avisarFeito } from '../lib/avisoDeRemocao';
 import { COR, ESP, ESTADO, RAIO, TIPO } from './tokens.web';
@@ -257,6 +258,8 @@ export function PainelEqualizador({
 }) {
   const memoria = usePresets((st) => st.memoria);
   const velocidadePresa = useVelocidadePresa();
+  const seguindo = useSeguirAmigo((s) => s.seguindo);
+  const temEqDaEscuta = usePlayer((s) => s.eqDaEscuta != null);
   const presets = useMemo(() => presetsVisiveis(memoria), [memoria]);
   // O Recommended (25/10): escolhido na faixa, e se ela o segue como base.
   const recomendadoNaFaixa = useRecomendadoNaFaixa();
@@ -265,7 +268,7 @@ export function PainelEqualizador({
   const naBaseRecomendada = recomendadoLigado && segue;
   const current = usePlayer((s) => s.current);
   const edicao = useEdicaoDoPreset({
-    memoria, ganhos, bloqueado: recomendadoNaFaixa,
+    memoria, ganhos, bloqueado: recomendadoNaFaixa || !!seguindo,
     contexto: current ? chaveDaFaixa(current) : 'sem-faixa',
   });
   const mudarGanhos = (novos: Ganhos) => { edicao.preservarOrigem(); aoMudarGanhos(novos); };
@@ -281,6 +284,16 @@ export function PainelEqualizador({
     edicao.escolher(id);
     setAGuardar(false);
   };
+
+  if (seguindo) return (
+    <View style={{ gap: ESP.md }}>
+      <Text style={{ ...TIPO.legenda, color: COR.textoMedio }}>Following {seguindo.nome}'s {temEqDaEscuta ? 'live EQ and speed' : 'speed · waiting for live EQ'}</Text>
+      <View pointerEvents="none" {...({ inert: true } as any)}>
+        <BarraVelocidade valor={velocidadePresa?.ritmo ?? 1} aoMudar={() => {}} />
+        <BandasDoEqualizador ganhos={ganhos} aoMudarGanhos={() => {}} semPresets />
+      </View>
+    </View>
+  );
 
   return (
     <View style={{ gap: ESP.xl }}>
