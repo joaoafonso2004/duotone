@@ -1,6 +1,6 @@
 {
   "name": "duotone",
-  "version": "5.7.2",
+  "version": "5.7.3",
   "description": "A desktop-first music library and player for Windows.",
   "author": "Duotone",
   "main": "index.ts",
@@ -81,6 +81,13 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "typescript": "~6.0.3",
     "wait-on": "^8.0.5"
+  },
+  "expo": {
+    "autolinking": {
+      "ios": {
+        "buildFromSource": ["expo-video"]
+      }
+    }
   },
   "private": true,
   "build": {

@@ -460,8 +460,8 @@ public class DuotoneAudioModule: Module {
      *     tem de escrever no expo-video.
      *  3. O `playImmediately`, que muda a taxa com o áudio que já lá está.
      *
-     * Com falta real de dados mantém-se a política normal de buffering, e uma
-     * pausa nunca é convertida num play: em pausa só se guarda a escolha.
+     * Antes de o item ter dados segue-se o caminho normal de buffering. A
+     * espera suspensa só volta na pausa; em pausa só se guarda a escolha.
      *
      * Deixou de haver bloco na fila, e com ele o "fica um clique atrás" de
      * 23/9, que vinha de dois blocos a correr fora de ordem.
@@ -534,7 +534,9 @@ public class DuotoneAudioModule: Module {
         guard let self else { return }
         self.mantemTom = mantemTom
         for motor in self.motores {
-          motor.player?.currentItem?.audioTimePitchAlgorithm = mantemTom ? .spectral : .varispeed
+          guard let item = motor.player?.currentItem else { continue }
+          let algoritmo: AVAudioTimePitchAlgorithm = mantemTom ? .spectral : .varispeed
+          if item.audioTimePitchAlgorithm != algoritmo { item.audioTimePitchAlgorithm = algoritmo }
         }
       }
     }
@@ -557,7 +559,8 @@ public class DuotoneAudioModule: Module {
 
   /**
    * Faz `mudar` com a espera do buffer desligada, e deixa-a desligada até o
-   * leitor deixar de tocar -- pausa, faixa nova ou falta de dados.
+   * leitor parar. Uma espera transitória ao mudar a taxa, sobretudo com o EQ
+   * instalado, não é uma pausa e não deve voltar a ativar a avaliação do buffer.
    *
    * Até lá, e não só durante a mudança, porque voltar a ligá-la com a música
    * a tocar pode fazer o AVPlayer reavaliar o buffer ali mesmo, e era o mesmo
@@ -581,14 +584,14 @@ public class DuotoneAudioModule: Module {
     // A vigia só nasce DEPOIS da mudança: se o `playImmediately` passasse por
     // um estado intermédio, ela religava a espera a meio e o corte voltava.
     let vigia = p.observe(\.timeControlStatus, options: [.new]) { [weak self] jogador, _ in
-      guard jogador.timeControlStatus != .playing else { return }
+      guard jogador.timeControlStatus == .paused else { return }
       self?.reporEspera(jogador)
     }
     cadeadoDaVelocidade.lock()
     esperasSuspensas[chave] = vigia
     cadeadoDaVelocidade.unlock()
     // Pode ter parado entre a mudança e a vigia.
-    if p.timeControlStatus != .playing { reporEspera(p) }
+    if p.timeControlStatus == .paused { reporEspera(p) }
   }
 
   private func reporEspera(_ p: AVPlayer) {
@@ -655,8 +658,7 @@ public class DuotoneAudioModule: Module {
    * Como o `semEsperar`, para a entrada agendada do AutoMix: desliga a espera
    * do buffer e so a volta a ligar quando o leitor PARAR (`.paused`). Ate a
    * hora marcada ele nao esta a tocar -- esta a espera dela --, e a vigia do
-   * `semEsperar` (que repoe com qualquer estado que nao seja `.playing`)
-   * religava-a ali mesmo, por cima do agendamento.
+   * `semEsperar` antiga religava-a ali mesmo, por cima do agendamento.
    *
    * So se desliga o que estava ligado: quem a desligou por outra razao nao a
    * ve religada por nos.
@@ -740,7 +742,8 @@ public class DuotoneAudioModule: Module {
     // `configurarMotor`), que o estampa na propria criacao do item. Aqui e a
     // rede de seguranca: sem isso um item nasceria `.spectral` e ficava assim
     // ate este KVO chegar.
-    item.audioTimePitchAlgorithm = mantemTom ? .spectral : .varispeed
+    let algoritmo: AVAudioTimePitchAlgorithm = mantemTom ? .spectral : .varispeed
+    if item.audioTimePitchAlgorithm != algoritmo { item.audioTimePitchAlgorithm = algoritmo }
 
     // 2. COM O EQ PLANO NAO HA TAP (1/10).
     //

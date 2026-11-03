@@ -111,6 +111,12 @@ jobs:
       - name: Instalar pods
         run: cd ios && pod install
 
+      - name: Testar a velocidade nativa e o KVO do Expo
+        run: node scripts/test-velocidade-nativa.mjs
+
+      - name: Confirmar a proteção da velocidade no módulo compilado
+        run: node scripts/verificar-velocidade-ios.mjs
+
       - name: Compilar Release (sem assinatura)
         run: |
           xcodebuild -workspace ios/Duotone.xcworkspace \

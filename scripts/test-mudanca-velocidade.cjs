@@ -59,21 +59,22 @@ assert.deepEqual(p.calls,[],'a paused player is never written to: that setter pl
 //    re-evaluates the buffer and goes silent meanwhile: that is the one-second
 //    gap (`cortes`). `playImmediately`, or any write with the wait off, is not.
 //    The native module turns the wait back on once the player stops playing.
-function leitorComoNoIPhone({adota=true,blocoUsaOUltimo=true,sincrono=true}={}){
- const e={taxa:1,defaultRate:1,expo:1,pausado:false,espera:true,cortes:0};
+function leitorComoNoIPhone({adota=true,blocoUsaOUltimo=true,sincrono=true,semEscritasRepetidas=true}={}){
+ const e={taxa:1,defaultRate:1,expo:1,pausado:false,espera:true,cortes:0,escritas:0};
  const fila=[];let pedida=1;
  const escreverTaxa=(v,imediato)=>{
+  e.escritas++;
   if(e.taxa===v)return;
   if(!imediato&&e.espera&&e.taxa!==0)e.cortes++;
   e.taxa=v;e.pausado=false;kvo();
  };
- const setter=v=>{e.expo=v;e.defaultRate=v;escreverTaxa(v,false);}; // expo-video's setter as shipped
+ const setter=v=>{e.expo=v;e.defaultRate=v;if(!semEscritasRepetidas||e.taxa!==v)escreverTaxa(v,false);};
  const kvo=()=>{if(adota&&e.defaultRate!==e.expo)setter(e.defaultRate);};
  const aplicar=nova=>{
   if(e.taxa===0){e.defaultRate=nova;return;}
   e.espera=false;
   e.defaultRate=nova;
-  escreverTaxa(nova,true);
+  if(e.taxa!==nova)escreverTaxa(nova,true);
  };
  const aplicarNoBloco=nova=>{ // before 30/9
   if(e.taxa===0){e.defaultRate=nova;return;}
@@ -93,6 +94,17 @@ function leitorComoNoIPhone({adota=true,blocoUsaOUltimo=true,sincrono=true}={}){
 }
 
 // The model reproduces both things João saw.
+{
+ const antigo=leitorComoNoIPhone({semEscritasRepetidas:false});
+ const novo=leitorComoNoIPhone();
+ for(const v of [0.8,1.25,0.7]){
+  motor.atualizarVelocidadeDoMotor(antigo.player,v,antigo.nativo);
+  motor.atualizarVelocidadeDoMotor(novo.player,v,novo.nativo);
+ }
+ assert.equal(antigo.e.escritas,6,'o binário anterior escreve duas vezes por mudança: nativo e KVO do Expo');
+ assert.equal(novo.e.escritas,3,'a proteção compilada elimina a segunda escrita, mantendo o KVO');
+ assert.equal(novo.e.expo,0.7);assert.equal(novo.e.taxa,0.7);
+}
 {
  // 22/9 code: two writers, but each queued block applied its OWN value.
  const l=leitorComoNoIPhone({blocoUsaOUltimo:false,sincrono:false});
@@ -266,11 +278,14 @@ assert.match(patched,/if ref\.rate != playbackRate \{ ref\.rate = playbackRate \
 // All non-setter code stays byte-for-byte identical.
 const outside=text=>text.replace(/  var playbackRate: Float = 1\.0 \{[\s\S]*?\n  var currentTime:/,'  var currentTime:')
  .replace(/  func onRateChanged\(player: AVPlayer[\s\S]*?\n  func onVolumeChanged/,'  func onVolumeChanged');
-// The watcher no longer adopts defaultRate (iOS 16+); the iOS < 16 branch stays.
-assert.match(patched,/Duotone: speed belongs to modules\/duotone-audio/);
-assert.doesNotMatch(patched,/playbackRate = player\.defaultRate/);
+// O KVO continua a sincronizar o valor do Expo, sem voltar a escrever a taxa.
+assert.match(patched,/playbackRate = player\.defaultRate/);
 assert.match(patched,/else if newRate != 0 && newRate != playbackRate \{\n      \/\/ On iOS < 16/);
 assert.equal(outside(patched),outside(original));
+const watcher=text=>text.slice(text.indexOf('  func onRateChanged('),text.indexOf('  func onVolumeChanged('));
+assert.equal(watcher(patched),watcher(original),'o KVO original do SDK mantém-se intacto');
+const pacote=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));
+assert.deepEqual(pacote.expo.autolinking.ios.buildFromSource,['expo-video'],'a proteção tem de compilar da fonte, apenas no ExpoVideo');
 const swift=fs.readFileSync(path.join(root,'modules/duotone-audio/ios/DuotoneAudioModule.swift'),'utf8');
 const corpo=swift.slice(swift.indexOf('Function("aplicarVelocidade")'),swift.indexOf('Function("definirTomDaVelocidade")'));
 const aplicarSwift=corpo.slice(0,corpo.indexOf('Function("estadoDaVelocidade")'));
@@ -280,4 +295,6 @@ assert.match(aplicarSwift,/self\.semEsperar\(p\) \{\s*if p\.defaultRate != nova 
  'playing: buffer wait off, defaultRate first, then playImmediately');
 const semEsperar=swift.slice(swift.indexOf('private func semEsperar'),swift.indexOf('private func reporEspera'));
 assert.match(semEsperar,/automaticallyWaitsToMinimizeStalling = false[\s\S]*mudar\(\)[\s\S]*p\.observe\(\\\.timeControlStatus/,'the wait goes off before the change, and its watcher is armed after it');
+assert.match(semEsperar,/guard jogador\.timeControlStatus == \.paused else/,'uma espera transitória do renderizador não volta a ligar a avaliação do buffer');
+assert.doesNotMatch(semEsperar,/timeControlStatus != \.playing/);
 console.log('Speed change: slider gestures, cancellation, optional native bridge, pause/resume, Float values and Expo patch passed.');

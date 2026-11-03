@@ -18,11 +18,10 @@ const diferente = (a: number, b: number) => Math.abs(a-b) > 0.001;
  *   match the value it holds, ADOPTS `defaultRate` and writes it back into the
  *   player (node_modules/expo-video/ios/VideoPlayer.swift, onRateChanged). A
  *   rate other than zero IS playing in AVFoundation, which is how a pause
- *   turned into play. We cannot remove that rule: expo-video comes
- *   PRECOMPILED in SDK 57 (`[Expo-precompiled] ExpoVideo` in the build log),
- *   so the source patch in `plugins/velocidade-expo-video.js` never reaches
- *   the phone. Found on 23/9 after a build that relied on it: the second
- *   change stayed on the first one.
+ *   turned into play. That adoption stays: both native and Expo state must
+ *   agree. The setter patch only skips writes already applied by native.
+ *   Since 5.7.3 ExpoVideo builds from source so this patch reaches the IPA;
+ *   SDK 57's precompiled default had left it out of earlier builds.
  * - So expo-video's value has to end equal to `defaultRate`.
  * - The one-second gap on every change (30/9): expo-video's setter is a plain
  *   `rate = x`, and on a playing AVPlayer that re-evaluates the buffer and

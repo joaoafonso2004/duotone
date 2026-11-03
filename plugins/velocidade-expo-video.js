@@ -3,19 +3,16 @@ const path = require('node:path');
 const { withDangerousMod } = require('expo/config-plugins');
 
 /**
- * Dois remendos ao VideoPlayer.swift do expo-video: o setter da velocidade só
- * escreve o que é mesmo diferente (22/9), e a vigia da taxa deixa de ADOTAR o
- * defaultRate (23/9).
+ * O setter da velocidade só escreve no AVPlayer o que mudou.
  *
- * ATENÇÃO -- NÃO CHEGAM AO IPHONE. No SDK 57 o ExpoVideo vem PRÉ-COMPILADO
- * (`[Expo-precompiled] ExpoVideo` no log do pod install): o binário não é
- * construído a partir do node_modules, e este remendo ao código-fonte fica
- * de fora. Descobriu-se a 23/9, com uma build que dependia dele: a segunda
- * mudança de velocidade ficava na primeira. A app tem de estar certa SEM ele
- * (ver src/lib/velocidadeDoMotor.ts e o modelo em
- * scripts/test-mudanca-velocidade.cjs, que corre com a adoção ligada). Fica
- * aqui porque não faz mal e passa a valer se o ExpoVideo voltar a compilar do
- * código-fonte -- e o teste confere que ainda se aplica à versão instalada.
+ * O módulo nativo aplica a taxa primeiro. O KVO do Expo adota o defaultRate
+ * e passa por este setter; repetir `ref.rate = playbackRate` já com o valor
+ * certo acrescentava outra escrita à mesma mudança, também com o EQ ligado.
+ * A adoção do KVO fica intacta: mantém o valor do Expo e o AVPlayer em acordo.
+ *
+ * O package.json obriga só o expo-video a compilar da fonte. Sem isso o SDK
+ * 57 usava um binário pré-compilado e esta proteção ficava fora do iPhone.
+ * A CI confirma também que VideoPlayer.swift entrou nas fontes dos Pods.
  */
 const before = `      if #available(iOS 16.0, tvOS 16.0, *) {
         ref.defaultRate = playbackRate
@@ -51,7 +48,10 @@ function patchSpeedSetter(source) {
   const newline = source.includes('\r\n') ? '\r\n' : '\n';
   let text = source.replace(/\r\n/g, '\n');
   text = trocar(text, before, after, 'speed setter');
-  text = trocar(text, vigiaAntes, vigiaDepois, 'rate watcher');
+  // Desfazer o remendo antigo se o prebuild já o tinha aplicado no node_modules.
+  // O KVO original é necessário; a proteção pertence ao setter que ele chama.
+  if (text.includes(vigiaDepois)) text = trocar(text, vigiaDepois, vigiaAntes, 'legacy rate watcher');
+  if (!text.includes(vigiaAntes)) throw new Error('expo-video rate watcher changed. Review velocidade-expo-video before building iOS.');
   return text.replace(/\n/g, newline);
 }
 module.exports = config => withDangerousMod(config, ['ios', async config => {
