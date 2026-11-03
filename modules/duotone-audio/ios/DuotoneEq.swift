@@ -247,6 +247,9 @@ final class EstadoDoTap {
   private var ganhosPendentes: [Float]
   private var margemPendente: Float
   private var haNovidade = true
+  /** Só a thread de áudio lhe toca. Um novo prepare tem de repor o perfil,
+   * mesmo sem ganhos novos; o AVFoundation pode preparar o mesmo tap de novo. */
+  private var preparacaoPendente = true
 
   /** Para onde os coeficientes caminham, e onde estao agora. Sempre DEZ,
    *  mesmo os que estao a zero -- ver a identidade no `recolherNovidade`. */
@@ -317,6 +320,7 @@ final class EstadoDoTap {
     // troca; daqui para a frente copia-se elemento a elemento.
     destino = Array(repeating: Coeficientes(), count: DuotoneEq.numeroDeBandas)
     atual = Array(repeating: Coeficientes(), count: DuotoneEq.numeroDeBandas)
+    preparacaoPendente = true
     // A primeira vez nao leva rampa: a faixa comeca ja com o perfil dela.
     recolherNovidade(comRampa: false)
   }
@@ -331,8 +335,10 @@ final class EstadoDoTap {
   func recolherNovidade(comRampa: Bool = true) {
     guard os_unfair_lock_trylock(cadeado) else { return }
     defer { os_unfair_lock_unlock(cadeado) }
-    guard haNovidade, !destino.isEmpty else { return }
+    guard haNovidade || preparacaoPendente, !destino.isEmpty else { return }
+    let semRampa = !comRampa || preparacaoPendente
     haNovidade = false
+    preparacaoPendente = false
 
     for i in 0..<DuotoneEq.numeroDeBandas {
       let db = i < ganhosPendentes.count ? ganhosPendentes[i] : 0
@@ -347,7 +353,7 @@ final class EstadoDoTap {
           )
     }
     margemDestino = margemPendente
-    if !comRampa {
+    if semRampa {
       // Elemento a elemento, pela mesma razao do `preparar`: uma atribuicao de
       // array inteiro punha os dois a partilhar memoria e a rampa seguinte
       // alocava dentro do callback.

@@ -112,8 +112,44 @@ print("Swift nativo: uma escrita por mudança, KVO sincronizado, esperas transit
 const pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'duotone-speed-'));
 const fonte = path.join(pasta, 'velocidade.swift'), binario = path.join(pasta, 'velocidade');
 fs.writeFileSync(fonte, fixture);
-if (process.argv.includes('--generate-only')) { console.log(fonte); process.exit(0); }
+// O filtro Swift real tem de manter a resposta após um segundo prepare,
+// inclusive noutro formato, sem obrigar o utilizador a escolher o preset outra vez.
+const fonteEq = path.join(pasta, 'main.swift'), binarioEq = path.join(pasta, 'equalizador');
+fs.writeFileSync(fonteEq, String.raw`
+import Foundation
+func verificarEq(_ condicao: @autoclosure () -> Bool, _ nome: String) {
+  if !condicao() { fatalError(nome) }
+}
+func medir(_ estado: EstadoDoTap, taxa: Float, canais: Int) -> [Float] {
+  let n = 8192
+  return (0..<canais).map { canal in
+    var sinal = (0..<n).map { Float(0.05 * sin(2 * Double.pi * 1000 * Double($0) / Double(taxa))) }
+    sinal.withUnsafeMutableBufferPointer { buffer in
+      estado.filtrar(buffer.baseAddress!, quantas: n, passo: 1, canal: canal)
+    }
+    return sqrt(sinal.suffix(n / 2).reduce(Float(0)) { $0 + $1 * $1 } / Float(n / 2))
+  }
+}
+let ganhos: [Float] = [0, 0, 0, 0, 0, 6, 0, 0, 0, 0]
+let estado = EstadoDoTap(ganhos: ganhos, margem: 1)
+for (taxa, canais) in [(Float(48000), 1), (48000, 1), (44100, 2), (48000, 2)] {
+  estado.preparar(taxa: taxa, canais: canais)
+  let novo = EstadoDoTap(ganhos: ganhos, margem: 1)
+  novo.preparar(taxa: taxa, canais: canais)
+  let esperado = medir(novo, taxa: taxa, canais: canais)
+  let obtido = medir(estado, taxa: taxa, canais: canais)
+  for i in 0..<canais {
+    verificarEq(abs(esperado[i] - obtido[i]) < 0.00001, "o preset perdeu-se ao preparar novamente o tap")
+    verificarEq(obtido[i] > 0.065 && obtido[i] < 0.075, "a banda de +6 dB deixou de amplificar")
+  }
+}
+print("EQ Swift real: preset preservado após preparações repetidas e mudanças de taxa/canais.")
+`);
+if (process.argv.includes('--generate-only')) { console.log(fonte); console.log(fonteEq); process.exit(0); }
 assert.equal(process.platform, 'darwin', 'Este teste usa o KVO do macOS e corre na CI iOS');
 const compilado = spawnSync('swiftc', ['-swift-version', '5', fonte, '-o', binario], { stdio: 'inherit' });
 assert.equal(compilado.status, 0, 'O teste Swift não compilou');
 assert.equal(spawnSync(binario, [], { stdio: 'inherit' }).status, 0, 'O transporte nativo da velocidade falhou');
+const compiladoEq = spawnSync('swiftc', ['-swift-version', '5', new URL('../modules/duotone-audio/ios/DuotoneEq.swift', import.meta.url).pathname, fonteEq, '-o', binarioEq], { stdio: 'inherit' });
+assert.equal(compiladoEq.status, 0, 'O teste do EQ Swift real não compilou');
+assert.equal(spawnSync(binarioEq, [], { stdio: 'inherit' }).status, 0, 'O EQ perdeu o preset ao preparar novamente');
