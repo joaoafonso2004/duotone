@@ -50,7 +50,7 @@ final class Expo {
   var vigia: NSKeyValueObservation?
   init(_ p: AVPlayer) {
     ref = p
-    vigia = p.observe(.rate, options: [.new, .old]) { [weak self] p, c in
+    vigia = p.observe(\.rate, options: [.new, .old]) { [weak self] p, c in
       if let r = c.newValue, c.oldValue != r { self?.onRateChanged(player: p, oldRate: c.oldValue, newRate: r) }
     }
   }

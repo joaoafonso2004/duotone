@@ -93,6 +93,9 @@ jobs:
       - name: Instalar dependências
         run: npm ci --no-audit --no-fund
 
+      - name: Testar a velocidade nativa e o KVO do Expo
+        run: node scripts/test-velocidade-nativa.mjs
+
       - name: Validar TypeScript e regressões
         run: npm run typecheck && npm test
 
@@ -110,9 +113,6 @@ jobs:
 
       - name: Instalar pods
         run: cd ios && pod install
-
-      - name: Testar a velocidade nativa e o KVO do Expo
-        run: node scripts/test-velocidade-nativa.mjs
 
       - name: Confirmar a proteção da velocidade no módulo compilado
         run: node scripts/verificar-velocidade-ios.mjs
