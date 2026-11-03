@@ -46,6 +46,7 @@ const TESTES = [
   'scripts/test-smart-cache-cancelamento.mjs',
   'scripts/test-folhas.cjs',
   'scripts/test-capa-reactiva.cjs',
+  'scripts/test-batida-do-glitch.cjs',
   'scripts/test-mudanca-velocidade.cjs',
   'scripts/test-notifications.cjs',
   'scripts/test-poupanca-em-segundo-plano.cjs',

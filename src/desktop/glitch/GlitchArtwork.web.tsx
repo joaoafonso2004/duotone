@@ -33,6 +33,9 @@ const SEMENTE_ESTATICA = 3.9;
 const ESPETRO_ESTATICO = new Uint8Array(256);
 /** De quanto em quanto se pergunta o andamento (S3): uns 30 mil senos por vez, sem rede, nada ao lado do shader. */
 const MEDIR_ANDAMENTO_CADA_MS = 4000;
+/** Acima deste envelope a pancada ainda esta a subir: sao os primeiros ~90 ms
+ * de cada batida. E so essa parte que precisa de quadros a mais. */
+const ATAQUE_VIVO = 0.3;
 for (let i = 0; i < ESPETRO_ESTATICO.length; i++) {
   // Curva fixa a descer: as linhas continuam a parecer um equalizador mesmo
   // sem se abrir captura nenhuma neste modo.
@@ -157,12 +160,19 @@ export function GlitchArtwork({ uri, lado, modo, intensidade }: { uri: string | 
       const laco = (agora: number) => {
         if (!vivo) return;
         raf = requestAnimationFrame(laco);
-        if(document.hidden||agora-ultimoDesenho<1000/30)return;
+        if(document.hidden)return;
+        // Em repouso a capa esta quieta por desenho, e 30 fps chegam: e o que
+        // poupa a maquina (fd99a32). So o ATAQUE precisa de mais -- e so ai se
+        // desenha a taxa do ecra, ate 60, para ele nao ficar preso a uma
+        // grelha de 33 ms, que era o que o punha fora do tempo. A cauda a
+        // decair nao se distingue a 30 fps e e a maior parte do tempo: assim
+        // sao uns 20% de quadros a mais durante a musica, e nao o dobro.
+        const batida = captura!.batida(agora);
+        if(agora-ultimoDesenho<(batida>ATAQUE_VIVO?1000/60:1000/30))return;
         ultimoDesenho=agora;
         // O array do espectro e sempre o mesmo: 256 bytes para a textura, uma
         // escrita de uniforms e um drawArrays, sem alocacoes por fotograma.
-        const energiaGrave = captura!.nivel(agora);
-        const batida = captura!.batida();
+        const energiaGrave = captura!.nivel();
         const agudos = captura!.agudos();
         // Entre batidas o nivel enviado e zero: a capa repousa limpa. Durante
         // o ataque, a energia grave so modula a intensidade da pancada — nao
