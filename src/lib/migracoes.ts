@@ -24,6 +24,7 @@ export type Migracao = {
 };
 
 export const MIGRACOES: readonly Migracao[] = [
+  { ficheiro: '20261103040216_eq_do_jam.sql', marca: 'fn:partilhar_eq_do_jam', efeito: 'Host can share live EQ with the Jam or keep personal EQ' },
   { ficheiro: '20261102222643_escuta_ao_vivo.sql', marca: 'pol:realtime.messages:escuta: receber som', efeito: "Listen along follows live EQ and speed" },
   { ficheiro: 'social-conversation-summaries.sql', marca: 'fn:conversation_summaries', efeito: 'Compact latest messages in Social Chats' },
   { ficheiro: 'sincronizacao-economica.sql', marca: 'fn:get_play_count_changes', efeito: 'Incremental playlist and listening-history sync' },

@@ -7,6 +7,7 @@ import { FriendAvatar } from './FriendAvatar';
 import { Toque } from './Toque';
 import { ESCALA } from '../lib/movimento';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
+import { usePlayer } from '../state/player';
 import { useSocial } from '../state/social';
 import { usePessoasDaSessao } from '../hooks/usePessoasDaSessao';
 import { useTheme } from '../state/theme';
@@ -43,6 +44,9 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
   const euId = useOuvirJuntos((s) => s.euId);
   const souAnfitriao = useOuvirJuntos((s) => s.souAnfitriao);
   const darControlo = useOuvirJuntos((s) => s.darControlo);
+  const partilharEq = useOuvirJuntos((s) => s.partilharEq);
+  const eqAAlterar = useOuvirJuntos((s) => s.eqAAlterar);
+  const eqRemoto = usePlayer(s => s.eqDaJamAtivo);
   const rodarAux = useOuvirJuntos((s) => s.rodarAux);
   const retirarSugestao = useOuvirJuntos((s) => s.retirarSugestao);
   const podeLimparFila = useOuvirJuntos((s) => !!s.euId && s.possoControlar());
@@ -109,6 +113,25 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
             trackColor={{ true: tema.color, false: colors.surfaceHigh }}
           />
         </View>
+
+        {sessao?.eqPartilhado != null ? <>
+          <View style={styles.permissao}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.nome}>{anfitriao ? 'Share my equalizer' : 'Equalizer'}</Text>
+              <Text style={styles.estado}>{sessao.eqPartilhado
+                ? anfitriao && eqRemoto ? 'Your other device is sharing its EQ.' : 'Everyone hears the host’s live EQ.'
+                : 'Everyone keeps their own EQ.'}</Text>
+            </View>
+            {anfitriao ? <Switch value={sessao.eqPartilhado} disabled={eqAAlterar}
+              accessibilityLabel="Share my equalizer with the Jam"
+              onValueChange={v => { hapticSelection(); void partilharEq(v).catch(() => useOuvirJuntos.setState({ aviso: "Couldn't change the Jam EQ. Try again." })); }}
+              trackColor={{ true: tema.color, false: colors.surfaceHigh }} /> : null}
+          </View>
+          {anfitriao && sessao.eqPartilhado && eqRemoto ? <Toque disabled={eqAAlterar}
+            onPress={() => void partilharEq(true).catch(() => useOuvirJuntos.setState({ aviso: "Couldn't share this device's EQ." }))}>
+            <Text style={[styles.nome, { color: tema.color }]}>Share this device’s EQ</Text>
+          </Toque> : null}
+        </> : null}
 
         {anfitriao ? (
           <View style={styles.permissao}>

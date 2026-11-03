@@ -66,6 +66,7 @@ test-*.mjs
 !scripts/test-limpar-fila-do-jam-sql.mjs
 !scripts/test-escuta-ao-vivo-sql.mjs
 !scripts/test-velocidade-nativa.mjs
+!scripts/test-eq-do-jam-sql.mjs
 !scripts/test-radio-no-jam-sql.mjs
 !scripts/test-painel-de-saude-sql.mjs
 !scripts/test-presenca-mais-longa-sql.mjs
@@ -84,6 +85,7 @@ test-*.mjs
 
 # Cache das ferramentas de diagnostico em scripts/ (respostas da YouTube API)
 .cache/
+supabase/.temp/
 
 # Cache do MCP motion-dev (SQLite gerado localmente, nao e codigo do projeto)
 docs/motion-docs.db

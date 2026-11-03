@@ -11,6 +11,7 @@ const mocks = {
   '../lib/relogioPartilhado': {}, '../lib/sincronizacao': {}, '../lib/appVisibility': {},
   '../lib/supabase': {}, '../api/descoberta': {}, '../lib/artistName': {},
   '../api/radio': {}, '../lib/radio': {},
+  '../lib/deviceIdentity': { getDeviceId: async () => 'pc' },
   '../lib/jam': { passouParaMim: () => false, percursoDaSessao: p => p },
   '../lib/prefs': { getJamAutoFila: async () => false, getJamDesteAparelho: async () => null, setJamDesteAparelho: async () => {} }, '../lib/shuffle': {}, '../lib/eventos': {},
 };

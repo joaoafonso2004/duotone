@@ -2,7 +2,7 @@ import { lembrarSugestoesDoRadio, memoriaDoRadio, registarOuvirJuntos, usePlayer
 import { create } from 'zustand';
 import { AppState } from 'react-native';
 import {
-  continuoNaSessao, convidar, criarSessao, definirFaixa, entrar, retratoDaSessao,
+  continuoNaSessao, convidar, criarSessao, definirFaixa, entrar, retratoDaSessao, partilharEqualizador,
   juntarAFila, juntarMuitasAFila, lerFila, lerMembros, lerSessao, marcarPronto, membroDaLinha,
   definirAux, definirRadioDoJam, fecharJamsAbandonadas, minhasSessoesAbertas, pausar, permitirControlo, relogioActualizado, retomar,
   sair, sessaoDaLinha, itemDaLinha, tirarDaFila, avancarFila, procurarNaSessao, limparFilaDaSessao,
@@ -18,6 +18,7 @@ import { fetchRadioTracks } from '../api/radio';
 import { espalharArtistas } from '../lib/radio';
 import { anteriorDaSessao, escolherSessao, passouParaMim, percursoDaSessao, porSemear, semOApagado, aoAbrirAApp } from '../lib/jam';
 import { getJamAutoFila, getJamDesteAparelho, setJamAutoFila, setJamDesteAparelho } from '../lib/prefs';
+import { getDeviceId } from '../lib/deviceIdentity';
 import { trackKey } from '../lib/shuffle';
 import { registar } from '../lib/eventos';
 import type { Track } from '../types';
@@ -90,6 +91,8 @@ type Estado = {
   anunciarRetoma: () => Promise<void>;
   anunciarPosicao: (ms: number) => Promise<void>;
   darControlo: (pode: boolean) => Promise<void>;
+  eqAAlterar: boolean;
+  partilharEq: (partilhar: boolean) => Promise<void>;
   /** Liga a roda do aux. So o anfitriao. Ver `supabase/passa-o-aux.sql`. */
   rodarAux: (ligado: boolean) => Promise<void>;
   /** E a minha vez de escolher? Sempre `true` com o aux parado. */
@@ -221,6 +224,7 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
   origemDaEntrada: null,
   acabouSemAviso: false,
   aviso: null,
+  eqAAlterar: false,
 
   souAnfitriao: () => {
     const { sessao, euId } = get();
@@ -448,7 +452,7 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     subscricaoDeEstado?.remove();
     subscricaoDeEstado = null;
     set({
-      sessao: null, membros: [], fila: [], aviso: null,
+      sessao: null, membros: [], fila: [], aviso: null, eqAAlterar: false,
       entradaComecouEm: null, origemDaEntrada: null,
     });
   },
@@ -539,11 +543,27 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     if (get().sessao?.id === s.id) await get().actualizar();
   },
 
-  /**
-   * Poe o aux a rodar, ou para-o. So o anfitriao, como o controlo dos
-   * convidados -- e ao lado dele, porque sao a mesma pergunta: quem manda no
-   * que se ouve.
-   */
+  /** A opção e o aparelho emissor são do dono; os ganhos não passam no RPC. */
+  partilharEq: async (partilhar) => {
+    const s = get().sessao, minha = geracao;
+    if (!s || !get().souAnfitriao() || s.eqPartilhado == null || get().eqAAlterar) return;
+    set({ eqAAlterar: true });
+    try {
+      const dispositivo = partilhar ? await getDeviceId() : null;
+      if (minha !== geracao || get().sessao?.id !== s.id) return;
+      const nova = await partilharEqualizador(s.id, partilhar, dispositivo);
+      const actual = get().sessao;
+      if (minha !== geracao || actual?.id !== s.id || actual.hostId !== s.hostId) return;
+      // O RPC só confirma o EQ, nunca repõe a faixa/pausa ou outra escolha
+      // de emissor que entretanto tenha chegado por Realtime.
+      if (actual.eqEmissao !== s.eqEmissao && actual.eqEmissao !== nova.eqEmissao) return;
+      set({ sessao: { ...actual, eqPartilhado: nova.eqPartilhado, eqDispositivo: nova.eqDispositivo, eqEmissao: nova.eqEmissao } });
+    } finally {
+      if (minha === geracao) set({ eqAAlterar: false });
+    }
+  },
+
+  /** Põe o aux a rodar ou pára-o. Só o anfitrião. */
   rodarAux: async (ligado) => {
     const s = get().sessao;
     if (!s || !get().souAnfitriao()) return;

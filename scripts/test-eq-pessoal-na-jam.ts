@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import { ganhosEmVigor, usePlayer } from '../src/state/player.ts';
+const local=Array(10).fill(2), host=Array(10).fill(5), carro=Array(10).fill(1), aplicados:number[][]=[];
+(globalThis as any).window={ duotoneDesktop:{aplicarEqualizador:async({ganhos}:{ganhos:number[]})=>{aplicados.push(ganhos);return{ok:true};}}};
+const memoria={preservar:{rate:1.2,ganhos:local,visto:1000}};
+usePlayer.setState({eqGanhos:local,padraoGanhos:local,ajustesPorFaixa:memoria,eqDaEscuta:null,eqDaJam:null,eqDaJamAtivo:false,
+  carro:{ganhos:carro} as any});
+const ler=usePlayer.getState;
+ler()._aplicarEqDaJam(host,true);
+assert.deepEqual(ganhosEmVigor(ler()),host);
+assert.deepEqual(aplicados.at(-1),host,'o motor do PC recebe a curva da Jam');
+ler()._aplicarEqDaEscuta(null);
+assert.deepEqual(ganhosEmVigor(ler()),host,'a limpeza do Listening with não retira o EQ da Jam');
+ler().setEqGanhos(Array(10).fill(9));
+assert.equal(ler().eqGanhos,local,'um convidado não grava uma curva pessoal por engano');
+const n=aplicados.length; ler()._aplicarEqDaJam([...host],true); assert.equal(aplicados.length,n);
+assert.equal(ler().ajustesPorFaixa,memoria); assert.equal(ler().padraoGanhos,local);
+ler()._aplicarEqDaJam(null,true);
+assert.equal(ler().eqDaJamAtivo,true); assert.deepEqual(ganhosEmVigor(ler()),carro,'sem retrato remoto usa o som pessoal enquanto espera');
+ler()._aplicarEqDaJam(host,true); ler()._aplicarEqDaJam(null,false);
+assert.deepEqual(ganhosEmVigor(ler()),carro); assert.deepEqual(aplicados.at(-1),carro);
+usePlayer.setState({carro:null}); assert.deepEqual(ganhosEmVigor(ler()),local);
+console.log('Jam EQ: aplica nos motores, não grava presets e repõe o EQ pessoal/carro ao sair ou desligar.');

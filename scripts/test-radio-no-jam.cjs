@@ -37,6 +37,7 @@ const mocks = {
     memoriaDoRadio: async () => ({ dono: 'host', jaDescobertas: new Set(['memoria']), ouvidas: new Map([['ouvida', 1]]) }),
     lembrarSugestoesDoRadio: async (dono, tracks) => { c.lembradas.push([dono, [...tracks].map((t) => t.sourceId)]); } },
   zustand: { create: createStore }, 'react-native': { AppState: { addEventListener: () => ({ remove() {} }) } },
+  '../lib/deviceIdentity': { getDeviceId: async () => 'pc' },
   '../api/ouvirJuntos': {
     lerSessao: async () => { c.lidas++; return sessaoNoServidor; }, lerFila: async () => [], lerMembros: async () => [],
     definirRadioDoJam: async (id, v, tipo) => {

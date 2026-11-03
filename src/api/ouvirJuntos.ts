@@ -23,6 +23,10 @@ export type SessaoDeEscuta = {
   aTocar: boolean;
   pausadaEmMs: number;
   convidadosControlam: boolean;
+  /** Só a escolha do dono é guardada; os ganhos chegam no canal privado. */
+  eqPartilhado?: boolean | null;
+  eqDispositivo?: string | null;
+  eqEmissao?: string | null;
   /**
    * De quem e a vez de ESCOLHER. `null` quando o aux nao esta a rodar.
    *
@@ -70,6 +74,9 @@ export function sessaoDaLinha(r: any): SessaoDeEscuta {
     aTocar: !!r.is_playing,
     pausadaEmMs: Number(r.paused_position_ms) || 0,
     convidadosControlam: !!r.guests_can_control,
+    eqPartilhado: typeof r.eq_partilhado === 'boolean' ? r.eq_partilhado : null,
+    eqDispositivo: typeof r.eq_dispositivo === 'string' ? r.eq_dispositivo : null,
+    eqEmissao: typeof r.eq_emissao === 'string' ? r.eq_emissao : null,
     auxDe: typeof r.aux_de === 'string' ? r.aux_de : null,
     radio: typeof r.radio === 'boolean' ? r.radio : null,
     // O tipo (23/10, supabase/radio-tipo-no-jam.sql); sem a migração, `null`.
@@ -226,6 +233,16 @@ export async function permitirControlo(sessao: string, pode: boolean): Promise<v
     p_session: sessao, p_pode: pode,
   });
   if (error) throw error;
+}
+
+export async function partilharEqualizador(sessao: string, partilhar: boolean, dispositivo: string | null): Promise<SessaoDeEscuta> {
+  const { data, error } = await supabase.rpc('partilhar_eq_do_jam', {
+    p_session: sessao, p_partilhar: partilhar, p_dispositivo: dispositivo,
+  });
+  if (error) throw error;
+  const linha = Array.isArray(data) ? data[0] : data;
+  if (!linha || linha.id !== sessao) throw new Error('Invalid Jam EQ response');
+  return sessaoDaLinha(linha);
 }
 
 /**

@@ -84,6 +84,7 @@ async function fixture() {
       lerSessao: async () => store.getState().sessao, lerFila: async () => store.getState().fila,
     },
     '../lib/relogioPartilhado': {}, '../lib/sincronizacao': {}, '../lib/appVisibility': {},
+    '../lib/deviceIdentity': { getDeviceId: async () => 'pc' },
     '../lib/supabase': { supabase: {} },
     '../api/descoberta': { candidatasParaDescoberta: async (...args) => {
       calls.push(args);

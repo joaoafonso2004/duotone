@@ -1,4 +1,5 @@
 import { seguirSessao } from '../lib/seguirSessao';
+import { useEqualizadorDaJam } from './useEqualizadorDaJam';
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import { usePlayer } from '../state/player';
@@ -31,6 +32,7 @@ const INCERTEZA_PARA_AFINAR_MS = 300;
 /** Todos seguem o servidor, incluindo quem enviou o comando. Nunca se publica
  * uma confirmação do motor como se fosse uma escolha do utilizador. */
 export function useSincroniaDaSessao(): void {
+  useEqualizadorDaJam();
   const sessao = useOuvirJuntos(s => s.sessao);
   const faixaLocal = usePlayer(s => s.current?.sourceId);
   const fonteLocal = usePlayer(s => s.current?.source);

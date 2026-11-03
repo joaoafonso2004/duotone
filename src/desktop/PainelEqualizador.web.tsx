@@ -260,6 +260,8 @@ export function PainelEqualizador({
   const velocidadePresa = useVelocidadePresa();
   const seguindo = useSeguirAmigo((s) => s.seguindo);
   const temEqDaEscuta = usePlayer((s) => s.eqDaEscuta != null);
+  const eqDaJam = usePlayer(s => s.eqDaJamAtivo);
+  const temEqDaJam = usePlayer(s => s.eqDaJam != null);
   const presets = useMemo(() => presetsVisiveis(memoria), [memoria]);
   // O Recommended (25/10): escolhido na faixa, e se ela o segue como base.
   const recomendadoNaFaixa = useRecomendadoNaFaixa();
@@ -268,7 +270,7 @@ export function PainelEqualizador({
   const naBaseRecomendada = recomendadoLigado && segue;
   const current = usePlayer((s) => s.current);
   const edicao = useEdicaoDoPreset({
-    memoria, ganhos, bloqueado: recomendadoNaFaixa || !!seguindo,
+    memoria, ganhos, bloqueado: recomendadoNaFaixa || !!seguindo || eqDaJam,
     contexto: current ? chaveDaFaixa(current) : 'sem-faixa',
   });
   const mudarGanhos = (novos: Ganhos) => { edicao.preservarOrigem(); aoMudarGanhos(novos); };
@@ -285,9 +287,11 @@ export function PainelEqualizador({
     setAGuardar(false);
   };
 
-  if (seguindo) return (
+  if (seguindo || eqDaJam) return (
     <View style={{ gap: ESP.md }}>
-      <Text style={{ ...TIPO.legenda, color: COR.textoMedio }}>Following {seguindo.nome}'s {temEqDaEscuta ? 'live EQ and speed' : 'speed · waiting for live EQ'}</Text>
+      <Text style={{ ...TIPO.legenda, color: COR.textoMedio }}>{eqDaJam
+        ? temEqDaJam ? 'Following the Jam host’s live EQ' : 'Waiting for the Jam host’s EQ'
+        : `Following ${seguindo!.nome}'s ${temEqDaEscuta ? 'live EQ and speed' : 'speed · waiting for live EQ'}`}</Text>
       <View pointerEvents="none" {...({ inert: true } as any)}>
         <BarraVelocidade valor={velocidadePresa?.ritmo ?? 1} aoMudar={() => {}} />
         <BandasDoEqualizador ganhos={ganhos} aoMudarGanhos={() => {}} semPresets />

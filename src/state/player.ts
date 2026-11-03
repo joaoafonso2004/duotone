@@ -304,9 +304,9 @@ export type CarroNoLeitor = {
   aparelho?: string;
 };
 
-/** Os ganhos que se OUVEM: escuta partilhada, carro ou faixa, por esta ordem. */
-export function ganhosEmVigor(s: { carro: CarroNoLeitor | null; eqGanhos: Ganhos; eqDaEscuta?: Ganhos | null }): Ganhos {
-  return s.eqDaEscuta ?? s.carro?.ganhos ?? s.eqGanhos;
+/** Os ganhos que se OUVEM: Jam, Listening with, carro ou faixa. */
+export function ganhosEmVigor(s: { carro: CarroNoLeitor | null; eqGanhos: Ganhos; eqDaEscuta?: Ganhos | null; eqDaJam?: Ganhos | null }): Ganhos {
+  return s.eqDaJam ?? s.eqDaEscuta ?? s.carro?.ganhos ?? s.eqGanhos;
 }
 
 interface PlayerState {
@@ -443,6 +443,9 @@ interface PlayerState {
   eqGanhos: Ganhos;
   /** Curva temporária do amigo; não entra nas preferências nem na memória da faixa. */
   eqDaEscuta: Ganhos | null;
+  eqDaJam: Ganhos | null;
+  eqDaJamAtivo: boolean;
+  _aplicarEqDaJam: (ganhos: Ganhos | null, aReceber: boolean) => void;
   _aplicarEqDaEscuta: (ganhos: Ganhos | null) => void;
   /** O que cada faixa lembra da ultima vez que a ouviste. */
   ajustesPorFaixa: MemoriaDeAjustes;
@@ -756,7 +759,8 @@ function passo(estado: EstadoDeReproducao, tipo: Evento['tipo']) {
  * unico que sabe as bandas e o que elas somam quando se sobrepoem.
  */
 async function aplicarEqNoMotor(ganhos: number[]): Promise<void> {
-  ganhos = usePlayer.getState().eqDaEscuta ?? ganhos;
+  const st = usePlayer.getState();
+  ganhos = st.eqDaJam ?? st.eqDaEscuta ?? ganhos;
   const ponte = typeof window !== 'undefined' ? window.duotoneDesktop : undefined;
   if (!ponte?.aplicarEqualizador) {
     // No telemovel nao ha ponte nenhuma: quem aplica os ganhos e o modulo
@@ -1224,6 +1228,8 @@ export const usePlayer = create<PlayerState>()(
   playbackRate: RATE_NORMAL,
   eqGanhos: PLANO,
   eqDaEscuta: null,
+  eqDaJam: null,
+  eqDaJamAtivo: false,
   carro: null,
   ajustesPorFaixa: {},
   padraoRate: RATE_NORMAL,
@@ -2548,6 +2554,14 @@ export const usePlayer = create<PlayerState>()(
 
   _setDownloadProgress: (p) => set({ downloadProgress: p }),
 
+  _aplicarEqDaJam: (g, aReceber) => {
+    const anterior = get().eqDaJam, ganhos = g === null ? null : normalizarGanhos(g);
+    const igual = anterior === ganhos || !!anterior && !!ganhos && anterior.every((v, i) => v === ganhos[i]);
+    if (igual && get().eqDaJamAtivo === aReceber) return;
+    set({ eqDaJam: igual ? anterior : ganhos, eqDaJamAtivo: aReceber });
+    if (!igual) void aplicarEqNoMotor(ganhosEmVigor(get()));
+  },
+
   _aplicarEqDaEscuta: (g) => {
     const anterior = get().eqDaEscuta;
     const ganhos = g === null ? null : normalizarGanhos(g);
@@ -2557,6 +2571,7 @@ export const usePlayer = create<PlayerState>()(
   },
 
   setEqGanhos: (g, comoPadrao = false) => {
+    if (!comoPadrao && get().eqDaJamAtivo) return;
     const ganhos = normalizarGanhos(g);
     if (comoPadrao) {
       // SÓ o padrão -- é a mesma decisão, e a mesma razão, do `setPlaybackRate`

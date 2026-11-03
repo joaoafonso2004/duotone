@@ -37,6 +37,7 @@ const { useOuvirJuntos: loja } = carregar('src/state/ouvirJuntos.ts', {
     memoriaDoRadio: async () => ({ dono: 'host', jaDescobertas: new Set(), ouvidas: new Map() }), lembrarSugestoesDoRadio: async () => {} },
   zustand: { create: createStore }, 'react-native': { AppState: {} }, '../api/ouvirJuntos': api,
   '../lib/relogioPartilhado': {}, '../lib/sincronizacao': {}, '../lib/appVisibility': {}, '../lib/supabase': {},
+  '../lib/deviceIdentity': { getDeviceId: async () => 'pc' },
   '../api/descoberta': { candidatasParaDescoberta: async () => [faixa('descoberta')] },
   '../lib/artistName': { chaveDeArtista: s => s.toLowerCase(), displayArtist: t => t.artist },
   '../api/radio': radio, '../lib/radio': { espalharArtistas: ts => ts },
@@ -59,6 +60,7 @@ const React = { createElement: (type, props, ...children) => ({ type, props: { .
 const rn = { View: 'View', Text: 'Text', ScrollView: 'ScrollView', Switch: 'Switch', StyleSheet: { create: s => s } };
 const nomes = { nomeDe: id => id, avatarDe: () => null, rotuloDe: id => id };
 const comuns = { react: React, 'react-native': rn, '@expo/vector-icons/Ionicons': 'Icon',
+  '../state/player': { usePlayer: s => s({ eqDaJamAtivo: false }) },
   '../state/ouvirJuntos': { useOuvirJuntos: hook }, '../state/social': { useSocial: sel => sel({ friends: [] }) },
   '../hooks/usePessoasDaSessao': { usePessoasDaSessao: () => nomes },
   '../lib/artistName': { displayArtist: t => t.artist, tituloDaFaixa: t => t.title },
@@ -82,6 +84,41 @@ const clearNaFolha = arvore => nos(arvore).find(n => n.props.accessibilityLabel 
 
 async function main() {
   await Promise.resolve();
+  const partilharReal=loja.getState().partilharEq, pedidosEq=[];
+  const renderizadores=[() => JanelaDoJam({open:true,onClose:noop,notify:noop}),() => FolhaDaSessao({visivel:true,aoFechar:noop})];
+  for(const host of [false,true])for(const controlo of [false,true]) {
+    repor({convidadosControlam:controlo,eqPartilhado:false,eqDispositivo:null,eqEmissao:null},host?'host':'guest');
+    loja.setState({partilharEq:async v=>{pedidosEq.push(v);}});
+    for(const render of renderizadores){
+      const toggle=nos(render()).find(n=>n.props.accessibilityLabel==='Share my equalizer with the Jam');
+      assert.equal(!!toggle,host,'só o dono vê a opção do EQ, mesmo com controlo de convidados');
+      if(toggle){toggle.props.onValueChange(true);assert.equal(pedidosEq.at(-1),true);}
+    }
+  }
+  loja.setState({partilharEq:partilharReal});
+  const rpcEq=[];
+  api.partilharEqualizador=async(id,partilhar,dispositivo)=>{rpcEq.push({id,partilhar,dispositivo});return{...servidor,eqPartilhado:partilhar,eqDispositivo:dispositivo,eqEmissao:partilhar?'nova-emissao':null};};
+  for(const host of [false,true])for(const controlo of [false,true]){
+    repor({convidadosControlam:controlo,eqPartilhado:false,eqDispositivo:null,eqEmissao:null},host?'host':'guest');rpcEq.length=0;
+    const faixa=loja.getState().sessao.track;
+    await loja.getState().partilharEq(true);
+    assert.equal(rpcEq.length,host?1:0,'a store também impede convidados de mudar a opção');
+    if(host){assert.equal(rpcEq[0].dispositivo,'pc');assert.equal(loja.getState().sessao.eqPartilhado,true);}
+    assert.equal(loja.getState().sessao.track,faixa,'confirmar o EQ não troca a faixa');
+  }
+  repor({eqPartilhado:false,eqDispositivo:null,eqEmissao:null});rpcEq.length=0;
+  let terminarEq;
+  api.partilharEqualizador=async()=>{rpcEq.push(true);return new Promise(r=>{terminarEq=r;});};
+  const eqPendente=loja.getState().partilharEq(true);
+  await Promise.resolve();await Promise.resolve();
+  await loja.getState().partilharEq(true);
+  assert.equal(rpcEq.length,1,'duplo clique não repete RPC');
+  for(const render of renderizadores)assert.equal(nos(render()).find(n=>n.props.accessibilityLabel==='Share my equalizer with the Jam').props.disabled,true);
+  const novaFaixa=faixa('nova-durante-rpc');
+  loja.setState({sessao:{...loja.getState().sessao,track:novaFaixa}});
+  terminarEq({...servidor,eqPartilhado:true,eqDispositivo:'pc',eqEmissao:'confirmada'});await eqPendente;
+  assert.equal(loja.getState().sessao.track,novaFaixa,'uma resposta tardia só confirma o EQ');
+  assert.equal(loja.getState().eqAAlterar,false);
   const limparReal = loja.getState().limparFila;
   const cliques = [];
   loja.setState({ limparFila: async id => { cliques.push(id); return 0; } });

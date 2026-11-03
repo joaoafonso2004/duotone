@@ -3,6 +3,7 @@ import React from 'react';
 import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { presentes } from '../lib/sessaoViva';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
+import { usePlayer } from '../state/player';
 import { useSocial } from '../state/social';
 import { usePessoasDaSessao } from '../hooks/usePessoasDaSessao';
 import { FriendAvatar } from '../components/FriendAvatar';
@@ -33,6 +34,9 @@ export function JanelaDoJam({ open, onClose, notify }: {
   const euId = useOuvirJuntos((s) => s.euId);
   const souAnfitriao = useOuvirJuntos((s) => s.souAnfitriao);
   const darControlo = useOuvirJuntos((s) => s.darControlo);
+  const partilharEq = useOuvirJuntos((s) => s.partilharEq);
+  const eqAAlterar = useOuvirJuntos((s) => s.eqAAlterar);
+  const eqRemoto = usePlayer(s => s.eqDaJamAtivo);
   const rodarAux = useOuvirJuntos((s) => s.rodarAux);
   const convidarMais = useOuvirJuntos((s) => s.convidarMais);
   const retirarSugestao = useOuvirJuntos((s) => s.retirarSugestao);
@@ -110,6 +114,23 @@ export function JanelaDoJam({ open, onClose, notify }: {
         </View>
         <Switch value={autoFila} onValueChange={definirAutoFila} />
       </View>
+
+      {sessao?.eqPartilhado != null ? <>
+        <Text style={styles.section}>SOUND</Text>
+        <View style={styles.setting}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>{anfitriao ? 'Share my equalizer' : 'Equalizer'}</Text>
+            <Text style={styles.meta}>{sessao.eqPartilhado
+              ? anfitriao && eqRemoto ? 'Your other device is sharing its EQ.' : 'Everyone hears the host’s live EQ.'
+              : 'Everyone keeps their own EQ.'}</Text>
+          </View>
+          {anfitriao ? <Switch value={sessao.eqPartilhado} disabled={eqAAlterar}
+            accessibilityLabel="Share my equalizer with the Jam"
+            onValueChange={v => void partilharEq(v).catch(() => avisarErro("Couldn't change the Jam EQ."))} /> : null}
+        </View>
+        {anfitriao && sessao.eqPartilhado && eqRemoto ? <Button disabled={eqAAlterar}
+          onPress={() => void partilharEq(true).catch(() => avisarErro("Couldn't share this device's EQ."))}>Share this device’s EQ</Button> : null}
+      </> : null}
 
       {anfitriao ? <>
         <Text style={styles.section}>CONTROL</Text>
