@@ -4,7 +4,7 @@ import { useReducedMotion } from '../hooks/useReducedMotion';
 import { CAPA_FLUTUANTE, ondaSeno } from '../lib/capaFlutuante3D';
 import { curvaDoSkip, naCurva, recuoDaCapa, type Sentido } from '../lib/transicaoDaCapa';
 import { RECUO_DO_ENCAIXE, curvaDoRecuo } from '../lib/recuoDoEncaixe';
-import type { MontagemDaCapa } from '../hooks/useMontagemDaCapa';
+import type { AnimacaoDaMontagem } from '../hooks/useMontagemDaCapa';
 import { pedirFluidez } from '../state/fluidez';
 import { luasNoEcra } from '../state/passagemAVista';
 
@@ -79,7 +79,7 @@ export type PoseDaCapa3D = {
   /** Em pontos. */
   espessura: number;
   /** A montagem com o download (null fora do leitor do iPhone). */
-  montagem: MontagemDaCapa | null;
+  montagem: AnimacaoDaMontagem | null;
 };
 
 type Props = {
@@ -97,7 +97,7 @@ type Props = {
    * então como caixa (ver `ArtworkLyricsCube`); sem ela, é o cubo de sempre.
    */
   /** A capa a montar-se com o download (ver `useMontagemDaCapa`). */
-  montagem?: MontagemDaCapa | null;
+  montagem?: AnimacaoDaMontagem | null;
   /**
    * A faixa que está na capa e o sentido com que chegou. Mudar a `chave` faz o
    * "Recuo subtil" (lib/transicaoDaCapa.ts); a primeira não, que é abrir o leitor.
@@ -169,13 +169,24 @@ export function CapaFlutuante3D({ size, enabled, montagem = null, transicao = nu
     return Animated.add(recuoZ, recuoDoEncaixe);
   }, [encaixe, recuoZ, size]);
   const chaveAnterior = useRef(transicao?.chave ?? null);
+  const visibilidadeAnterior = useRef(aVista);
 
   // Uma faixa nova na capa: recua, desvia-se no sentido do skip e volta com uma
   // mola. A primeira chave é abrir o leitor, e isso não é um skip.
   useEffect(() => {
+    const estavaAVista = visibilidadeAnterior.current;
+    visibilidadeAnterior.current = aVista;
+    if (!aVista && corrida.current) {
+      fase.stopAnimation();
+      fase.setValue(1);
+      corrida.current = null;
+    }
     const chave = transicao?.chave ?? null;
     if (chave === chaveAnterior.current) return;
     chaveAnterior.current = chave;
+    // Tocar noutra faixa e abrir chegam no mesmo commit. É uma abertura,
+    // não um skip por cima do arco de entrada da capa.
+    if (!estavaAVista) return;
     pedirFluidez(900);
     const recuo = recuoDaCapa({
       lado: size, sentido: transicao?.sentido ?? 0, capa3D: enabled, reduzirMovimento: reduced,
@@ -205,7 +216,7 @@ export function CapaFlutuante3D({ size, enabled, montagem = null, transicao = nu
     Animated.timing(fase, { toValue: 1, duration: c.duracaoMs, easing: Easing.linear, useNativeDriver: true })
       .start(({ finished }) => { if (finished && corrida.current === esta) corrida.current = null; });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transicao?.chave]);
+  }, [transicao?.chave, aVista]);
 
   // Ao desmontar, o recuo a meio pára com ela.
   useEffect(() => () => { fase.stopAnimation(); }, [fase]);

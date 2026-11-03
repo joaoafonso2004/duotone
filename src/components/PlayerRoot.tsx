@@ -4,7 +4,7 @@ import { pausouDeForaHaPouco } from '../lib/pausaDeFora';
 import { CapaFlutuante3D } from './CapaFlutuante3D';
 import { CapaComLuas, LegendaDaPassagem, useLegendaDaPassagem } from './DuasLuas';
 import { CAPA_FLUTUANTE } from '../lib/capaFlutuante3D';
-import { useMontagemDaCapa, type MontagemDaCapa } from '../hooks/useMontagemDaCapa';
+import { useMontagemDaCapa, type AnimacaoDaMontagem } from '../hooks/useMontagemDaCapa';
 import type { Track } from '../types';
 import { capaDeRecurso, desfoqueLeve } from '../lib/capaGrande';
 import { capaGrande, marcarCapaFalhada, ouvirCapasGrandes, preCarregarCapasGrandes } from '../state/capasGrandes';
@@ -2095,7 +2095,7 @@ export function PlayerRoot() {
           {current ? (
             <View pointerEvents={aberto ? 'auto' : 'none'} style={[StyleSheet.absoluteFill, { opacity: aberto ? 1 : 0 }]}>
               <CapaDoLeitor
-                track={current} size={vidFull.w} capaFlutuante={capaFlutuante} capaInteira={capaInteira} montagem={montagem}
+                track={current} size={vidFull.w} capaFlutuante={capaFlutuante} capaInteira={capaInteira} montagem={montagem.animacao}
                 transicao={transicaoDaCapa.current} artSource={artSource} showLyrics={showLyrics}
                 setShowLyrics={setShowLyrics} setCapaARodar={setCapaARodar} onArtError={onArtError}
                 escurecerCapa={escurecerCapa} aoGostar={aoGostarPelaCapa} aFlutuar={ap.flutuar} aVista={aberto && !filaAberta}
@@ -2234,7 +2234,7 @@ const CapaDoLeitor = React.memo(function CapaDoLeitor({
   capaFlutuante: boolean;
   /** A capa "Full": sem cantos e sem o fio claro (10/10). */
   capaInteira: boolean;
-  montagem: MontagemDaCapa;
+  montagem: AnimacaoDaMontagem;
   transicao: { chave: string; sentido: Sentido } | null;
   artSource: string | null;
   showLyrics: boolean;

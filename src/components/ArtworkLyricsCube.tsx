@@ -8,7 +8,7 @@ import {LyricsView} from './LyricsView';
 import {LinearGradient} from 'expo-linear-gradient';
 import {CAPA_FLUTUANTE,geometriaDaLateral,LATERAIS,type Lateral} from '../lib/capaFlutuante3D';
 import type {PoseDaCapa3D} from './CapaFlutuante3D';
-import type {MontagemDaCapa} from '../hooks/useMontagemDaCapa';
+import type {AnimacaoDaMontagem} from '../hooks/useMontagemDaCapa';
 import {desfoqueLeve} from '../lib/capaGrande';
 
 type Props={track:Track;size:number;artwork?:string|null;front:React.ReactNode;showLyrics:boolean;onChange:(open:boolean)=>void;
@@ -50,9 +50,9 @@ const LETRAS_DEPOIS_MS=900;
 const depth=(z:number)=>[{rotateY:'90deg'},{translateX:-z},{rotateY:'-90deg'}];
 
 /** Onde está uma peça da montagem (0 longe, 1 no sítio), com o recuo se for a que está presa. */
-const posicaoDaPeca=(m:MontagemDaCapa,i:number)=>m.proxima===i?Animated.subtract(m.pecas[i],m.recuo):m.pecas[i];
+const posicaoDaPeca=(m:AnimacaoDaMontagem,i:number)=>Animated.subtract(m.pecas[i],m.recuos[i]);
 /** A peça a chegar ao sítio ao longo da sua normal: a `distancia` quando está longe, 0 no sítio. */
-const chegar=(m:MontagemDaCapa|null,i:number,distancia:number)=>m
+const chegar=(m:AnimacaoDaMontagem|null,i:number,distancia:number)=>m
   ?[{rotateY:'90deg'},{translateX:posicaoDaPeca(m,i).interpolate({inputRange:[0,1],outputRange:[-distancia,0]})},{rotateY:'-90deg'}]
   :[];
 
@@ -106,6 +106,10 @@ const LateralDaCaixa=React.memo(function LateralDaCaixa({lado,size,pose3D,virar,
 export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,aoRodar,raio=20,pose3D,aVista=true}:Props){
   const reduced=useReducedMotion();
   const progress=useRef(new Animated.Value(showLyrics?1:0)).current;
+  // Já nasce na face pedida. Uma mola 0 -> 0 marcava o cubo como a rodar e
+  // montava as letras no primeiro fotograma da abertura. Também evita repetir
+  // a mola do gesto quando o onChange chega às props.
+  const destinoDaVolta=useRef<number|null>(showLyrics?1:0);
   const [direction,setDirection]=useState(1);
   const [moving,setMoving]=useState(false);
   // O `moving` ja existia para calar as letras a meio da volta; agora tambem
@@ -141,6 +145,8 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,
   // a aparecer da proxima vez que se abrisse.
   useEffect(()=>{alive.current=true;return()=>{alive.current=false;progress.stopAnimation();aoRodarRef.current?.(false);};},[progress]);
   const settle=useCallback((value:number)=>{
+    if(destinoDaVolta.current===value&&!latest.current.reduced)return;
+    destinoDaVolta.current=value;
     progress.stopAnimation();
     if(latest.current.reduced){progress.setValue(value);setMoving(false);return;}
     setMoving(true);
@@ -159,6 +165,7 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,
     // captura. A fase normal dá ao cubo a mesma decisão para arrastos laterais.
     onMoveShouldSetPanResponder:querGesto,
     onPanResponderGrant:()=>{
+      destinoDaVolta.current=null;
       progress.stopAnimation();setDirection(gesture.current.direction);setMoving(true);
     },
     onPanResponderMove:(_,g)=>{
@@ -192,6 +199,7 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,
       if(!g.active){
         if(!acceptsCubeSwipe(dx,dy))return;
         g.active=true;g.direction=cubeDirection(latest.current.showLyrics,dx);
+        destinoDaVolta.current=null;
         progress.stopAnimation();setDirection(g.direction);setMoving(true);
         element.setPointerCapture?.(g.pointer);
       }

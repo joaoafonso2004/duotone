@@ -17,13 +17,12 @@ const APROXIMAR_MS = 5400;
 const SAIDA = Easing.out(Easing.cubic);
 
 /** O que a caixa 3D precisa para se montar (ver `lib/montagemDaCapa.ts`). */
-export type MontagemDaCapa = {
+export type AnimacaoDaMontagem = {
   /** Aresta esquerda, aresta de baixo e face: 0 longe, 1 no sítio. */
   pecas: [Animated.Value, Animated.Value, Animated.Value];
   opacidades: [Animated.Value, Animated.Value, Animated.Value];
-  /** Quanto a peça `proxima` recua enquanto o download está preso a meio. */
-  recuo: Animated.AnimatedMultiplication<number>;
-  proxima: number | null;
+  /** Recuo de cada peça, escolhido no grafo nativo sem trocar os nós das faces. */
+  recuos: [Animated.AnimatedMultiplication<number>, Animated.AnimatedMultiplication<number>, Animated.AnimatedMultiplication<number>];
   /** O contorno do lugar da face, antes de ela pousar. */
   contorno: Animated.Value;
   /** A luz que dá a volta ao contorno antes de haver download. */
@@ -41,8 +40,9 @@ export type MontagemDaCapa = {
   fecho: Animated.AnimatedInterpolation<number>;
   /** Quanto da caixa já está montada, para as sombras. */
   aterrar: Animated.AnimatedInterpolation<number>;
-  preso: Preso;
 };
+
+export type MontagemDaCapa = { animacao: AnimacaoDaMontagem; preso: Preso };
 
 /**
  * A montagem da capa 3D e a deteção de um arranque preso, para a faixa atual.
@@ -57,13 +57,12 @@ export type MontagemDaCapa = {
 export function useMontagemDaCapa(sourceId: string | null, animar: boolean): MontagemDaCapa {
   const reduzido = useReducedMotion();
   const [preso, setPreso] = useState<Preso>(null);
-  const [proxima, setProxima] = useState<number | null>(null);
 
   const valores = useRef<{
     pecas: [Animated.Value, Animated.Value, Animated.Value];
     opacidades: [Animated.Value, Animated.Value, Animated.Value];
     contorno: Animated.Value; luzFase: Animated.Value; luzBase: Animated.Value; luzPulso: Animated.Value;
-    respira: Animated.Value; recuoAtivo: Animated.Value; voo: Animated.Value; encaixe: Animated.Value;
+    respira: Animated.Value; recuoAtivo: Animated.Value; proxima: Animated.Value; voo: Animated.Value; encaixe: Animated.Value;
   } | null>(null);
   if (!valores.current) {
     // Montada por omissão: sem faixa, ou antes do primeiro efeito, a caixa está inteira.
@@ -78,6 +77,7 @@ export function useMontagemDaCapa(sourceId: string | null, animar: boolean): Mon
       luzPulso: new Animated.Value(0),
       respira: new Animated.Value(0),
       recuoAtivo: new Animated.Value(0),
+      proxima: new Animated.Value(-1),
       voo: new Animated.Value(1),
       encaixe: new Animated.Value(1),
     };
@@ -88,8 +88,11 @@ export function useMontagemDaCapa(sourceId: string | null, animar: boolean): Mon
     const pulso = a.respira.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.3, 0.9, 0.3] });
     const respiraDoRecuo = a.respira.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.08, 0.14, 0.08] });
     const curva = curvaDoRecuo();
+    const recuo = Animated.multiply(a.recuoAtivo, respiraDoRecuo);
     return {
-      recuo: Animated.multiply(a.recuoAtivo, respiraDoRecuo),
+      recuos: [0, 1, 2].map(i => Animated.multiply(recuo, a.proxima.interpolate({
+        inputRange: [i - 1, i, i + 1], outputRange: [0, 1, 0], extrapolate: 'clamp',
+      }))) as AnimacaoDaMontagem['recuos'],
       assentar: a.encaixe.interpolate({
         inputRange: curva.inputRange,
         outputRange: curva.outputRange.map((y) => y * RECUO_DO_ENCAIXE.desce),
@@ -159,13 +162,14 @@ export function useMontagemDaCapa(sourceId: string | null, animar: boolean): Mon
       a.contorno.setValue(0); a.luzBase.setValue(0); a.luzPulso.setValue(0);
       a.recuoAtivo.setValue(0); a.voo.setValue(1); a.encaixe.setValue(1);
       setPreso(null);
-      setProxima(null);
+      a.proxima.setValue(-1);
       return pararTudo;
     }
 
     a.pecas.forEach((p) => p.setValue(0));
     a.opacidades.forEach((o) => o.setValue(0));
     a.voo.setValue(0); a.encaixe.setValue(0); a.recuoAtivo.setValue(0); a.luzPulso.setValue(0);
+    a.proxima.setValue(-1);
     a.contorno.setValue(0);
     a.luzBase.setValue(0);
 
@@ -211,7 +215,7 @@ export function useMontagemDaCapa(sourceId: string | null, animar: boolean): Mon
         ]).start();
       }
       setPreso(null);
-      setProxima(null);
+      a.proxima.setValue(-1);
     };
 
     const avaliar = () => {
@@ -271,7 +275,7 @@ export function useMontagemDaCapa(sourceId: string | null, animar: boolean): Mon
 
       const indice = alvos.findIndex((x) => !x.encaixada && x.visivel);
       const novaProxima = indice >= 0 ? indice : null;
-      if (novaProxima !== proximaAtual) { proximaAtual = novaProxima; setProxima(novaProxima); }
+      if (novaProxima !== proximaAtual) { proximaAtual = novaProxima; a.proxima.setValue(novaProxima ?? -1); }
 
       if (novoPreso === presoAtual && fase === faseAtual) return;
       // O contorno e a luz: antes de haver download, a luz dá a volta ao lugar
@@ -319,11 +323,12 @@ export function useMontagemDaCapa(sourceId: string | null, animar: boolean): Mon
     return pararTudo;
   }, [sourceId, animar, reduzido, a]);
 
-  return useMemo<MontagemDaCapa>(() => ({
+  // Os avisos do arranque não são props do cubo: mantêm-se os mesmos objetos
+  // e nós nativos enquanto os bocados chegam, inclusive durante a abertura.
+  const animacao = useMemo<AnimacaoDaMontagem>(() => ({
     pecas: a.pecas,
     opacidades: a.opacidades,
-    recuo: derivados.recuo,
-    proxima,
+    recuos: derivados.recuos,
     contorno: a.contorno,
     luz: { fase: a.luzFase, opacidade: derivados.luzOpacidade },
     voo: a.voo,
@@ -331,6 +336,6 @@ export function useMontagemDaCapa(sourceId: string | null, animar: boolean): Mon
     assentar: derivados.assentar,
     fecho: derivados.fecho,
     aterrar: derivados.aterrar,
-    preso,
-  }), [a, derivados, proxima, preso]);
+  }), [a, derivados]);
+  return { animacao, preso };
 }
