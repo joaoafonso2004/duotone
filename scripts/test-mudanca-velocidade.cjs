@@ -274,7 +274,8 @@ const original=fs.readFileSync(path.join(root,'node_modules/expo-video/ios/Video
 const patched=patchSpeedSetter(original);
 assert.equal(patchSpeedSetter(patched),patched,'patch is idempotent');
 assert.throws(()=>patchSpeedSetter('new incompatible upstream implementation'),/setter changed/);
-assert.match(patched,/if ref\.rate != playbackRate \{ ref\.rate = playbackRate \}/);
+assert.match(patched,/if abs\(ref\.rate - playbackRate\) > 0\.001 \{ ref\.rate = playbackRate \}/);
+assert.equal(patchSpeedSetter(patched.replace('abs(ref.rate - playbackRate) > 0.001','ref.rate != playbackRate')),patched,'o prebuild anterior também migra para a comparação com folga');
 // All non-setter code stays byte-for-byte identical.
 const outside=text=>text.replace(/  var playbackRate: Float = 1\.0 \{[\s\S]*?\n  var currentTime:/,'  var currentTime:')
  .replace(/  func onRateChanged\(player: AVPlayer[\s\S]*?\n  func onVolumeChanged/,'  func onVolumeChanged');

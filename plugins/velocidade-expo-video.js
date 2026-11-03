@@ -22,7 +22,8 @@ const after = `      // Duotone: KVO sync after playImmediately must not write t
       if #available(iOS 16.0, tvOS 16.0, *) {
         if ref.defaultRate != playbackRate { ref.defaultRate = playbackRate }
       }
-      if ref.rate != playbackRate { ref.rate = playbackRate }`;
+      if abs(ref.rate - playbackRate) > 0.001 { ref.rate = playbackRate }`;
+const afterSemFolga = after.replace('abs(ref.rate - playbackRate) > 0.001', 'ref.rate != playbackRate');
 
 const vigiaAntes = `    if #available(iOS 16.0, tvOS 16.0, *) {
       if player.defaultRate != playbackRate {
@@ -47,6 +48,7 @@ function trocar(text, antes, depois, nome) {
 function patchSpeedSetter(source) {
   const newline = source.includes('\r\n') ? '\r\n' : '\n';
   let text = source.replace(/\r\n/g, '\n');
+  if (text.includes(afterSemFolga)) text = trocar(text, afterSemFolga, before, 'legacy speed setter');
   text = trocar(text, before, after, 'speed setter');
   // Desfazer o remendo antigo se o prebuild já o tinha aplicado no node_modules.
   // O KVO original é necessário; a proteção pertence ao setter que ele chama.

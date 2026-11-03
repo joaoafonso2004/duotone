@@ -37,8 +37,9 @@ final class AVPlayer: NSObject {
   var currentItem: Item? = Item()
   var escritas = 0
   var simularEspera = false
+  var desvioFloat: Float = 0
   func playImmediately(atRate nova: Float) {
-    rate = nova
+    rate = nova + desvioFloat
     if simularEspera { timeControlStatus = .waitingToPlayAtSpecifiedRate }
   }
 }
@@ -68,8 +69,10 @@ func verificar(_ condicao: @autoclosure () -> Bool, _ nome: String) {
   if !condicao() { fatalError(nome) }
 }
 for comEspera in [false, true] {
+ for desvio: Float in [0, 0.0000001] {
   let p = AVPlayer(), expo = Expo(p), nativo = Nativo()
   p.simularEspera = comEspera
+  p.desvioFloat = desvio
   for v in [0.8, 1.25, 0.7, 2.0, 1.0] {
     p.timeControlStatus = .playing
     let antes = p.escritas
@@ -92,6 +95,7 @@ for comEspera in [false, true] {
   _ = nativo.aplicarVelocidade(SharedRef(ref: p), velocidade: 1.1)
   p.rate = 0; p.timeControlStatus = .paused
   verificar(p.rate == 0, "a pausa depois da mudança voltou a dar play")
+ }
 }
 let externo = AVPlayer(), nativo = Nativo()
 externo.automaticallyWaitsToMinimizeStalling = false
