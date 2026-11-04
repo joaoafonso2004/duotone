@@ -16,7 +16,7 @@ import {
   recordPlayInSupabase, registarInicioDaFaixa,
 } from '../api/plays';
 import { contagensNoAparelho, incrementPlayCount } from '../lib/playCounts';
-import { barraParaACurva } from '../lib/curvaDoVolume';
+import { barraParaACurva, curvaQuadraticaParaDb } from '../lib/curvaDoVolume';
 import { avancarEscuta, novaEscuta, type Escuta } from '../lib/contagemDeEscuta';
 import { reconcileOrder, shuffleKeys, stepIndex, trackKey, upcomingIndexes } from '../lib/shuffle';
 import {
@@ -261,19 +261,21 @@ const getInitialVolume = () => {
       if (stored !== null) {
         const parsed = Number(stored);
         if (Number.isFinite(parsed) && parsed >= 0 && parsed <= 100) {
-          // A barra passou a uma curva de ouvido (16/10, lib/curvaDoVolume.ts):
-          // na primeira vez, o volume guardado muda de sítio na barra para soar
-          // igual ao de antes.
-          if (window.localStorage.getItem('duotone-volume-curva') !== '1') {
-            const naCurva = barraParaACurva(parsed);
+          // A barra mudou de curva duas vezes (lib/curvaDoVolume.ts): linear
+          // até 16/10, quadrática até 4/11, e agora em dB. De cada vez, o
+          // volume guardado muda de sítio na barra para soar igual ao de
+          // antes. A marca diz em que curva ele está.
+          const marca = window.localStorage.getItem('duotone-volume-curva');
+          if (marca !== '2') {
+            const naCurva = marca === '1' ? curvaQuadraticaParaDb(parsed) : barraParaACurva(parsed);
             window.localStorage.setItem('duotone-volume', String(naCurva));
-            window.localStorage.setItem('duotone-volume-curva', '1');
+            window.localStorage.setItem('duotone-volume-curva', '2');
             return naCurva;
           }
           return parsed;
         }
       }
-      window.localStorage.setItem('duotone-volume-curva', '1');
+      window.localStorage.setItem('duotone-volume-curva', '2');
     } catch (e) {
       console.warn('Failed to read volume from localStorage', e);
     }
