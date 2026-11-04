@@ -122,6 +122,13 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="calha"]:hover [data-dt~="pega"] {
       transform: translate(-50%, -50%) scale(1);
     }
+    /* O volume e uma cunha (4/11): a calha cresce de 2 px a esquerda para
+       6 px a direita. Era igual a barra da musica -- a mesma calha, o mesmo
+       cheio, a mesma pega -- e so o icone ao lado as distinguia; a forma diz
+       "volume" sozinha e acompanha o que o som faz. O recorte apanha a calha
+       E o cheio de uma vez (um clip-path recorta a subarvore), por isso a
+       parte cheia ja nasce com a forma certa e nao precisa de a repetir. */
+    [data-dt~="cunha"]{ clip-path: polygon(0 37.5%, 100% 12.5%, 100% 87.5%, 0 62.5%); }
     /* A risca do refrao (25/10, so com a opcao ligada): dois pixeis meio
        apagados; com o rato na barra acende e diz "Chorus". */
     [data-dt~="marca-do-refrao"]{ position: absolute; top: 50%; width: 2px; height: 8px; border-radius: 1px;
@@ -976,7 +983,7 @@ function BarraDoVolume() {
     <V role="slider" aria-label="Volume" aria-valuemin={0} aria-valuemax={100} aria-valuenow={volume}
       aria-valuetext={volume === 0 ? 'Muted' : `${volume}%`} tabIndex={0} onKeyDown={teclar}
       onMouseDown={startDragVolume} onTouchStart={startDragVolume} style={styles.volumeHit}>
-      <V style={styles.volumeTrack}><V style={[styles.volumeFill, { width: `${volume}%` }]} {...marcar('cheio')} /></V><V {...marcar('pega')} style={{ left: `${volume}%` }} />
+      <V style={styles.volumeTrack} {...marcar('cunha')}><V style={[styles.volumeFill, { width: `${volume}%` }]} {...marcar('cheio')} /></V><V {...marcar('pega')} style={{ left: `${volume}%` }} />
     </V>
   </V>;
 }
