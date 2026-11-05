@@ -38,6 +38,8 @@ import { ConviteDeSessao } from './ConviteDeSessao';
 import { SkeletonDeConversas } from './Skeleton';
 import { usePuxarParaAtualizar } from './PuxarParaAtualizar';
 import { CabecalhoDoAmigo, FaixaPartilhada, FundoDaApp } from './ChatAmigo';
+import { MusicasDaConversa } from './MusicasDaConversa';
+import { contarMusicasCarregadas } from '../lib/musicasDaConversa';
 import { SocialOverview } from './SocialOverview';
 import { OpcoesDoAmigo } from './OpcoesDoAmigo';
 import { useDestinos } from '../navigation/destinos';
@@ -467,6 +469,8 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
             <Ionicons name="headset-outline" size={15} color={colors.text}/><Text style={{color:colors.text,fontSize:13,fontWeight:'600'}}>{friend.currentlyPlaying?'Listen along':'Start a Jam'}</Text></Pressable>:null}
           <SocialIconButton label="Back to chats" icon={split?'close':'chevron-back'} onPress={closeChat}/>
         </View>}
+        {/* As músicas da conversa (5/11): Play all e Save as playlist, com duas ou mais. */}
+        {conversation&&<MusicasDaConversa alvo={conversation} conversa={{tipo:group?'grupo':'amigo',nome:title}} carregadas={contarMusicasCarregadas(messages)}/>}
         {!!error&&<Text style={s.error}>{error}</Text>}{chatLoading&&<ActivityIndicator color={accent}/>}
         {group&&!chatLoading&&!messages.length&&!error?<View style={{flex:1,justifyContent:'center'}}><GroupEmptyState group={group}/></View>:
         <FlatList ref={lista} inverted onScrollToIndexFailed={info=>{

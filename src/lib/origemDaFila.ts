@@ -7,7 +7,9 @@
  */
 
 export type TipoDeOrigem =
-  | 'playlist' | 'guardadas' | 'artista' | 'album' | 'mistura' | 'prateleira' | 'pesquisa';
+  | 'playlist' | 'guardadas' | 'artista' | 'album' | 'mistura' | 'prateleira' | 'pesquisa'
+  /** As músicas de uma conversa (5/11, lib/musicasDaConversa.ts): sem página para onde voltar. */
+  | 'conversa';
 
 export type OrigemDaFila = {
   tipo: TipoDeOrigem;

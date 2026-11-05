@@ -7,6 +7,7 @@ import { AMIGOS_A_CONSULTAR, favoritasDosAmigos, type EscutaDeAmigo, type Favori
 import { getSocialProfileTracks } from './profiles';
 import { trackKey } from '../lib/shuffle';
 import { faltaAColunaDeResposta } from '../lib/respostas';
+import { MAXIMO_DE_MUSICAS_DA_CONVERSA, musicasUnicas, pelaOrdemDaConversa } from '../lib/musicasDaConversa';
 export interface Friendship {
   friendId: string;
   username: string;
@@ -520,6 +521,25 @@ export async function getGrupos(): Promise<ChatGroup[]> {
 /** As mensagens de um grupo, da mais antiga para a mais nova. */
 export function getGroupMessages(groupId:string,before?:MessageCursor):Promise<SharedItem[]> {
   return getConversationMessages({p_group:groupId},before);
+}
+
+/**
+ * Todas as músicas de uma conversa, as dos dois lados, da mais antiga para a
+ * mais nova e cada uma uma vez (5/11, "Play all" e "Save as playlist" no chat,
+ * `lib/musicasDaConversa.ts`). A conversa vem às 100 (`get_social_messages`),
+ * e isto quer a conversa inteira: lê-se só a coluna da música, com o mesmo
+ * filtro do RPC, e o RLS decide o que se vê. Um pedido por toque no botão, nunca
+ * ao abrir a conversa. Até 1000, as mais recentes.
+ */
+export async function musicasDaConversa(alvo:{kind:'friend'|'group';id:string}):Promise<Track[]> {
+  const uid=await currentUserId();
+  const base=supabase.from('shared_items').select('track_data').eq('item_type','track');
+  const daConversa=alvo.kind==='group'
+    ?base.eq('group_id',alvo.id)
+    :base.is('group_id',null).or(`and(sender_id.eq.${uid},recipient_id.eq.${alvo.id}),and(sender_id.eq.${alvo.id},recipient_id.eq.${uid})`);
+  const {data,error}=await daConversa.order('created_at',{ascending:false}).order('id',{ascending:false}).limit(MAXIMO_DE_MUSICAS_DA_CONVERSA);
+  if(error)throw error;
+  return musicasUnicas(pelaOrdemDaConversa((data??[]).map((r:any)=>sharedTrack(r.track_data))));
 }
 
 /**
