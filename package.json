@@ -1,6 +1,6 @@
 {
   "name": "duotone",
-  "version": "5.7.5",
+  "version": "5.7.8",
   "description": "A desktop-first music library and player for Windows.",
   "author": "Duotone",
   "main": "index.ts",
@@ -85,7 +85,9 @@
   "expo": {
     "autolinking": {
       "ios": {
-        "buildFromSource": ["expo-video"]
+        "buildFromSource": [
+          "expo-video"
+        ]
       }
     }
   },
