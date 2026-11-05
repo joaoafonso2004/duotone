@@ -76,6 +76,8 @@ const TABELA = [
     leitores: [['src/navigation/RootNavigator.web.tsx', /getCorNaJanela\(/]] },
   { opcao: 'Two-tone covers', escreve: ['setDoisTons'],
     leitores: [['src/navigation/RootNavigator.web.tsx', /getDoisTons\(/], ['src/desktop/duotone.web.tsx', /useDoisTons\(/]] },
+  { opcao: '3D metal cover', escreve: ['setCapaMetal3D'],
+    leitores: [['src/navigation/RootNavigator.web.tsx', /getCapaMetal3D\(/], ['src/desktop/paginas/NowPlayingPage.web.tsx', /useCapaMetal\(/]] },
   { opcao: 'Accent', escreve: [],
     leitores: [['src/state/theme.ts', /mode === 'cover'/]] },
   { opcao: 'Artwork style (iPhone)', escreve: [],

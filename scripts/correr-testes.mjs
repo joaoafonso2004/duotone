@@ -325,6 +325,7 @@ const TESTES = [
   `${TS} scripts/test-guardar-fila.ts`,
   `${TS} scripts/test-dialogo-da-fila.ts`,
   `${TS} scripts/test-dois-tons.ts`,
+  `${RESOLVER} scripts/test-capa-metal-3d.ts`,
   `${TS} scripts/test-fila-animada.ts`,
   `${TS} scripts/test-liked-songs-pc.ts`,
   `${TS} scripts/test-perfil-pc.ts`,

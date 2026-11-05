@@ -52,6 +52,8 @@ const KEY_ARTISTAS_FAVORITOS = 'pref:artistasFavoritos';
 /** A cor da capa do Now Playing do PC: na janela toda ou só na página. */
 const KEY_COR_NA_JANELA = 'pref:corNaJanela';
 const KEY_DOIS_TONS = 'pref:doisTons';
+/** A capa de metal em 3D do Now Playing do PC (`desktop/CapaMetal3D.web.tsx`). */
+const KEY_CAPA_METAL_3D = 'pref:capaMetal3D';
 /** Os atalhos fixados na lateral do PC (`lib/atalhosDaLateral.ts`). */
 const KEY_ATALHOS_DA_LATERAL = 'pref:atalhosDaLateral';
 /** O gosto lido do Spotify. Ver `getGostoDoSpotify`. */
@@ -752,6 +754,18 @@ export async function getDoisTons(): Promise<boolean> {
 }
 export async function setDoisTons(v: boolean): Promise<void> {
   await AsyncStorage.setItem(KEY_DOIS_TONS, v ? '1' : '0');
+}
+
+/**
+ * A capa de metal em 3D do Now Playing do PC (5/11): **desligada de origem**, a
+ * pedido do João. Ligada, a capa fica numa caixa de metal que afunda onde está
+ * o rato e roda a arrastar (`desktop/CapaMetal3D.web.tsx`).
+ */
+export async function getCapaMetal3D(): Promise<boolean> {
+  try { return (await AsyncStorage.getItem(KEY_CAPA_METAL_3D)) === '1'; } catch { return false; }
+}
+export async function setCapaMetal3D(v: boolean): Promise<void> {
+  await AsyncStorage.setItem(KEY_CAPA_METAL_3D, v ? '1' : '0');
 }
 
 /** Os atalhos da lateral do PC, crus: quem os valida é `lerAtalhos`. */

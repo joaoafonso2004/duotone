@@ -40,8 +40,9 @@ import { useAuth } from '../state/auth';
 import { contextoDaRecomendacaoAtual, usePlayer } from '../state/player';
 import { usePresencaDoDiscord } from '../hooks/usePresencaDoDiscord';
 import { useSincroniaDaSessao } from '../hooks/useSincroniaDaSessao';
-import { getCorNaJanela, getDiscordRichPresence, getDoisTons, type CorDoLeitor } from '../lib/prefs';
+import { getCapaMetal3D, getCorNaJanela, getDiscordRichPresence, getDoisTons, type CorDoLeitor } from '../lib/prefs';
 import { definirDoisTons } from '../desktop/doisTons.web';
+import { definirCapaMetal } from '../desktop/CapaMetal3D.web';
 import { FundoDaCapa } from '../desktop/FundoDaCapa.web';
 import { sessaoDoSegredoDiscord } from '../lib/presencaDoDiscord';
 import { registar } from '../lib/eventos';
@@ -452,6 +453,8 @@ function DesktopShell() {
   const [corDoLeitor, setCorDoLeitor] = useState<CorDoLeitor>('janela');
   // As capas a dois tons: desligadas de origem, e as Definições ligam-nas (30/10).
   useEffect(() => { void getDoisTons().then(definirDoisTons); }, []);
+  // A capa de metal em 3D do Now Playing: desligada de origem (5/11).
+  useEffect(() => { void getCapaMetal3D().then(definirCapaMetal); }, []);
   useEffect(() => {
     void getCorNaJanela().then(setCorDoLeitor);
     const mudou = (e: any) => { if (e.detail === 'janela' || e.detail === 'pagina') setCorDoLeitor(e.detail); };

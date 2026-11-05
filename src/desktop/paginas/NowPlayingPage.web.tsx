@@ -3,6 +3,7 @@ import { SobreAMusica } from '../SobreAMusica.web';
 import { LyricsView } from '../../components/LyricsView';
 import { useFilaDoLeitor } from '../useFilaDoLeitor.web';
 import {ArtworkLyricsCube} from '../../components/ArtworkLyricsCube';
+import { CapaMetal3D, useCapaMetal } from '../CapaMetal3D.web';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
@@ -110,6 +111,8 @@ export function NowPlayingPage({
   const doRadio = usePlayer((s) => s.doRadio);
   const sugeridas = usePlayer((s) => s.sugeridas);
   const [showLyrics,setShowLyrics]=useState(false);
+  // A capa de metal em 3D, se estiver ligada nas Definições (desligada de origem).
+  const capaMetal = useCapaMetal();
   // Com as Duas luas à frente (C9), o cubo da capa fica escondido por baixo delas.
   const [cuboEscondido, setCuboEscondido] = useState(false);
   useEffect(()=>setShowLyrics(false),[current?.source,current?.sourceId]);
@@ -169,7 +172,7 @@ export function NowPlayingPage({
   const faixaAtual = track ? `${track.source}:${track.sourceId}` : '';
   const caixaDaCapa = useRef<any>(null);
   const capaQueSai = useCapaQueSai(faixaAtual, track && capaGrande ? capaGrande : null, {
-    caixa: caixaDaCapa, capa: track?.artworkUrl, ligada: !showLyrics && !luasNoEcra(),
+    caixa: caixaDaCapa, capa: track?.artworkUrl, ligada: !showLyrics && !luasNoEcra() && !capaMetal,
     sentido: () => sentidoDaOcultacao(usePlayer.getState().saltoDaFaixa, Date.now()),
   });
   const seguinte = upNext[0]?.track;
@@ -208,8 +211,16 @@ export function NowPlayingPage({
         {/* O botão direito na capa abre o menu da música (24/10), o curto do leitor. */}
         <View key={`entra:${faixaAtual}`} style={cuboEscondido ? { opacity: 0 } : undefined}
           {...({ onContextMenu: (e: any) => { e.preventDefault(); more(track, undefined, { leitor: 'capa' }); } } as any)}>
-          <ArtworkLyricsCube track={track} size={ladoCapa} artwork={track.artworkUrl} showLyrics={showLyrics} onChange={setShowLyrics}
-            front={<GlitchArtwork uri={capaGrande} lado={ladoCapa} modo={glitch} intensidade={effectIntensity} />} />
+          {/* A capa de metal em 3D (5/11, "3D metal cover", desligada de origem):
+              a mesma face da frente e a mesma letra, numa caixa que afunda onde
+              está o rato e roda a arrastar. Sem ela, o cubo de sempre. */}
+          {capaMetal ? (
+            <CapaMetal3D track={track} size={ladoCapa} artwork={track.artworkUrl} showLyrics={showLyrics} onChange={setShowLyrics}
+              front={<GlitchArtwork uri={capaGrande} lado={ladoCapa} modo={glitch} intensidade={effectIntensity} />} />
+          ) : (
+            <ArtworkLyricsCube track={track} size={ladoCapa} artwork={track.artworkUrl} showLyrics={showLyrics} onChange={setShowLyrics}
+              front={<GlitchArtwork uri={capaGrande} lado={ladoCapa} modo={glitch} intensidade={effectIntensity} />} />
+          )}
         </View>
         {/* Por cima da capa, numa camada que corta o disco sem cortar o cubo da letra. */}
         <View ref={caixaDaCapa} pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, width: ladoCapa, height: ladoCapa, borderRadius: 14, overflow: 'hidden', zIndex: 3 }}>
@@ -220,7 +231,9 @@ export function NowPlayingPage({
               style={{ position: 'absolute', width: ladoCapa, height: ladoCapa, objectFit: 'cover' }} />
           ) : null}
         </View>
-        <DuasLuas lado={ladoCapa} capaDaQueSai={capaGrande} ligada={!showLyrics} aoEsconderCubo={setCuboEscondido} />
+        {/* As Duas luas e a Ocultação são camadas planas sobre o quadrado da capa:
+            por cima da caixa inclinada ficavam desencontradas, e com ela não entram. */}
+        <DuasLuas lado={ladoCapa} capaDaQueSai={capaGrande} ligada={!showLyrics && !capaMetal} aoEsconderCubo={setCuboEscondido} />
       </View>
       {/* As letras: dois pontos por baixo da capa, como no iPhone (decidido
           com o João a 25/9). Arrastar a capa continua a funcionar; os pontos

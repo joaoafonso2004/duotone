@@ -49,8 +49,9 @@ import { ligarRecomendado, useRecomendado } from '../../state/recomendado';
 import { EscolhaDoModelo, LinhaDoRecomendado } from '../RecomendadoDoEq.web';
 import { usePresets } from '../../state/presets';
 import { chaveDaFaixa, PLANO } from '../../lib/equalizer';
-import { getCorNaJanela, getDiscordRichPresence, getDoisTons, setCorNaJanela, setCrossfadeSegundos, setDiscordRichPresence, setDoisTons, setIntensidadeDoSmartShuffle, type CorDoLeitor } from '../../lib/prefs';
+import { getCapaMetal3D, getCorNaJanela, getDiscordRichPresence, getDoisTons, setCapaMetal3D, setCorNaJanela, setCrossfadeSegundos, setDiscordRichPresence, setDoisTons, setIntensidadeDoSmartShuffle, type CorDoLeitor } from '../../lib/prefs';
 import { definirDoisTons } from '../doisTons.web';
+import { definirCapaMetal } from '../CapaMetal3D.web';
 import { DURACOES_DO_CROSSFADE, type DuracaoDoCrossfade } from '../../lib/crossfade';
 import { efeitoDaMarcaDoRefrao, efeitoDoCrossfade, efeitoDoDiscord, efeitoDoPadrao, efeitoDoRadio, efeitoDoRecomendado, efeitoDoSmartShuffle, efeitoDoTemporizador } from '../../lib/efeitoDasDefinicoes';
 import { lerMarcaDoRefrao, ligarMarcaDoRefrao, useMarcaDoRefrao } from '../../state/refrao';
@@ -147,6 +148,8 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   const [estreita, setEstreita] = useState(false);
   const [doisTons, setDoisTonsState] = useState(false);
   useEffect(() => { void getDoisTons().then(setDoisTonsState); }, []);
+  const [capaMetal, setCapaMetalState] = useState(false);
+  useEffect(() => { void getCapaMetal3D().then(setCapaMetalState); }, []);
   const [corDoLeitor, setCorDoLeitorState] = useState<CorDoLeitor>('janela');
   useEffect(() => { void getCorNaJanela().then(setCorDoLeitorState); }, []);
   const mudarCorDoLeitor = (v: string) => {
@@ -463,6 +466,8 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                     o efeito reagir ao som, e desligar a opcao desliga-a mesmo. */}
                 <ChoiceLine label="Now Playing effect" description="Reactive follows the music. Static freezes it. Off shows the plain artwork." value={glitch} choices={[['reactive', 'Reactive'], ['static', 'Static'], ['off', 'Off']]} onChange={changeGlitch} />
                 {glitch !== 'off' && <ChoiceLine label="Effect strength" value={effectIntensity} choices={[['subtle', 'Subtle'], ['normal', 'Normal'], ['strong', 'Strong']]} onChange={changeEffectIntensity} />}
+                {/* A capa de metal em 3D (5/11): desligada de origem. */}
+                <ToggleLine label="3D metal cover" description="Show the Now Playing artwork as a metal block that sinks where your mouse is. Drag it sideways to turn it to the lyrics." value={capaMetal} onChange={(v) => { setCapaMetalState(v); definirCapaMetal(v); void setCapaMetal3D(v); }} />
                 {/* A cor da capa a encher a janela (26/9); a de origem. */}
                 <ChoiceLine label="Now Playing colour" description="Let the artwork's colour (and an artist's photo) fill the whole window, or keep it inside the page." value={corDoLeitor} choices={[['janela', 'Whole window'], ['pagina', 'Page only']]} onChange={mudarCorDoLeitor} />
                 {/* As capas a dois tons (30/10): desligadas de origem. */}
