@@ -16,7 +16,7 @@ import {
   recordPlayInSupabase, registarInicioDaFaixa,
 } from '../api/plays';
 import { contagensNoAparelho, incrementPlayCount } from '../lib/playCounts';
-import { barraParaACurva, curvaQuadraticaParaDb } from '../lib/curvaDoVolume';
+import { barraParaACurva, curvaDe30DbParaANova, curvaQuadraticaParaDb, ganhoFinoDaBarra } from '../lib/curvaDoVolume';
 import { avancarEscuta, novaEscuta, type Escuta } from '../lib/contagemDeEscuta';
 import { reconcileOrder, shuffleKeys, stepIndex, trackKey, upcomingIndexes } from '../lib/shuffle';
 import {
@@ -261,21 +261,23 @@ const getInitialVolume = () => {
       if (stored !== null) {
         const parsed = Number(stored);
         if (Number.isFinite(parsed) && parsed >= 0 && parsed <= 100) {
-          // A barra mudou de curva duas vezes (lib/curvaDoVolume.ts): linear
-          // até 16/10, quadrática até 4/11, e agora em dB. De cada vez, o
-          // volume guardado muda de sítio na barra para soar igual ao de
-          // antes. A marca diz em que curva ele está.
+          // A barra mudou de curva três vezes (lib/curvaDoVolume.ts): linear
+          // até 16/10, quadrática até 4/11, em dB com o fundo a -30 até 5/11,
+          // e agora com o fundo a -50. De cada vez, o volume guardado muda de
+          // sítio na barra para soar igual ao de antes. A marca diz em que
+          // curva ele está.
           const marca = window.localStorage.getItem('duotone-volume-curva');
-          if (marca !== '2') {
-            const naCurva = marca === '1' ? curvaQuadraticaParaDb(parsed) : barraParaACurva(parsed);
+          if (marca !== '3') {
+            const naCurva = marca === '2' ? curvaDe30DbParaANova(parsed)
+              : marca === '1' ? curvaQuadraticaParaDb(parsed) : barraParaACurva(parsed);
             window.localStorage.setItem('duotone-volume', String(naCurva));
-            window.localStorage.setItem('duotone-volume-curva', '2');
+            window.localStorage.setItem('duotone-volume-curva', '3');
             return naCurva;
           }
           return parsed;
         }
       }
-      window.localStorage.setItem('duotone-volume-curva', '2');
+      window.localStorage.setItem('duotone-volume-curva', '3');
     } catch (e) {
       console.warn('Failed to read volume from localStorage', e);
     }
@@ -773,11 +775,34 @@ async function aplicarEqNoMotor(ganhos: number[]): Promise<void> {
     return;
   }
   try {
-    const r = await ponte.aplicarEqualizador({ ganhos, compensacao: compensacaoLinear(ganhos) });
+    // A "compensação" é o nó `margem` do grafo, e leva também o ganho fino do
+    // volume (5/11, lib/curvaDoVolume.ts): o que o inteiro do player não
+    // consegue baixar. Nunca acima de 1 -- a ponte trata um valor maior como 1.
+    ganhoFinoEnviado = ganhoFinoDaBarra(st.volume);
+    const compensacao = Math.min(1, compensacaoLinear(ganhos) * ganhoFinoEnviado);
+    const r = await ponte.aplicarEqualizador({ ganhos, compensacao });
     usePlayer.setState({ eqAtivo: !!r?.ok });
   } catch {
     usePlayer.setState({ eqAtivo: false });
   }
+}
+
+/** O último ganho fino que chegou ao grafo: com a barra em cima é sempre 1. */
+let ganhoFinoEnviado = 1;
+let ganhoFinoAgendado: ReturnType<typeof setTimeout> | null = null;
+/**
+ * O ganho fino acompanha a barra (5/11). Só há o que mandar quando ele muda --
+ * em cima da barra é sempre 1 e não sai pedido nenhum. A arrastar, um envio a
+ * cada 60 ms chega: a ponte põe o ganho numa rampa de 20 ms.
+ */
+function acompanharGanhoFino(volume: number): void {
+  if (typeof window === 'undefined' || !window.duotoneDesktop?.aplicarEqualizador) return;
+  if (Math.abs(ganhoFinoDaBarra(volume) - ganhoFinoEnviado) < 0.002) return;
+  if (ganhoFinoAgendado) return;
+  ganhoFinoAgendado = setTimeout(() => {
+    ganhoFinoAgendado = null;
+    void aplicarEqNoMotor(ganhosEmVigor(usePlayer.getState()));
+  }, 60);
 }
 
 /**
@@ -2474,6 +2499,8 @@ export const usePlayer = create<PlayerState>()(
       }
     }
     get()._yt?.setVolume?.(clamped * get().closeGain);
+    // O que o inteiro do player não baixa, baixa-o o grafo (lib/curvaDoVolume.ts).
+    acompanharGanhoFino(clamped);
   },
 
   registerYtControls: (c) => {
