@@ -30,7 +30,14 @@ export interface LinhaDaPlaylist {
   uri: string | null;
 }
 
-export type LinkDePlaylist = { tipo: 'spotify'; id: string } | { tipo: 'youtube'; id: string };
+export type LinkDePlaylist =
+  | { tipo: 'spotify'; id: string }
+  | { tipo: 'youtube'; id: string }
+  /** Deezer (5/11): a API pública, sem chave. O `link.deezer.com/s/…` da partilha resolve-se primeiro. */
+  | { tipo: 'deezer'; id: string }
+  | { tipo: 'deezer-curto'; url: string }
+  /** Apple Music (5/11): a página pública da playlist, que traz as primeiras 50. */
+  | { tipo: 'apple'; url: string };
 
 /** O que um link é, ou `null` se não é uma playlist que se saiba ler. */
 export function lerLink(texto: string): LinkDePlaylist | null {
@@ -42,16 +49,42 @@ export function lerLink(texto: string): LinkDePlaylist | null {
   if (spotify) return { tipo: 'spotify', id: spotify[1] };
   const youtube = /[?&]list=([A-Za-z0-9_-]{10,})/.exec(t);
   if (youtube && /youtu(?:\.be|be\.com)/i.test(t)) return { tipo: 'youtube', id: youtube[1] };
+  // A app do Deezer partilha "…on Deezer! https://link.deezer.com/s/…": o link
+  // pode vir no meio de uma frase, e o da web traz a língua (/pt/, /en/).
+  const deezer = /deezer\.com\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?playlist\/(\d{1,20})(?!\d)/i.exec(t);
+  if (deezer) return { tipo: 'deezer', id: deezer[1] };
+  const curto = /https:\/\/(?:link\.deezer\.com\/s\/[A-Za-z0-9]{4,40}|deezer\.page\.link\/[A-Za-z0-9]{4,40})/i.exec(t);
+  if (curto) return { tipo: 'deezer-curto', url: curto[0] };
+  // O link da partilha do Apple Music, sem o ?ls= nem o ?i= do fim.
+  const apple = /https:\/\/music\.apple\.com\/[a-z]{2}\/playlist\/[^\s/?#]{1,200}\/pl\.[A-Za-z0-9.-]{5,80}/i.exec(t);
+  if (apple) return { tipo: 'apple', url: apple[0] };
+  return null;
+}
+
+/**
+ * Um link de um serviço que se conhece mas não se sabe ler sem conta (5/11,
+ * medido): o Tidal só mostra o nome, o Amazon Music não serve nada sem um
+ * browser, e no SoundCloud o set fica por medir. Por lista ou ficheiro, então.
+ */
+export function servicoSemLeitura(texto: string): string | null {
+  const t = String(texto || '');
+  if (/(?:^|\/\/|\.)tidal\.com\//i.test(t)) return 'Tidal';
+  if (/music\.amazon\.[a-z.]+\//i.test(t)) return 'Amazon Music';
+  if (/(?:^|\/\/|\.)soundcloud\.com\/|on\.soundcloud\.com\//i.test(t)) return 'SoundCloud';
   return null;
 }
 
 export const urlDoEmbed = (id: string) => `https://open.spotify.com/embed/playlist/${id}`;
 
-export interface PlaylistDoSpotify {
+/** Uma playlist lida de fora (Spotify, Deezer, Apple Music): nome, capa e as linhas. */
+export interface PlaylistLida {
   nome: string;
   capa: string | null;
   faixas: LinhaDaPlaylist[];
+  /** Quantas o serviço diz que tem, quando o diz (pode ser mais do que as lidas). */
+  total?: number;
 }
+export type PlaylistDoSpotify = PlaylistLida;
 
 /**
  * Lê a página de embed. `null` quando ela não traz o que se espera -- a página
@@ -89,3 +122,74 @@ export function lerEmbedDoSpotify(html: string): PlaylistDoSpotify | null {
     : null;
   return { nome: String(entidade.name || entidade.title || 'Spotify playlist').trim(), capa, faixas };
 }
+
+// ---------------------------------------------------------------- Deezer --
+// A API pública (api.deezer.com), sem chave nem conta. Medido a 5/11 com o
+// "Top Worldwide": `/playlist/ID` traz o nome, a capa, `nb_tracks` e as faixas;
+// `/playlist/ID/tracks?index=N&limit=100` dá as seguintes, com `total`.
+// Recortes reais em scripts/fixtures/deezer-*.json.
+
+function linhaDoDeezer(f: any): LinhaDaPlaylist | null {
+  const title = typeof f?.title === 'string' ? f.title.trim() : '';
+  const artist = typeof f?.artist?.name === 'string' ? f.artist.name.trim() : '';
+  if (!title || !artist) return null;
+  if (f?.type && f.type !== 'track') return null;
+  return {
+    title,
+    artist,
+    album: typeof f?.album?.title === 'string' && f.album.title.trim() ? f.album.title.trim() : null,
+    durationMs: Number.isFinite(f?.duration) && f.duration > 0 ? f.duration * 1000 : null,
+    uri: f?.id != null ? `deezer:track:${f.id}` : null,
+  };
+}
+
+/** A resposta de `/playlist/ID`, ou `null` se é um erro ou não é uma playlist. */
+export function lerPlaylistDoDeezer(json: any): PlaylistLida | null {
+  if (!json || json.error || !json.title || !Array.isArray(json?.tracks?.data)) return null;
+  const faixas = json.tracks.data.map(linhaDoDeezer).filter(Boolean) as LinhaDaPlaylist[];
+  const capa = [json.picture_xl, json.picture_big, json.picture_medium].find((c) => typeof c === 'string' && c) ?? null;
+  return { nome: String(json.title).trim(), capa, faixas, total: Number.isFinite(json.nb_tracks) ? json.nb_tracks : faixas.length };
+}
+
+/** Uma página de `/playlist/ID/tracks`: as linhas e o total que a API diz. */
+export function lerFaixasDoDeezer(json: any): { faixas: LinhaDaPlaylist[]; total: number | null } | null {
+  if (!json || json.error || !Array.isArray(json.data)) return null;
+  return { faixas: json.data.map(linhaDoDeezer).filter(Boolean) as LinhaDaPlaylist[], total: Number.isFinite(json.total) ? json.total : null };
+}
+
+// ----------------------------------------------------------- Apple Music --
+// A página pública da playlist traz, no `serialized-server-data`, as secções
+// da página: o cabeçalho (o nome) e a lista (`trackLockup`) com as primeiras 50
+// faixas, com título, artistas e duração em ms. Não é uma API: se a página
+// mudar, deixa de ler e diz-se. Recorte real em scripts/fixtures.
+
+/** A página de uma playlist do Apple Music, ou `null` se não traz o que se espera. */
+export function lerPaginaDaApple(html: string): PlaylistLida | null {
+  const m = /<script[^>]*id="serialized-server-data"[^>]*>([\s\S]*?)<\/script>/.exec(String(html || ''));
+  if (!m) return null;
+  let dados: any;
+  try { dados = JSON.parse(m[1]); } catch { return null; }
+  const raiz = Array.isArray(dados) ? dados[0] : dados;
+  const seccoes: any[] = (Array.isArray(raiz?.data) ? raiz.data[0]?.data?.sections : raiz?.data?.sections) ?? [];
+  if (!Array.isArray(seccoes)) return null;
+  const lista = seccoes.find((s) => s?.itemKind === 'trackLockup');
+  if (!lista || !Array.isArray(lista.items)) return null;
+  const faixas: LinhaDaPlaylist[] = [];
+  for (const f of lista.items) {
+    const title = typeof f?.title === 'string' ? f.title.trim() : '';
+    const nomes = Array.isArray(f?.subtitleLinks) ? f.subtitleLinks.map((l: any) => l?.title).filter((x: any) => typeof x === 'string' && x.trim()) : [];
+    const artist = (nomes.length ? nomes.join(', ') : typeof f?.artistName === 'string' ? f.artistName : '').trim();
+    if (!title || !artist) continue;
+    const album = Array.isArray(f?.tertiaryLinks) && typeof f.tertiaryLinks[0]?.title === 'string' ? f.tertiaryLinks[0].title.trim() || null : null;
+    faixas.push({ title, artist, album, durationMs: Number.isFinite(f?.duration) && f.duration > 0 ? f.duration : null, uri: null });
+  }
+  const cabecalho = seccoes.find((s) => /header/i.test(String(s?.itemKind ?? '')) || /header/i.test(String(s?.id ?? '')));
+  const og = /<meta[^>]*property="og:title"[^>]*content="([^"]*)"/.exec(html)?.[1];
+  const nome = (typeof cabecalho?.items?.[0]?.title === 'string' && cabecalho.items[0].title.trim())
+    || (og ? og.replace(/\s+on Apple Music$/i, '').trim() : '')
+    || 'Apple Music playlist';
+  return { nome: decodificarEntidades(nome), capa: null, faixas };
+}
+
+const decodificarEntidades = (s: string) =>
+  s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>');

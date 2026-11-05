@@ -157,6 +157,7 @@ const TESTES = [
   `${TS} scripts/test-arranque-travado.ts`,
   `${TS} scripts/test-link-de-playlist.ts`,
   `${TS} scripts/test-importacao-por-link.ts`,
+  `${RESOLVER} scripts/test-importar-de-qualquer-sitio.ts`,
   `${TS} scripts/test-posicao-do-amigo.ts`,
   `${TS} scripts/test-amigos-na-lateral.ts`,
   `${TS} scripts/test-boas-vindas.ts`,

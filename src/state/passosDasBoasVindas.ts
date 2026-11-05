@@ -82,9 +82,11 @@ export function usePassosDasBoasVindas(aoFechar: () => void) {
     colar: (texto: string): boolean => {
       const link = lerLink(texto);
       if (!link) { setErroDoLink(fonte === 'spotify' ? "That isn't a Spotify playlist link." : "That isn't a YouTube playlist link."); return false; }
-      if (links.includes(link.id)) { setErroDoLink('Already added.'); return false; }
+      // O Deezer e o Apple Music também entram (5/11); o curto do Deezer e o da Apple não têm id.
+      const chave = 'id' in link ? link.id : link.url;
+      if (links.includes(chave)) { setErroDoLink('Already added.'); return false; }
       useImportacoes.getState().importar(texto);
-      setLinks([...links, link.id]);
+      setLinks([...links, chave]);
       setErroDoLink(null);
       return true;
     },

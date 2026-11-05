@@ -80,6 +80,11 @@ contextBridge.exposeInMainWorld('duotoneDesktop', Object.freeze({
   /** A pagina de embed de uma playlist publica do Spotify, pelo processo
    * principal (sem CORS). Leva so o id; o endereco vive do outro lado. */
   lerEmbedDoSpotify: (id) => ipcRenderer.invoke('spotify:embed', id),
+  /** A pagina publica de uma playlist do Apple Music (5/11). Leva o link da
+   * partilha, que o processo principal confere antes de o pedir. */
+  lerPlaylistDaApple: (url) => ipcRenderer.invoke('apple:playlist', url),
+  /** O link curto da partilha do Deezer, seguido ate ao fim (5/11). */
+  resolverLinkDoDeezer: (url) => ipcRenderer.invoke('deezer:link', url),
   /** Larga as caches de memória do Blink (imagens descodificadas e afins) que
    * já não estão a ser usadas. Chamado com a janela escondida há algum tempo. */
   aliviarMemoria: () => { try { webFrame.clearCache(); } catch {} },

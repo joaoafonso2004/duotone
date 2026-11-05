@@ -1494,7 +1494,58 @@ const CAMINHOS_DO_CATALOGO = [
   /^\/album\/\d{1,20}$/,
   // Os artistas em alta, para o questionario da primeira vez (26/9).
   /^\/chart\/0\/artists\?limit=\d{1,3}$/,
+  // Uma playlist publica, para a importacao por link (5/11,
+  // src/api/playlistPorLink.ts): o cabecalho e as paginas seguintes.
+  /^\/playlist\/\d{1,20}$/,
+  /^\/playlist\/\d{1,20}\/tracks\?index=\d{1,5}&limit=\d{1,3}$/,
 ];
+
+/**
+ * A pagina publica de uma playlist do Apple Music (5/11), para a importacao
+ * por link (src/lib/linkDePlaylist.ts). Do renderer vem o link da partilha, que
+ * tem de ser EXACTAMENTE uma playlist em music.apple.com: nunca um proxy.
+ */
+const LINK_DA_APPLE = /^https:\/\/music\.apple\.com\/[a-z]{2}\/playlist\/[^\s/?#]{1,200}\/pl\.[A-Za-z0-9.-]{5,80}$/i;
+ipcMain.handle('apple:playlist', async (event, url) => {
+  if (!daJanelaPrincipal(event)) throw new Error('Pedido invalido.');
+  if (typeof url !== 'string' || !LINK_DA_APPLE.test(url)) throw new Error('Playlist invalida.');
+  const controlador = new AbortController();
+  const relogio = setTimeout(() => controlador.abort(), 15000);
+  try {
+    const resposta = await net.fetch(url, {
+      signal: controlador.signal,
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36' },
+    });
+    if (!resposta.ok || new URL(resposta.url).hostname !== 'music.apple.com') return null;
+    return await resposta.text();
+  } finally {
+    clearTimeout(relogio);
+  }
+});
+
+/**
+ * O link curto da partilha do Deezer (`link.deezer.com/s/...`, 5/11): segue os
+ * redirecionamentos e devolve o endereco final mais o principio da pagina,
+ * onde o renderer procura o id da playlist. So estes dois anfitrioes.
+ */
+const LINK_CURTO_DO_DEEZER = /^https:\/\/(?:link\.deezer\.com\/s\/[A-Za-z0-9]{4,40}|deezer\.page\.link\/[A-Za-z0-9]{4,40})$/;
+ipcMain.handle('deezer:link', async (event, url) => {
+  if (!daJanelaPrincipal(event)) throw new Error('Pedido invalido.');
+  if (typeof url !== 'string' || !LINK_CURTO_DO_DEEZER.test(url)) throw new Error('Link invalido.');
+  const controlador = new AbortController();
+  const relogio = setTimeout(() => controlador.abort(), 10000);
+  try {
+    const resposta = await net.fetch(url, {
+      signal: controlador.signal,
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36' },
+    });
+    if (!/(^|\.)deezer\.(com|page\.link)$/.test(new URL(resposta.url).hostname)) return null;
+    const corpo = resposta.ok ? await resposta.text() : '';
+    return `${resposta.url} ${corpo.slice(0, 200000)}`;
+  } finally {
+    clearTimeout(relogio);
+  }
+});
 
 /**
  * A pagina de embed de uma playlist PUBLICA do Spotify (26/9), para a

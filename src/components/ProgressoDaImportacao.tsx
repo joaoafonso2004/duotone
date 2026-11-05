@@ -1,13 +1,14 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { useEffect } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { FullWindowOverlay } from 'react-native-screens';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { frasesDaImportacao } from '../lib/frasesDaImportacao';
 import { importacaoEmDestaque, useImportacoes } from '../state/importacoes';
 import { useNotifications } from '../state/notifications';
 import { useTheme } from '../state/theme';
-import { colors, type } from '../theme';
+import { colors, spacing, type } from '../theme';
+import { BottomSheet } from './BottomSheet';
 
 /** Quanto tempo o "já está" fica à vista antes de sair sozinho. */
 const FEITA_MS = 8000;
@@ -16,7 +17,8 @@ const FEITA_MS = 8000;
  * A barra de progresso das playlists a entrar (26/9, pedido do João): uma
  * linha no topo, por cima do resto e sem parar nada, enquanto a importação
  * corre em segundo plano. No fim diz quantas entraram e quantas ficaram de
- * fora, e sai sozinha. Cede o topo aos avisos sociais, como o
+ * fora, e sai sozinha -- menos quando ficaram músicas de fora (5/11): aí
+ * fica, e um toque mostra quais. Cede o topo aos avisos sociais, como o
  * `AvisoDaReproducao`.
  */
 export function ProgressoDaImportacao() {
@@ -26,12 +28,14 @@ export function ProgressoDaImportacao() {
   const insets = useSafeAreaInsets();
   const acento = useTheme((s) => s.theme.color);
 
+  const [verFaltas, setVerFaltas] = useState(false);
   const acabou = imp?.estado === 'feita' || imp?.estado === 'falhou';
+  const faltaram = imp?.resultado?.faltaram ?? [];
   useEffect(() => {
-    if (!imp || !acabou) return;
+    if (!imp || !acabou || faltaram.length) return;
     const t = setTimeout(() => useImportacoes.getState().dispensar(imp.id), FEITA_MS);
     return () => clearTimeout(t);
-  }, [imp?.id, acabou]);
+  }, [imp?.id, acabou, faltaram.length]);
 
   if (!imp || haAvisoSocial) return null;
   const { titulo, linha, fracao } = frasesDaImportacao(imp, lista.filter((i) => i.estado === 'na-fila').length);
@@ -49,6 +53,11 @@ export function ProgressoDaImportacao() {
           <View style={styles.textos}>
             <Text style={styles.titulo} numberOfLines={1}>{titulo}</Text>
             <Text style={styles.corpo} numberOfLines={1}>{linha}</Text>
+            {acabou && faltaram.length ? (
+              <Pressable accessibilityRole="button" hitSlop={8} onPress={() => setVerFaltas(true)}>
+                <Text style={[styles.corpo, { color: colors.text, fontWeight: '600', textDecorationLine: 'underline' }]}>See the songs not found</Text>
+              </Pressable>
+            ) : null}
           </View>
           {acabou ? (
             <Pressable accessibilityRole="button" accessibilityLabel="Dismiss" hitSlop={10}
@@ -65,7 +74,15 @@ export function ProgressoDaImportacao() {
       </View>
     </View>
   );
-  return Platform.OS === 'ios' ? <FullWindowOverlay>{cartao}</FullWindowOverlay> : cartao;
+  const faltas = (
+    <BottomSheet visible={verFaltas} onClose={() => setVerFaltas(false)} titulo={`Not found (${faltaram.length})`}>
+      <Text style={[type.caption, { marginBottom: spacing.md }]}>No good match turned up for these, so they were left out. You can search for them and add them by hand.</Text>
+      <ScrollView style={{ maxHeight: 380 }}>
+        {faltaram.map((n, i) => <Text key={i} selectable numberOfLines={1} style={[type.body, { paddingVertical: 6 }]}>{n}</Text>)}
+      </ScrollView>
+    </BottomSheet>
+  );
+  return <>{Platform.OS === 'ios' ? <FullWindowOverlay>{cartao}</FullWindowOverlay> : cartao}{faltas}</>;
 }
 
 const styles = StyleSheet.create({

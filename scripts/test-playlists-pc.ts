@@ -70,11 +70,10 @@ caso('a grelha mostra as visíveis (filtradas e ordenadas), e a pesquisa diz "N 
   assert.match(grelha, /\{visiveis\.map\(\(item\) => <Pressable key=\{item\.id\}/);
   assert.match(grelha, /\{visiveis\.length\} of \{items\.length\}/);
 });
-caso('uma porta só para importar: abre um menu com o YouTube e o Spotify (a exceção da regra)', () => {
+caso('uma porta só para importar: vai direto à página de importar de qualquer sítio (5/11)', () => {
   assert.ok(!/>YouTube<\/Button>/.test(grelha) && !/>Spotify<\/Button>/.test(grelha), 'sobraram os dois botões');
-  assert.match(grelha, /<Button secondary icon="download-outline" onPress=\{\(\) => \{ setOndeImportar\(ultimoClique\(\)\); setImportarAberto\(true\); \}\}>Import<\/Button>/);
-  assert.match(grelha, /\{ id: 'youtube', rotulo: 'From YouTube', icone: 'logo-youtube' \}, \{ id: 'spotify', rotulo: 'From Spotify', icone: 'musical-notes-outline' \}/);
-  assert.match(grelha, /navigate\(\{ name: id === 'youtube' \? 'import' : 'spotify-import' \}\)/);
+  assert.match(grelha, /<Button secondary icon="download-outline" onPress=\{\(\) => navigate\(\{ name: 'import' \}\)\}>Import<\/Button>/);
+  assert.ok(!/rotulo: 'From YouTube'/.test(grelha), 'o menu com o YouTube e o Spotify saiu: a página percebe o link sozinha');
 });
 caso('os cartões continuam a ser alvos de largar e a levar o menu do botão direito', () => {
   assert.match(grelha, /ref=\{refDoAlvo\(`cartao-playlist:\$\{item\.id\}`, alvoDaPlaylist\(/);

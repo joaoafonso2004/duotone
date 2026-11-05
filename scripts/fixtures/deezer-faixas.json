@@ -1,0 +1,42 @@
+{
+ "data": [
+  {
+   "id": 664444,
+   "readable": true,
+   "title": "Everywhere",
+   "title_short": "Everywhere",
+   "title_version": "",
+   "duration": 222,
+   "isrc": "USWB19900202",
+   "artist": {
+    "id": 169,
+    "name": "Fleetwood Mac"
+   },
+   "album": {
+    "id": 80548,
+    "title": "Greatest Hits"
+   },
+   "type": "track"
+  },
+  {
+   "id": 3503343941,
+   "readable": true,
+   "title": "Sue me",
+   "title_short": "Sue me",
+   "title_version": "",
+   "duration": 170,
+   "isrc": "USRC12500621",
+   "artist": {
+    "id": 146445062,
+    "name": "Audrey Hobert"
+   },
+   "album": {
+    "id": 803074381,
+    "title": "Who's the Clown?"
+   },
+   "type": "track"
+  }
+ ],
+ "total": 100,
+ "prev": "https://api.deezer.com/playlist/3155776842/tracks?limit=100&index=0"
+}

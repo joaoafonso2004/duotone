@@ -2,368 +2,156 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import React, { useState } from 'react';
-import {  FlatList,
-  Keyboard,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View, Animated } from 'react-native';
+import { Animated, Keyboard, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  addTracksToPlaylist,
-  createPlaylist,
-} from '../api/playlists';
-import { fetchYouTubePlaylist, YtPlaylistImport } from '../api/youtube';
-import { lerLink } from '../lib/linkDePlaylist';
+import { useImportacaoPreparada } from '../hooks/useImportacaoPreparada';
+import { fraseSemLeitura, NOME_DO_SERVICO, notaDoCorte } from '../lib/entradaDaImportacao';
+import type { Destino } from '../lib/importacaoPorLink';
 import { useImportacoes } from '../state/importacoes';
-import { extractArtist } from '../lib/artistName';
-import { ArtworkCollage } from '../components/ArtworkCollage';
-import { BottomSheet } from '../components/BottomSheet';
-import { EmptyState } from '../components/EmptyState';
 import { SkeletonDeFaixas } from '../components/Skeleton';
-import { Input } from '../components/Input';
 import { PillButton } from '../components/PillButton';
 import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import { hapticNotification } from '../lib/haptics';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, radii, spacing, type, MINI_PLAYER_HEIGHT } from '../theme';
-import { useTheme } from '../state/theme';
 import { usePlayer } from '../state/player';
-import { usePlaylists } from '../state/playlists';
-import type { Playlist, Track } from '../types';
 import { useAlturaDosSeparadores } from '../state/doca';
-import { avisarErro, avisarFeito, contarMusicas } from '../lib/avisoDeRemocao';
-import { mensagemDeErro } from '../lib/mensagemDeErro';
+import { avisarInfo } from '../lib/avisoDeRemocao';
 import { ImportarDaContaDoSpotify } from '../components/ImportarDaContaDoSpotify';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ImportYouTube'>;
 
+const musicas = (n: number) => `${n} ${n === 1 ? 'song' : 'songs'}`;
+
+/**
+ * Importar música de qualquer sítio (5/11, a maquete `docs/importar-maquete.html`),
+ * o mesmo que a página do PC: uma caixa só, para um link (Spotify, YouTube,
+ * Deezer, Apple Music) ou uma lista de músicas colada (um CSV colado também),
+ * e a app percebe o que é (`lib/entradaDaImportacao.ts`). O botão manda para a
+ * fila de importações, que corre em segundo plano com a barra no topo. Sem
+ * ficheiros no iPhone: escolhê-los pedia um módulo nativo novo. A conta do
+ * Spotify continua por baixo.
+ */
 export function ImportYouTubeScreen({ navigation }: Props) {
   const cab = useCabecalhoQueEncolhe();
   const insets = useSafeAreaInsets();
-  // A barra dos separadores MEDIDA (auditoria 1.3), não um 49 à mão.
+  // A barra dos separadores MEDIDA (auditoria 1.3), não um número à mão.
   const separadores = useAlturaDosSeparadores();
-  const theme = useTheme((s) => s.theme);
   const current = usePlayer((s) => s.current);
-  const footerBottom = separadores + insets.bottom + (current ? MINI_PLAYER_HEIGHT : 0);
+  const fundo = separadores + insets.bottom + (current ? MINI_PLAYER_HEIGHT : 0);
 
-  const [url, setUrl] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<YtPlaylistImport | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [importing, setImporting] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [texto, setTexto] = useState('');
+  const [destino, setDestino] = useState<Destino>('playlist');
+  const { entrada, leitura, aLer, erro } = useImportacaoPreparada(texto, null);
 
-  const fetchList = async () => {
-    setLoading(true);
-    setData(null);
+  const importar = () => {
+    if (!leitura) return;
     Keyboard.dismiss();
-    // Um link do Spotify importa-se em segundo plano (state/importacoes.ts),
-    // com a barra de progresso no topo: são dezenas de pesquisas, e ninguém
-    // tem de ficar a olhar para este ecrã enquanto correm.
-    if (lerLink(url)?.tipo === 'spotify') {
-      setLoading(false);
-      useImportacoes.getState().importar(url);
-      navigation.goBack();
-      return;
-    }
-    try {
-      const result = await fetchYouTubePlaylist(url);
-      setData(result);
-      setSelected(new Set(result.items.map((i) => i.videoId)));
-    } catch (e: any) {
-      avisarErro(mensagemDeErro(e, "Couldn't fetch the playlist."));
-    } finally {
-      setLoading(false);
-    }
+    useImportacoes.getState().importarLida(leitura, destino);
+    hapticNotification();
+    avisarInfo('Importing in the background. You can keep listening.');
+    navigation.goBack();
   };
 
-  const toggle = (videoId: string) => {
-    const next = new Set(selected);
-    if (next.has(videoId)) next.delete(videoId);
-    else next.add(videoId);
-    setSelected(next);
-  };
+  const rotulo = entrada.tipo === 'link' ? `${NOME_DO_SERVICO[entrada.link.tipo]} playlist` : 'From your text';
 
-  const selectedTracks = (): Track[] =>
-    (data?.items ?? [])
-      .filter((i) => selected.has(i.videoId))
-      .map((i) => ({
-        source: 'youtube' as const,
-        sourceId: i.videoId,
-        title: i.title,
-        artist: extractArtist(i.title, i.channel || null),
-        album: null,
-        artworkUrl: i.thumbnail,
-        durationSeconds: null,
-      }));
-
-  const doImport = async (playlistId: string, playlistName: string) => {
-    const items = selectedTracks();
-    setImporting(true);
-    try {
-      await addTracksToPlaylist(playlistId, items);
-      hapticNotification();
-      avisarFeito(`Added to "${playlistName}"`, contarMusicas(items.length));
-      navigation.goBack();
-    } catch (e: any) {
-      avisarErro(mensagemDeErro(e, 'Import failed.'));
-    } finally {
-      setImporting(false);
-      setPickerOpen(false);
-    }
-  };
-
-  const importToNew = async () => {
-    if (!data) return;
-    setImporting(true);
-    try {
-      const pl = await createPlaylist(data.title);
-      await doImport(pl.id, pl.name);
-    } catch (e: any) {
-      setImporting(false);
-      avisarErro(mensagemDeErro(e, 'Import failed.'));
-    }
-  };
-
-  const openPicker = async () => {
-    try {
-      // Pela store: quem vem do ecra de Playlists ja a trouxe carregada.
-      await usePlaylists.getState().carregar();
-      setPlaylists(usePlaylists.getState().items);
-      setPickerOpen(true);
-    } catch (e: any) {
-      avisarErro(mensagemDeErro(e, "Couldn't load playlists."));
-    }
-  };
-
-  const count = selected.size;
+  let cartao: React.ReactNode = null;
+  if (entrada.tipo === 'sem-leitura') {
+    const f = fraseSemLeitura(entrada.servico, false);
+    cartao = <View style={styles.cartao}><Text style={styles.nome}>{f.titulo}</Text><Text style={styles.nota}>{f.corpo}</Text></View>;
+  } else if (entrada.tipo === 'link-desconhecido') {
+    cartao = <View style={styles.cartao}><Text style={styles.nome}>That link isn't a playlist we can read</Text><Text style={styles.nota}>Check that the playlist is public, or paste the songs instead.</Text></View>;
+  } else if (entrada.tipo === 'nada') {
+    cartao = <View style={styles.cartao}><Text style={styles.nome}>Couldn't find any songs in that text</Text><Text style={styles.nota}>Write one song per line, like this: Artist - Song.</Text></View>;
+  } else if (entrada.tipo === 'link' && aLer) {
+    cartao = <View style={{ marginTop: spacing.lg }}><SkeletonDeFaixas linhas={2} /></View>;
+  } else if (entrada.tipo === 'link' && erro) {
+    cartao = <View style={styles.cartao}><Text style={styles.nome}>Couldn't read that playlist</Text><Text style={styles.nota}>{erro}</Text></View>;
+  } else if (leitura && (entrada.tipo === 'link' || entrada.tipo === 'lista')) {
+    const nota = notaDoCorte(entrada.tipo === 'link' ? entrada.servico : 'This list', leitura.cortada ? leitura.limite : null);
+    const ignoradas = entrada.tipo === 'lista' ? entrada.lista.ignoradas : 0;
+    cartao = (
+      <View style={styles.cartao}>
+        <View style={styles.linha}>
+          {leitura.capa
+            ? <Image source={{ uri: leitura.capa }} style={styles.capa} contentFit="cover" />
+            : <View style={[styles.capa, styles.capaVazia]}><Ionicons name={entrada.tipo === 'lista' ? 'list' : 'musical-notes'} size={20} color={colors.textTertiary} /></View>}
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.micro}>{rotulo}</Text>
+            <Text numberOfLines={1} style={styles.nome}>{leitura.nome}</Text>
+            <Text style={type.caption}>{musicas(leitura.total)}</Text>
+          </View>
+        </View>
+        {ignoradas ? <Text style={styles.nota}>{ignoradas === 1 ? '1 line' : `${ignoradas} lines`} skipped. Each line needs Artist - Song.</Text> : null}
+        {nota ? <Text style={styles.nota}>{nota}</Text> : null}
+        <View accessibilityRole="radiogroup" accessibilityLabel="Where the songs go" style={styles.pilulas}>
+          {([['playlist', 'New playlist'], ['gostadas', 'Liked Songs']] as const).map(([id, nome]) => (
+            <Pressable key={id} accessibilityRole="radio" accessibilityState={{ checked: destino === id }} onPress={() => setDestino(id)}
+              style={[styles.pilula, destino === id && styles.pilulaAcesa]}>
+              <Text style={[styles.pilulaTexto, destino === id && { color: colors.text }]}>{nome}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <PillButton label={`Import ${musicas(leitura.total)}`} onPress={importar} style={{ marginTop: spacing.md }} />
+      </View>
+    );
+  }
 
   return (
-    <Screen
-      title="Import a playlist"
-      subtitle="From YouTube or Spotify"
-      onBack={() => navigation.goBack()}
-      // O título encolhe ao rolar (3/10); o campo do link fica preso por baixo.
-      encolhe={cab}
-      fixo={
-      <View style={styles.inputRow}>
-        <Input
-          icon="link-outline"
-          placeholder="Paste a YouTube or Spotify playlist link…"
-          value={url}
-          onChangeText={setUrl}
-          onClear={() => setUrl('')}
-          autoCapitalize="none"
-          autoCorrect={false}
-          containerStyle={{ flex: 1 }}
-          returnKeyType="go"
-          onSubmitEditing={fetchList}
-        />
-        <PillButton
-          label="Fetch"
-          small
-          onPress={fetchList}
-          loading={loading}
-          disabled={!url.trim()}
-        />
-      </View>
-      }
-    >
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={0}
-      >
-
-      {loading ? (
-        <View style={{ marginTop: cab.espaco + 8 }}><SkeletonDeFaixas linhas={6} /></View>
-      ) : !data ? (
-        <View style={{ flex: 1, paddingTop: cab.espaco }}>
-        <EmptyState
-          icon="logo-youtube"
-          title="Paste a playlist link"
-          subtitle={'A YouTube link with "list=", or a public\nSpotify playlist (first 100 songs).'}
-        />
-        {/* Ou tudo, pela conta do Spotify (7/10): Liked Songs e playlists inteiras. */}
-        <ImportarDaContaDoSpotify aoComecar={() => navigation.goBack()} />
-        </View>
-      ) : (
-        <>
-          <Animated.FlatList
-            onScroll={cab.onScroll}
-            scrollEventThrottle={cab.scrollEventThrottle}
-            scrollIndicatorInsets={{ top: cab.espaco }}
-            ListHeaderComponent={
-          <View style={styles.listHeader}>
-            <Text style={[type.headline, { flex: 1 }]} numberOfLines={1}>
-              {data.title}
-            </Text>
-            <Pressable
-              onPress={() =>
-                setSelected(
-                  count === data.items.length
-                    ? new Set()
-                    : new Set(data.items.map((i) => i.videoId))
-                )
-              }
-            >
-              <Text style={[type.caption, { color: theme.color, fontWeight: '700' }]}>
-                {count === data.items.length ? 'Deselect all' : 'Select all'}
-              </Text>
-            </Pressable>
-          </View>
-            }
-            data={data.items}
-            keyExtractor={(i) => i.videoId}
-            contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: 170 + insets.bottom }}
-            renderItem={({ item }) => {
-              const on = selected.has(item.videoId);
-              return (
-                <Pressable
-                  onPress={() => toggle(item.videoId)}
-                  style={({ pressed }) => [
-                    styles.itemRow,
-                    pressed && { backgroundColor: colors.surface },
-                  ]}
-                >
-                  <Ionicons
-                    name={on ? 'checkmark-circle' : 'ellipse-outline'}
-                    size={22}
-                    color={on ? theme.color : colors.textTertiary}
-                  />
-                  {item.thumbnail ? (
-                    <Image
-                      source={{ uri: item.thumbnail }}
-                      style={styles.thumb}
-                      contentFit="cover"
-                    />
-                  ) : (
-                    <View style={[styles.thumb, styles.thumbFallback]}>
-                      <Ionicons
-                        name="musical-notes"
-                        size={14}
-                        color={colors.textTertiary}
-                      />
-                    </View>
-                  )}
-                  <View style={{ flex: 1 }}>
-                    <Text numberOfLines={2} style={[type.body, { fontSize: 14, fontWeight: '600' }]}>
-                      {item.title}
-                    </Text>
-                    <Text numberOfLines={1} style={type.caption}>
-                      {item.channel}
-                    </Text>
-                  </View>
-                </Pressable>
-              );
-            }}
+    <Screen title="Import music" subtitle="Bring a playlist from anywhere" onBack={() => navigation.goBack()} encolhe={cab}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
+        <Animated.ScrollView
+          style={{ flex: 1 }}
+          onScroll={cab.onScroll}
+          scrollEventThrottle={cab.scrollEventThrottle}
+          scrollIndicatorInsets={{ top: cab.espaco }}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingTop: cab.espaco, paddingBottom: fundo + spacing.xxl }}
+        >
+          <TextInput
+            multiline
+            value={texto}
+            onChangeText={setTexto}
+            placeholder="Paste a playlist link or a list of songs"
+            placeholderTextColor={colors.textTertiary}
+            accessibilityLabel="Playlist link or list of songs"
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={styles.caixa}
           />
-
-          <View style={[styles.footer, { bottom: footerBottom, paddingBottom: 16 }]}>
-            <PillButton
-              label={`Import ${count} to new playlist`}
-              onPress={importToNew}
-              loading={importing}
-              disabled={count === 0}
-            />
-            <PillButton
-              label="Add to existing playlist…"
-              variant="ghost"
-              onPress={openPicker}
-              disabled={count === 0 || importing}
-            />
-          </View>
-        </>
-      )}
-
-      <BottomSheet visible={pickerOpen} onClose={() => setPickerOpen(false)}>
-        <Text style={[type.title, { marginBottom: spacing.md }]}>
-          Choose a playlist
-        </Text>
-        {playlists.length === 0 ? (
-          <Text style={[type.caption, { textAlign: 'center', padding: 24 }]}>
-            No playlists yet.
-          </Text>
-        ) : (
-          playlists.map((pl) => (
-            <Pressable
-              key={pl.id}
-              onPress={() => doImport(pl.id, pl.name)}
-              style={({ pressed }) => [
-                styles.pickerRow,
-                pressed && { backgroundColor: colors.surfacePressed },
-              ]}
-            >
-              <ArtworkCollage artworks={pl.artworks} size={40} />
-              <Text style={[type.body, { fontWeight: '600', flex: 1 }]} numberOfLines={1}>
-                {pl.name}
-              </Text>
-              <Text style={type.caption}>{pl.trackCount}</Text>
-            </Pressable>
-          ))
-        )}
-      </BottomSheet>
+          <Text style={styles.dica}>Spotify, YouTube, Deezer and Apple Music links. For anything else, one song per line: Artist - Song.</Text>
+          {cartao}
+          {/* Ou tudo, pela conta do Spotify (7/10): Liked Songs e playlists inteiras. */}
+          {entrada.tipo === 'vazia' ? <ImportarDaContaDoSpotify aoComecar={() => navigation.goBack()} /> : null}
+        </Animated.ScrollView>
       </KeyboardAvoidingView>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.xl,
-    marginBottom: spacing.md,
+  caixa: {
+    minHeight: 120, paddingHorizontal: 14, paddingTop: 13, paddingBottom: 13, borderRadius: radii.md, borderCurve: 'continuous',
+    backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderStrong,
+    color: colors.text, fontSize: 16, lineHeight: 22, textAlignVertical: 'top',
   },
-  listHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingHorizontal: spacing.xl,
-    marginBottom: spacing.sm,
+  dica: { ...type.caption, marginTop: spacing.sm, lineHeight: 18 },
+  cartao: {
+    marginTop: spacing.lg, padding: spacing.lg, borderRadius: radii.lg, borderCurve: 'continuous',
+    backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
   },
-  itemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: 8,
+  linha: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  capa: { width: 52, height: 52, borderRadius: radii.sm, borderCurve: 'continuous', backgroundColor: colors.surfaceHigh },
+  capaVazia: { alignItems: 'center', justifyContent: 'center' },
+  micro: { fontSize: 11, fontWeight: '600', letterSpacing: 0.8, color: colors.textTertiary, textTransform: 'uppercase' },
+  nome: { ...type.headline, marginTop: 2 },
+  nota: { ...type.caption, marginTop: spacing.sm, lineHeight: 18 },
+  pilulas: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
+  pilula: {
+    height: 38, paddingHorizontal: 14, borderRadius: 19, justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderStrong,
   },
-  thumb: {
-    width: 71,
-    height: 40,
-    borderRadius: radii.sm,
-    borderCurve: 'continuous',
-    backgroundColor: colors.surfaceHigh,
-  },
-  thumbFallback: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  footer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.md,
-    gap: spacing.sm,
-    backgroundColor: 'rgba(6,6,8,0.94)',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
-  },
-  pickerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.xs,
-    borderRadius: radii.md,
-    borderCurve: 'continuous',
-  },
+  pilulaAcesa: { backgroundColor: colors.surfaceHigh, borderColor: colors.textTertiary },
+  pilulaTexto: { fontSize: 14, fontWeight: '600', color: colors.textSecondary },
 });

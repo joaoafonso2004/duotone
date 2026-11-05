@@ -88,6 +88,10 @@ declare global {
        * principal, sem o OPTIONS do CORS (17/10, `lib/fetchDoSupabase.ts`). */
       pedirAoSupabase?: (pedido: import('../lib/fetchDoSupabase').PedidoPelaPonte) => Promise<import('../lib/fetchDoSupabase').RespostaPelaPonte>;
       lerEmbedDoSpotify?: (id: string) => Promise<string | null>;
+      /** A página pública de uma playlist do Apple Music (5/11), pelo processo principal. */
+      lerPlaylistDaApple?: (url: string) => Promise<string | null>;
+      /** O link curto da partilha do Deezer, seguido até ao fim: o endereço final e o princípio da página. */
+      resolverLinkDoDeezer?: (url: string) => Promise<string | null>;
       /** Larga as caches de memória do Blink que já não se usam. */
       aliviarMemoria?: () => void;
       /** Recursos por processo e o vídeo do YouTube, para o relatório. */
