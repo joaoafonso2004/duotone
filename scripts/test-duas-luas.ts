@@ -186,8 +186,10 @@ console.log('\nno Now Playing do PC');
 const luasPc = ler('src/desktop/DuasLuas.web.tsx');
 const np = ler('src/desktop/paginas/NowPlayingPage.web.tsx');
 caso('as luas ficam por cima, e a Ocultação não corre com elas', () => {
-  assert.match(np, /<DuasLuas lado=\{ladoCapa\} capaDaQueSai=\{capaGrande\} ligada=\{!showLyrics\} aoEsconderCubo=\{setCuboEscondido\} \/>/);
-  assert.match(np, /ligada: !showLyrics && !luasNoEcra\(\),/);
+  // Com a capa de metal em 3D (5/11) nenhuma das duas corre: são camadas planas
+  // sobre o quadrado da capa, e sobre a caixa inclinada ficavam desencontradas.
+  assert.match(np, /<DuasLuas lado=\{ladoCapa\} capaDaQueSai=\{capaGrande\} ligada=\{!showLyrics && !capaMetal\} aoEsconderCubo=\{setCuboEscondido\} \/>/);
+  assert.match(np, /ligada: !showLyrics && !luasNoEcra\(\) && !capaMetal,/);
 });
 caso('com as molas e sem curvas à mão', () => {
   assert.match(luasPc, /curvaDoPc\('sair'\)/);

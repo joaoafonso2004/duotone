@@ -59,6 +59,8 @@ function ensaiar(inicial) {
     '../FundoDaCapa.web': { FundoDaCapa: 'Fundo' },
     '../useCapaGrande.web': { useCapaGrande: () => null, preCarregarCapaGrande: noop },
     '../Ocultacao.web': { useCapaQueSai: () => null }, '../DuasLuas.web': { DuasLuas: 'Luas' },
+    // A capa de metal em 3D (5/11): desligada de origem, como na app.
+    '../CapaMetal3D.web': { CapaMetal3D: 'CapaMetal3D', useCapaMetal: () => false },
     '../../state/passagemAVista': { luasNoEcra: () => false }, '../../lib/ocultacao': {},
     '../../lib/leitorDoPc': { disposicaoDoLeitor: () => ({ duasColunas: true, lado: 480 }) },
     '../../components/CoracaoAnimado': { CoracaoAnimado: 'Coracao' },
