@@ -80,7 +80,23 @@ try {
   assert.equal(semeadas.length, 100, 'mantém o limite de lote da fila partilhada');
   const quartos = new Set(semeadas.slice(0, 100).map(t => Math.floor(Number(t.sourceId.slice(5)) / 500)));
   assert.equal(quartos.size, 4, 'as primeiras 100 sugestões do Jam vêm de toda a playlist, não de um bloco consecutivo');
-  console.log('Shuffle: 2000 músicas, percurso imediato e novo por Play, ordem estável nos saltos e lista aleatória no Jam.');
+
+  // Tocar numa música no Jam com o shuffle aceso: o resto vai baralhado, e
+  // outro toque na mesma música dá outra fila (João, 5/11).
+  const pequena = tracks.slice(0, 30);
+  usePlayer.setState({ shuffle: true });
+  await leitor().tocarMusica(pequena[5], pequena, true, undefined, origem);
+  assert.equal(trackKey(anunciada!), trackKey(pequena[5]));
+  const primeiraSemente = semeadas.map(trackKey);
+  assert.equal(new Set(primeiraSemente).size, 29, 'vão as outras 29 da lista, e não só as que vinham depois');
+  assert.ok(!primeiraSemente.includes(trackKey(pequena[5])), 'a tocada não entra na fila outra vez');
+  assert.notDeepEqual(primeiraSemente.slice(0, 24), pequena.slice(6).map(trackKey), 'não é o resto pela ordem da lista');
+  await leitor().tocarMusica(pequena[5], pequena, true, undefined, origem);
+  assert.notDeepEqual(semeadas.map(trackKey), primeiraSemente, 'outro toque na mesma música, outra fila');
+  usePlayer.setState({ shuffle: false });
+  await leitor().tocarMusica(pequena[5], pequena, true, undefined, origem);
+  assert.deepEqual(semeadas.map(trackKey), pequena.slice(6).map(trackKey), 'sem shuffle, o resto da lista pela ordem');
+  console.log('Shuffle: 2000 músicas, percurso imediato e novo por Play, ordem estável nos saltos e lista aleatória no Jam, também ao tocar numa música.');
 } finally {
   Math.random = originalRandom; registarOuvirJuntos(() => null);
 }

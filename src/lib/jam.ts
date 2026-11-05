@@ -95,6 +95,26 @@ export function restoDaLista(
 }
 
 /**
+ * O que vai atrás da faixa tocada com o shuffle ligado: as OUTRAS músicas da
+ * lista, todas e baralhadas -- não só as que vinham depois dela, nem pela
+ * ordem da lista.
+ *
+ * Fora do Jam o `playTrack` sorteia um percurso novo a cada toque. No Jam o
+ * percurso é a fila partilhada, e semeá-la com o `restoDaLista` dava sempre a
+ * mesma fila a quem tocasse na mesma música com o shuffle aceso (João, 5/11).
+ */
+export function restoBaralhado(
+  lista: readonly Track[] | undefined,
+  tocada: Track,
+  limite = 100,
+  rng: () => number = Math.random,
+): Track[] {
+  if (!lista?.length) return [];
+  const mesma = (t: Track) => t.source === tocada.source && t.sourceId === tocada.sourceId;
+  return baralhada(lista.filter(t => !mesma(t)), rng).slice(0, limite);
+}
+
+/**
  * O que de uma sessão manda no que o motor está a fazer.
  *
  * Existe porque comparar sessões por IDENTIDADE DE OBJECTO estava a cancelar

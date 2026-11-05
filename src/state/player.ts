@@ -1,4 +1,4 @@
-import { proximaFaixa, decisaoDeControlo, restoDaLista, baralhada, type PonteJam } from '../lib/jam';
+import { proximaFaixa, decisaoDeControlo, restoDaLista, restoBaralhado, baralhada, type PonteJam } from '../lib/jam';
 import { faixasParaAdiantar } from '../lib/adiantarFaixas';
 import { juntarSessao, partirSessao, SUFIXO_DA_FILA } from '../lib/sessaoPartida';
 import { passoLinear, primeiraTocavelAoRestaurar, saltarAteTocavel } from '../lib/filaSemRede';
@@ -1267,7 +1267,9 @@ export const usePlayer = create<PlayerState>()(
         // desliga: tocar numa música passa a pôr essa e mais nada. Dar play
         // numa LISTA continua a pôr a lista -- isso é o pedido.
         if (!s.semearAoTocar) return;
-        const resto = restoDaLista(queue, track);
+        // Com o shuffle aceso, o resto vai baralhado: é a fila partilhada que
+        // faz de percurso, e pela ordem saía sempre a mesma (lib/jam.ts).
+        const resto = get().shuffle ? restoBaralhado(queue, track) : restoDaLista(queue, track);
         if (resto.length) await s.semearFila(resto);
       });
       return;
