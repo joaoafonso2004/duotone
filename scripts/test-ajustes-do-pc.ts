@@ -99,5 +99,25 @@ caso('a casca lê-a ao arrancar, e as Definições mudam-na ao vivo e guardam-na
   assert.match(DEFINICOES, /useEffect\(\(\) => \{ void getDoisTons\(\)\.then\(setDoisTonsState\); \}, \[\]\);/);
 });
 
+console.log('\no layout e o fundo do Now Playing (5/11)');
+caso('escolhem-se em Appearance, com o Classic e a capa de origem', () => {
+  assert.match(DEFINICOES, /useState<DisposicaoEscolhida>\('classico'\)/);
+  assert.match(DEFINICOES, /useState<FundoDoLeitor>\('capa'\)/);
+  assert.match(DEFINICOES, /<ChoiceLine label="Now Playing layout"[^\n]*choices=\{\[\['classico', 'Classic'\], \['cinema', 'Cinema'\]\]\}/);
+  assert.match(DEFINICOES, /<ChoiceLine label="Now Playing background"[^\n]*choices=\{\[\['capa', 'Artwork'\], \['artista', 'Artist photo'\]\]\}/);
+});
+caso('mudam ao vivo e ficam guardados, e a casca lê-os ao arrancar', () => {
+  assert.match(DEFINICOES, /definirDisposicaoDoLeitor\(d\); void setDisposicaoDoLeitor\(d\);/);
+  assert.match(DEFINICOES, /definirFundoDoLeitor\(f\); void setFundoDoLeitor\(f\);/);
+  assert.match(NAVEGADOR, /getDisposicaoDoLeitor\(\)\.then\(definirDisposicaoDoLeitor\)/);
+  assert.match(NAVEGADOR, /getFundoDoLeitor\(\)\.then\(definirFundoDoLeitor\)/);
+});
+caso('no Cinema somem as opções da capa grande, que lá não fariam nada', () => {
+  for (const rotulo of ['ChoiceLine label="Now Playing effect"', 'ToggleLine label="3D metal cover"']) {
+    assert.ok(DEFINICOES.includes(`{disposicao !== 'cinema' && <${rotulo}`), rotulo);
+  }
+  assert.ok(DEFINICOES.includes(`{disposicao !== 'cinema' && glitch !== 'off' && <ChoiceLine label="Effect strength"`));
+});
+
 if (falhas) { console.log(`\n${falhas} falha(s)`); process.exit(1); }
 console.log('\ntudo certo');

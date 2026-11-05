@@ -95,3 +95,40 @@ export function atrasoDaLinha(i: number, passo: number): number {
 export function esperaDaSaida(linhas: number): number {
   return DURACAO_DA_SAIDA_MS + atrasoDaLinha(Math.max(0, linhas - 1), PASSO_DA_SAIDA_MS) + 60;
 }
+
+/**
+ * O layout do Now Playing do PC (5/11, "Now Playing layout" nas Definições): o
+ * Classic de sempre, ou o Cinema -- o fundo a encher a janela, a capa pequena e
+ * o título enorme à esquerda, a coluna de Up next · Lyrics · About à direita e
+ * as pílulas em baixo (a maquete `docs/now-playing-cinema-maquete.html`, a
+ * partir de uma imagem que o João mandou). O Classic é o de origem.
+ */
+export type DisposicaoEscolhida = 'classico' | 'cinema';
+/** O fundo do Now Playing (5/11): a capa desfocada de sempre, ou a foto do artista. */
+export type FundoDoLeitor = 'capa' | 'artista';
+
+export function lerDisposicaoEscolhida(v: unknown): DisposicaoEscolhida {
+  return v === 'cinema' ? 'cinema' : 'classico';
+}
+export function lerFundoDoLeitor(v: unknown): FundoDoLeitor {
+  return v === 'artista' ? 'artista' : 'capa';
+}
+
+/**
+ * A foto que o fundo usa, ou `null` para a capa desfocada. Com "Artist photo"
+ * e sem foto conhecida (um artista sem página no catálogo), fica a capa: o
+ * fundo nunca fica vazio.
+ */
+export function fotoDoFundo(fundo: FundoDoLeitor, foto: string | null | undefined): string | null {
+  return fundo === 'artista' && typeof foto === 'string' && foto.trim() ? foto : null;
+}
+
+/** O título do Cinema cresce com a largura da página, de 48 a 84 px. */
+export const TITULO_DO_CINEMA = { minimo: 48, maximo: 84, fracao: 0.056 } as const;
+export function tamanhoDoTituloDoCinema(largura: number): number {
+  const t = (Number.isFinite(largura) ? largura : 0) * TITULO_DO_CINEMA.fracao;
+  return Math.round(Math.max(TITULO_DO_CINEMA.minimo, Math.min(TITULO_DO_CINEMA.maximo, t)));
+}
+
+/** A capa pequena ao lado do título (o "logo" da imagem de referência). */
+export const CAPA_DO_CINEMA = 132;

@@ -40,9 +40,10 @@ import { useAuth } from '../state/auth';
 import { contextoDaRecomendacaoAtual, usePlayer } from '../state/player';
 import { usePresencaDoDiscord } from '../hooks/usePresencaDoDiscord';
 import { useSincroniaDaSessao } from '../hooks/useSincroniaDaSessao';
-import { getCapaMetal3D, getCorNaJanela, getDiscordRichPresence, getDoisTons, type CorDoLeitor } from '../lib/prefs';
+import { getCapaMetal3D, getCorNaJanela, getDiscordRichPresence, getDisposicaoDoLeitor, getDoisTons, getFundoDoLeitor, type CorDoLeitor } from '../lib/prefs';
 import { definirDoisTons } from '../desktop/doisTons.web';
 import { definirCapaMetal } from '../desktop/CapaMetal3D.web';
+import { definirDisposicaoDoLeitor, definirFundoDoLeitor, useDisposicaoDoLeitor, useFotoDoFundo } from '../desktop/aparenciaDoLeitor.web';
 import { FundoDaCapa } from '../desktop/FundoDaCapa.web';
 import { sessaoDoSegredoDiscord } from '../lib/presencaDoDiscord';
 import { registar } from '../lib/eventos';
@@ -455,6 +456,8 @@ function DesktopShell() {
   useEffect(() => { void getDoisTons().then(definirDoisTons); }, []);
   // A capa de metal em 3D do Now Playing: desligada de origem (5/11).
   useEffect(() => { void getCapaMetal3D().then(definirCapaMetal); }, []);
+  // O layout e o fundo do Now Playing: o Classic e a capa desfocada de origem (5/11).
+  useEffect(() => { void getDisposicaoDoLeitor().then(definirDisposicaoDoLeitor); void getFundoDoLeitor().then(definirFundoDoLeitor); }, []);
   useEffect(() => {
     void getCorNaJanela().then(setCorDoLeitor);
     const mudou = (e: any) => { if (e.detail === 'janela' || e.detail === 'pagina') setCorDoLeitor(e.detail); };
@@ -739,6 +742,11 @@ function DesktopShell() {
   const corDoArtista = useSaida(corDoLeitor === 'janela' && route.name === 'artist' && !leitorAberto && !!fotoDaCor, SAIDA_DO_LEITOR_MS);
   const corDoArtistaApaga = corDoArtista.aSair && !corNaJanela;
   const corDoArtistaMontada = corDoArtista.montado && !corNaJanela;
+  // A cor do Now Playing na janela leva o layout e o fundo escolhidos (5/11): a
+  // foto do artista, nítida, em vez da capa, e o véu do Cinema. Só se procura a
+  // foto com o leitor aberto e "Artist photo" escolhido.
+  const cinemaNoLeitor = useDisposicaoDoLeitor() === 'cinema';
+  const fotoDoFundo = useFotoDoFundo(leitorAberto ? currentTrack : null);
   const common = { play, tocarMusica, notify, more };
   let page: ReactNode;
   switch (route.name) {
@@ -763,7 +771,7 @@ function DesktopShell() {
   // O nome da página que está atrás (5/10, lib/voltarPara.ts). Com o Now
   // Playing por cima, o voltar fecha-o e mostra a página de baixo.
   const rotuloDoVoltar = nomeDaRota(nowPlayingOpen ? route : history.current[history.current.length - 1]);
-  return <DestinosProvider value={irPara}><RotuloDoVoltar.Provider value={rotuloDoVoltar}><View style={[styles.root, { backgroundColor: 'transparent' }]}>{corNaJanela && <FundoDaCapa onde="janela" aApagar={aApagarACor} uri={currentTrack?.artworkUrl ?? null} />}{corDoArtistaMontada && fotoDaCor && <FundoDaCapa onde="janela" aApagar={corDoArtistaApaga} uri={fotoNoTamanho(fotoDaCor, 250)} />}<ThemeCssSync panelOpacity={panelOpacity}/><CompassoNoCss/><TitleBar comPainel /><V style={[styles.main, (corNaJanela && !aApagarACor) || (corDoArtistaMontada && !corDoArtistaApaga) ? { backgroundColor: 'transparent' } : bgStyle]} {...(aApagarACor || corDoArtistaApaga ? marcar('main-a-voltar') : {})}><View style={styles.sidebar}><Sidebar route={rotaDaLateral} navigate={navigate} notify={notify} voltar={back} /><SeparadorDaLateral /></View><PainelDoLeitor more={more} notify={notify}><View style={styles.content}>{/* Com a cor na janela o painel do leitor é transparente: a página de baixo esconde-se (continua montada, com o scroll onde estava). */}<View style={[{ flex: 1, minHeight: 0 }, nowPlayingOpen && corNaJanela && ({ visibility: 'hidden' } as any)]}><TransicaoDePagina chave={JSON.stringify(route)} aSair={aMudarDePagina} volta={chegouDeVolta}><BarreiraDeErros onde={`pagina:${route.name}`} chave={JSON.stringify(route)}>{page}</BarreiraDeErros></TransicaoDePagina></View>{saidaDoLeitor.montado&&<View pointerEvents={saidaDoLeitor.aSair?'none':'auto'} {...(saidaDoLeitor.aSair?marcar('np-a-sair'):{})} style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:corNaJanela?'transparent':COR.fundo}]}><BarreiraDeErros onde="pagina:now-playing-painel"><NowPlayingPage fundoNaJanela={corNaJanela} share={openShareDialog} play={play} tocarMusica={tocarMusica} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={abrirPlaylistsSozinhas} /></BarreiraDeErros></View>}</View></PainelDoLeitor></V><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} onJam={() => void abrirJam()} discordLigado={discordLigado} onAviso={notify} aoMenuDaFaixa={() => { if (currentTrack) void more(currentTrack, undefined, { leitor: 'barra' }); }} /><HandoffBanner /><NotificationBanner onOpen={abrirSocial} /><ModoLimpo /><BoasVindasPc />{toast && <Toast message={toast.texto} tipo={toast.tipo} onDone={() => setToast('')} />}{avisoComDesfazer && <AvisoComDesfazer aviso={avisoComDesfazer} />}<CamadaDoArrasto /><PreEscutaDoRefrao />
+  return <DestinosProvider value={irPara}><RotuloDoVoltar.Provider value={rotuloDoVoltar}><View style={[styles.root, { backgroundColor: 'transparent' }]}>{corNaJanela && <FundoDaCapa onde="janela" aApagar={aApagarACor} uri={currentTrack?.artworkUrl ?? null} foto={fotoDoFundo} cinema={cinemaNoLeitor} />}{corDoArtistaMontada && fotoDaCor && <FundoDaCapa onde="janela" aApagar={corDoArtistaApaga} uri={fotoNoTamanho(fotoDaCor, 250)} />}<ThemeCssSync panelOpacity={panelOpacity}/><CompassoNoCss/><TitleBar comPainel /><V style={[styles.main, (corNaJanela && !aApagarACor) || (corDoArtistaMontada && !corDoArtistaApaga) ? { backgroundColor: 'transparent' } : bgStyle]} {...(aApagarACor || corDoArtistaApaga ? marcar('main-a-voltar') : {})}><View style={styles.sidebar}><Sidebar route={rotaDaLateral} navigate={navigate} notify={notify} voltar={back} /><SeparadorDaLateral /></View><PainelDoLeitor more={more} notify={notify}><View style={styles.content}>{/* Com a cor na janela o painel do leitor é transparente: a página de baixo esconde-se (continua montada, com o scroll onde estava). */}<View style={[{ flex: 1, minHeight: 0 }, nowPlayingOpen && corNaJanela && ({ visibility: 'hidden' } as any)]}><TransicaoDePagina chave={JSON.stringify(route)} aSair={aMudarDePagina} volta={chegouDeVolta}><BarreiraDeErros onde={`pagina:${route.name}`} chave={JSON.stringify(route)}>{page}</BarreiraDeErros></TransicaoDePagina></View>{saidaDoLeitor.montado&&<View pointerEvents={saidaDoLeitor.aSair?'none':'auto'} {...(saidaDoLeitor.aSair?marcar('np-a-sair'):{})} style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:corNaJanela?'transparent':COR.fundo}]}><BarreiraDeErros onde="pagina:now-playing-painel"><NowPlayingPage fundoNaJanela={corNaJanela} share={openShareDialog} play={play} tocarMusica={tocarMusica} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={abrirPlaylistsSozinhas} /></BarreiraDeErros></View>}</View></PainelDoLeitor></V><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} onJam={() => void abrirJam()} discordLigado={discordLigado} onAviso={notify} aoMenuDaFaixa={() => { if (currentTrack) void more(currentTrack, undefined, { leitor: 'barra' }); }} /><HandoffBanner /><NotificationBanner onOpen={abrirSocial} /><ModoLimpo /><BoasVindasPc />{toast && <Toast message={toast.texto} tipo={toast.tipo} onDone={() => setToast('')} />}{avisoComDesfazer && <AvisoComDesfazer aviso={avisoComDesfazer} />}<CamadaDoArrasto /><PreEscutaDoRefrao />
     <JanelaDoJam open={jamOpen} onClose={fecharJam} notify={notify} />
     
     {/* O menu de uma faixa abre no cursor (5/10, auditoria M1): era um

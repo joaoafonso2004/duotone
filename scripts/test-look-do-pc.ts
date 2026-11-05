@@ -89,7 +89,7 @@ caso('a fila é um cartão redondo de vidro, com uma borda fina (como na maquete
 });
 caso('a que toca vem à cabeça da fila, em destaque, com as barrinhas a mexer', () => {
   assert.match(NP, /<View style=\{styles\.npAtual\} accessibilityLabel=\{`Now playing: \$\{tituloDaFaixa\(track\)\}`\}>/);
-  assert.ok(NP.indexOf('styles.npAtual') < NP.indexOf('              {linhas}'), 'antes das próximas');
+  assert.ok(NP.indexOf('styles.npAtual') < NP.indexOf('{linhas}'), 'antes das próximas');
   assert.match(NP, /<View \{\.\.\.marcar\('eq'\)\} aria-hidden/);
   assert.match(ESTILOS, /npAtual: \{[^}]*backgroundColor: 'rgba\(233,234,238,\.09\)'/);
 });

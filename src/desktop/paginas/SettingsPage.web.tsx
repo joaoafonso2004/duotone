@@ -49,7 +49,9 @@ import { ligarRecomendado, useRecomendado } from '../../state/recomendado';
 import { EscolhaDoModelo, LinhaDoRecomendado } from '../RecomendadoDoEq.web';
 import { usePresets } from '../../state/presets';
 import { chaveDaFaixa, PLANO } from '../../lib/equalizer';
-import { getCapaMetal3D, getCorNaJanela, getDiscordRichPresence, getDoisTons, setCapaMetal3D, setCorNaJanela, setCrossfadeSegundos, setDiscordRichPresence, setDoisTons, setIntensidadeDoSmartShuffle, type CorDoLeitor } from '../../lib/prefs';
+import { getCapaMetal3D, getCorNaJanela, getDiscordRichPresence, getDisposicaoDoLeitor, getDoisTons, getFundoDoLeitor, setCapaMetal3D, setCorNaJanela, setCrossfadeSegundos, setDiscordRichPresence, setDisposicaoDoLeitor, setDoisTons, setFundoDoLeitor, setIntensidadeDoSmartShuffle, type CorDoLeitor } from '../../lib/prefs';
+import { lerDisposicaoEscolhida, lerFundoDoLeitor, type DisposicaoEscolhida, type FundoDoLeitor } from '../../lib/leitorDoPc';
+import { definirDisposicaoDoLeitor, definirFundoDoLeitor } from '../aparenciaDoLeitor.web';
 import { definirDoisTons } from '../doisTons.web';
 import { definirCapaMetal } from '../CapaMetal3D.web';
 import { DURACOES_DO_CROSSFADE, type DuracaoDoCrossfade } from '../../lib/crossfade';
@@ -150,6 +152,11 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   useEffect(() => { void getDoisTons().then(setDoisTonsState); }, []);
   const [capaMetal, setCapaMetalState] = useState(false);
   useEffect(() => { void getCapaMetal3D().then(setCapaMetalState); }, []);
+  // O layout e o fundo do Now Playing (5/11): o Classic e a capa de origem.
+  const [disposicao, setDisposicaoState] = useState<DisposicaoEscolhida>('classico');
+  useEffect(() => { void getDisposicaoDoLeitor().then(setDisposicaoState); }, []);
+  const [fundo, setFundoState] = useState<FundoDoLeitor>('capa');
+  useEffect(() => { void getFundoDoLeitor().then(setFundoState); }, []);
   const [corDoLeitor, setCorDoLeitorState] = useState<CorDoLeitor>('janela');
   useEffect(() => { void getCorNaJanela().then(setCorDoLeitorState); }, []);
   const mudarCorDoLeitor = (v: string) => {
@@ -462,12 +469,16 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
               </SettingsCard>}
 
               {aberta === 'aspeto' && <SettingsCard title="Appearance">
+                {/* O layout e o fundo do Now Playing (5/11): o Classic e a capa de origem, e muda ao vivo. */}
+                <ChoiceLine label="Now Playing layout" description="Classic shows the big artwork. Cinema fills the window and puts a large title on the left." value={disposicao} choices={[['classico', 'Classic'], ['cinema', 'Cinema']]} onChange={(v) => { const d = lerDisposicaoEscolhida(v); setDisposicaoState(d); definirDisposicaoDoLeitor(d); void setDisposicaoDoLeitor(d); }} />
+                <ChoiceLine label="Now Playing background" description="Use the blurred artwork, or the artist's photo when there is one." value={fundo} choices={[['capa', 'Artwork'], ['artista', 'Artist photo']]} onChange={(v) => { const f = lerFundoDoLeitor(v); setFundoState(f); definirFundoDoLeitor(f); void setFundoDoLeitor(f); }} />
+                {/* O Cinema não tem a capa grande: o efeito e a capa de metal não fariam nada lá. */}
                 {/* A captura de audio e dita aqui, nao escondida: e o que permite
                     o efeito reagir ao som, e desligar a opcao desliga-a mesmo. */}
-                <ChoiceLine label="Now Playing effect" description="Reactive follows the music. Static freezes it. Off shows the plain artwork." value={glitch} choices={[['reactive', 'Reactive'], ['static', 'Static'], ['off', 'Off']]} onChange={changeGlitch} />
-                {glitch !== 'off' && <ChoiceLine label="Effect strength" value={effectIntensity} choices={[['subtle', 'Subtle'], ['normal', 'Normal'], ['strong', 'Strong']]} onChange={changeEffectIntensity} />}
+                {disposicao !== 'cinema' && <ChoiceLine label="Now Playing effect" description="Reactive follows the music. Static freezes it. Off shows the plain artwork." value={glitch} choices={[['reactive', 'Reactive'], ['static', 'Static'], ['off', 'Off']]} onChange={changeGlitch} />}
+                {disposicao !== 'cinema' && glitch !== 'off' && <ChoiceLine label="Effect strength" value={effectIntensity} choices={[['subtle', 'Subtle'], ['normal', 'Normal'], ['strong', 'Strong']]} onChange={changeEffectIntensity} />}
                 {/* A capa de metal em 3D (5/11): desligada de origem. */}
-                <ToggleLine label="3D metal cover" description="Show the Now Playing artwork as a metal block that sinks where your mouse is. Drag it sideways to turn it to the lyrics." value={capaMetal} onChange={(v) => { setCapaMetalState(v); definirCapaMetal(v); void setCapaMetal3D(v); }} />
+                {disposicao !== 'cinema' && <ToggleLine label="3D metal cover" description="Show the Now Playing artwork as a metal block that sinks where your mouse is. Drag it sideways to turn it to the lyrics." value={capaMetal} onChange={(v) => { setCapaMetalState(v); definirCapaMetal(v); void setCapaMetal3D(v); }} />}
                 {/* A cor da capa a encher a janela (26/9); a de origem. */}
                 <ChoiceLine label="Now Playing colour" description="Let the artwork's colour (and an artist's photo) fill the whole window, or keep it inside the page." value={corDoLeitor} choices={[['janela', 'Whole window'], ['pagina', 'Page only']]} onChange={mudarCorDoLeitor} />
                 {/* As capas a dois tons (30/10): desligadas de origem. */}

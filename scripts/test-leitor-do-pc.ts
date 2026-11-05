@@ -5,12 +5,32 @@
  */
 import assert from 'node:assert/strict';
 import {
-  ALTURA_DO_TOPO, ALTURA_POR_BAIXO_DA_CAPA, CAPA_MAXIMA, CAPA_MINIMA, MARGEM_DE_BAIXO,
-  disposicaoDoLeitor, fimDaFila,
+  ALTURA_DO_TOPO, ALTURA_POR_BAIXO_DA_CAPA, CAPA_MAXIMA, CAPA_MINIMA, MARGEM_DE_BAIXO, TITULO_DO_CINEMA,
+  disposicaoDoLeitor, fimDaFila, fotoDoFundo, lerDisposicaoEscolhida, lerFundoDoLeitor, tamanhoDoTituloDoCinema,
 } from '../src/lib/leitorDoPc.ts';
 
 let n = 0;
 const caso = (nome: string, f: () => void) => { f(); n++; console.log(`  ok - ${nome}`); };
+
+caso('de origem é o Classic e a capa, e um valor estranho não troca o layout', () => {
+  for (const v of [null, undefined, '', 'outro', 1]) {
+    assert.equal(lerDisposicaoEscolhida(v), 'classico');
+    assert.equal(lerFundoDoLeitor(v), 'capa');
+  }
+  assert.equal(lerDisposicaoEscolhida('cinema'), 'cinema');
+  assert.equal(lerFundoDoLeitor('artista'), 'artista');
+});
+caso('a foto do artista só com "Artist photo", e sem foto fica a capa', () => {
+  assert.equal(fotoDoFundo('capa', 'https://x/foto.jpg'), null);
+  assert.equal(fotoDoFundo('artista', 'https://x/foto.jpg'), 'https://x/foto.jpg');
+  for (const v of [null, undefined, '', '   ']) assert.equal(fotoDoFundo('artista', v), null);
+});
+caso('o título do Cinema cresce com a largura, dentro dos limites', () => {
+  assert.equal(tamanhoDoTituloDoCinema(0), TITULO_DO_CINEMA.minimo);
+  assert.equal(tamanhoDoTituloDoCinema(Number.NaN), TITULO_DO_CINEMA.minimo);
+  assert.equal(tamanhoDoTituloDoCinema(9000), TITULO_DO_CINEMA.maximo);
+  assert.ok(tamanhoDoTituloDoCinema(1200) > tamanhoDoTituloDoCinema(900));
+});
 
 caso('numa janela de 1440x900 a capa cresce para lá dos 440 da maquete A', () => {
   // A área do conteúdo: 1440 - lateral (232) - margens; 900 - título - leitor.

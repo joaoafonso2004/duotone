@@ -16,7 +16,7 @@ const nos = n => Array.isArray(n) ? n.flatMap(nos) : !n || typeof n !== 'object'
 const encontrar = (arvore, tipo, condicao = () => true) => nos(arvore).find(n => n.type === tipo && condicao(n.props));
 
 function ensaiar(inicial) {
-  const estado = { current: inicial, eqGanhos: [0, 0, 0], ajustesPorFaixa: {}, playbackRate: 1, doRadio: [], sugeridas: [] };
+  const estado = { current: inicial, disposicao: 'classico', eqGanhos: [0, 0, 0], ajustesPorFaixa: {}, playbackRate: 1, doRadio: [], sugeridas: [] };
   const slots = [], ouvintes = new Map();
   let cursor = 0, assinatura, tipos, efeitos, mudou;
   function slot(tipo, inicializar) {
@@ -54,7 +54,7 @@ function ensaiar(inicial) {
     '../../lib/origemDaFila': { rotuloDaOrigem: () => null },
     '../../lib/shuffle': { trackKey: t => t.sourceId }, '../../lib/equalizer': { chaveDaFaixa: t => t.sourceId },
     '../PainelEqualizador.web': { PainelEqualizador: 'Equalizador' }, '../glitch/GlitchArtwork.web': { GlitchArtwork: 'Glitch' },
-    '../estilos.web': { styles: {} }, '../tokens.web': { COR: {}, ESP: {}, ESTADO: {}, TIPO: {} },
+    '../estilos.web': { styles: {} }, '../tokens.web': { COR: {}, ESP: {}, ESTADO: {}, FONT: {}, RAIO: {}, TIPO: {} },
     '../ui.web': { BotaoVoltar: 'Voltar', Artwork: 'Artwork', Dialog: 'Dialog', Empty: 'Empty', IconButton: 'IconButton', marcar: () => ({}), Page: 'Page', ui: {} },
     '../FundoDaCapa.web': { FundoDaCapa: 'Fundo' },
     '../useCapaGrande.web': { useCapaGrande: () => null, preCarregarCapaGrande: noop },
@@ -62,7 +62,8 @@ function ensaiar(inicial) {
     // A capa de metal em 3D (5/11): desligada de origem, como na app.
     '../CapaMetal3D.web': { CapaMetal3D: 'CapaMetal3D', useCapaMetal: () => false },
     '../../state/passagemAVista': { luasNoEcra: () => false }, '../../lib/ocultacao': {},
-    '../../lib/leitorDoPc': { disposicaoDoLeitor: () => ({ duasColunas: true, lado: 480 }) },
+    '../../lib/leitorDoPc': { disposicaoDoLeitor: () => ({ duasColunas: true, lado: 480 }), tamanhoDoTituloDoCinema: () => 64, CAPA_DO_CINEMA: 132 },
+    '../aparenciaDoLeitor.web': { useDisposicaoDoLeitor: () => estado.disposicao, useFotoDoFundo: () => null },
     '../../components/CoracaoAnimado': { CoracaoAnimado: 'Coracao' },
     '../../hooks/useCoracaoAoCarregar': { useCoracaoAoCarregar: () => ({}) },
     '../../lib/artistName': { displayArtist: t => t.artist, tituloDaFaixa: t => t.title },
@@ -99,6 +100,14 @@ function ensaiar(inicial) {
   };
   let arvore = render();
   if (!inicial) vazia(arvore);
+  // O Cinema (5/11): o herói e o mesmo cartão com a fila, sem o cubo da capa.
+  estado.disposicao = 'cinema';
+  estado.current = faixa('cinema');
+  arvore = render();
+  assert.ok(!encontrar(arvore, 'Cubo'), 'o Cinema não mostra o cubo da capa');
+  assert.ok(encontrar(arvore, 'Linhas'), 'a fila continua no cartão do Cinema');
+  assert.ok(encontrar(arvore, 'Artwork', p => p.size === 132), 'a capa pequena ao lado do título');
+  estado.disposicao = 'classico';
   for (let i = 0; i < 3; i++) {
     estado.current = faixa(`musica-${i}`);
     arvore = render();

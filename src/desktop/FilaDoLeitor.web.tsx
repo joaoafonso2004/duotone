@@ -70,7 +70,7 @@ export function CabecaDaFila({ fila, compacta = false, abas }: {
   abas?: { aba: AbaDoCartao; aoMudar: (aba: AbaDoCartao) => void };
 }) {
   return <View>
-    <View style={[styles.npFilaCabeca, compacta && { flexWrap: 'wrap', gap: ESP.sm }, abas && { alignItems: 'flex-end', borderBottomWidth: 1, borderBottomColor: COR.linhaSuave, marginBottom: ESP.sm }]}>
+    <View style={[styles.npFilaCabeca, compacta && { flexWrap: 'wrap', gap: ESP.sm }, abas && { flexWrap: 'wrap', rowGap: ESP.sm, alignItems: 'flex-end', borderBottomWidth: 1, borderBottomColor: COR.linhaSuave, marginBottom: ESP.sm }]}>
       {abas ? <AbasDoCartao fila={fila} aba={abas.aba} aoMudar={abas.aoMudar} /> : <>
         <Text style={[styles.npFilaHeading, compacta && { fontSize: 14 }]}>Up next</Text>
         <NumeroQueAnda valor={fila.saida ? 0 : fila.upNext.length} />

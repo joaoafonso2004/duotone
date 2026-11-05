@@ -189,7 +189,8 @@ caso('as luas ficam por cima, e a Ocultação não corre com elas', () => {
   // Com a capa de metal em 3D (5/11) nenhuma das duas corre: são camadas planas
   // sobre o quadrado da capa, e sobre a caixa inclinada ficavam desencontradas.
   assert.match(np, /<DuasLuas lado=\{ladoCapa\} capaDaQueSai=\{capaGrande\} ligada=\{!showLyrics && !capaMetal\} aoEsconderCubo=\{setCuboEscondido\} \/>/);
-  assert.match(np, /ligada: !showLyrics && !luasNoEcra\(\) && !capaMetal,/);
+  // Nem no Cinema (5/11), que não tem a capa grande para tapar.
+  assert.match(np, /ligada: !showLyrics && !luasNoEcra\(\) && !capaMetal && !cinema,/);
 });
 caso('com as molas e sem curvas à mão', () => {
   assert.match(luasPc, /curvaDoPc\('sair'\)/);

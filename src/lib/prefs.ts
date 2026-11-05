@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { GostoDoSpotify } from './gostoDoSpotify';
 import { DURACOES_DO_CROSSFADE, type DuracaoDoCrossfade } from './crossfade';
+import { lerDisposicaoEscolhida, lerFundoDoLeitor, type DisposicaoEscolhida, type FundoDoLeitor } from './leitorDoPc';
 import { arredondar as arredondarRate, daPreferenciaAntiga } from './playbackRate';
 import {
   daPersistencia, ganhosPorOmissao, normalizar as normalizarGanhos,
@@ -54,6 +55,9 @@ const KEY_COR_NA_JANELA = 'pref:corNaJanela';
 const KEY_DOIS_TONS = 'pref:doisTons';
 /** A capa de metal em 3D do Now Playing do PC (`desktop/CapaMetal3D.web.tsx`). */
 const KEY_CAPA_METAL_3D = 'pref:capaMetal3D';
+/** O layout e o fundo do Now Playing do PC (`lib/leitorDoPc.ts`). */
+const KEY_DISPOSICAO_DO_LEITOR = 'pref:disposicaoDoLeitor';
+const KEY_FUNDO_DO_LEITOR = 'pref:fundoDoLeitor';
 /** Os atalhos fixados na lateral do PC (`lib/atalhosDaLateral.ts`). */
 const KEY_ATALHOS_DA_LATERAL = 'pref:atalhosDaLateral';
 /** O gosto lido do Spotify. Ver `getGostoDoSpotify`. */
@@ -766,6 +770,24 @@ export async function getCapaMetal3D(): Promise<boolean> {
 }
 export async function setCapaMetal3D(v: boolean): Promise<void> {
   await AsyncStorage.setItem(KEY_CAPA_METAL_3D, v ? '1' : '0');
+}
+
+/**
+ * O layout do Now Playing do PC (5/11): "classico" (o de origem) ou "cinema".
+ * E o fundo: "capa" (a capa desfocada, o de origem) ou "artista" (a foto do
+ * artista, com a capa quando não há foto). Ver `lib/leitorDoPc.ts`.
+ */
+export async function getDisposicaoDoLeitor(): Promise<DisposicaoEscolhida> {
+  try { return lerDisposicaoEscolhida(await AsyncStorage.getItem(KEY_DISPOSICAO_DO_LEITOR)); } catch { return 'classico'; }
+}
+export async function setDisposicaoDoLeitor(v: DisposicaoEscolhida): Promise<void> {
+  await AsyncStorage.setItem(KEY_DISPOSICAO_DO_LEITOR, v);
+}
+export async function getFundoDoLeitor(): Promise<FundoDoLeitor> {
+  try { return lerFundoDoLeitor(await AsyncStorage.getItem(KEY_FUNDO_DO_LEITOR)); } catch { return 'capa'; }
+}
+export async function setFundoDoLeitor(v: FundoDoLeitor): Promise<void> {
+  await AsyncStorage.setItem(KEY_FUNDO_DO_LEITOR, v);
 }
 
 /** Os atalhos da lateral do PC, crus: quem os valida é `lerAtalhos`. */

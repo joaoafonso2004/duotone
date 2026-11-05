@@ -24,29 +24,44 @@ import { marcar } from './ui.web';
  * `onde`: `pagina` é o de sempre, dentro do Now Playing. `janela` (26/9, pedido
  * do João) é a mesma cor a encher a janela inteira -- lateral, barra de título
  * e leitor --, com um véu que também escurece a lateral para ela se ler.
+ *
+ * `foto` (5/11) troca a capa desfocada pela foto do artista, nítida, e `cinema`
+ * troca o véu pelo do layout Cinema. As duas opções vivem em Appearance.
  */
-export function FundoDaCapa({ uri, onde = 'pagina', aApagar = false }: { uri: string | null; onde?: 'pagina' | 'janela';
+export function FundoDaCapa({ uri, onde = 'pagina', aApagar = false, foto = null, cinema = false }: { uri: string | null; onde?: 'pagina' | 'janela';
   /** A sair do Now Playing (20/10): a cor apaga-se como acendeu, em vez de sumir. */
   aApagar?: boolean;
+  /**
+   * A foto do artista (5/11, "Now Playing background: Artist photo"), já no
+   * tamanho: NÍTIDA, em vez da capa desfocada. Sem ela (`null`), a capa.
+   */
+  foto?: string | null;
+  /** O véu do layout Cinema (5/11): escuro à esquerda, onde vive o título enorme. */
+  cinema?: boolean;
 }) {
-  const fonte = desfoqueLeve(uri, 64)?.uri ?? null;
+  const fonte = foto ?? desfoqueLeve(uri, 64)?.uri ?? null;
   const bpm = useCompasso()?.bpm;
   const trocaMs = bpm ? msDoCompasso(bpm) : 700;
-  const [camadas, setCamadas] = useState<string[]>(() => (fonte ? [fonte] : []));
+  // Cada camada lembra-se do que é: a capa que sai não fica nítida a meio da
+  // troca para a foto, nem a foto desfocada ao voltar à capa.
+  const [camadas, setCamadas] = useState<{ src: string; nitida: boolean }[]>(() => (fonte ? [{ src: fonte, nitida: !!foto }] : []));
   useEffect(() => {
     if (!fonte) { setCamadas([]); return; }
-    setCamadas((c) => (c[c.length - 1] === fonte ? c : [...c.slice(-1), fonte]));
+    setCamadas((c) => (c[c.length - 1]?.src === fonte ? c : [...c.slice(-1), { src: fonte, nitida: !!foto }]));
     const t = setTimeout(() => setCamadas((c) => c.slice(-1)), trocaMs + 200);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- o `foto` vem com a fonte
   }, [fonte]);
+  const veu = cinema ? styles.cinemaVeu : onde === 'janela' ? styles.janelaCorVeu : styles.npFundoVeu;
   return (
     <View pointerEvents="none" style={onde === 'janela' ? styles.janelaCor : styles.npFundo}
       {...(onde === 'janela' ? marcar('janela-cor', ...(aApagar ? ['a-apagar'] : [])) : {})}>
       {camadas.map((c, i) => (
-        <View key={c} style={[styles.npFundoCapa, { backgroundImage: `url("${c}")` } as any]}
+        // A posição com dois valores vai aqui: o StyleSheet.create do RNW recusa-a e, em dev, deita-a fora.
+        <View key={c.src} style={[c.nitida ? styles.npFundoFoto : styles.npFundoCapa, { backgroundImage: `url("${c.src}")`, ...(c.nitida ? { backgroundPosition: '62% 30%' } : null) } as any]}
           {...(i === camadas.length - 1 && camadas.length > 1 ? marcar('np-fundo') : {})} />
       ))}
-      <View style={onde === 'janela' ? styles.janelaCorVeu : styles.npFundoVeu} />
+      <View style={veu} />
     </View>
   );
 }

@@ -18,15 +18,16 @@ import { chaveDaFaixa } from '../../lib/equalizer';
 import { PainelEqualizador } from '../PainelEqualizador.web';
 import { GlitchArtwork } from '../glitch/GlitchArtwork.web';
 import { styles } from '../estilos.web';
-import { COR, ESP, ESTADO, TIPO } from '../tokens.web';
-import { BotaoVoltar, Artwork, Dialog, Empty, IconButton, marcar, Page, ui } from '../ui.web';
+import { COR, ESP, ESTADO, FONT, RAIO, TIPO } from '../tokens.web';
+import { BotaoVoltar, Artwork, Dialog, Empty, formatTime, IconButton, marcar, Page, ui } from '../ui.web';
 import { FundoDaCapa } from '../FundoDaCapa.web';
 import { preCarregarCapaGrande, useCapaGrande } from '../useCapaGrande.web';
 import { useCapaQueSai } from '../Ocultacao.web';
 import { DuasLuas } from '../DuasLuas.web';
 import { luasNoEcra } from '../../state/passagemAVista';
 import { sentidoDaOcultacao } from '../../lib/ocultacao';
-import { disposicaoDoLeitor } from '../../lib/leitorDoPc';
+import { CAPA_DO_CINEMA, disposicaoDoLeitor, tamanhoDoTituloDoCinema } from '../../lib/leitorDoPc';
+import { useDisposicaoDoLeitor, useFotoDoFundo } from '../aparenciaDoLeitor.web';
 import type { CommonPageProps, NavegarFn, ShareTarget } from '../rotas';
 import type { Track } from '../../types';
 import { CoracaoAnimado } from '../../components/CoracaoAnimado';
@@ -36,6 +37,64 @@ import { comCatalogo, garantirCatalogo, useCatalogoDeFaixas } from '../../state/
 
 
 import { FRASES_DOS_ESTADOS } from '../../lib/frasesDosEstados';
+/**
+ * O layout Cinema (5/11, "Now Playing layout: Cinema" em Appearance; a maquete
+ * `docs/now-playing-cinema-maquete.html`). O fundo enche a janela, e o véu dele
+ * escurece a esquerda, onde fica o herói: a capa pequena, o título enorme, o
+ * artista, o álbum, a barra e os ícones. À direita, o mesmo cartão de Up next ·
+ * Lyrics · About e as pílulas por baixo. Objetos simples e não um StyleSheet:
+ * os valores saem dos tokens, e o tamanho do título da largura da página.
+ */
+const cn = {
+  grelha: { flex: 1, minHeight: 0, flexDirection: 'row', gap: ESP.xxxl, paddingHorizontal: 40, paddingTop: ESP.sm },
+  esquerda: { flex: 1, minWidth: 0, justifyContent: 'center', paddingBottom: ESP.xxxl },
+  heroi: { gap: ESP.md, maxWidth: 780 },
+  estado: { ...TIPO.micro, color: COR.textoFraco },
+  linhaDoTitulo: { flexDirection: 'row', alignItems: 'center', gap: ESP.xl, minWidth: 0 },
+  capa: { borderRadius: RAIO.ctrl, overflow: 'hidden', boxShadow: '0 18px 40px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.06)' },
+  titulo: { fontFamily: FONT.display, fontWeight: '800', color: COR.texto, flexShrink: 1, minWidth: 0, textShadow: '0 2px 30px rgba(0,0,0,.35)' },
+  meta: { ...TIPO.corpo, color: COR.textoMedio, fontWeight: '600' },
+  progresso: { flexDirection: 'row', alignItems: 'center', gap: ESP.md, maxWidth: 560, marginTop: ESP.xs },
+  tempo: { ...TIPO.numero, color: COR.textoMedio },
+  pista: { flex: 1, height: 16, justifyContent: 'center', cursor: 'pointer' },
+  trilho: { height: 4, borderRadius: 2, backgroundColor: 'rgba(233,234,238,.2)', overflow: 'hidden' },
+  feito: { height: 4, borderRadius: 2, backgroundColor: COR.texto },
+  direita: { width: 400, flexShrink: 0, minHeight: 0, gap: ESP.lg, paddingBottom: ESP.lg },
+  cartao: { flex: 1, minHeight: 0, borderRadius: RAIO.superficie, backgroundColor: 'rgba(9,9,13,.66)', borderWidth: 1, borderColor: 'rgba(233,234,238,.07)', overflow: 'hidden', paddingHorizontal: ESP.sm, paddingTop: ESP.sm },
+  pilulas: { flexDirection: 'row', gap: ESP.sm, justifyContent: 'flex-end', flexWrap: 'wrap' },
+  pilula: { height: 38, paddingHorizontal: ESP.lg, borderRadius: RAIO.pilula, flexDirection: 'row', alignItems: 'center', gap: ESP.sm, borderWidth: 1, borderColor: 'rgba(233,234,238,.16)', backgroundColor: 'rgba(20,20,26,.78)' },
+  pilulaHover: { backgroundColor: 'rgba(28,28,36,.95)' },
+  pilulaPrincipal: { borderWidth: 0, backgroundImage: 'linear-gradient(180deg,#f4f5f8,#c9ccd3 55%,#a3a6ae)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,.35), 0 6px 18px rgba(0,0,0,.35)' },
+  pilulaTexto: { ...TIPO.corpo, fontWeight: '700', color: COR.texto },
+} as any;
+
+/**
+ * A barra do herói do Cinema: lê a posição, e por isso vive num componente seu.
+ * Esta página não a lê (a capa, a letra e a fila voltavam a desenhar-se a cada
+ * aviso do motor), e é só esta barra que se redesenha. Clicar salta para lá.
+ */
+function ProgressoDoCinema() {
+  const posicaoMs = usePlayer((s) => s.positionMs) ?? 0;
+  const duracaoMs = usePlayer((s) => s.durationMs) ?? 0;
+  const seekTo = usePlayer((s) => s.seekTo);
+  const largura = useRef(0);
+  const fracao = duracaoMs > 0 ? Math.min(1, Math.max(0, posicaoMs / duracaoMs)) : 0;
+  return (
+    <View style={cn.progresso}>
+      <Text style={cn.tempo}>{formatTime(posicaoMs / 1000)}</Text>
+      <Pressable accessibilityRole="adjustable" accessibilityLabel="Seek" style={cn.pista}
+        onLayout={(e: any) => { largura.current = e.nativeEvent.layout.width; }}
+        onPress={(e: any) => {
+          const x = e.nativeEvent.locationX;
+          if (duracaoMs > 0 && largura.current > 0) void seekTo(Math.round((x / largura.current) * duracaoMs));
+        }}>
+        <View style={cn.trilho}><View style={[cn.feito, { width: `${fracao * 100}%` }]} /></View>
+      </Pressable>
+      <Text style={cn.tempo}>{formatTime(duracaoMs / 1000)}</Text>
+    </View>
+  );
+}
+
 /** A capa mantém o glitch; o gesto revela as letras na face adjacente. */
 /**
  * Um botão da linha de ações do Now Playing: só o ícone, sem caixa. Acende ao
@@ -113,6 +172,8 @@ export function NowPlayingPage({
   const [showLyrics,setShowLyrics]=useState(false);
   // A capa de metal em 3D, se estiver ligada nas Definições (desligada de origem).
   const capaMetal = useCapaMetal();
+  // O layout escolhido em Appearance (5/11): o Classic de origem, ou o Cinema.
+  const cinema = useDisposicaoDoLeitor() === 'cinema';
   // Com as Duas luas à frente (C9), o cubo da capa fica escondido por baixo delas.
   const [cuboEscondido, setCuboEscondido] = useState(false);
   useEffect(()=>setShowLyrics(false),[current?.source,current?.sourceId]);
@@ -163,6 +224,9 @@ export function NowPlayingPage({
   // nas dependências para o ecrã redesenhar quando a resposta chegar.
   const versaoDoCatalogo = useCatalogoDeFaixas((s) => s.versao);
   const track = useMemo(() => (current ? comCatalogo(current) : current), [current, versaoDoCatalogo]);
+  // A foto do artista para o fundo, com "Now Playing background: Artist photo"
+  // (5/11). Sem ela (a de origem, ou um artista sem foto), a capa desfocada.
+  const fotoDoFundo = useFotoDoFundo(track);
   useEffect(() => { if (current) void garantirCatalogo([current]); }, [current]);
   // A capa grande (maxres) e não a miniatura das listas: esticada a 500 px via-se
   // desfocada. A seguinte é pedida já, para o skip não esperar por ela.
@@ -172,7 +236,7 @@ export function NowPlayingPage({
   const faixaAtual = track ? `${track.source}:${track.sourceId}` : '';
   const caixaDaCapa = useRef<any>(null);
   const capaQueSai = useCapaQueSai(faixaAtual, track && capaGrande ? capaGrande : null, {
-    caixa: caixaDaCapa, capa: track?.artworkUrl, ligada: !showLyrics && !luasNoEcra() && !capaMetal,
+    caixa: caixaDaCapa, capa: track?.artworkUrl, ligada: !showLyrics && !luasNoEcra() && !capaMetal && !cinema,
     sentido: () => sentidoDaOcultacao(usePlayer.getState().saltoDaFaixa, Date.now()),
   });
   const seguinte = upNext[0]?.track;
@@ -199,6 +263,65 @@ export function NowPlayingPage({
     : alvo.tipo === 'artista' ? () => navigate({ name: 'artist', value: alvo.nome })
     : alvo.tipo === 'guardadas' ? () => navigate({ name: 'songs' })
     : undefined;
+
+  // O nome do artista (abre a página dele) e os seis ícones: os mesmos no
+  // Classic e no Cinema.
+  const artista = (
+    <Pressable
+      accessibilityRole={temArtista ? 'link' : undefined}
+      accessibilityLabel={temArtista ? `View ${nomeDoArtista}` : undefined}
+      disabled={!temArtista}
+      onHoverIn={() => setSobreOArtista(true)}
+      onHoverOut={() => setSobreOArtista(false)}
+      onFocus={() => setNoArtista(true)}
+      onBlur={() => setNoArtista(false)}
+      onPress={() => navigate({ name: 'artist', value: nomeDoArtista })}
+      style={[styles.npArtistaAlvo, !temArtista && styles.npArtistaAlvoInerte]}
+    >
+      <Text style={[
+        styles.npArtista,
+        temArtista && (sobreOArtista || noArtista) && styles.npArtistaHover,
+      ]}>
+        {nomeDoArtista}
+      </Text>
+    </Pressable>
+  );
+  const icones = (
+    <View style={styles.npIcones}>
+      {/* As Faíscas a guardar e o Encolher a tirar, logo ao carregar (16/10). */}
+      <AcaoDoLeitor rotulo={coracao.mostrada ? 'Remove from Liked Songs' : 'Add to Liked Songs'} ativo={coracao.mostrada}
+        onPressIn={coracao.onPressIn} onPress={coracao.onPress} onPressOut={coracao.onPressOut}>
+        {(cor) => <CoracaoAnimado guardada={coracao.mostrada} pulso={coracao.pulso} tamanho={20} cor={cor} corCheio={cor} />}
+      </AcaoDoLeitor>
+      <AcaoDoLeitor rotulo="Add to playlist" onPress={() => aoAdicionarAPlaylist(track)}>
+        {(cor) => (
+          <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={cor} strokeWidth={1.7} strokeLinecap="round" aria-hidden="true">
+            <path d="M3 6h13M3 11h13M3 16h8M18 13.5v7M14.5 17h7" />
+          </svg>
+        )}
+      </AcaoDoLeitor>
+      <AcaoDoLeitor rotulo="Share this track" onPress={() => share({ itemType: 'track', item: track, name: track.title })}>
+        {(cor) => <Ionicons name="share-social-outline" size={19} color={cor} />}
+      </AcaoDoLeitor>
+      <View style={styles.npIconesFio} />
+      {/* O mini leitor (electron/miniLeitor.cjs): sem ícone na barra
+          do leitor, que já tem que chegue -- abre-se daqui, do
+          tabuleiro ou por um atalho que alguém crie. */}
+      {window.duotoneDesktop?.alternarMiniLeitor ? (
+        <AcaoDoLeitor rotulo="Mini player" onPress={() => window.duotoneDesktop?.alternarMiniLeitor?.()}>
+          {(cor) => (
+            <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={cor} strokeWidth={1.7} strokeLinejoin="round" aria-hidden="true">
+              <rect x="3" y="4.5" width="18" height="15" rx="2" />
+              <rect x="12" y="12" width="6.5" height="5" rx="1" fill={cor} stroke="none" />
+            </svg>
+          )}
+        </AcaoDoLeitor>
+      ) : null}
+      <AcaoDoLeitor rotulo="Equaliser and speed" ponto={!eqGanhos.every((g) => g === 0) || playbackRate !== 1} onPress={() => setEqAberto(true)}>
+        {(cor) => <Ionicons name="options-outline" size={20} color={cor} />}
+      </AcaoDoLeitor>
+    </View>
+  );
 
   // A capa + o que vive por baixo dela. Numa janela larga fica parada à
   // esquerda enquanto a fila rola ao lado; numa estreita, tudo rola junto.
@@ -244,68 +367,98 @@ export function NowPlayingPage({
           YouTube e o CANAL -- e abria a pagina de um canal de uploads. */}
       <View key={`texto:${faixaAtual}`} {...marcar('np-texto-entra')} style={styles.npIdentidade}>
         <Text numberOfLines={2} style={styles.npTitulo}>{tituloDaFaixa(track)}</Text>
-        <Pressable
-          accessibilityRole={temArtista ? 'link' : undefined}
-          accessibilityLabel={temArtista ? `View ${nomeDoArtista}` : undefined}
-          disabled={!temArtista}
-          onHoverIn={() => setSobreOArtista(true)}
-          onHoverOut={() => setSobreOArtista(false)}
-          onFocus={() => setNoArtista(true)}
-          onBlur={() => setNoArtista(false)}
-          onPress={() => navigate({ name: 'artist', value: nomeDoArtista })}
-          style={[styles.npArtistaAlvo, !temArtista && styles.npArtistaAlvoInerte]}
-        >
-          <Text style={[
-            styles.npArtista,
-            temArtista && (sobreOArtista || noArtista) && styles.npArtistaHover,
-          ]}>
-            {nomeDoArtista}
-          </Text>
-        </Pressable>
+        {artista}
       </View>
 
       {/* Os seis ícones juntos, separados por um fio: à esquerda o que se faz
           A ESTA FAIXA, à direita o que é da reprodução (onde toca, o mini
           leitor, o som). Estavam atirados para as duas pontas da capa. */}
-      <View style={styles.npIcones}>
-        {/* As Faíscas a guardar e o Encolher a tirar, logo ao carregar (16/10). */}
-        <AcaoDoLeitor rotulo={coracao.mostrada ? 'Remove from Liked Songs' : 'Add to Liked Songs'} ativo={coracao.mostrada}
-          onPressIn={coracao.onPressIn} onPress={coracao.onPress} onPressOut={coracao.onPressOut}>
-          {(cor) => <CoracaoAnimado guardada={coracao.mostrada} pulso={coracao.pulso} tamanho={20} cor={cor} corCheio={cor} />}
-        </AcaoDoLeitor>
-        <AcaoDoLeitor rotulo="Add to playlist" onPress={() => aoAdicionarAPlaylist(track)}>
-          {(cor) => (
-            <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={cor} strokeWidth={1.7} strokeLinecap="round" aria-hidden="true">
-              <path d="M3 6h13M3 11h13M3 16h8M18 13.5v7M14.5 17h7" />
-            </svg>
-          )}
-        </AcaoDoLeitor>
-        <AcaoDoLeitor rotulo="Share this track" onPress={() => share({ itemType: 'track', item: track, name: track.title })}>
-          {(cor) => <Ionicons name="share-social-outline" size={19} color={cor} />}
-        </AcaoDoLeitor>
-        <View style={styles.npIconesFio} />
-        {/* O mini leitor (electron/miniLeitor.cjs): sem ícone na barra
-            do leitor, que já tem que chegue -- abre-se daqui, do
-            tabuleiro ou por um atalho que alguém crie. */}
-        {window.duotoneDesktop?.alternarMiniLeitor ? (
-          <AcaoDoLeitor rotulo="Mini player" onPress={() => window.duotoneDesktop?.alternarMiniLeitor?.()}>
-            {(cor) => (
-              <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={cor} strokeWidth={1.7} strokeLinejoin="round" aria-hidden="true">
-                <rect x="3" y="4.5" width="18" height="15" rx="2" />
-                <rect x="12" y="12" width="6.5" height="5" rx="1" fill={cor} stroke="none" />
-              </svg>
-            )}
-          </AcaoDoLeitor>
-        ) : null}
-        <AcaoDoLeitor rotulo="Equaliser and speed" ponto={!eqGanhos.every((g) => g === 0) || playbackRate !== 1} onPress={() => setEqAberto(true)}>
-          {(cor) => <Ionicons name="options-outline" size={20} color={cor} />}
-        </AcaoDoLeitor>
-      </View>
+      {icones}
     </View>
   );
 
   const cabecaDaFila = <CabecaDaFila fila={fila} />;
   const linhas = <LinhasDaFila fila={fila} />;
+
+  // O cartão da direita (Up next · Lyrics · About): o mesmo nos dois layouts.
+  const conteudoDoCartao = (
+    <>
+      {abaDaFila === 'fila' ? <>
+      <CabecaDaFila fila={fila} abas={{ aba: abaDaFila, aoMudar: setAbaDaFila }} />
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: ESP.xl }}
+        scrollEventThrottle={100} onScroll={fila.aoRolar}>
+        {/* A que toca, à cabeça e em destaque (30/10, da maquete). */}
+        <View style={styles.npAtual} accessibilityLabel={`Now playing: ${tituloDaFaixa(track)}`}>
+          <View {...marcar('eq')} aria-hidden style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 12, width: 14 }}>
+            <View style={{ width: 3, height: 12, borderRadius: 2, backgroundColor: COR.texto }} /><View style={{ width: 3, height: 12, borderRadius: 2, backgroundColor: COR.texto }} /><View style={{ width: 3, height: 12, borderRadius: 2, backgroundColor: COR.texto }} />
+          </View>
+          <Artwork track={track} size={40} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text numberOfLines={1} style={{ ...TIPO.corpo, color: COR.texto, fontWeight: '700' as any }}>{tituloDaFaixa(track)}</Text>
+            <Text numberOfLines={1} style={{ ...TIPO.legenda, color: COR.textoMedio }}>{displayArtist(track)} · playing now</Text>
+          </View>
+        </View>
+        {linhas}
+      </ScrollView>
+      </> : <>
+        <View style={[styles.npFilaCabeca, { alignItems: 'flex-end', borderBottomWidth: 1, borderBottomColor: COR.linhaSuave, marginBottom: ESP.sm }]}>
+          <AbasDoCartao fila={fila} aba={abaDaFila} aoMudar={setAbaDaFila} />
+          <View style={{ flex: 1 }} />
+          {/* "Expand" (31/10): a letra a toda a largura. */}
+          {abaDaFila === 'letra' ? <Pressable accessibilityRole="button" accessibilityLabel="Expand the lyrics" onPress={() => setLetraGrande(true)}
+            style={({ hovered }: any) => [styles.npFilaLimpar, { flexDirection: 'row', alignItems: 'center', gap: ESP.xs }, hovered && { backgroundColor: ESTADO.hover }]}>
+            <Ionicons name="expand-outline" size={14} color={COR.textoMedio} />
+            <Text style={styles.npFilaLimparTexto}>Expand</Text>
+          </Pressable> : null}
+        </View>
+        {abaDaFila === 'letra'
+          ? <View style={{ flex: 1, minHeight: 0 }}><LyricsView key={`${track.source}:${track.sourceId}`} track={track} visible /></View>
+          : <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: ESP.xl }}><SobreAMusica track={track} more={more} notify={notify} /></ScrollView>}
+      </>}
+    </>
+  );
+
+  // O herói do Cinema e as pílulas (5/11).
+  const tituloDoCinema = tamanhoDoTituloDoCinema(area.largura || 1192);
+  const heroiDoCinema = (
+    <View key={`texto:${faixaAtual}`} {...marcar('np-texto-entra')} style={cn.heroi}>
+      <Text style={cn.estado}>Now playing</Text>
+      <View style={cn.linhaDoTitulo}>
+        <View style={cn.capa} {...({ onContextMenu: (e: any) => { e.preventDefault(); more(track, undefined, { leitor: 'capa' }); } } as any)}>
+          <Artwork track={track} size={CAPA_DO_CINEMA} />
+        </View>
+        <Text numberOfLines={2} style={[cn.titulo, { fontSize: tituloDoCinema, lineHeight: Math.round(tituloDoCinema * 0.98), letterSpacing: -Math.round(tituloDoCinema * 0.035) }]}>{tituloDaFaixa(track)}</Text>
+      </View>
+      {artista}
+      {track.album ? <Text numberOfLines={1} style={cn.meta}>{track.album}</Text> : null}
+      <ProgressoDoCinema />
+      {icones}
+    </View>
+  );
+  const pilulas = (
+    <View style={cn.pilulas}>
+      <Pressable accessibilityRole="button" accessibilityLabel={coracao.mostrada ? 'Remove from Liked Songs' : 'Add to Liked Songs'}
+        onPressIn={coracao.onPressIn} onPress={coracao.onPress} onPressOut={coracao.onPressOut}
+        style={({ pressed }: any) => [cn.pilula, cn.pilulaPrincipal, pressed && ui.pressed]}>
+        <CoracaoAnimado guardada={coracao.mostrada} pulso={coracao.pulso} tamanho={16} cor={COR.fundo} corCheio={COR.fundo} />
+        <Text style={[cn.pilulaTexto, { color: COR.fundo }]}>{coracao.mostrada ? 'Liked' : 'Like'}</Text>
+      </Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Add to playlist" onPress={() => aoAdicionarAPlaylist(track)}
+        style={({ hovered, pressed }: any) => [cn.pilula, hovered && cn.pilulaHover, pressed && ui.pressed]}>
+        <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={COR.texto} strokeWidth={2} strokeLinecap="round" aria-hidden="true">
+          <path d="M3 6h13M3 11h13M3 16h8M18 13.5v7M14.5 17h7" />
+        </svg>
+        <Text style={cn.pilulaTexto}>Add to playlist</Text>
+      </Pressable>
+      {temArtista ? (
+        <Pressable accessibilityRole="link" accessibilityLabel={`Go to ${nomeDoArtista}`} onPress={() => navigate({ name: 'artist', value: nomeDoArtista })}
+          style={({ hovered, pressed }: any) => [cn.pilula, hovered && cn.pilulaHover, pressed && ui.pressed]}>
+          <Ionicons name="mic-outline" size={16} color={COR.texto} />
+          <Text style={cn.pilulaTexto}>Go to artist</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
 
   return (
     <View style={styles.npPagina} onLayout={(e) => {
@@ -314,7 +467,7 @@ export function NowPlayingPage({
     }}>
       {/* O fundo do iPhone: a própria capa, muito desfocada, com um véu. Com a
           cor na janela toda, quem a desenha é a casca, por baixo de tudo. */}
-      {!fundoNaJanela && <FundoDaCapa uri={track.artworkUrl} />}
+      {!fundoNaJanela && <FundoDaCapa uri={track.artworkUrl} foto={fotoDoFundo} cinema={cinema} />}
 
       {/* O topo (26/9, o João achou o "FROM" em letra técnica feio): o voltar
           num círculo discreto e a origem em duas linhas, como os leitores de
@@ -362,49 +515,26 @@ export function NowPlayingPage({
           </View>
           <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}><LyricsView key={`grande:${track.source}:${track.sourceId}`} track={track} visible escala={1.5} /></View>
         </View>
+      ) : cinema && duasColunas ? (
+        <View style={cn.grelha}>
+          <View style={cn.esquerda}>{heroiDoCinema}</View>
+          <View style={cn.direita}>
+            <View style={cn.cartao}>{conteudoDoCartao}</View>
+            {pilulas}
+          </View>
+        </View>
       ) : duasColunas ? (
         <View style={styles.npGrelha}>
           {coluna}
           {/* A fila rola sozinha; a capa fica onde está. */}
           <View style={styles.npFila}>
-            {abaDaFila === 'fila' ? <>
-            <CabecaDaFila fila={fila} abas={{ aba: abaDaFila, aoMudar: setAbaDaFila }} />
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: ESP.xl }}
-              scrollEventThrottle={100} onScroll={fila.aoRolar}>
-              {/* A que toca, à cabeça e em destaque (30/10, da maquete). */}
-              <View style={styles.npAtual} accessibilityLabel={`Now playing: ${tituloDaFaixa(track)}`}>
-                <View {...marcar('eq')} aria-hidden style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 12, width: 14 }}>
-                  <View style={{ width: 3, height: 12, borderRadius: 2, backgroundColor: COR.texto }} /><View style={{ width: 3, height: 12, borderRadius: 2, backgroundColor: COR.texto }} /><View style={{ width: 3, height: 12, borderRadius: 2, backgroundColor: COR.texto }} />
-                </View>
-                <Artwork track={track} size={40} />
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text numberOfLines={1} style={{ ...TIPO.corpo, color: COR.texto, fontWeight: '700' as any }}>{tituloDaFaixa(track)}</Text>
-                  <Text numberOfLines={1} style={{ ...TIPO.legenda, color: COR.textoMedio }}>{displayArtist(track)} · playing now</Text>
-                </View>
-              </View>
-              {linhas}
-            </ScrollView>
-            </> : <>
-              <View style={[styles.npFilaCabeca, { alignItems: 'flex-end', borderBottomWidth: 1, borderBottomColor: COR.linhaSuave, marginBottom: ESP.sm }]}>
-                <AbasDoCartao fila={fila} aba={abaDaFila} aoMudar={setAbaDaFila} />
-                <View style={{ flex: 1 }} />
-                {/* "Expand" (31/10): a letra a toda a largura. */}
-                {abaDaFila === 'letra' ? <Pressable accessibilityRole="button" accessibilityLabel="Expand the lyrics" onPress={() => setLetraGrande(true)}
-                  style={({ hovered }: any) => [styles.npFilaLimpar, { flexDirection: 'row', alignItems: 'center', gap: ESP.xs }, hovered && { backgroundColor: ESTADO.hover }]}>
-                  <Ionicons name="expand-outline" size={14} color={COR.textoMedio} />
-                  <Text style={styles.npFilaLimparTexto}>Expand</Text>
-                </Pressable> : null}
-              </View>
-              {abaDaFila === 'letra'
-                ? <View style={{ flex: 1, minHeight: 0 }}><LyricsView key={`${track.source}:${track.sourceId}`} track={track} visible /></View>
-                : <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: ESP.xl }}><SobreAMusica track={track} more={more} notify={notify} /></ScrollView>}
-            </>}
+            {conteudoDoCartao}
           </View>
         </View>
       ) : (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.npEstreito}
           scrollEventThrottle={100} onScroll={fila.aoRolar}>
-          {coluna}
+          {cinema ? <View style={{ gap: ESP.xl, paddingTop: ESP.xl }}>{heroiDoCinema}<View style={{ alignItems: 'flex-start' }}>{pilulas}</View></View> : coluna}
           <View style={{ marginTop: ESP.xxl }}>
             {cabecaDaFila}
             {linhas}

@@ -217,6 +217,22 @@ export const styles = StyleSheet.create({
     backgroundImage: 'linear-gradient(90deg,rgba(6,6,8,.30) 0%,rgba(6,6,8,.42) 45%,rgba(6,6,8,.72) 68%,rgba(6,6,8,.82) 100%),'
       + 'linear-gradient(180deg,rgba(6,6,8,0) 55%,rgba(6,6,8,.85) 100%)',
   } as any,
+  // A foto do artista no fundo (5/11, "Now Playing background: Artist photo"):
+  // nítida e um pouco escurecida, porque uma foto clara não é uma capa desfocada.
+  npFundoFoto: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundSize: 'cover',
+    filter: 'saturate(1.05) brightness(.78)',
+  } as any,
+  // O véu do layout Cinema (5/11, a maquete `docs/now-playing-cinema-maquete.html`):
+  // escuro à esquerda, onde vive o título enorme, mais leve no meio para o fundo
+  // se ver, e escuro em cima e em baixo para a barra de título e o leitor.
+  cinemaVeu: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundImage: 'linear-gradient(180deg,rgba(6,6,8,.72) 0px,rgba(6,6,8,0) 150px),'
+      + 'linear-gradient(0deg,rgba(6,6,8,.96) 0px,rgba(6,6,8,.6) 110px,rgba(6,6,8,0) 300px),'
+      + 'linear-gradient(90deg,rgba(6,6,8,.95) 0px,rgba(6,6,8,.86) 230px,rgba(6,6,8,.58) 44%,rgba(6,6,8,.2) 64%,rgba(6,6,8,.42) 82%,rgba(6,6,8,.7) 100%)',
+  } as any,
   // Os dois pontos por baixo da capa (capa / letras), como no iPhone.
   npPontos: { flexDirection: 'row', justifyContent: 'center', gap: 2, marginTop: ESP.sm },
   npPontoAlvo: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center', cursor: 'pointer' } as any,
