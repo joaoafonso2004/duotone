@@ -1,6 +1,6 @@
 import {StateIcon} from '../components/StateIcon';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { ReactNode, createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, { ReactNode, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors } from '../theme';
 import type { Track } from '../types';
@@ -19,6 +19,9 @@ import { COR, ESP, ESTADO, FONT, LINHA_LISTA, RAIO, TIPO } from './tokens.web';
 import { isShowTrackDurationSync } from '../lib/prefs';
 import { capaComBarras, molduraSemBarras } from '../lib/modoLimpo';
 import { pertoDoFim } from '../lib/grelhaQueCresce';
+import {
+  ALTURA_VISIVEL_ESTIMADA, alturaDasLinhas, janelaComALinha, janelaDaTabela, mesmaJanela, scrollParaVer, topoDaLinha, type Janela,
+} from '../lib/janelaDaTabela';
 import { criarRoda, PROCURAR_DEPOIS_MS, proporcaoComARoda } from '../lib/rodaDoRato';
 import { criarPilhaDeCamadas, dentesDaTecla, focoAoTab, teclaNaLista } from '../lib/acessibilidadeDoPc';
 import { useDestinos } from '../navigation/destinos';
@@ -26,6 +29,8 @@ import { duracaoDoAviso, type TipoDeAviso } from '../lib/avisoDeRemocao';
 import { direcaoDoAviso, poseDoVazio } from '../lib/luz';
 import { DiscosDoVazio } from '../components/DiscosDoVazio';
 import { varrerLuz } from './Luz.web';
+// Sem tipos instalados para o react-dom (como no Arrastar.web.tsx).
+const { flushSync } = require('react-dom') as { flushSync: <R>(fn: () => R) => R };
 
 /**
  * Largura da coluna de duracao, no cabecalho E na celula.
@@ -871,16 +876,6 @@ export function useProcurarAoLargar(): { arrasto: number | null; comecar: (event
 }
 
 /**
- * Quantas linhas uma tabela monta de início, e quantas mais de cada vez que o
- * fim se aproxima (`CarregarAoChegar`). Eram 200 e 200, com um botão; com as
- * seguintes a chegar sozinhas, abrir as Liked Songs só precisa de encher o
- * ecrã -- montar 200 linhas era o que fazia a aba demorar a aparecer (27/9).
- */
-const LINHAS_INICIAIS = 60;
-const PASSO_DE_LINHAS = 120;
-const linhasVisiveisPorLista = new Map<string, number>();
-
-/**
  * O artista numa coluna, e o nome leva à página dele -- como o nome no leitor.
  * Sem artista ("Unknown artist") não é link nenhum, como no Now Playing.
  * O realce do hover é CSS (`artista`): um `hovered` do RNW aqui dentro fazia a
@@ -937,45 +932,21 @@ function BarrasATocar() {
   </View>;
 }
 
-/**
- * As linhas seguintes montam-se sozinhas quando o fim da lista se aproxima
- * (26/9: o João não queria carregar em "Show next 200"). É uma sentinela no
- * fim da tabela vigiada por um IntersectionObserver com 800 px de antecedência:
- * funciona dentro de qualquer scroll, sem a tabela saber qual é. A `key` muda a
- * cada lote, por isso uma sentinela que continue à vista depois de o lote
- * entrar (lista curta, janela alta) volta a disparar.
- */
-function CarregarAoChegar({ aoChegar }: { aoChegar: () => void }) {
-  const ref = useRef<View>(null);
-  const aoChegarRef = useRef(aoChegar);
-  aoChegarRef.current = aoChegar;
-  useEffect(() => {
-    const no = ref.current as unknown as Element | null;
-    if (!no || typeof IntersectionObserver === 'undefined') return;
-    // A raiz é o scroll mais próximo: com a janela como raiz, a margem não
-    // passa o recorte do scroll e só disparava com a sentinela já à vista.
-    let raiz: Element | null = no.parentElement;
-    while (raiz && !/(auto|scroll)/.test(getComputedStyle(raiz).overflowY)) raiz = raiz.parentElement;
-    const vigia = new IntersectionObserver((entradas) => {
-      if (entradas.some((e) => e.isIntersecting)) { vigia.disconnect(); aoChegarRef.current(); }
-    }, { root: raiz, rootMargin: '0px 0px 800px 0px' });
-    vigia.observe(no);
-    return () => vigia.disconnect();
-  }, []);
-  return <View ref={ref} style={{ height: 1 }} />;
-}
-
 /** As linhas da tabela (`marcar('fila')`) dentro do destino. */
 function linhasDaTabela(no: HTMLElement): DOMRect[] {
   return Array.from(no.querySelectorAll('[data-dt~="fila"]')).map((l) => (l as HTMLElement).getBoundingClientRect());
 }
 
-/** Reordenar na própria lista: só aceita uma música que veio desta lista (`lista`). */
-function alvoDaOrdem(lista: string, aoMover: (de: number, para: number) => void): Alvo {
+/**
+ * Reordenar na própria lista: só aceita uma música que veio desta lista (`lista`).
+ * As linhas montadas são só as da janela (7/11): `primeira` diz quantas ficaram
+ * de fora em cima, para o lugar ser o da lista inteira.
+ */
+function alvoDaOrdem(lista: string, aoMover: (de: number, para: number) => void, primeira: () => number): Alvo {
   const destino = (a: ArrastoAtivo, y: number, no: HTMLElement) => {
     const linhas = linhasDaTabela(no);
     const antesDe = posicaoDeInsercao(linhas, y);
-    return { linhas, antesDe, para: destinoDaOrdem(a.origem.indice!, antesDe) };
+    return { linhas, antesDe, para: destinoDaOrdem(a.origem.indice!, primeira() + antesDe) };
   };
   return {
     aceita: (a) => a.origem.lista === lista && typeof a.origem.indice === 'number',
@@ -1014,6 +985,133 @@ export function Chips<T extends string>({ opcoes, valor, aoMudar, rotulo }: {
   </View>;
 }
 
+/**
+ * Que linhas da tabela existem agora (7/11, `lib/janelaDaTabela.ts`): as que se
+ * veem e uma margem de cada lado. Mede o que precisa ao montar e a cada render
+ * (a altura de uma linha, onde começam as linhas dentro do scroll, a divisória),
+ * e outra vez ao rolar e quando a janela muda de tamanho -- uma leitura por
+ * fotograma. A janela só muda aos degraus, por isso quase nenhum scroll redesenha.
+ */
+function useJanelaDaTabela(tabela: React.MutableRefObject<HTMLElement | null>, total: number, plain: boolean, divisoria?: { antesDe: number }) {
+  const [alturaDaLinha, setAlturaDaLinha] = useState<number>(plain ? 52 : LINHA_LISTA + 1);
+  const [alturaDaDivisoria, setAlturaDaDivisoria] = useState<number>(ESP.lg + ESP.sm + 16);
+  const div = divisoria ? { antesDe: divisoria.antesDe, altura: alturaDaDivisoria } : null;
+  const [janela, setJanela] = useState<Janela>(() => janelaDaTabela({
+    topoVisivel: 0, alturaVisivel: ALTURA_VISIVEL_ESTIMADA, alturaDaLinha, total, divisoria: div,
+  }));
+  const [rolo, setRolo] = useState<HTMLElement | null>(null);
+  const ultimo = useRef({ janela, alturaDaLinha, div, total, origem: 0, rolo: null as HTMLElement | null });
+  ultimo.current = { ...ultimo.current, janela, alturaDaLinha, div, total };
+
+  const medir = useCallback(() => {
+    const no = tabela.current;
+    const u = ultimo.current;
+    if (!no) return;
+    const r = u.rolo ?? roloDe(no);
+    if (r !== u.rolo) { u.rolo = r; setRolo(r); }
+    const linhas = no.querySelectorAll<HTMLElement>(':scope > [data-dt~="fila"]');
+    let h = u.alturaDaLinha;
+    if (linhas.length) {
+      const a = linhas[0].getBoundingClientRect();
+      const i0 = Number(linhas[0].dataset.i);
+      // A altura de uma linha é a distância entre duas seguidas (inclui o fio de baixo).
+      if (linhas.length >= 2 && Number(linhas[1].dataset.i) === i0 + 1 && !(u.div && i0 + 1 === u.div.antesDe)) {
+        h = linhas[1].getBoundingClientRect().top - a.top;
+      } else if (linhas.length === 1) h = a.height;
+      if (u.div) {
+        const antes = no.querySelector<HTMLElement>(`:scope > [data-i="${u.div.antesDe - 1}"]`);
+        const depois = no.querySelector<HTMLElement>(`:scope > [data-i="${u.div.antesDe}"]`);
+        if (antes && depois) {
+          const alt = depois.getBoundingClientRect().top - antes.getBoundingClientRect().top - h;
+          if (alt > 0 && Math.abs(alt - u.div.altura) > 0.5) setAlturaDaDivisoria(alt);
+        }
+      }
+      if (h > 0 && Math.abs(h - u.alturaDaLinha) > 0.25) setAlturaDaLinha(h);
+      const caixa = r ? r.getBoundingClientRect() : { top: 0 };
+      const scrollTop = r ? r.scrollTop : window.scrollY;
+      u.origem = a.top - caixa.top + scrollTop - topoDaLinha(i0, h, u.total, u.div);
+    }
+    const nova = janelaDaTabela({
+      topoVisivel: (r ? r.scrollTop : window.scrollY) - u.origem,
+      alturaVisivel: r ? r.clientHeight : window.innerHeight,
+      alturaDaLinha: h, total: u.total, divisoria: u.div,
+    });
+    if (!mesmaJanela(nova, u.janela)) setJanela(nova);
+  }, [tabela]);
+
+  // Antes de pintar: uma lista que mudou (outra pesquisa, outra ordem) não se
+  // pinta com a janela da anterior.
+  useLayoutEffect(() => { medir(); });
+
+  useEffect(() => {
+    let quadro = 0;
+    // Síncrono, dentro do fotograma do scroll: com o React 18 a janela nova só se
+    // desenhava no fotograma seguinte, e um salto grande (o scroll restaurado ao
+    // voltar a uma lista, a barra arrastada) mostrava um fotograma em branco.
+    const agendar = () => { if (!quadro) quadro = requestAnimationFrame(() => { quadro = 0; flushSync(medir); }); };
+    const alvo: HTMLElement | Window = rolo ?? window;
+    alvo.addEventListener('scroll', agendar, { passive: true });
+    window.addEventListener('resize', agendar);
+    const tamanho = rolo && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(agendar) : null;
+    if (rolo) tamanho?.observe(rolo);
+    return () => {
+      cancelAnimationFrame(quadro);
+      alvo.removeEventListener('scroll', agendar);
+      window.removeEventListener('resize', agendar);
+      tamanho?.disconnect();
+    };
+  }, [rolo, medir]);
+
+  const geometria = {
+    topo: (i: number) => topoDaLinha(i, alturaDaLinha, total, div),
+    alturaTotal: () => alturaDasLinhas(total, alturaDaLinha, div),
+    alturaDaLinha,
+    rolo: () => ultimo.current.rolo,
+    /** Onde fica a linha `i` dentro do scroll, em píxeis. */
+    posicao: (i: number) => {
+      const topo = ultimo.current.origem + topoDaLinha(i, alturaDaLinha, total, div);
+      return { topo, fundo: topo + alturaDaLinha };
+    },
+    /** Monta a linha `i` e rola o mínimo para ela se ver (o teclado). */
+    mostrar: (i: number) => {
+      const u = ultimo.current;
+      const com = janelaComALinha(u.janela, i, total);
+      if (!mesmaJanela(com, u.janela)) setJanela(com);
+      const r = u.rolo;
+      if (!r) return;
+      const y = scrollParaVer({ scrollTop: r.scrollTop, alturaVisivel: r.clientHeight, origem: u.origem, topo: topoDaLinha(i, alturaDaLinha, total, div), altura: alturaDaLinha });
+      if (y !== null) r.scrollTop = y;
+    },
+  };
+  return { janela, geometria };
+}
+
+type Geometria = ReturnType<typeof useJanelaDaTabela>['geometria'];
+
+/** O scroll mais próximo (mesmo que ainda não tenha nada para rolar). */
+function roloDe(no: HTMLElement): HTMLElement | null {
+  for (let el = no.parentElement; el; el = el.parentElement) {
+    if (/(auto|scroll)/.test(getComputedStyle(el).overflowY)) return el;
+  }
+  return null;
+}
+
+/** O que as linhas partilham: muda quando muda a tabela, não quando ela rola. */
+type ContextoDaLinha = {
+  onPlay: (track: Track, discoveryContext?: DiscoveryContext) => void;
+  onMore?: (track: Track, discoveryContext?: DiscoveryContext) => void;
+  contexto?: (track: Track) => DiscoveryContext;
+  caraDaLinha?: (track: Track) => ReactNode;
+  larguraDaCara: number;
+  plain: boolean;
+  comArtista: boolean;
+  showTime: boolean;
+  savedKeys: ReadonlySet<string>;
+  listKey?: string;
+  aoTeclar: (e: any, index: number) => void;
+  aoFocar: (index: number) => void;
+};
+
 export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = false, plain = false, listKey, contexto, ordenacao, colunaDoArtista = true, caraDaLinha, larguraDaCara = 34, divisoria, reordenar, saltoParaAtual = false }: {
   tracks: Track[]; onPlay: (track: Track, discoveryContext?: DiscoveryContext) => void; onMore?: (track: Track, discoveryContext?: DiscoveryContext) => void; empty?: ReactNode;
   /** Marcar as que já estão na biblioteca. Só em listas que misturam
@@ -1022,7 +1120,7 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
   showSavedBadge?: boolean;
   /** Lista aberta, sem o aspeto de uma caixa dentro da página. */
   plain?: boolean;
-  /** Identidade persistente para não voltar às primeiras linhas ao regressar. */
+  /** Identidade da lista (o destino de reordenar e o arrastar dizem de onde vem a música). */
   listKey?: string;
   contexto?: (track:Track)=>DiscoveryContext;
   /**
@@ -1063,67 +1161,76 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
   // Subscrito sempre (regras dos hooks); sem a badge o seletor devolve um
   // Set vazio estável, por isso a tabela não redesenha à toa.
   const savedKeys = useSaved((s) => (showSavedBadge ? s.keys : EMPTY_KEYS));
-  const [limite, setLimite] = useState(() => listKey
-    ? (linhasVisiveisPorLista.get(listKey) ?? LINHAS_INICIAIS)
-    : LINHAS_INICIAIS);
-  useEffect(() => {
-    const guardado = listKey ? linhasVisiveisPorLista.get(listKey) : undefined;
-    setLimite(guardado ?? LINHAS_INICIAIS);
-  }, [listKey]);
+  // Só existem as linhas à vista e uma margem (7/11, `useJanelaDaTabela`): a
+  // tabela montava por lotes e nunca desmontava, e na faixa 1500 de uma playlist
+  // grande havia 1500 linhas vivas -- cada lote e cada troca de música
+  // redesenhavam-nas todas.
+  const tabelaRef = useRef<HTMLElement | null>(null);
+  const { janela, geometria } = useJanelaDaTabela(tabelaRef, tracks.length, plain, divisoria);
   // A preferencia "Show track duration" das Definicoes so era respeitada no
   // telemovel (TrackRow); aqui a coluna aparecia sempre. Cache sincrono, como
   // no mobile: aplica-se na proxima renderizacao da tabela.
   const showTime = isShowTrackDurationSync();
   // A faixa que toca ganha a cor de destaque e as barrinhas no lugar do
   // número. Só o `current` interessa: ler a posição aqui redesenhava a lista
-  // inteira a cada segundo.
+  // inteira a cada segundo. As linhas são memorizadas: mudar de música só
+  // redesenha a que deixou de tocar e a que começou.
   const atual = usePlayer((st) => st.current);
-  // A linha que toca, para o atalho a poder medir e levar até ela.
-  const [noDaAtual, setNoDaAtual] = useState<HTMLElement | null>(null);
+  // As primeiras linhas entram em cascata ao abrir a lista (o CSS `dt-linha`);
+  // as que se montam depois, a rolar, não (`entra`). Ao voltar a uma lista a
+  // meio (o scroll restaurado) também não: não é abrir.
+  const [aAbrir, setAAbrir] = useState(true);
+  useEffect(() => {
+    setAAbrir(true);
+    const t = setTimeout(() => setAAbrir(false), 700);
+    return () => clearTimeout(t);
+  }, [listKey]);
   // O teclado (A5, 31/10, `teclaNaLista`): a tabela é UM ponto de Tab. A linha
   // `foco` tem tabIndex 0 e as outras -1; as setas mudam-no e levam o foco.
   // Mudar de sítio continua a ser a arrastar (o João preferiu-o às setas).
-  // Uma linha que ainda não está montada (os lotes) monta-se primeiro: o foco
-  // segue depois do render (`focarDepois`).
+  // Uma linha que ainda não está montada (fora da janela) monta-se primeiro: o
+  // foco segue depois do render (`focarDepois`).
   const [foco, setFoco] = useState(0);
-  const focarDepois = useRef<{ indice: number; tabela: HTMLElement } | null>(null);
+  const focarDepois = useRef<number | null>(null);
   useEffect(() => {
-    const f = focarDepois.current;
-    if (!f) return;
-    const linha = f.tabela.querySelectorAll<HTMLElement>(':scope > [data-dt~="fila"]')[f.indice];
+    const i = focarDepois.current;
+    const tabela = tabelaRef.current;
+    if (i === null || !tabela) return;
+    const linha = tabela.querySelector<HTMLElement>(`:scope > [data-dt~="fila"][data-i="${i}"]`);
     if (!linha) return;
     focarDepois.current = null;
     linha.focus();
     linha.scrollIntoView?.({ block: 'nearest' });
   });
-  if (!tracks.length) return <>{empty}</>;
-  // 40 e não 48: as linhas passaram de 56 para 52 (25/9), e uma biblioteca de
-  // milhares de faixas lê-se melhor com mais linhas à vista.
-  const artworkSize = 40;
-  const visiveis = tracks.slice(0, limite);
-  const mostrarMais = () => setLimite((atual) => {
-    const seguinte = Math.min(tracks.length, atual + PASSO_DE_LINHAS);
-    if (listKey) linhasVisiveisPorLista.set(listKey, seguinte);
-    return seguinte;
-  });
-  const focoNaLista = Math.min(foco, visiveis.length - 1);
-  const aoTeclar = (e: any, index: number) => {
+  const teclar = useRef<(e: any, index: number) => void>(() => {});
+  teclar.current = (e: any, index: number) => {
     const acao = teclaNaLista(e.key, e.altKey, index, tracks.length);
     // O Enter já toca pelo Pressable (o PressResponder do RNW), como o clique.
     if (!acao || acao.tipo === 'tocar') return;
     e.preventDefault();
-    const tabela = (e.currentTarget as HTMLElement).parentElement;
-    if (!tabela) return;
-    if (acao.para >= limite) {
-      const ate = Math.min(tracks.length, acao.para + PASSO_DE_LINHAS);
-      if (listKey) linhasVisiveisPorLista.set(listKey, ate);
-      setLimite(ate);
-    }
+    if (acao.para < janela.inicio || acao.para >= janela.fim) geometria.mostrar(acao.para);
     setFoco(acao.para);
-    focarDepois.current = { indice: acao.para, tabela };
+    focarDepois.current = acao.para;
   };
-  return <View style={[ui.table, plain && ui.tablePlain]} {...marcar('lista')}
-    ref={refDoAlvo(`ordem:${listKey ?? 'sem-chave'}`, reordenar && listKey ? alvoDaOrdem(listKey, reordenar.aoMover) : null)}
+  const aoTeclar = useCallback((e: any, index: number) => teclar.current(e, index), []);
+  const aoFocar = useCallback((index: number) => setFoco(index), []);
+  const ctx = useMemo<ContextoDaLinha>(() => ({
+    onPlay, onMore, contexto, caraDaLinha, larguraDaCara, plain, comArtista, showTime, savedKeys, listKey, aoTeclar, aoFocar,
+  }), [onPlay, onMore, contexto, caraDaLinha, larguraDaCara, plain, comArtista, showTime, savedKeys, listKey, aoTeclar, aoFocar]);
+  // Para o reordenar: quantas linhas ficaram de fora, em cima.
+  const inicioDaJanela = useRef(0);
+  inicioDaJanela.current = janela.inicio;
+  if (!tracks.length) return <>{empty}</>;
+  const visiveis = tracks.slice(janela.inicio, janela.fim);
+  // O foco itinerante numa linha que existe: se a do foco saiu da janela, o Tab
+  // entra pela primeira montada.
+  const focoNaLista = Math.min(foco, tracks.length - 1);
+  const focavel = focoNaLista >= janela.inicio && focoNaLista < janela.fim ? focoNaLista : janela.inicio;
+  const entrar = aAbrir && janela.inicio === 0;
+  const alvo = reordenar && listKey ? alvoDaOrdem(listKey, reordenar.aoMover, () => inicioDaJanela.current) : null;
+  const refAlvo = refDoAlvo(`ordem:${listKey ?? 'sem-chave'}`, alvo);
+  return <View style={[ui.table, plain && ui.tablePlain]} {...marcar('lista', 'janela')}
+    ref={((no: any) => { tabelaRef.current = no; refAlvo(no); }) as any}
     onLayout={(e) => { const w = e.nativeEvent.layout.width; setLargura((antes) => (Math.abs(antes - w) > 1 ? w : antes)); }}>
     <View style={[ui.tableHeader, plain && ui.tableHeaderPlain]}>
       <Text numberOfLines={1} style={[ui.colHead, { width: 40, textAlign: 'center' }]}>#</Text>
@@ -1133,19 +1240,44 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
       {showTime && <CabecaDeColuna rotulo="Duration" estilo={{ width: LARGURA_DURACAO, paddingHorizontal: ESP.sm }} alinhar="right" ativa={ordenacao?.modo === 'duration'} aoOrdenar={ordenarPor('duration')} />}
       <View style={{ width: 42 }} />
     </View>
-    {visiveis.map((track, index) => {
+    {janela.inicio > 0 ? <View style={{ height: geometria.topo(janela.inicio) }} /> : null}
+    {visiveis.map((track, k) => {
+      const index = janela.inicio + k;
       const aTocar = !!atual && atual.source === track.source && atual.sourceId === track.sourceId;
       const separar = !!divisoria && index > 0 && index === divisoria.antesDe;
       return <React.Fragment key={`${track.source}:${track.sourceId}`}>
-      {separar ? <View style={ui.divisoriaDaTabela} accessibilityRole="header">
-        <Text style={ui.divisoriaTexto}>{divisoria!.rotulo.toUpperCase()}</Text><View style={ui.divisoriaLinha} />
-      </View> : null}
-      <P ref={aTocar && saltoParaAtual ? setNoDaAtual : undefined} onPress={() => onPlay(track,contexto?.(track))}
-      tabIndex={index === focoNaLista ? 0 : -1} onFocus={() => { if (foco !== index) setFoco(index); }}
+        {separar ? <View style={ui.divisoriaDaTabela} accessibilityRole="header">
+          <Text style={ui.divisoriaTexto}>{divisoria!.rotulo.toUpperCase()}</Text><View style={ui.divisoriaLinha} />
+        </View> : null}
+        <LinhaDaTabela track={track} index={index} aTocar={aTocar}
+          focavel={index === focavel} entrar={entrar} ctx={ctx} />
+      </React.Fragment>;
+    })}
+    {janela.fim < tracks.length ? <View style={{ height: geometria.alturaTotal() - geometria.topo(janela.fim) }} /> : null}
+    {saltoParaAtual && atual ? <SaltoParaAAtual faixa={atual} geometria={geometria}
+      indice={tracks.findIndex((t) => t.source === atual.source && t.sourceId === atual.sourceId)} /> : null}
+  </View>;
+}
+
+/**
+ * Uma linha da `TrackTable`. Memorizada (7/11): a tabela redesenha-se quando a
+ * janela anda ou a música muda, e as linhas que não mudaram ficam como estão.
+ */
+const LinhaDaTabela = React.memo(function LinhaDaTabela({ track, index, aTocar, focavel, entrar, ctx }: {
+  track: Track; index: number; aTocar: boolean; focavel: boolean; entrar: boolean; ctx: ContextoDaLinha;
+}) {
+  const { onPlay, onMore, contexto, caraDaLinha, larguraDaCara, plain, comArtista, showTime, savedKeys, listKey, aoTeclar, aoFocar } = ctx;
+  // 40 e não 48: as linhas passaram de 56 para 52 (25/9), e uma biblioteca de
+  // milhares de faixas lê-se melhor com mais linhas à vista.
+  const artworkSize = 40;
+  // A marca da linha, e o índice na lista inteira (o teclado e as medidas da janela procuram-no).
+  const marca = entrar ? marcar('fila', 'entra') : marcar('fila');
+  return <P onPress={() => onPlay(track,contexto?.(track))}
+      tabIndex={focavel ? 0 : -1} onFocus={() => aoFocar(index)}
       onKeyDown={(e: any) => aoTeclar(e, index)}
       onContextMenu={((event: any) => { event.preventDefault(); onMore?.(track,contexto?.(track)); }) as any}
       onPointerDown={((event: any) => comecarArrasto(event, track, { lista: listKey, indice: index })) as any}
-      {...marcar('fila')}
+      dataSet={{ ...marca.dataSet, i: String(index) }}
       style={({ hovered, pressed, focused }: any) => [ui.trackRow, plain && ui.trackRowPlain, (hovered || focused) && ui.trackHover, pressed && ui.pressed]}>
       {/* O número, o ▶ e as barrinhas ocupam o MESMO lugar: quem troca entre
           eles é o CSS (`dt-fila`), porque uma troca feita em JS obrigava a um
@@ -1176,55 +1308,38 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
       {showTime && <Text numberOfLines={1} style={[ui.trackMeta, { width: LARGURA_DURACAO, textAlign: 'right' }]}>{formatTime(track.durationSeconds)}</Text>}
       <View {...marcar('mais')}>
         <IconButton name="ellipsis-horizontal" label={`Actions for ${track.title}`} foraDoTab onPress={() => onMore?.(track,contexto?.(track))} />
-      </View></P>
-      </React.Fragment>;
-    })}
-    {visiveis.length < tracks.length && <CarregarAoChegar key={visiveis.length} aoChegar={mostrarMais} />}
-    {saltoParaAtual && atual ? <SaltoParaAAtual no={noDaAtual} faixa={atual}
-      indice={tracks.findIndex((t) => t.source === atual.source && t.sourceId === atual.sourceId)}
-      carregadas={visiveis.length} aoCarregar={(ate) => setLimite((n) => Math.max(n, Math.min(tracks.length, ate + PASSO_DE_LINHAS)))} /> : null}
-  </View>;
-}
+      </View></P>;
+});
 
 /** A altura do cabeçalho da tabela (`ui.tableHeader`): as linhas que passam por baixo dele não se veem. */
 const ALTURA_DO_CABECALHO = 38;
 
-/** O ancestral que rola: a janela de uma lista, onde as linhas ficam cortadas. */
-function ancestralQueRola(no: HTMLElement | null): HTMLElement | null {
-  for (let el = no?.parentElement ?? null; el; el = el.parentElement) {
-    const y = getComputedStyle(el).overflowY;
-    if ((y === 'auto' || y === 'scroll') && el.scrollHeight > el.clientHeight) return el;
-  }
-  return null;
-}
-
 /**
  * O atalho para a faixa que toca (30/10): aparece, preso por cima do fundo da
  * janela, quando ela está nesta lista e fora do ecrã -- por cima ou por baixo --
- * e diz para que lado fica (uma medição por fotograma, só da linha dela, enquanto
- * se rola). Se a linha ainda
- * não foi montada (a lista monta por lotes), monta até lá e depois rola.
+ * e diz para que lado fica. Desde a janela da tabela (7/11) a linha pode nem
+ * estar montada: o sítio dela sai das contas da tabela (`geometria.posicao`), e
+ * não de medir o nó. Uma leitura por fotograma enquanto se rola.
  * Um elemento de altura zero e preso: não mexe no tamanho da lista nem no scroll.
  */
-function SaltoParaAAtual({ no, faixa, indice, carregadas, aoCarregar }: {
-  no: HTMLElement | null; faixa: Track; indice: number; carregadas: number; aoCarregar: (ate: number) => void;
-}) {
+function SaltoParaAAtual({ faixa, indice, geometria }: { faixa: Track; indice: number; geometria: Geometria }) {
   const [lado, setLado] = useState<'cima' | 'baixo' | null>(null);
-  const [aIr, setAIr] = useState(false);
+  const geo = useRef(geometria);
+  geo.current = geometria;
   // Mede-se ao rolar, e não com um IntersectionObserver: esse só avisa quando a
   // linha ENTRA ou SAI do ecrã, e quem passa de "por baixo" a "por cima" a arrastar
   // a barra nunca a vê entrar -- o atalho ficava a apontar para o lado errado.
-  // Uma leitura por fotograma, de uma só linha, e só enquanto se rola.
   useEffect(() => {
-    if (!no) { setLado(null); return; }
-    const raiz = ancestralQueRola(no);
+    if (indice < 0) { setLado(null); return; }
+    const raiz = geo.current.rolo();
     let quadro = 0;
     const medir = () => {
       quadro = 0;
-      const r = no.getBoundingClientRect();
-      const j = raiz ? raiz.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
-      // A linha por baixo do cabeçalho preso também conta como fora.
-      setLado(r.bottom <= j.top + ALTURA_DO_CABECALHO ? 'cima' : r.top >= j.bottom ? 'baixo' : null);
+      const { topo, fundo } = geo.current.posicao(indice);
+      const cima = raiz ? raiz.scrollTop : window.scrollY;
+      const baixo = cima + (raiz ? raiz.clientHeight : window.innerHeight);
+      // A linha por baixo do cabeçalho também conta como fora.
+      setLado(fundo <= cima + ALTURA_DO_CABECALHO ? 'cima' : topo >= baixo ? 'baixo' : null);
     };
     const agendar = () => { if (!quadro) quadro = requestAnimationFrame(medir); };
     medir();
@@ -1236,22 +1351,27 @@ function SaltoParaAAtual({ no, faixa, indice, carregadas, aoCarregar }: {
       alvo.removeEventListener('scroll', agendar);
       window.removeEventListener('resize', agendar);
     };
-  }, [no, carregadas]);
-  const rolar = (alvo: HTMLElement) => alvo.scrollIntoView({
-    block: 'center', behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
-  });
-  // A linha pedida acabou de montar-se: agora rola-se.
-  useEffect(() => { if (aIr && no) { setAIr(false); rolar(no); } }, [aIr, no]);
-  if (indice < 0) return null;
-  // Ainda por montar: está sempre mais abaixo.
-  const onde = indice >= carregadas ? 'baixo' : lado;
-  if (!onde) return null;
+  }, [indice, geometria.alturaDaLinha]);
+  if (indice < 0 || !lado) return null;
+  // Ao centro do ecrã; a tabela monta as linhas de lá enquanto rola.
+  const rolar = () => {
+    const raiz = geo.current.rolo();
+    if (!raiz) return;
+    const { topo, fundo } = geo.current.posicao(indice);
+    // O nó do ScrollView do RNW troca o `scrollTo` do DOM pelo do React Native
+    // ({ x, y, animated }): com `{ top }` ia sempre para o topo. Chama-se o do DOM.
+    const nativo = Element.prototype.scrollTo as (this: Element, opcoes: ScrollToOptions) => void;
+    nativo.call(raiz, {
+      top: Math.max(0, (topo + fundo) / 2 - raiz.clientHeight / 2),
+      behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+    });
+  };
   return <View pointerEvents="box-none" style={estiloDoSalto.preso}>
     <Pressable {...marcar('premir', 'salto-atual')} accessibilityRole="button"
       accessibilityLabel={`Go to ${tituloDaFaixa(faixa)}, now playing`}
-      onPress={() => { if (indice >= carregadas) { aoCarregar(indice); setAIr(true); } else if (no) rolar(no); }}
+      onPress={rolar}
       style={({ hovered }: any) => [estiloDoSalto.pilula, hovered && { backgroundColor: COR.hover }]}>
-      <Ionicons name={onde === 'cima' ? 'arrow-up' : 'arrow-down'} size={14} color={COR.texto} />
+      <Ionicons name={lado === 'cima' ? 'arrow-up' : 'arrow-down'} size={14} color={COR.texto} />
       <Text numberOfLines={1} style={estiloDoSalto.texto}>{tituloDaFaixa(faixa)} · now playing</Text>
     </Pressable>
   </View>;

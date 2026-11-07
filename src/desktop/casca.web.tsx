@@ -344,6 +344,8 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="lista"] [data-dt~="fila"]:nth-child(-n+12),
     [data-dt~="fila"]:first-child{ animation: dt-linha var(--dt-normal) var(--dt-curva) both; }
     @keyframes dt-linha{ from{ opacity:0; transform: translateY(6px); } to{ opacity:1; transform:none; } }
+    /* Numa tabela com janela (7/11) as linhas montam-se a rolar: só as que abriram a lista (entra) fazem a cascata. */
+    [data-dt~="lista"][data-dt~="janela"] [data-dt~="fila"]:not([data-dt~="entra"]){ animation: none; }
 
     /* A passagem entre páginas (27/9): 150 ms em CSS, que o compositor corre
        mesmo com a thread a montar a página nova (ver TransicaoDePagina). Com

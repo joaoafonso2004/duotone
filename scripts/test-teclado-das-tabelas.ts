@@ -85,7 +85,8 @@ console.log('\no PC');
 const ui = ler('src/desktop/ui.web.tsx');
 const tabela = ui.slice(ui.indexOf('export function TrackTable('), ui.indexOf('const ALTURA_DO_CABECALHO'));
 caso('a tabela é UM ponto de Tab (índice itinerante) e as setas andam nela', () => {
-  assert.match(tabela, /tabIndex=\{index === focoNaLista \? 0 : -1\} onFocus=\{\(\) => \{ if \(foco !== index\) setFoco\(index\); \}\}/);
+  assert.match(tabela, /tabIndex=\{focavel \? 0 : -1\} onFocus=\{\(\) => aoFocar\(index\)\}/);
+  assert.match(tabela, /focavel=\{index === focavel\}/);
   assert.match(tabela, /onKeyDown=\{\(e: any\) => aoTeclar\(e, index\)\}/);
   assert.match(tabela, /teclaNaLista\(e\.key, e\.altKey, index, tracks\.length\)/);
   assert.match(tabela, /<IconButton name="ellipsis-horizontal" label=\{`Actions for \$\{track\.title\}`\} foraDoTab /, 'o "…" sai do Tab');
@@ -96,7 +97,7 @@ caso('o estado do teclado vem antes do return da lista vazia (as regras dos hook
 });
 caso('o Enter é do Pressable (toca como o clique), e uma linha por montar monta-se antes do foco', () => {
   assert.match(tabela, /if \(!acao \|\| acao\.tipo === 'tocar'\) return;/);
-  assert.match(tabela, /if \(acao\.para >= limite\) \{/);
+  assert.match(tabela, /if \(acao\.para < janela\.inicio \|\| acao\.para >= janela\.fim\) geometria\.mostrar\(acao\.para\);/);
   assert.match(tabela, /:scope > \[data-dt~="fila"\]/);
 });
 caso('o teclado não reordena (é a arrastar), e o arrastar da tabela ficou', () => {

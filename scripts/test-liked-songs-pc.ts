@@ -76,21 +76,26 @@ caso('só com o `saltoParaAtual`, e só as Liked Songs o ligam por agora', () =>
   assert.match(PAGINA, /<TrackTable plain saltoParaAtual listKey=/);
   assert.equal((PAGINA.match(/saltoParaAtual/g) ?? []).length, 1);
 });
-caso('mede-se a linha da que toca ao rolar (não com um IntersectionObserver, que não vê quem passa de baixo a cima)', () => {
-  assert.match(UI, /ref=\{aTocar && saltoParaAtual \? setNoDaAtual : undefined\}/);
+caso('mede-se ao rolar (não com um IntersectionObserver, que não vê quem passa de baixo a cima)', () => {
   assert.ok(!/new IntersectionObserver\(/.test(UI.slice(UI.indexOf('function SaltoParaAAtual'))), 'o observador só avisa de quem entra ou sai');
   assert.match(UI, /alvo\.addEventListener\('scroll', agendar, \{ passive: true \}\)/);
   assert.match(UI, /if \(!quadro\) quadro = requestAnimationFrame\(medir\)/);
-  assert.match(UI, /r\.bottom <= j\.top \+ ALTURA_DO_CABECALHO \? 'cima' : r\.top >= j\.bottom \? 'baixo' : null/);
-  assert.match(UI, /<Ionicons name=\{onde === 'cima' \? 'arrow-up' : 'arrow-down'\}/);
+  assert.match(UI, /<Ionicons name=\{lado === 'cima' \? 'arrow-up' : 'arrow-down'\}/);
+});
+caso('a linha pode não estar montada (a janela da tabela, 7/11): o sítio dela vem das contas, não do nó', () => {
+  const salto = UI.slice(UI.indexOf('function SaltoParaAAtual'), UI.indexOf('const estiloDoSalto'));
+  assert.match(salto, /const \{ topo, fundo \} = geo\.current\.posicao\(indice\);/);
+  assert.match(salto, /setLado\(fundo <= cima \+ ALTURA_DO_CABECALHO \? 'cima' : topo >= baixo \? 'baixo' : null\);/);
+  assert.match(UI, /<SaltoParaAAtual faixa=\{atual\} geometria=\{geometria\}/);
+  assert.ok(!/setNoDaAtual|carregadas|aoCarregar/.test(salto), 'já não monta por lotes até lá');
 });
 caso('limpa o ouvinte e o fotograma pedido ao sair', () => {
   assert.match(UI, /cancelAnimationFrame\(quadro\);\n\s+alvo\.removeEventListener\('scroll', agendar\);/);
 });
-caso('uma linha ainda por montar monta-se até lá e depois rola', () => {
-  assert.match(UI, /const onde = indice >= carregadas \? 'baixo' : lado;/);
-  assert.match(UI, /if \(indice >= carregadas\) \{ aoCarregar\(indice\); setAIr\(true\); \}/);
-  assert.match(UI, /useEffect\(\(\) => \{ if \(aIr && no\) \{ setAIr\(false\); rolar\(no\); \} \}, \[aIr, no\]\);/);
+caso('o atalho leva a linha ao meio do ecrã, e a tabela monta-a pelo caminho', () => {
+  assert.match(UI, /top: Math\.max\(0, \(topo \+ fundo\) \/ 2 - raiz\.clientHeight \/ 2\),/);
+  // O ScrollView do RNW põe no nó o `scrollTo` do React Native: o do DOM chama-se à parte.
+  assert.match(UI, /const nativo = Element\.prototype\.scrollTo as \(this: Element, opcoes: ScrollToOptions\) => void;\s+nativo\.call\(raiz, \{/);
 });
 caso('fica preso com altura zero (não mexe no tamanho da lista) e rola sem animar com "menos movimento"', () => {
   assert.match(UI, /preso: \{ height: 0, alignItems: 'center', position: 'sticky', bottom: 56, zIndex: 5 \}/);
