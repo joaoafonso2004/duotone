@@ -10,11 +10,16 @@
  *    Largada devagar acaba a meia volta ou volta atrás (as regras do cubo da
  *    app, `lyricsCubeGesture.ts`); lançada, continua a rodar e trava numa face.
  *
+ * Desde 7/11 (`docs/capa-3d-arestas-maquete.html`) as arestas são a CAPA, como
+ * no iPhone, e há um brilho que corre por elas quando a caixa inclina ou roda
+ * (`brilhoDaAresta`). A opção passou a chamar-se "3D cover".
+ *
  * Só contas, sem imports de runtime: testadas em `scripts/test-capa-metal-3d.ts`.
  * Quem desenha é `desktop/CapaMetal3D.web.tsx`.
  */
 import { CAPA_FLUTUANTE } from './capaFlutuante3D';
 import type { Mola } from './movimento';
+import type { LadoDaCaixa } from './ocultacao';
 
 /** A pose de repouso: a mesma do iPhone (vê-se a aresta esquerda e a de baixo). */
 export const POSE_DO_METAL = {
@@ -165,3 +170,64 @@ export function molaAssente(m: EstadoDaMola): boolean {
  * verem (afinada na maquete; amortecimento a ~0,9 do crítico, sem ressalto).
  */
 export const LANCAR: Mola = { stiffness: 80, damping: 16, mass: 1 };
+
+// ------------------------------------------------------------ o brilho --
+/**
+ * O brilho nas arestas (7/11, o João: "adiciona um brilho na aresta que muda de
+ * sítio à medida que mexe"; a maquete `docs/capa-3d-arestas-maquete.html`).
+ *
+ * Uma luz ao longe, à esquerda, um pouco acima e à frente. Cada aresta tem um
+ * ponto quente: na pose de repouso fica onde a luz a apanha, e CORRE ao longo
+ * dela quando a aresta roda em direção à luz (2,5x: 6° de rato são um quarto da
+ * aresta). A força é quanto o canto (meio caminho entre a face e a lateral), ou
+ * a lateral, aponta para o meio entre a luz e quem vê.
+ *
+ * Direções da caixa: x para a direita, y para baixo, z para quem vê. A ordem é a
+ * do transform: rotateY(virar) primeiro, depois rotateZ, rotateY e rotateX.
+ */
+export const FORCA_DO_BRILHO = 0.7;
+/** O comprimento do ponto quente, em lados: o fio (na borda) e o lustro (na espessura). */
+export const COMPRIMENTO_DO_FIO = 0.36;
+export const COMPRIMENTO_DO_LUSTRO = 0.42;
+
+type Vetor = [number, number, number];
+const rad = (g: number) => (g * Math.PI) / 180;
+const unitario = (v: Vetor): Vetor => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
+const escalar = (a: Vetor, b: Vetor) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+function rodar(v: Vetor, rx: number, ry: number, rz: number, virar: number): Vetor {
+  let [x, y, z] = v, c: number, s: number;
+  c = Math.cos(rad(virar)); s = Math.sin(rad(virar)); [x, z] = [x * c + z * s, -x * s + z * c];
+  c = Math.cos(rad(rz)); s = Math.sin(rad(rz)); [x, y] = [x * c - y * s, x * s + y * c];
+  c = Math.cos(rad(ry)); s = Math.sin(rad(ry)); [x, z] = [x * c + z * s, -x * s + z * c];
+  c = Math.cos(rad(rx)); s = Math.sin(rad(rx)); [y, z] = [y * c - z * s, y * s + z * c];
+  return [x, y, z];
+}
+const LUZ: Vetor = unitario([-0.5, -0.35, 1]);
+const MEIO: Vetor = unitario([LUZ[0], LUZ[1], LUZ[2] + 1]);
+/** Para onde aponta cada lateral, e ao longo de quê corre a aresta (de cima para baixo, da esquerda para a direita). */
+const LADOS: Record<LadoDaCaixa, { n: Vetor; t: Vetor }> = {
+  esq: { n: [-1, 0, 0], t: [0, 1, 0] }, dir: { n: [1, 0, 0], t: [0, 1, 0] },
+  cima: { n: [0, -1, 0], t: [1, 0, 0] }, baixo: { n: [0, 1, 0], t: [1, 0, 0] },
+};
+const suave = (a: number, b: number, x: number) => { const k = Math.min(1, Math.max(0, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
+const NO_REPOUSO = Object.fromEntries((Object.keys(LADOS) as LadoDaCaixa[]).map((l) => [
+  l, escalar(MEIO, rodar(LADOS[l].t, POSE_DO_METAL.rotateX, POSE_DO_METAL.rotateY, POSE_DO_METAL.rotateZ, 0)),
+])) as Record<LadoDaCaixa, number>;
+
+/**
+ * O brilho de uma aresta. `face` é +1 a da frente, -1 o verso. `u` vai de 0 a 1
+ * ao longo da aresta (de cima para baixo, da esquerda para a direita, nas
+ * direções da caixa); `canto` é a força do fio na borda, `lateral` a do lustro.
+ */
+export function brilhoDaAresta(
+  lado: LadoDaCaixa, face: 1 | -1, pose: { rotateX: number; rotateY: number; rotateZ: number; virar: number },
+): { u: number; canto: number; lateral: number } {
+  const { n, t } = LADOS[lado];
+  const { rotateX: rx, rotateY: ry, rotateZ: rz, virar } = pose;
+  const d = escalar(MEIO, rodar(t, rx, ry, rz, virar)), r = NO_REPOUSO[lado];
+  return {
+    u: Math.min(0.94, Math.max(0.06, 0.5 + 0.35 * r + 2.5 * (d - r))),
+    canto: suave(0.3, 0.95, escalar(rodar(unitario([n[0], n[1], face]), rx, ry, rz, virar), MEIO)),
+    lateral: suave(0.1, 0.9, escalar(rodar(n, rx, ry, rz, virar), MEIO)),
+  };
+}

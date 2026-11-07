@@ -113,7 +113,7 @@ caso('mudam ao vivo e ficam guardados, e a casca lê-os ao arrancar', () => {
   assert.match(NAVEGADOR, /getFundoDoLeitor\(\)\.then\(definirFundoDoLeitor\)/);
 });
 caso('no Cinema somem as opções da capa grande, que lá não fariam nada', () => {
-  for (const rotulo of ['ChoiceLine label="Now Playing effect"', 'ToggleLine label="3D metal cover"']) {
+  for (const rotulo of ['ChoiceLine label="Now Playing effect"', 'ToggleLine label="3D cover"']) {
     assert.ok(DEFINICOES.includes(`{disposicao !== 'cinema' && <${rotulo}`), rotulo);
   }
   assert.ok(DEFINICOES.includes(`{disposicao !== 'cinema' && glitch !== 'off' && <ChoiceLine label="Effect strength"`));

@@ -267,11 +267,12 @@ export function injectDesktopDocumentStyles() {
     @keyframes dt-capa-sai{ from{ opacity:1 } to{ opacity:0 } }
     [data-dt~="np-texto-entra"]{ animation: dt-np-texto-entra 380ms var(--dt-curva) 90ms both; }
     @keyframes dt-np-texto-entra{ from{ opacity:0; transform: translateY(6px) } to{ opacity:1; transform: none } }
-    /* A capa de metal em 3D (5/11, "3D metal cover", desligada de origem;
-       CapaMetal3D.web.tsx). A caixa é 3D a sério (preserve-3d), e quem a move é
-       o JavaScript, com as molas da app: aqui não há transições. As arestas são
-       alumínio escovado e PARADO -- sem o risco de luz nem o ambiente refletido
-       da maquete, que o João tirou. Escurecem para trás, com a luz de cima. */
+    /* A capa em 3D (5/11, "3D cover", desligada de origem; CapaMetal3D.web.tsx).
+       A caixa é 3D a sério (preserve-3d), e quem a move é o JavaScript, com as
+       molas da app: aqui não há transições. Desde 7/11 as arestas são a capa,
+       como no iPhone (a faixa da borda espelhada, com o véu do iPhone, ambos
+       postos pelo componente), e o brilho que corre por elas é o JavaScript a
+       mexer só a posição e a opacidade do ponto quente (eram metal escovado). */
     [data-dt~="m3-palco"]{ position: relative; display: grid; place-items: center; }
     [data-dt~="m3-chao"], [data-dt~="m3-caixa"]{ grid-area: 1 / 1; position: relative; }
     [data-dt~="m3-chao"]{ pointer-events: none; }
@@ -280,20 +281,12 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="m3-caixa"] img{ -webkit-user-drag: none; }
     [data-dt~="m3-face"]{ position: absolute; inset: 0; overflow: hidden; border-radius: 2px; background: #16161d; backface-visibility: hidden; }
     [data-dt~="m3-verso-capa"]{ position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .6; transform: scale(1.12); }
-    [data-dt~="m3-lado"]{ position: absolute; overflow: hidden; backface-visibility: hidden; }
-    [data-dt~="m3-lado"]::after{ content: ""; position: absolute; inset: 0; }
-    [data-dt~="m3-esq"], [data-dt~="m3-dir"]{ --m3-escovado: repeating-linear-gradient(90deg, rgba(255,255,255,.06) 0 1px, rgba(0,0,0,.07) 1px 2px, rgba(255,255,255,0) 2px 3px); }
-    [data-dt~="m3-cima"], [data-dt~="m3-baixo"]{ --m3-escovado: repeating-linear-gradient(0deg, rgba(255,255,255,.06) 0 1px, rgba(0,0,0,.07) 1px 2px, rgba(255,255,255,0) 2px 3px); }
-    [data-dt~="m3-lado"]{ --m3-cromado: #141519, #34363d 20%, #7c7f88 44%, #c3c6cd 66%, #eef0f3 80%, #fff 86%, #a3a6ae 93%, #55585f; }
-    /* De trás para a frente: a frente da lateral esquerda é o lado direito dela. */
-    [data-dt~="m3-esq"]{ background: var(--m3-escovado), linear-gradient(to right, var(--m3-cromado)); }
-    [data-dt~="m3-dir"]{ background: var(--m3-escovado), linear-gradient(to left, var(--m3-cromado)); }
-    [data-dt~="m3-cima"]{ background: var(--m3-escovado), linear-gradient(to bottom, var(--m3-cromado)); }
-    [data-dt~="m3-baixo"]{ background: var(--m3-escovado), linear-gradient(to top, var(--m3-cromado)); }
-    [data-dt~="m3-esq"]::after{ background: linear-gradient(to left, rgba(0,0,0,.06), rgba(0,0,0,.45)); }
-    [data-dt~="m3-dir"]::after{ background: linear-gradient(to right, rgba(0,0,0,.1), rgba(0,0,0,.5)); }
-    [data-dt~="m3-cima"]::after{ background: linear-gradient(to top, rgba(0,0,0,0), rgba(0,0,0,.35)); }
-    [data-dt~="m3-baixo"]::after{ background: linear-gradient(to bottom, rgba(0,0,0,.28), rgba(0,0,0,.62)); }
+    [data-dt~="m3-lado"]{ position: absolute; overflow: hidden; backface-visibility: hidden; background: #16161d; }
+    [data-dt~="m3-esq"], [data-dt~="m3-dir"], [data-dt~="m3-cima"], [data-dt~="m3-baixo"]{ isolation: isolate; }
+    [data-dt~="m3-tira"], [data-dt~="m3-veu"]{ position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+    [data-dt~="m3-fio"], [data-dt~="m3-labio"], [data-dt~="m3-lustro"]{ position: absolute; overflow: hidden; pointer-events: none; z-index: 1; }
+    [data-dt~="m3-lustro"]{ inset: 0; }
+    [data-dt~="m3-fio"] i, [data-dt~="m3-labio"] i, [data-dt~="m3-lustro"] i{ position: absolute; display: block; opacity: 0; will-change: transform, opacity; }
 
     /* =====================================================================
        O MOVIMENTO DO PC (20/9)

@@ -57,35 +57,15 @@ for (let i = 0; i < ESPETRO_ESTATICO.length; i++) {
  */
 const recortes = new Map<string, Recorte & { largura: number; altura: number }>();
 
-function preferePoucoMovimento(): boolean {
-  try {
-    return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-  } catch {
-    return false;
-  }
-}
-
-export function GlitchArtwork({ uri, lado, modo, intensidade }: { uri: string | null; lado: number; modo: GlitchMode; intensidade: EffectIntensity }) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [falhou, setFalhou] = useState(false);
-  const [poucoMovimento, setPoucoMovimento] = useState(preferePoucoMovimento);
-
-  useEffect(() => {
-    const mq = window.matchMedia?.('(prefers-reduced-motion: reduce)');
-    if (!mq) return;
-    const ouvir = () => setPoucoMovimento(mq.matches);
-    mq.addEventListener('change', ouvir);
-    return () => mq.removeEventListener('change', ouvir);
-  }, []);
-
+/**
+ * O recorte de uma capa (e o tamanho dela), medido uma vez por URL. Partilhado
+ * com as arestas da capa 3D (7/11): a faixa da borda que continua pela aresta
+ * tem de vir do mesmo enquadramento que a face.
+ */
+export function useRecorteDaCapa(uri: string | null): (Recorte & { largura: number; altura: number }) | null {
   const [recorte, setRecorte] = useState<(Recorte & { largura: number; altura: number }) | null>(
     () => (uri ? recortes.get(uri) ?? null : null),
   );
-
-  // Capa nova, oportunidade nova: uma falha de CORS numa faixa nao pode
-  // condenar as seguintes.
-  useEffect(() => setFalhou(false), [uri]);
-
   // Independente do modo, de proposito: o recorte tem de estar medido antes
   // de o glitch se desligar, senao a troca volta a dar-se a vista de todos.
   useEffect(() => {
@@ -109,6 +89,35 @@ export function GlitchArtwork({ uri, lado, modo, intensidade }: { uri: string | 
     imagem.src = uri;
     return () => { vivo = false; imagem.onload = null; imagem.onerror = null; };
   }, [uri]);
+  return recorte;
+}
+
+function preferePoucoMovimento(): boolean {
+  try {
+    return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+  } catch {
+    return false;
+  }
+}
+
+export function GlitchArtwork({ uri, lado, modo, intensidade }: { uri: string | null; lado: number; modo: GlitchMode; intensidade: EffectIntensity }) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [falhou, setFalhou] = useState(false);
+  const [poucoMovimento, setPoucoMovimento] = useState(preferePoucoMovimento);
+
+  useEffect(() => {
+    const mq = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    if (!mq) return;
+    const ouvir = () => setPoucoMovimento(mq.matches);
+    mq.addEventListener('change', ouvir);
+    return () => mq.removeEventListener('change', ouvir);
+  }, []);
+
+  const recorte = useRecorteDaCapa(uri);
+
+  // Capa nova, oportunidade nova: uma falha de CORS numa faixa nao pode
+  // condenar as seguintes.
+  useEffect(() => setFalhou(false), [uri]);
 
   const efetivo: GlitchMode = modo === 'reactive' && poucoMovimento ? 'static' : modo;
   const comCanvas = efetivo !== 'off' && !!uri && !falhou;

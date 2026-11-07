@@ -338,12 +338,13 @@ export function NowPlayingPage({
         {/* O botão direito na capa abre o menu da música (24/10), o curto do leitor. */}
         <View key={`entra:${faixaAtual}`} style={cuboEscondido ? { opacity: 0 } : undefined}
           {...({ onContextMenu: (e: any) => { e.preventDefault(); more(track, undefined, { leitor: 'capa' }); } } as any)}>
-          {/* A capa de metal em 3D (5/11, "3D metal cover", desligada de origem):
-              a mesma face da frente e a mesma letra, numa caixa que afunda onde
-              está o rato e roda a arrastar. Sem ela, o cubo de sempre. */}
+          {/* A capa em 3D (5/11, "3D cover", desligada de origem): a mesma face da
+              frente e a mesma letra, numa caixa que afunda onde está o rato e roda
+              a arrastar, com a capa nas arestas e um brilho que corre por elas
+              (7/11). Sem ela, o cubo de sempre. */}
           {capaMetal ? (
             <CapaMetal3D track={track} size={ladoCapa} artwork={track.artworkUrl} showLyrics={showLyrics} onChange={setShowLyrics}
-              capaQueSai={capaQueSai} faceRef={faceDaCaixa}
+              capaQueSai={capaQueSai} faceRef={faceDaCaixa} capaDasArestas={capaGrande}
               front={<GlitchArtwork uri={capaGrande} lado={ladoCapa} modo={glitch} intensidade={effectIntensity} />} />
           ) : (
             <ArtworkLyricsCube track={track} size={ladoCapa} artwork={track.artworkUrl} showLyrics={showLyrics} onChange={setShowLyrics}

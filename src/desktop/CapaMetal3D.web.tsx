@@ -3,19 +3,22 @@ import { StyleSheet, View } from 'react-native';
 import { LyricsView } from '../components/LyricsView';
 import { acceptsCubeSwipe } from '../lib/lyricsCubeGesture';
 import { desfoqueLeve } from '../lib/capaGrande';
-import { CAPA_FLUTUANTE } from '../lib/capaFlutuante3D';
+import { CAPA_FLUTUANTE, geometriaDaLateral, type Lateral } from '../lib/capaFlutuante3D';
 import { ENTRADA, ESTADO, SOLTAR, type Mola } from '../lib/movimento';
 import {
-  LANCAR, LIMIAR_DO_CAMINHO, LIMIAR_DO_GESTO, PAUSA_QUE_NAO_LANCA_MS, POSE_DO_METAL,
-  anguloCurto, anguloDoArrasto, anguloDoLado, destinoAoLargar, grausPorSegundo, inclinacao,
+  COMPRIMENTO_DO_FIO, COMPRIMENTO_DO_LUSTRO, FORCA_DO_BRILHO, LANCAR, LIMIAR_DO_CAMINHO, LIMIAR_DO_GESTO,
+  PAUSA_QUE_NAO_LANCA_MS, POSE_DO_METAL,
+  anguloCurto, anguloDoArrasto, anguloDoLado, brilhoDaAresta, destinoAoLargar, grausPorSegundo, inclinacao,
   molaAssente, mostraALetra, passoDaMola, ratoNaCapa, type EstadoDaMola,
 } from '../lib/capaMetal3D';
+import type { LadoDaCaixa } from '../lib/ocultacao';
 import type { Track } from '../types';
+import { useRecorteDaCapa } from './glitch/GlitchArtwork.web';
 import type { LateralDaOcultacao } from './Ocultacao.web';
 
 /**
- * A capa de metal em 3D do Now Playing do PC (5/11, "3D metal cover" nas
- * Definições, `pref:capaMetal3D`). **Desligada de origem** (pedido do João):
+ * A capa em 3D do Now Playing do PC (5/11; nas Definições "3D cover" desde 7/11,
+ * quando as arestas deixaram de ser metal; `pref:capaMetal3D`). **Desligada de origem** (pedido do João):
  * sem ela fica o `ArtworkLyricsCube` de sempre. A casca lê a preferência ao
  * arrancar (`getCapaMetal3D` no `RootNavigator.web.tsx`) e as Definições
  * mudam-na ao vivo, no mesmo processo -- a mesma pequena store dos dois tons.
@@ -65,6 +68,101 @@ function lateral(qual: 'esq' | 'dir' | 'cima' | 'baixo', lado: number, t: number
   return { width: lado, height: t, top: (lado - t) / 2, left: 0, transform: `rotateX(${qual === 'cima' ? 90 : -90}deg) translateZ(${z}px)` };
 }
 
+/** O nome de cada lateral nas contas do iPhone (`geometriaDaLateral`). */
+const NO_IPHONE: Record<LadoDaCaixa, Lateral> = { esq: 'esquerda', dir: 'direita', cima: 'cima', baixo: 'baixo' };
+/** O véu vai da frente da lateral para trás: a frente da esquerda é o lado direito dela, e assim por diante. */
+const PARA_TRAS: Record<LadoDaCaixa, string> = { esq: 'to left', dir: 'to right', cima: 'to top', baixo: 'to bottom' };
+
+/**
+ * A faixa da capa junto àquela borda, espelhada para a borda continuar pela
+ * aresta (7/11, como no iPhone: as contas são as do `geometriaDaLateral`). Com o
+ * mesmo recorte da face (`useRecorteDaCapa`): a maxres do YouTube traz barras, e
+ * a aresta tem de continuar a capa e não as barras.
+ */
+function FaixaDaCapa({ uri, qual, lado, espessura }: { uri: string | null; qual: LadoDaCaixa; lado: number; espessura: number }) {
+  const g = geometriaDaLateral(NO_IPHONE[qual], lado, espessura);
+  const recorte = useRecorteDaCapa(uri);
+  if (!uri) return null;
+  const escala = recorte ? lado / recorte.lado : 0;
+  const imagem: React.CSSProperties = recorte
+    ? { position: 'absolute', width: recorte.largura * escala, height: recorte.altura * escala, left: -recorte.x * escala, top: -recorte.y * escala }
+    : { position: 'absolute', left: 0, top: 0, width: lado, height: lado, objectFit: 'cover' };
+  return (
+    <div data-dt="m3-tira" style={{ transform: g.espelho === 'x' ? 'scaleX(-1)' : 'scaleY(-1)' }}>
+      <div style={{ position: 'absolute', left: g.imagem.x, top: g.imagem.y, width: lado, height: lado, overflow: 'hidden' }}>
+        <img src={uri} alt="" draggable={false} style={imagem} />
+      </div>
+    </div>
+  );
+}
+
+// O brilho (7/11, `brilhoDaAresta`): um fio de 1,5 px na borda de cada face, o
+// mesmo fio do lado de lá do canto (o "lábio" da lateral) e um lustro largo e
+// fraco na espessura. Desenhado uma vez; o `pintar` só lhe muda a posição e a
+// opacidade do ponto quente.
+const FIO = 'linear-gradient(DIR, rgba(255,255,255,0), rgba(255,255,255,.5) 30%, #fff 50%, rgba(255,255,255,.5) 70%, rgba(255,255,255,0))';
+const LUSTRO = 'radial-gradient(farthest-side, rgba(255,255,255,.85), rgba(255,255,255,.3) 55%, rgba(255,255,255,0))';
+/** Um fio ao longo de uma borda (`vertical`: de cima a baixo). `junto` é a borda onde fica. */
+function Fio({ marca, lado, face, vertical, junto, comprimento, inverter = false }: {
+  marca: 'm3-fio' | 'm3-labio'; lado: LadoDaCaixa; face: 1 | -1; vertical: boolean;
+  junto: 'top' | 'bottom' | 'left' | 'right'; comprimento: number; inverter?: boolean;
+}) {
+  const faixa: React.CSSProperties = vertical ? { top: 0, bottom: 0, width: 1.5, [junto]: 0 } : { left: 0, right: 0, height: 1.5, [junto]: 0 };
+  const quente: React.CSSProperties = vertical
+    ? { left: 0, right: 0, top: 0, height: comprimento, background: FIO.replace('DIR', '180deg') }
+    : { top: 0, bottom: 0, left: 0, width: comprimento, background: FIO.replace('DIR', '90deg') };
+  const dados = { 'data-l': lado, 'data-f': face, 'data-v': vertical ? 1 : 0, 'data-inv': inverter ? 1 : 0 };
+  // As marcas por extenso: o teste das animações lê-as no código.
+  return marca === 'm3-fio'
+    ? <b data-dt="m3-fio" {...dados} style={faixa}><i style={quente} /></b>
+    : <b data-dt="m3-labio" {...dados} style={faixa}><i style={quente} /></b>;
+}
+/** Os quatro fios de uma face. No verso a face está virada: a esquerda dela é a direita da caixa. */
+function FiosDaFace({ face, lado }: { face: 1 | -1; lado: number }) {
+  const c = lado * COMPRIMENTO_DO_FIO;
+  return <>
+    <Fio marca="m3-fio" lado="cima" face={face} vertical={false} junto="top" comprimento={c} inverter={face < 0} />
+    <Fio marca="m3-fio" lado="baixo" face={face} vertical={false} junto="bottom" comprimento={c} inverter={face < 0} />
+    <Fio marca="m3-fio" lado={face > 0 ? 'esq' : 'dir'} face={face} vertical junto="left" comprimento={c} />
+    <Fio marca="m3-fio" lado={face > 0 ? 'dir' : 'esq'} face={face} vertical junto="right" comprimento={c} />
+  </>;
+}
+/** O que vai dentro de uma lateral: a capa (e a que sai, na Ocultação), o véu, o lustro e os dois lábios. */
+function DentroDaLateral({ qual, lado, espessura, capa, capaQueSai }: { qual: LadoDaCaixa; lado: number; espessura: number; capa: string | null; capaQueSai: string | null }) {
+  const g = geometriaDaLateral(NO_IPHONE[qual], lado, espessura);
+  const vertical = qual === 'esq' || qual === 'dir';
+  // A frente de cada lateral (a borda junto à face) e a de trás (junto ao verso).
+  const frente = ({ esq: 'right', dir: 'left', cima: 'bottom', baixo: 'top' } as const)[qual];
+  const tras = ({ esq: 'left', dir: 'right', cima: 'top', baixo: 'bottom' } as const)[qual];
+  const comprimento = lado * COMPRIMENTO_DO_LUSTRO;
+  const lustro: React.CSSProperties = vertical
+    ? { left: 0, right: 0, top: 0, height: comprimento, background: LUSTRO }
+    : { top: 0, bottom: 0, left: 0, width: comprimento, background: LUSTRO };
+  return <>
+    <FaixaDaCapa uri={capa} qual={qual} lado={lado} espessura={espessura} />
+    {capaQueSai ? <FaixaDaCapa uri={capaQueSai} qual={qual} lado={lado} espessura={espessura} /> : null}
+    <div data-dt="m3-veu" style={{ background: `linear-gradient(${PARA_TRAS[qual]}, rgba(0,0,0,${g.veu.frente}), rgba(0,0,0,${g.veu.tras}))` }} />
+    <b data-dt="m3-lustro" data-l={qual} data-v={vertical ? 1 : 0}><i style={lustro} /></b>
+    <Fio marca="m3-labio" lado={qual} face={1} vertical={vertical} junto={frente} comprimento={lado * COMPRIMENTO_DO_FIO} />
+    <Fio marca="m3-labio" lado={qual} face={-1} vertical={vertical} junto={tras} comprimento={lado * COMPRIMENTO_DO_FIO} />
+  </>;
+}
+
+type PontoQuente = { i: HTMLElement; lado: LadoDaCaixa; face: 1 | -1; vertical: boolean; inverter: boolean; comprimento: number; ganho: number; lustro: boolean };
+/** Os pontos quentes da caixa, lidos do DOM uma vez (e de novo se a caixa mudou). */
+function pontosQuentes(caixa: HTMLElement, lado: number): PontoQuente[] {
+  const ler = (sel: string, o: { comprimento: number; ganho: number; lustro: boolean }) =>
+    [...caixa.querySelectorAll<HTMLElement>(sel)].map((b) => ({
+      i: b.firstElementChild as HTMLElement, lado: b.dataset.l as LadoDaCaixa, face: (Number(b.dataset.f) < 0 ? -1 : 1) as 1 | -1,
+      vertical: b.dataset.v === '1', inverter: b.dataset.inv === '1', ...o,
+    }));
+  return [
+    ...ler('[data-dt~="m3-fio"]', { comprimento: lado * COMPRIMENTO_DO_FIO, ganho: 1.3, lustro: false }),
+    ...ler('[data-dt~="m3-labio"]', { comprimento: lado * COMPRIMENTO_DO_FIO, ganho: 1.2, lustro: false }),
+    ...ler('[data-dt~="m3-lustro"]', { comprimento: lado * COMPRIMENTO_DO_LUSTRO, ganho: 1.25, lustro: true }),
+  ].filter((p) => p.i);
+}
+
 /**
  * As laterais da caixa onde está a `face` (7/11): a Ocultação escurece-as com o
  * disco que passa na face.
@@ -79,16 +177,17 @@ export function lateraisDaCaixa(face: HTMLElement | null): LateralDaOcultacao[] 
 }
 
 /**
- * A capa numa caixa de metal, na pose da Floating 3D do iPhone. O lado onde
- * está o rato afunda (até 6°), e agarrar e arrastar roda a caixa sem limite
- * até à letra no verso. As contas estão em `lib/capaMetal3D.ts`.
+ * A capa numa caixa, na pose da Floating 3D do iPhone. O lado onde está o rato
+ * afunda (até 6°), e agarrar e arrastar roda a caixa sem limite até à letra no
+ * verso. As contas estão em `lib/capaMetal3D.ts`.
  *
  * Só se mexem `transform` e opacidade, e o ciclo de animação PÁRA quando a
- * caixa assenta: parada, a capa não custa nada. As arestas são metal escovado
- * desenhado pelo CSS da casca (`m3-*`), sem reflexos (o João tirou-os na
- * maquete). Com "menos movimento" nada inclina e a letra troca por opacidade.
+ * caixa assenta: parada, a capa não custa nada. As arestas são a capa, como no
+ * iPhone, com um brilho que corre por elas quando a caixa inclina ou roda (7/11;
+ * eram metal escovado). Com "menos movimento" nada inclina e a letra troca por
+ * opacidade.
  */
-export function CapaMetal3D({ track, size, artwork, front, showLyrics, onChange, capaQueSai = null, faceRef }: {
+export function CapaMetal3D({ track, size, artwork, front, showLyrics, onChange, capaQueSai = null, faceRef, capaDasArestas = null }: {
   track: Track;
   size: number;
   /** A miniatura, para o verso desfocado (a mesma do cubo). */
@@ -105,6 +204,8 @@ export function CapaMetal3D({ track, size, artwork, front, showLyrics, onChange,
   capaQueSai?: string | null;
   /** A face da frente, onde a Ocultação passa o disco (é ela que o corta). */
   faceRef?: React.MutableRefObject<HTMLDivElement | null>;
+  /** A capa das arestas: a mesma imagem da face (a grande). Sem ela, a miniatura. */
+  capaDasArestas?: string | null;
 }) {
   const palcoRef = useRef<HTMLDivElement | null>(null);
   const chaoRef = useRef<HTMLDivElement | null>(null);
@@ -133,6 +234,8 @@ export function CapaMetal3D({ track, size, artwork, front, showLyrics, onChange,
     const palco = palcoRef.current, chao = chaoRef.current, caixa = caixaRef.current;
     if (!palco || !chao || !caixa) return undefined;
 
+    let pontos: PontoQuente[] = [];
+    let ladoDosPontos = 0;
     const pintar = () => {
       const lado = atual.current.size;
       const rotX = m.rx.x, rotY = m.ry.x;
@@ -145,6 +248,19 @@ export function CapaMetal3D({ track, size, artwork, front, showLyrics, onChange,
       const fogeX = -(rotY - POSE_DO_METAL.rotateY) * lado * 0.004;
       const fogeY = (rotX - POSE_DO_METAL.rotateX) * lado * 0.003;
       chao.style.transform = `translate3d(${fogeX.toFixed(2)}px,${fogeY.toFixed(2)}px,0)`;
+      // O brilho: o ponto quente de cada aresta corre com a pose (só transform e opacidade).
+      if (!pontos.length || !pontos[0].i.isConnected || ladoDosPontos !== lado) { pontos = pontosQuentes(caixa, lado); ladoDosPontos = lado; }
+      const pose = { rotateX: rotX, rotateY: rotY, rotateZ: POSE_DO_METAL.rotateZ, virar: volta };
+      const contas = new Map<string, ReturnType<typeof brilhoDaAresta>>();
+      for (const p of pontos) {
+        const chave = `${p.lado}${p.face}`;
+        let b = contas.get(chave);
+        if (!b) { b = brilhoDaAresta(p.lado, p.face, pose); contas.set(chave, b); }
+        const u = p.inverter ? 1 - b.u : b.u;
+        const d = (u * lado - p.comprimento / 2).toFixed(1);
+        p.i.style.transform = p.vertical ? `translate3d(0,${d}px,0)` : `translate3d(${d}px,0,0)`;
+        p.i.style.opacity = Math.min(1, (p.lustro ? b.lateral : b.canto) * FORCA_DO_BRILHO * p.ganho).toFixed(3);
+      }
     };
     const comecarARodar = () => { if (!m.rodando) { m.rodando = true; setARodar(true); } };
     const tique = (t: number) => {
@@ -320,6 +436,7 @@ export function CapaMetal3D({ track, size, artwork, front, showLyrics, onChange,
   const meio = t / 2;
   const verso = desfoqueLeve(artwork, 28);
   const letras = showLyrics || aRodar;
+  const laterais = { lado: size, espessura: t, capa: capaDasArestas ?? artwork ?? null, capaQueSai };
   return (
     <div data-dt="m3-palco" ref={palcoRef} style={{ width: size, height: size, perspective: `${Math.round(size * POSE_DO_METAL.perspectiva)}px` }}>
       <div data-dt="m3-chao" ref={chaoRef} aria-hidden="true" style={{ width: size, height: size }}>
@@ -341,6 +458,7 @@ export function CapaMetal3D({ track, size, artwork, front, showLyrics, onChange,
           {/* Um <img> a sério, como na capa plana: a <Image> do RNW só desenha depois de recarregar. */}
           {capaQueSai ? <img data-dt="capa-sai" src={capaQueSai} alt=""
             style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 2 }} /> : null}
+          <FiosDaFace face={1} lado={size} />
         </div>
         <div data-dt="m3-face" aria-hidden={!showLyrics}
           style={{
@@ -355,11 +473,12 @@ export function CapaMetal3D({ track, size, artwork, front, showLyrics, onChange,
               <LyricsView key={`${track.source}:${track.sourceId}`} track={track} visible={showLyrics && !aRodar} />
             </View>
           ) : null}
+          <FiosDaFace face={-1} lado={size} />
         </div>
-        <div data-dt="m3-lado m3-esq" style={lateral('esq', size, t)} />
-        <div data-dt="m3-lado m3-dir" style={lateral('dir', size, t)} />
-        <div data-dt="m3-lado m3-cima" style={lateral('cima', size, t)} />
-        <div data-dt="m3-lado m3-baixo" style={lateral('baixo', size, t)} />
+        <div data-dt="m3-lado m3-esq" style={lateral('esq', size, t)}><DentroDaLateral qual="esq" {...laterais} /></div>
+        <div data-dt="m3-lado m3-dir" style={lateral('dir', size, t)}><DentroDaLateral qual="dir" {...laterais} /></div>
+        <div data-dt="m3-lado m3-cima" style={lateral('cima', size, t)}><DentroDaLateral qual="cima" {...laterais} /></div>
+        <div data-dt="m3-lado m3-baixo" style={lateral('baixo', size, t)}><DentroDaLateral qual="baixo" {...laterais} /></div>
       </div>
     </div>
   );

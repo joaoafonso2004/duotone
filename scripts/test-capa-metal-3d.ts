@@ -11,8 +11,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  INCLINACAO_MAXIMA, LANCAR, POSE_DO_METAL, anguloCurto, anguloDoArrasto, anguloDoLado,
-  destinoAoLargar, inclinacao, molaAssente, mostraALetra, passoDaMola, ratoNaCapa,
+  FORCA_DO_BRILHO, INCLINACAO_MAXIMA, LANCAR, POSE_DO_METAL, anguloCurto, anguloDoArrasto, anguloDoLado,
+  brilhoDaAresta, destinoAoLargar, inclinacao, molaAssente, mostraALetra, passoDaMola, ratoNaCapa,
   type EstadoDaMola,
 } from '../src/lib/capaMetal3D.ts';
 import { CAPA_FLUTUANTE } from '../src/lib/capaFlutuante3D.ts';
@@ -141,7 +141,9 @@ caso('desligada de origem: só um "1" guardado a liga', () => {
   assert.match(COMPONENTE, /let ligada = false;/);
 });
 caso('é um interruptor nas Definições do PC (Appearance)', () => {
-  assert.match(DEFINICOES, /<ToggleLine label="3D metal cover"[^\n]*value=\{capaMetal\}/);
+  // "3D metal cover" até 7/11, quando as arestas deixaram de ser metal.
+  assert.match(DEFINICOES, /<ToggleLine label="3D cover"[^\n]*value=\{capaMetal\}/);
+  assert.ok(!/3D metal cover/.test(DEFINICOES));
   assert.match(DEFINICOES, /definirCapaMetal\(v\); void setCapaMetal3D\(v\);/);
 });
 caso('o Now Playing só a desenha com a opção ligada, e o cubo de sempre sem ela', () => {
@@ -155,8 +157,50 @@ caso('a troca de música (7/11): a Ocultação passa na face da frente, e as lat
   assert.match(COMPONENTE, /<div data-dt="m3-face" aria-hidden=\{showLyrics\} ref=\{faceRef\}/);
   assert.match(LEITOR, /capaQueSai=\{capaQueSai\} faceRef=\{faceDaCaixa\}/);
 });
-caso('sem reflexos: nem o risco de luz, nem o ambiente, nem o brilho do rato', () => {
-  for (const palavra of ['luz', 'ambiente', 'reflexo', 'brilho']) {
+console.log('\nas arestas (7/11: a capa, como no iPhone, e um brilho que corre por elas)');
+const repouso = { rotateX: POSE_DO_METAL.rotateX, rotateY: POSE_DO_METAL.rotateY, rotateZ: POSE_DO_METAL.rotateZ, virar: 0 };
+caso('na pose de repouso brilham as arestas que se veem (a esquerda e a de baixo), e as outras não', () => {
+  assert.ok(brilhoDaAresta('esq', 1, repouso).canto > 0.8, 'o fio da esquerda');
+  assert.ok(brilhoDaAresta('baixo', 1, repouso).canto > 0.5, 'o fio de baixo');
+  assert.ok(brilhoDaAresta('dir', 1, repouso).canto < 0.05, 'a direita está de costas');
+  assert.ok(brilhoDaAresta('cima', 1, repouso).canto < 0.05, 'a de cima está de costas');
+});
+caso('o ponto quente corre pela aresta quando o rato inclina a caixa', () => {
+  const de = brilhoDaAresta('baixo', 1, repouso).u;
+  const para = brilhoDaAresta('baixo', 1, { ...repouso, rotateY: repouso.rotateY + INCLINACAO_MAXIMA }).u;
+  assert.ok(Math.abs(para - de) > 0.1, `andou ${Math.abs(para - de).toFixed(3)} da aresta`);
+  const cima = brilhoDaAresta('esq', 1, { ...repouso, rotateX: repouso.rotateX - INCLINACAO_MAXIMA }).u;
+  assert.notEqual(cima.toFixed(3), brilhoDaAresta('esq', 1, repouso).u.toFixed(3));
+});
+caso('nunca sai das pontas, e a força fica entre 0 e 1', () => {
+  for (let ry = -180; ry <= 180; ry += 30) for (const lado of ['esq', 'dir', 'cima', 'baixo'] as const) for (const f of [1, -1] as const) {
+    const b = brilhoDaAresta(lado, f, { ...repouso, virar: ry });
+    assert.ok(b.u >= 0.06 && b.u <= 0.94 && b.canto >= 0 && b.canto <= 1 && b.lateral >= 0 && b.lateral <= 1, `${lado} ${f} ${ry}`);
+  }
+  assert.equal(FORCA_DO_BRILHO, 0.7, 'a força da maquete');
+});
+caso('a rodar para a letra, a lateral esquerda acende quando vira para a luz', () => {
+  assert.ok(brilhoDaAresta('esq', 1, { ...repouso, virar: 60 }).lateral > brilhoDaAresta('esq', 1, repouso).lateral);
+});
+caso('a capa nas laterais: a faixa da borda espelhada, com o recorte da face e o véu do iPhone', () => {
+  assert.match(COMPONENTE, /const g = geometriaDaLateral\(NO_IPHONE\[qual\], lado, espessura\);/);
+  assert.match(COMPONENTE, /const recorte = useRecorteDaCapa\(uri\);/);
+  assert.match(COMPONENTE, /transform: g\.espelho === 'x' \? 'scaleX\(-1\)' : 'scaleY\(-1\)'/);
+  assert.match(COMPONENTE, /rgba\(0,0,0,\$\{g\.veu\.frente\}\), rgba\(0,0,0,\$\{g\.veu\.tras\}\)/);
+  assert.match(LEITOR, /capaDasArestas=\{capaGrande\}/);
+  // Na Ocultação, a capa velha também fica nas laterais até o disco a tapar.
+  assert.match(COMPONENTE, /\{capaQueSai \? <FaixaDaCapa uri=\{capaQueSai\}/);
+});
+caso('o brilho só mexe posição e opacidade, e só no pintar (que pára quando a caixa assenta)', () => {
+  assert.match(COMPONENTE, /p\.i\.style\.transform = p\.vertical \? `translate3d\(0,\$\{d\}px,0\)` : `translate3d\(\$\{d\}px,0,0\)`;/);
+  assert.match(COMPONENTE, /p\.i\.style\.opacity = /);
+  assert.match(CASCA, /\[data-dt~="m3-fio"\] i, \[data-dt~="m3-labio"\] i, \[data-dt~="m3-lustro"\] i\{ position: absolute; display: block; opacity: 0; will-change: transform, opacity; \}/);
+});
+caso('o metal escovado saiu', () => {
+  assert.ok(!/m3-cromado|m3-escovado/.test(CASCA), 'o cromado do metal');
+});
+caso('sem o reflexo na face nem o ambiente refletido (o João tirou-os a 5/11)', () => {
+  for (const palavra of ['ambiente', 'reflexo']) {
     assert.ok(!new RegExp(`data-dt="[^"]*m3-${palavra}`).test(COMPONENTE), `voltou o ${palavra}`);
     assert.ok(!CASCA.includes(`[data-dt~="m3-${palavra}"]`), `voltou o ${palavra} no CSS`);
   }
