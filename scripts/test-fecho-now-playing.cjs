@@ -60,7 +60,7 @@ function ensaiar(inicial) {
     '../useCapaGrande.web': { useCapaGrande: () => null, preCarregarCapaGrande: noop },
     '../Ocultacao.web': { useCapaQueSai: () => null }, '../DuasLuas.web': { DuasLuas: 'Luas' },
     // A capa de metal em 3D (5/11): desligada de origem, como na app.
-    '../CapaMetal3D.web': { CapaMetal3D: 'CapaMetal3D', useCapaMetal: () => false },
+    '../CapaMetal3D.web': { CapaMetal3D: 'CapaMetal3D', lateraisDaCaixa: () => [], useCapaMetal: () => false },
     '../../state/passagemAVista': { luasNoEcra: () => false }, '../../lib/ocultacao': {},
     '../../lib/leitorDoPc': { disposicaoDoLeitor: () => ({ duasColunas: true, lado: 480 }), tamanhoDoTituloDoCinema: () => 64, CAPA_DO_CINEMA: 132 },
     '../aparenciaDoLeitor.web': { useDisposicaoDoLeitor: () => estado.disposicao, useFotoDoFundo: () => null },

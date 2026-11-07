@@ -56,3 +56,24 @@ export function fundoDoDisco(cor: string): string {
 export function trajetoDoDisco(sentido: 1 | -1): { de: string; meio: string; para: string } {
   return { de: `translateX(${sentido * 100}%)`, meio: 'translateX(0)', para: `translateX(${-sentido * 100}%)` };
 }
+
+/** As quatro laterais da capa 3D do PC (`CapaMetal3D`). */
+export type LadoDaCaixa = 'esq' | 'dir' | 'cima' | 'baixo';
+
+/** O escuro que a sombra deixa numa lateral, no máximo (a do disco é 0,9 e esbatida). */
+export const SOMBRA_NA_LATERAL = 0.85;
+
+/**
+ * Na capa 3D (7/11) o disco passa DENTRO da face, e as laterais escurecem quando
+ * ele lhes passa por cima: a de onde ele vem logo ao entrar, a do outro lado só
+ * no fim, as de cima e de baixo com o meio dele -- e ao sair, pela mesma ordem.
+ * Em frações da entrada (`OCULTACAO.entradaMs`) e da saída (a mola ENTRADA):
+ * `entra` é de quando a quando escurece, `sai` de quando a quando volta.
+ */
+export function sombraNaLateral(lado: LadoDaCaixa, sentido: 1 | -1): { entra: [number, number]; sai: [number, number] } {
+  const vem = sentido > 0 ? 'dir' : 'esq';
+  const vai = sentido > 0 ? 'esq' : 'dir';
+  if (lado === vem) return { entra: [0, 0.35], sai: [0.1, 0.35] };
+  if (lado === vai) return { entra: [0.8, 1], sai: [0.55, 0.9] };
+  return { entra: [0.45, 0.85], sai: [0.25, 0.6] };
+}

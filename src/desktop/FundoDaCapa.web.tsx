@@ -5,6 +5,7 @@ import { desfoqueLeve } from '../lib/capaGrande';
 import { msDoCompasso } from '../lib/compasso';
 import { styles } from './estilos.web';
 import { marcar } from './ui.web';
+import { useAtrasadoPelaOcultacao } from './Ocultacao.web';
 
 /**
  * O fundo do leitor do iPhone, no PC: a PRÓPRIA capa muito desfocada e
@@ -39,18 +40,24 @@ export function FundoDaCapa({ uri, onde = 'pagina', aApagar = false, foto = null
   /** O véu do layout Cinema (5/11): escuro à esquerda, onde vive o título enorme. */
   cinema?: boolean;
 }) {
-  const fonte = foto ?? desfoqueLeve(uri, 64)?.uri ?? null;
+  // Troca quando a capa troca (7/11): com a Ocultação, só quando o disco a tapa.
+  // Antes trocava no instante do skip, com a capa da música anterior ainda à frente.
+  // A chave leva o tipo da camada (n: a foto nítida, d: a capa desfocada).
+  const agora = foto ? `n:${foto}` : (() => { const d = desfoqueLeve(uri, 64)?.uri; return d ? `d:${d}` : null; })();
+  const chave = useAtrasadoPelaOcultacao(agora);
+  const fonte = chave ? chave.slice(2) : null;
+  const nitida = !!chave && chave.startsWith('n:');
   const bpm = useCompasso()?.bpm;
   const trocaMs = bpm ? msDoCompasso(bpm) : 700;
   // Cada camada lembra-se do que é: a capa que sai não fica nítida a meio da
   // troca para a foto, nem a foto desfocada ao voltar à capa.
-  const [camadas, setCamadas] = useState<{ src: string; nitida: boolean }[]>(() => (fonte ? [{ src: fonte, nitida: !!foto }] : []));
+  const [camadas, setCamadas] = useState<{ src: string; nitida: boolean }[]>(() => (fonte ? [{ src: fonte, nitida }] : []));
   useEffect(() => {
     if (!fonte) { setCamadas([]); return; }
-    setCamadas((c) => (c[c.length - 1]?.src === fonte ? c : [...c.slice(-1), { src: fonte, nitida: !!foto }]));
+    setCamadas((c) => (c[c.length - 1]?.src === fonte ? c : [...c.slice(-1), { src: fonte, nitida }]));
     const t = setTimeout(() => setCamadas((c) => c.slice(-1)), trocaMs + 200);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- o `foto` vem com a fonte
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- o `nitida` vem com a fonte
   }, [fonte]);
   const veu = cinema ? styles.cinemaVeu : onde === 'janela' ? styles.janelaCorVeu : styles.npFundoVeu;
   return (

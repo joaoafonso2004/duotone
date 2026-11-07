@@ -11,6 +11,7 @@ import {
   molaAssente, mostraALetra, passoDaMola, ratoNaCapa, type EstadoDaMola,
 } from '../lib/capaMetal3D';
 import type { Track } from '../types';
+import type { LateralDaOcultacao } from './Ocultacao.web';
 
 /**
  * A capa de metal em 3D do Now Playing do PC (5/11, "3D metal cover" nas
@@ -65,6 +66,19 @@ function lateral(qual: 'esq' | 'dir' | 'cima' | 'baixo', lado: number, t: number
 }
 
 /**
+ * As laterais da caixa onde está a `face` (7/11): a Ocultação escurece-as com o
+ * disco que passa na face.
+ */
+export function lateraisDaCaixa(face: HTMLElement | null): LateralDaOcultacao[] {
+  const caixa = face?.parentElement;
+  if (!caixa) return [];
+  return (['esq', 'dir', 'cima', 'baixo'] as const).flatMap((lado) => {
+    const no = caixa.querySelector<HTMLElement>(`:scope > [data-dt~="m3-${lado}"]`);
+    return no ? [{ lado, no }] : [];
+  });
+}
+
+/**
  * A capa numa caixa de metal, na pose da Floating 3D do iPhone. O lado onde
  * está o rato afunda (até 6°), e agarrar e arrastar roda a caixa sem limite
  * até à letra no verso. As contas estão em `lib/capaMetal3D.ts`.
@@ -74,7 +88,7 @@ function lateral(qual: 'esq' | 'dir' | 'cima' | 'baixo', lado: number, t: number
  * desenhado pelo CSS da casca (`m3-*`), sem reflexos (o João tirou-os na
  * maquete). Com "menos movimento" nada inclina e a letra troca por opacidade.
  */
-export function CapaMetal3D({ track, size, artwork, front, showLyrics, onChange }: {
+export function CapaMetal3D({ track, size, artwork, front, showLyrics, onChange, capaQueSai = null, faceRef }: {
   track: Track;
   size: number;
   /** A miniatura, para o verso desfocado (a mesma do cubo). */
@@ -83,6 +97,14 @@ export function CapaMetal3D({ track, size, artwork, front, showLyrics, onChange 
   front: React.ReactNode;
   showLyrics: boolean;
   onChange: (letra: boolean) => void;
+  /**
+   * A Ocultação (7/11): a capa da música que saiu, por cima da face até a sombra
+   * da que vem a tapar. Passa DENTRO da face, por isso roda e inclina com a caixa
+   * (por cima dela, numa camada plana, ficava desencontrada).
+   */
+  capaQueSai?: string | null;
+  /** A face da frente, onde a Ocultação passa o disco (é ela que o corta). */
+  faceRef?: React.MutableRefObject<HTMLDivElement | null>;
 }) {
   const palcoRef = useRef<HTMLDivElement | null>(null);
   const chaoRef = useRef<HTMLDivElement | null>(null);
@@ -313,9 +335,12 @@ export function CapaMetal3D({ track, size, artwork, front, showLyrics, onChange 
           else if (e.key === 'Escape' && showLyrics) { e.preventDefault(); onChange(false); }
         }}
         style={{ width: size, height: size }}>
-        <div data-dt="m3-face" aria-hidden={showLyrics}
+        <div data-dt="m3-face" aria-hidden={showLyrics} ref={faceRef}
           style={{ transform: reduzido ? undefined : `translateZ(${meio}px)`, opacity: reduzido && showLyrics ? 0 : 1 }}>
           {front}
+          {/* Um <img> a sério, como na capa plana: a <Image> do RNW só desenha depois de recarregar. */}
+          {capaQueSai ? <img data-dt="capa-sai" src={capaQueSai} alt=""
+            style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 2 }} /> : null}
         </div>
         <div data-dt="m3-face" aria-hidden={!showLyrics}
           style={{

@@ -149,6 +149,12 @@ caso('o Now Playing só a desenha com a opção ligada, e o cubo de sempre sem e
   assert.match(LEITOR, /\{capaMetal \? \(\s*<CapaMetal3D /);
   assert.match(LEITOR, /\) : \(\s*<ArtworkLyricsCube /);
 });
+caso('a troca de música (7/11): a Ocultação passa na face da frente, e as laterais escurecem com ela', () => {
+  assert.match(COMPONENTE, /export function lateraisDaCaixa\(face: HTMLElement \| null\): LateralDaOcultacao\[\]/);
+  assert.match(COMPONENTE, /:scope > \[data-dt~="m3-\$\{lado\}"\]/);
+  assert.match(COMPONENTE, /<div data-dt="m3-face" aria-hidden=\{showLyrics\} ref=\{faceRef\}/);
+  assert.match(LEITOR, /capaQueSai=\{capaQueSai\} faceRef=\{faceDaCaixa\}/);
+});
 caso('sem reflexos: nem o risco de luz, nem o ambiente, nem o brilho do rato', () => {
   for (const palavra of ['luz', 'ambiente', 'reflexo', 'brilho']) {
     assert.ok(!new RegExp(`data-dt="[^"]*m3-${palavra}`).test(COMPONENTE), `voltou o ${palavra}`);

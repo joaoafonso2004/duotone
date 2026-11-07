@@ -3,7 +3,7 @@ import { SobreAMusica } from '../SobreAMusica.web';
 import { LyricsView } from '../../components/LyricsView';
 import { useFilaDoLeitor } from '../useFilaDoLeitor.web';
 import {ArtworkLyricsCube} from '../../components/ArtworkLyricsCube';
-import { CapaMetal3D, useCapaMetal } from '../CapaMetal3D.web';
+import { CapaMetal3D, lateraisDaCaixa, useCapaMetal } from '../CapaMetal3D.web';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
@@ -235,8 +235,12 @@ export function NowPlayingPage({
   // sombra da que vem a tapar. Com a letra à frente não há capa para tapar.
   const faixaAtual = track ? `${track.source}:${track.sourceId}` : '';
   const caixaDaCapa = useRef<any>(null);
+  // Com a capa de metal em 3D (7/11) o disco passa na face da frente da caixa, que
+  // roda e inclina com ela, e as laterais escurecem com ele.
+  const faceDaCaixa = useRef<HTMLDivElement | null>(null);
   const capaQueSai = useCapaQueSai(faixaAtual, track && capaGrande ? capaGrande : null, {
-    caixa: caixaDaCapa, capa: track?.artworkUrl, ligada: !showLyrics && !luasNoEcra() && !capaMetal && !cinema,
+    caixa: capaMetal ? faceDaCaixa : caixaDaCapa, capa: track?.artworkUrl, ligada: !showLyrics && !luasNoEcra() && !cinema,
+    laterais: capaMetal ? () => lateraisDaCaixa(faceDaCaixa.current) : undefined,
     sentido: () => sentidoDaOcultacao(usePlayer.getState().saltoDaFaixa, Date.now()),
   });
   const seguinte = upNext[0]?.track;
@@ -339,6 +343,7 @@ export function NowPlayingPage({
               está o rato e roda a arrastar. Sem ela, o cubo de sempre. */}
           {capaMetal ? (
             <CapaMetal3D track={track} size={ladoCapa} artwork={track.artworkUrl} showLyrics={showLyrics} onChange={setShowLyrics}
+              capaQueSai={capaQueSai} faceRef={faceDaCaixa}
               front={<GlitchArtwork uri={capaGrande} lado={ladoCapa} modo={glitch} intensidade={effectIntensity} />} />
           ) : (
             <ArtworkLyricsCube track={track} size={ladoCapa} artwork={track.artworkUrl} showLyrics={showLyrics} onChange={setShowLyrics}
@@ -347,15 +352,16 @@ export function NowPlayingPage({
         </View>
         {/* Por cima da capa, numa camada que corta o disco sem cortar o cubo da letra. */}
         <View ref={caixaDaCapa} pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, width: ladoCapa, height: ladoCapa, borderRadius: 14, overflow: 'hidden', zIndex: 3 }}>
-          {capaQueSai ? (
+          {capaQueSai && !capaMetal ? (
             // Um <img> a sério e não a <Image> do RNW: essa só desenha depois de
             // voltar a carregar a imagem (mesmo em cache), e ficava um buraco.
             <img data-dt="capa-sai" src={capaQueSai} alt=""
               style={{ position: 'absolute', width: ladoCapa, height: ladoCapa, objectFit: 'cover' }} />
           ) : null}
         </View>
-        {/* As Duas luas e a Ocultação são camadas planas sobre o quadrado da capa:
-            por cima da caixa inclinada ficavam desencontradas, e com ela não entram. */}
+        {/* As Duas luas são camadas planas sobre o quadrado da capa: por cima da
+            caixa inclinada ficavam desencontradas, e com ela não entram (a troca
+            é a Ocultação, dentro da face da caixa). */}
         <DuasLuas lado={ladoCapa} capaDaQueSai={capaGrande} ligada={!showLyrics && !capaMetal} aoEsconderCubo={setCuboEscondido} />
       </View>
       {/* As letras: dois pontos por baixo da capa, como no iPhone (decidido
