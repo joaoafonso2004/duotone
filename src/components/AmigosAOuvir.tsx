@@ -4,7 +4,7 @@ import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { FriendAvatar } from './FriendAvatar';
 import { Toque } from './Toque';
-import { amigosNaLateral } from '../lib/amigosNaLateral';
+import { amigosNaLateral, musicaDoAmigo } from '../lib/amigosNaLateral';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { hapticSelection } from '../lib/haptics';
 import { ESCALA } from '../lib/movimento';
@@ -114,7 +114,9 @@ export function AmigosAOuvir({ margem = spacing.xl }: {
     >
       {online.map((amigo) => {
         const sessao = sessoes.get(amigo.friendId);
-        const faixa = amigo.currentlyPlaying;
+        // Também quem ouve com o ecrã bloqueado (8/11): aparece com a música e o
+        // anel verde, como quem tem a app à frente.
+        const faixa = musicaDoAmigo(amigo);
         return (
         <Toque
           key={amigo.friendId}

@@ -1,4 +1,5 @@
 import type { Friendship } from '../api/social';
+import { musicaDoAmigo } from '../lib/amigosNaLateral';
 import { useOuvirJuntos } from './ouvirJuntos';
 import { useSeguirAmigo } from './seguirAmigo';
 
@@ -24,6 +25,8 @@ export async function ouvirComAmigo(amigo: Friendship, sessaoId?: string | null)
       // O Jam pode ter acabado entre a leitura e o toque: segue-se na mesma.
     }
   }
-  if (!amigo.currentlyPlaying) return;
+  // Com a app à frente ou a tocar no bolso (8/11): seguir lê a presença crua,
+  // e a música que ele publica vale esteja ele online ou não.
+  if (!musicaDoAmigo(amigo)) return;
   useSeguirAmigo.getState().iniciar(amigo.friendId, amigo.name || amigo.username || 'your friend');
 }

@@ -6,7 +6,7 @@ import { sessoesDeAmigos } from '../api/ouvirJuntos';
 import type { Friendship } from '../api/social';
 import { FriendAvatar } from '../components/FriendAvatar';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
-import { amigosNaLateral } from '../lib/amigosNaLateral';
+import { amigosNaLateral, musicaDoAmigo } from '../lib/amigosNaLateral';
 import { posicaoDoAmigo } from '../lib/posicaoDoAmigo';
 import { ouvirComAmigo } from '../state/ouvirComAmigo';
 import { agoraNoServidor, useSocial } from '../state/social';
@@ -38,7 +38,7 @@ export function AmigosNaLateral({ navigate, notify, compacta = false }: { naviga
   const [aRemover, setARemover] = useState<Friendship | null>(null);
   const fecharMenu = useCallback(() => setMenu(null), []);
   const { visiveis, resto, online } = useMemo(() => amigosNaLateral(amigos), [amigos]);
-  const aOuvir = visiveis.filter((a) => a.currentlyPlaying).length;
+  const aOuvir = visiveis.filter((a) => musicaDoAmigo(a)).length;
 
   // As sessões abertas, para "ouvir com" entrar no jam dele em vez de só tocar
   // a mesma música. Pergunta-se quando muda quem está a ouvir, não de contínuo.
@@ -78,7 +78,7 @@ export function AmigosNaLateral({ navigate, notify, compacta = false }: { naviga
     return (
       <View style={{ alignItems: 'center', paddingTop: ESP.md, paddingBottom: ESP.sm, gap: 6 }}>
         {visiveis.map((a) => {
-          const faixa = a.currentlyPlaying;
+          const faixa = musicaDoAmigo(a);
           const nome = a.name || a.username;
           return (
             <Pressable key={a.friendId}
@@ -107,7 +107,9 @@ export function AmigosNaLateral({ navigate, notify, compacta = false }: { naviga
         <Text style={{ ...TIPO.micro, color: COR.textoFraco }}>{online} ONLINE</Text>
       </View>
       {visiveis.map((a) => {
-        const faixa = a.currentlyPlaying;
+        // Com a app à frente ou a tocar no bolso (8/11): quem ouve com o ecrã
+        // bloqueado também aparece, com a música e o ponto verde.
+        const faixa = musicaDoAmigo(a);
         const onde = posicaoDoAmigo(faixa, agora);
         const nome = a.name || a.username;
         return (

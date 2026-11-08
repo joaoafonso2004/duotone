@@ -8,6 +8,7 @@ import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { estaFixado } from '../lib/atalhosDaLateral';
 import { contextoDaPrateleira } from '../lib/contextoDaDescoberta';
 import { faixaDoAmigo, opcoesDoMenuDoAmigo, type AcaoDoAmigo } from '../lib/menuDoAmigo';
+import { musicaDoAmigo } from '../lib/amigosNaLateral';
 import { MenuDeContexto } from './MenuDeContexto.web';
 import { useAtalhosDaLateral } from '../state/atalhosDaLateral';
 import { useAuth } from '../state/auth';
@@ -54,7 +55,8 @@ export function MenuDoAmigo({ amigo, sessaoDele, rato, aoFechar, aoPedirRemover,
 }) {
   const { irPara } = useDestinos();
   const nome = amigo.name || amigo.username || 'your friend';
-  const faixa = useMemo(() => faixaDoAmigo(amigo.currentlyPlaying), [amigo.currentlyPlaying]);
+  // A música dele com a app à frente ou a tocar no bolso (8/11, `musicaDoAmigo`).
+  const faixa = useMemo(() => faixaDoAmigo(musicaDoAmigo(amigo)), [amigo]);
   const guardadas = useSaved((s) => s.keys);
   const estouNumJam = useOuvirJuntos((s) => !!s.sessao);
   const tenhoFaixa = usePlayer((s) => !!s.current);
