@@ -18,6 +18,7 @@ import { styles } from '../estilos.web';
 import { faixasEmCache, lerFaixas, ouvirFaixas } from '../../lib/cacheDaBiblioteca';
 import { capaParaLista } from '../../lib/capaDoEcraBloqueado';
 import { capaComBarras, molduraSemBarras } from '../../lib/modoLimpo';
+import { marcar } from '../ui.web';
 
 import { mensagemDeErro } from '../../lib/mensagemDeErro';
 /**
@@ -130,30 +131,60 @@ export function PlaylistArtwork({ artworks, lado = 200 }: { artworks: string[]; 
     const original = artworks.find(Boolean)!;
     if (capaComBarras(original)) {
       const m = molduraSemBarras(lado);
-      return <View style={moldura}><Image source={{ uri: original }} style={{ position: 'absolute', width: m.largura, height: m.altura, left: m.esquerda, top: m.topo }} /></View>;
+      return <View style={moldura}><View {...marcar('mosaico-img')} style={StyleSheet.absoluteFill}><Image source={{ uri: original }} style={{ position: 'absolute', width: m.largura, height: m.altura, left: m.esquerda, top: m.topo }} /></View></View>;
     }
-    return <View style={moldura}><Image source={{ uri: capas[0] }} style={StyleSheet.absoluteFill} resizeMode="cover" /></View>;
+    return <View style={moldura}><View {...marcar('mosaico-img')} style={StyleSheet.absoluteFill}><Image source={{ uri: capas[0] }} style={StyleSheet.absoluteFill} resizeMode="cover" /></View></View>;
   }
 
+  // Duas ou mais: quadros com uma linha escura de 2 px entre eles, como na maquete
+  // de 30/10. Num cartão, com o rato em cima, abrem-se (CSS `mosaico-*` na casca).
+  const mosaico = [moldura, styles.playlistArtMosaico];
   if (capas.length === 2) {
     return (
-      <View style={moldura}>
-        <View style={styles.playlistArtRow}>
-          {capas.map((capa) => <Image key={capa} source={{ uri: capa }} style={styles.playlistArtCell} resizeMode="cover" />)}
+      <View style={mosaico}>
+        <View style={styles.playlistArtRowMosaico}>
+          <QuadroDoMosaico uri={capas[0]} onde="e" />
+          <QuadroDoMosaico uri={capas[1]} onde="d" />
         </View>
       </View>
     );
   }
 
   return (
-    <View style={moldura}>
-      <View style={styles.playlistArtRow}>
-        {capas.slice(0, 2).map((capa) => <Image key={capa} source={{ uri: capa }} style={styles.playlistArtCell} resizeMode="cover" />)}
+    <View style={mosaico}>
+      <View style={styles.playlistArtRowMosaico}>
+        <QuadroDoMosaico uri={capas[0]} onde="te" />
+        <QuadroDoMosaico uri={capas[1]} onde="td" />
       </View>
-      <View style={styles.playlistArtRow}>
-        {capas.slice(2, 4).map((capa) => <Image key={capa} source={{ uri: capa }} style={styles.playlistArtCell} resizeMode="cover" />)}
-        {capas.length === 3 ? <View style={styles.playlistArtCell}><Ionicons name="musical-note" size={26} color={COR.textoFraco} /></View> : null}
+      <View style={styles.playlistArtRowMosaico}>
+        <QuadroDoMosaico uri={capas[2]} onde="be" />
+        <QuadroDoMosaico uri={capas[3] ?? null} onde="bd" />
       </View>
+    </View>
+  );
+}
+
+/** As marcas de cada quadro, por extenso (o `test-animacoes-do-pc` lê-as dentro do `marcar`). */
+const MARCAS_DOS_QUADROS = {
+  te: marcar('mosaico-quadro', 'mq-te'), td: marcar('mosaico-quadro', 'mq-td'),
+  be: marcar('mosaico-quadro', 'mq-be'), bd: marcar('mosaico-quadro', 'mq-bd'),
+  e: marcar('mosaico-quadro', 'mq-e'), d: marcar('mosaico-quadro', 'mq-d'),
+};
+
+/**
+ * Um quadro do mosaico (8/11, a maquete das Playlists de 30/10): com o rato no
+ * cartão, o quadro afasta-se 2,5 px do centro (a linha passa de 2 a 7 px) e a
+ * imagem cresce 7 % dentro dele. Só `transform`: nada se volta a desenhar.
+ * `onde` diz para onde sai: topo/baixo e esquerda/direita.
+ */
+function QuadroDoMosaico({ uri, onde }: { uri: string | null; onde: keyof typeof MARCAS_DOS_QUADROS }) {
+  return (
+    <View {...MARCAS_DOS_QUADROS[onde]} style={styles.playlistArtCell}>
+      {uri ? (
+        <View {...marcar('mosaico-img')} style={StyleSheet.absoluteFill}>
+          <Image source={{ uri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        </View>
+      ) : <Ionicons name="musical-note" size={26} color={COR.textoFraco} />}
     </View>
   );
 }

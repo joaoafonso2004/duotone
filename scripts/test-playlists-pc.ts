@@ -83,8 +83,30 @@ caso('os cartões continuam a ser alvos de largar e a levar o menu do botão dir
 console.log('\na viagem partilhada');
 caso('o cartão abre a playlist com o mosaico a viajar, e o cabeçalho é onde ele chega', () => {
   assert.match(grelha, /onPress=\{\(\) => viajar\(retratoDe\(RETRATO\.playlist\(item\.id\)\), \(\) => navigate\(\{ name: 'playlist', id: item\.id, title: item\.name \}\)\)\}/);
-  assert.match(grelha, /<View ref=\{guardarRetrato\(RETRATO\.playlist\(item\.id\)\) as any\}><PlaylistArtwork/);
-  assert.match(PAGINA, /<View style=\{\{ viewTransitionName: NOME_DO_RETRATO \} as any\}><PlaylistArtwork artworks=\{artworks\} lado=\{176\} \/><\/View>/);
+  // 8/11: o mosaico que parte leva o brilho de metal; o do cabeçalho passou a 220 (o da maquete).
+  assert.match(grelha, /<View ref=\{guardarRetrato\(RETRATO\.playlist\(item\.id\)\) as any\} \{\.\.\.marcar\('brilho'\)\} style=\{styles\.retratoDoCartao\}><PlaylistArtwork/);
+  assert.match(PAGINA, /<View style=\{\{ viewTransitionName: NOME_DO_RETRATO \} as any\}><PlaylistArtwork artworks=\{artworks\} lado=\{220\} \/><\/View>/);
+});
+
+console.log('\nos cartões e a página com vida (8/11, o resto da maquete de 30/10)');
+caso('o cartão: a cor da playlist por trás, e o play no canto do mosaico (só com músicas)', () => {
+  assert.match(grelha, /<AuraDaPlaylist capa=\{item\.artworks\[0\] \?\? null\} \/>/);
+  assert.match(grelha, /\{item\.trackCount > 0 \? <PlayDoCartao aoTocar=\{\(\) => void tocarSemAbrir\(item, 'tocar', notify\)\} rotulo=\{`Play \$\{item\.name\}`\} \/> : null\}/);
+  assert.match(PAGINA, /useCorDoAmbiente\(capaParaLista\(capa\)\)/, 'a cor sai da 16:9, sem as barras pretas');
+});
+caso('o mosaico abre-se com o rato no cartão, só com transform, e parado com menos movimento', () => {
+  const comum = ler('src/desktop/paginas/comum.web.tsx');
+  for (const q of ['te', 'td', 'be', 'bd', 'e', 'd']) assert.match(comum, new RegExp(`${q}: marcar\\('mosaico-quadro', 'mq-${q}'\\)`));
+  const casca = ler('src/desktop/casca.web.tsx');
+  assert.match(casca, /\[data-dt~="cartao"\]:hover \[data-dt~="mq-te"\]\{ transform: translate\(-2\.5px, -2\.5px\); \}/);
+  assert.match(casca, /\[data-dt~="cartao"\]:hover \[data-dt~="mosaico-img"\]\{ transform: scale\(1\.07\); \}/);
+  assert.match(casca, /\[data-dt~="mosaico-quadro"\]\{ transition: transform 600ms var\(--dt-curva\); \}/);
+  assert.match(casca, /prefers-reduced-motion: reduce\)\{\s+\[data-dt~="cartao"\]:hover \[data-dt~="mosaico-quadro"\], \[data-dt~="cartao"\]:hover \[data-dt~="mosaico-img"\]\{ transform: none; \}/);
+});
+caso('a página de uma playlist: a cor da capa no topo, a entrar devagar', () => {
+  assert.match(PAGINA, /<View style=\{styles\.paginaDaPlaylist\}><LavagemDaPlaylist capa=\{artworks\[0\] \?\? null\} \/><ContentScroll/);
+  const casca = ler('src/desktop/casca.web.tsx');
+  assert.match(casca, /\[data-dt~="lavagem-da-playlist"\]\{ animation: dt-lavagem 600ms/);
 });
 caso('só viaja com a API, com a janela à vista e sem "menos movimento"; senão navega como sempre', () => {
   assert.match(VIAGEM, /typeof \(document as ComViagem\)\.startViewTransition !== 'function'\) return false;/);

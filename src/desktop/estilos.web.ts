@@ -59,7 +59,10 @@ export const styles = StyleSheet.create({
   songsToolbar: { paddingHorizontal: ESP.xxxl, paddingBottom: ESP.lg, flexDirection: 'row', alignItems: 'center', gap: ESP.md }, songsSearch: { width: 390, maxWidth: '55%' as any }, songsResultCount: { ...TIPO.numero, color: COR.textoFraco, marginLeft: 'auto' as any },
   cardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: ESP.xl }, mediaCard: { width: 190, padding: ESP.md, borderRadius: RAIO.cartao, borderWidth: 1, borderColor: 'transparent' }, cardHover: { backgroundColor: COR.elevado, borderColor: COR.linha, transform: [{ translateY: -2 }] }, cardTitle: { fontFamily: FONT.display, color: COR.texto, fontSize: 13, fontWeight: '650' as any, marginTop: 11 }, cardMeta: { fontFamily: FONT.body, color: COR.textoFraco, fontSize: 11, marginTop: 4 },
   playlistGrid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: ESP.xxl, rowGap: ESP.xxl },
-  playlistCard: { width: 200 },
+  // `isolation`: a aura da cor (zIndex -1) fica atrás do mosaico mas dentro do cartão (8/11).
+  playlistCard: { width: 200, isolation: 'isolate' } as any,
+  // O mosaico do cartão leva o brilho de metal que segue o rato (o raio é o do mosaico).
+  retratoDoCartao: { borderRadius: 14 },
   playlistArt: { width: 200, height: 200, borderRadius: 14, backgroundColor: COR.elevado, borderWidth: 1, borderColor: COR.linhaSuave, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', boxShadow: '0 15px 36px rgba(0,0,0,.22)' } as any,
   // A estrela dos favoritos, no canto da capa do artista. Fundo escuro porque
   // ela pousa em cima da capa, que pode ser clara.
@@ -68,13 +71,18 @@ export const styles = StyleSheet.create({
   // Um lançamento novo que ainda não se foi ver (10/10, state/novosLancamentos.ts).
   pontoNovo: { position: 'absolute', top: 10, left: 10, width: 12, height: 12, borderRadius: 6, backgroundColor: COR.metalClaro, borderWidth: 2, borderColor: 'rgba(6,6,8,0.8)' },
   playlistArtRow: { flex: 1, width: '100%', flexDirection: 'row' },
-  playlistArtCell: { flex: 1, height: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: COR.elevado },
+  playlistArtCell: { flex: 1, height: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: COR.elevado, overflow: 'hidden' },
+  // O mosaico (8/11, a maquete de 30/10): os quadros com uma linha escura de 2 px entre eles.
+  playlistArtMosaico: { gap: 2, backgroundColor: COR.fundo },
+  playlistArtRowMosaico: { flex: 1, width: '100%', flexDirection: 'row', gap: 2 },
   playlistTitle: { fontFamily: FONT.display, color: COR.texto, fontSize: 14, fontWeight: '650' as any, marginTop: ESP.md },
   playlistMeta: { ...TIPO.numero, color: COR.textoFraco, marginTop: ESP.xs },
   // A página de uma playlist sem o cabeçalho da `Page` (8/11): o voltar à esquerda,
   // à altura do título das outras páginas, e o cabeçalho com o mosaico logo a seguir.
   paginaDaPlaylist: { flex: 1, minWidth: 0 },
   voltarDaPlaylist: { flexDirection: 'row', paddingTop: ESP.xxl, marginBottom: ESP.lg },
+  // A cor da capa no topo da playlist (8/11, `LavagemDaPlaylist`): por trás de tudo, sem rolar.
+  lavagemDaPlaylist: { position: 'absolute', top: 0, left: 0, right: 0, height: 520 },
   detailHero: { minHeight: 210, flexDirection: 'row', alignItems: 'center', gap: ESP.xxl, paddingBottom: ESP.xxl, marginBottom: ESP.xl, borderBottomWidth: 1, borderBottomColor: COR.linhaSuave },
   detailHeroArt: { width: 176, height: 176, borderRadius: 14, overflow: 'hidden', backgroundColor: COR.elevado, borderWidth: 1, borderColor: COR.linhaSuave, boxShadow: '0 18px 44px rgba(0,0,0,.28)' } as any,
   detailHeroBody: { flex: 1, minWidth: 0 },

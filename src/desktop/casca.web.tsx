@@ -581,6 +581,30 @@ export function injectDesktopDocumentStyles() {
       transition: opacity var(--dt-rapido) var(--dt-curva), transform var(--dt-normal) var(--dt-curva); }
     [data-dt~="cartao"]:hover [data-dt~="play-cartao"], [data-dt~="cartao"]:focus-within [data-dt~="play-cartao"]{ opacity: 1; transform: none; }
 
+    /* O mosaico de uma playlist abre-se (8/11, a maquete das Playlists de 30/10,
+       paginas/comum.web.tsx): com o rato no cartao cada quadro sai 2,5 px do
+       centro (a linha passa de 2 a 7 px) e a imagem cresce 7 % dentro dele. So
+       transform. No cabecalho da playlist (que nao e um cartao) fica parado. */
+    [data-dt~="mosaico-quadro"]{ transition: transform 600ms var(--dt-curva); }
+    [data-dt~="mosaico-img"]{ transition: transform 800ms var(--dt-curva); }
+    [data-dt~="cartao"]:hover [data-dt~="mq-te"]{ transform: translate(-2.5px, -2.5px); }
+    [data-dt~="cartao"]:hover [data-dt~="mq-td"]{ transform: translate(2.5px, -2.5px); }
+    [data-dt~="cartao"]:hover [data-dt~="mq-be"]{ transform: translate(-2.5px, 2.5px); }
+    [data-dt~="cartao"]:hover [data-dt~="mq-bd"]{ transform: translate(2.5px, 2.5px); }
+    [data-dt~="cartao"]:hover [data-dt~="mq-e"]{ transform: translateX(-2.5px); }
+    [data-dt~="cartao"]:hover [data-dt~="mq-d"]{ transform: translateX(2.5px); }
+    [data-dt~="cartao"]:hover [data-dt~="mosaico-img"]{ transform: scale(1.07); }
+    /* A cor da playlist por tras do cartao (a "aura" da maquete): so opacidade. */
+    [data-dt~="cartao-aura"]{ opacity: 0; transition: opacity 600ms var(--dt-curva); }
+    [data-dt~="cartao"]:hover [data-dt~="cartao-aura"], [data-dt~="cartao"]:focus-within [data-dt~="cartao-aura"]{ opacity: .85; }
+    @media (prefers-reduced-motion: reduce){
+      [data-dt~="cartao"]:hover [data-dt~="mosaico-quadro"], [data-dt~="cartao"]:hover [data-dt~="mosaico-img"]{ transform: none; }
+    }
+    /* A cor da playlist no topo da pagina dela chega depois de ler a capa: entra
+       devagar, em vez de aparecer de repente (so opacidade). */
+    [data-dt~="lavagem-da-playlist"]{ animation: dt-lavagem 600ms var(--dt-curva) both; }
+    @keyframes dt-lavagem { from { opacity: 0; } to { opacity: 1; } }
+
     /* O Social (30/10, passo 7, components/SocialOverview.web.tsx). Um amigo a
        ouvir: as barrinhas mexem-se, e o "Listen along" aparece com o rato no
        cartao (ou com o foco la dentro, para o teclado o encontrar). A linha de
