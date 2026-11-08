@@ -1,7 +1,7 @@
 // As misturas por decada, em Node puro.
 import assert from 'node:assert/strict';
 import {
-  decadaDe, MINIMO_POR_DECADA, misturasPorDecada, nomeDaDecada, POR_DECADA,
+  decadaDe, MINIMO_POR_DECADA, misturasPorDecada, nomeDaDecada, numeroDaDecada, POR_DECADA,
 } from '../src/lib/decadas.ts';
 import type { Track } from '../src/types.ts';
 
@@ -26,6 +26,12 @@ verificar('a decada e o ano com o ultimo digito a zero', () => {
   assert.equal(decadaDe(2020), 2020);
   assert.equal(decadaDe(1999), 1990);
   assert.equal(nomeDaDecada(2010), '2010s mix');
+});
+
+verificar('o cartao do PC mostra so o numero (8/11: "2010s mix" nao cabia e lia-se "2010s...")', () => {
+  assert.equal(numeroDaDecada(nomeDaDecada(2010)), '2010s');
+  assert.equal(numeroDaDecada(nomeDaDecada(1990)), '1990s');
+  assert.equal(numeroDaDecada('Outra coisa'), 'Outra coisa', 'um nome sem " mix" fica igual');
 });
 
 verificar('agrupa por decada e nao por ano', () => {

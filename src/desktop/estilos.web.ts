@@ -71,6 +71,10 @@ export const styles = StyleSheet.create({
   playlistArtCell: { flex: 1, height: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: COR.elevado },
   playlistTitle: { fontFamily: FONT.display, color: COR.texto, fontSize: 14, fontWeight: '650' as any, marginTop: ESP.md },
   playlistMeta: { ...TIPO.numero, color: COR.textoFraco, marginTop: ESP.xs },
+  // A página de uma playlist sem o cabeçalho da `Page` (8/11): o voltar à esquerda,
+  // à altura do título das outras páginas, e o cabeçalho com o mosaico logo a seguir.
+  paginaDaPlaylist: { flex: 1, minWidth: 0 },
+  voltarDaPlaylist: { flexDirection: 'row', paddingTop: ESP.xxl, marginBottom: ESP.lg },
   detailHero: { minHeight: 210, flexDirection: 'row', alignItems: 'center', gap: ESP.xxl, paddingBottom: ESP.xxl, marginBottom: ESP.xl, borderBottomWidth: 1, borderBottomColor: COR.linhaSuave },
   detailHeroArt: { width: 176, height: 176, borderRadius: 14, overflow: 'hidden', backgroundColor: COR.elevado, borderWidth: 1, borderColor: COR.linhaSuave, boxShadow: '0 18px 44px rgba(0,0,0,.28)' } as any,
   detailHeroBody: { flex: 1, minWidth: 0 },

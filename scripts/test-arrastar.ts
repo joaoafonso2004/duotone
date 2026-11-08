@@ -128,7 +128,7 @@ caso('a mola (25/10): parada nas Playlists da lateral abre a página, e larga-se
   const casca = ler('src/desktop/casca.web.tsx');
   // Só fora das Playlists, e abre-as pelo navegar de sempre; volta pelo voltar da janela.
   assert.match(casca, /: item\.id === 'playlists' && route\.name !== 'playlists' \? alvoQueAbreAsPlaylists\(\(\) => \{\n\s+navigate\(\{ name: 'playlists' \}\);\n\s+return voltar;/);
-  assert.match(ler('src/navigation/RootNavigator.web.tsx'), /<Sidebar route=\{rotaDaLateral\} navigate=\{navigate\} notify=\{notify\} voltar=\{back\} \/>/);
+  assert.match(ler('src/navigation/RootNavigator.web.tsx'), /<Sidebar route=\{rotaDaLateral\} navigate=\{navigate\} notify=\{notify\} voltar=\{back\} leitorAberto=\{leitorNaLateral\} \/>/);
   // Os cartões da página das Playlists recebem a música.
   assert.match(ler('src/desktop/paginas/PlaylistPages.web.tsx'), /ref=\{refDoAlvo\(`cartao-playlist:\$\{item\.id\}`, alvoDaPlaylist\(\{ id: item\.id, nome: item\.name \}\)\) as any\}/);
   // O tempo conta parado em cima; sair dele recomeça. Uma vez por arrasto.

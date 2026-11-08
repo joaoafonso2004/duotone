@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   anoRecente, artistasComNovidade, escolherArtistas, esperaAteVerificar, esperaDepoisDeFalhar, FIXOS_POR_DIA, lerMemoria,
-  limparNovos, marcarAberto, MAX_ARTISTAS, memoriaVazia, NOVO_DURANTE_MS, prateleira, precisaDeVerificar, registarArtista,
+  limparNovos, marcarAberto, MAX_ARTISTAS, MAX_POR_ARTISTA, memoriaVazia, NOVO_DURANTE_MS, prateleira, precisaDeVerificar, registarArtista,
   VERIFICAR_DE_MS,
 } from '../src/lib/novosLancamentos.ts';
 
@@ -102,6 +102,21 @@ let v = registarArtista(memoriaVazia(), 'b', 'B', 'UCb', [album('b1', '2026')], 
 v = registarArtista(v, 'a', 'A', 'UCa', [album('a1', '2026')], agora);
 v = registarArtista(v, 'c', 'C', 'UCc', [album('c1', '2022', 'Album')], agora);
 assert.deepEqual(prateleira(v, agora, ['a', 'b', 'c']).map((i) => i.lancamento.id), ['a1', 'b1']);
+
+// 8/11: um artista com nove lançamentos novos enchia a prateleira. No máximo
+// dois por artista, os mais recentes; os outros artistas continuam a ver-se.
+{
+  let r = registarArtista(memoriaVazia(), 'big', 'Big', 'UCbig', [album('b0', '2025', 'Album')], agora);
+  r = registarArtista(r, 'outro', 'Outro', 'UCo', [album('o1', '2026')], agora);
+  const nove = Array.from({ length: 9 }, (_, i) => album(`b${i + 1}`, '2026'));
+  r = registarArtista(r, 'big', 'Big', 'UCbig', [...nove, album('b0', '2025', 'Album')], agora + DIA);
+  assert.equal(r.novos.length, 9, 'os nove são novos na memória');
+  const ids = prateleira(r, agora + DIA, ['big', 'outro']).map((i) => i.lancamento.id);
+  assert.deepEqual(ids, ['b1', 'b2', 'o1'], 'dois do Big, e o Outro continua à vista');
+  assert.equal(MAX_POR_ARTISTA, 2);
+  // O "recente" do Big (b1) já está entre os novos: não entra uma terceira vez.
+  assert.equal(ids.filter((id) => id.startsWith('b')).length, 2);
+}
 
 // O que está guardado: uma memória estranha não parte nada.
 assert.deepEqual(lerMemoria(null), memoriaVazia());

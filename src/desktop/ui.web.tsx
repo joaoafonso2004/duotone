@@ -19,6 +19,7 @@ import { COR, ESP, ESTADO, FONT, LINHA_LISTA, RAIO, TIPO } from './tokens.web';
 import { isShowTrackDurationSync } from '../lib/prefs';
 import { capaComBarras, molduraSemBarras } from '../lib/modoLimpo';
 import { pertoDoFim } from '../lib/grelhaQueCresce';
+import { numeroDaDecada } from '../lib/decadas';
 import {
   ALTURA_VISIVEL_ESTIMADA, alturaDasLinhas, janelaComALinha, janelaDaTabela, mesmaJanela, scrollParaVer, topoDaLinha, type Janela,
 } from '../lib/janelaDaTabela';
@@ -566,7 +567,7 @@ function CartaoDeMistura({ m, escolhido, arrastou, aoAbrir, aoMenu, aoTocar, dec
       { backgroundImage: `linear-gradient(135deg, color-mix(in oklab, ${cor} 58%, #060608), color-mix(in oklab, ${cor} 14%, #060608))` } as any,
       hovered && ui.shelfCardHover, pressed && ui.pressed]}>
     <Text style={ui.misturaEtiqueta}>MIX · {m.faixas.length} {m.faixas.length === 1 ? 'SONG' : 'SONGS'}</Text>
-    <Text numberOfLines={decada ? 1 : 2} {...(decada ? marcar('decada-nome') : {})} style={decada ? ui.misturaDecada : ui.misturaNome}>{m.nome}</Text>
+    <Text numberOfLines={decada ? 1 : 2} {...(decada ? marcar('decada-nome') : {})} style={decada ? ui.misturaDecada : ui.misturaNome}>{decada ? numeroDaDecada(m.nome) : m.nome}</Text>
     <View style={{ flex: 1 }} />
     <View style={ui.misturaPilha}>
       {capas.map((u, i) => <Image key={u} source={{ uri: u }} style={[ui.misturaCirculo, i > 0 && { marginLeft: -14 }]} resizeMode="cover" />)}
@@ -1578,7 +1579,10 @@ export const ui = StyleSheet.create({
   // mais três no ecrã e a coluna continua a respirar.
   trackRowPlain: { minHeight: 52, paddingHorizontal: ESP.sm, borderRadius: RAIO.cartao, borderBottomWidth: 0 },
   // O título leva o espaço que sobra; o artista um pouco mais de metade dele.
-  colunaDoTitulo: { flex: 1, minWidth: 0 },
+  // Até 560 (8/11): numa janela larga a coluna passava dos 800 px, e entre um
+  // título curto e o artista abria-se um buraco. O que sobra fica depois do
+  // artista, antes da duração, como nas outras apps.
+  colunaDoTitulo: { flex: 1, minWidth: 0, maxWidth: 560 },
   colunaDoArtista: { flex: 0.6, minWidth: 0 },
   trackHover: { backgroundColor: COR.hover },
   trackIndex: { ...TIPO.numero, color: COR.textoFraco, textAlign: 'center' },

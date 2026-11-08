@@ -759,16 +759,23 @@ export function TitleBar({ comPainel = false }: { comPainel?: boolean }) {
   </View>;
 }
 
-export function Sidebar({ route, navigate, notify, voltar }: { route: Route; navigate: (route: Route) => void; notify: (texto: string) => void;
+export function Sidebar({ route, navigate, notify, voltar, leitorAberto = false }: { route: Route; navigate: (route: Route) => void; notify: (texto: string) => void;
   /** O voltar da janela: uma música arrastada que abriu as Playlists volta por aqui (25/10). */
-  voltar?: () => void }) {
+  voltar?: () => void;
+  /**
+   * O Now Playing está aberto por cima da página (8/11): nenhuma entrada fica acesa.
+   * Ficava a de onde se veio ("Social" aceso com o leitor à frente), e a lateral
+   * dizia que se estava num sítio que não se via.
+   */
+  leitorAberto?: boolean }) {
   const session = useAuth((s) => s.session);
   // Arrastada para menos de metade do caminho, a lateral recolhe numa régua só de ícones (31/10).
   const compacta = useLateralRecolhida();
   const tema = useTheme((s) => s.theme);
   // Uma mistura abre-se a partir da Pesquisa: e ai que o separador tem de
   // ficar aceso, senao a barra dizia que se estava noutro sitio.
-  const active = route.name === 'artist' ? 'artists'
+  const active: string | null = leitorAberto ? null
+    : route.name === 'artist' ? 'artists'
     : route.name === 'mistura' ? 'search'
     : route.name === 'library-check' ? 'settings'
     : route.name === 'stats' || route.name === 'retrospetiva' ? 'profile'

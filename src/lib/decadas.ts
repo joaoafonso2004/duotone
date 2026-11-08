@@ -45,6 +45,14 @@ export function nomeDaDecada(decada: number): string {
   return `${decada}s mix`;
 }
 
+/**
+ * O número grande do cartão de uma década no PC (8/11): "2010s", sem o " mix".
+ * Com ele não cabia no cartão e lia-se "2010s…"; o "MIX · N SONGS" por cima já o diz.
+ */
+export function numeroDaDecada(nome: string): string {
+  return nome.replace(/\s+mix$/i, '');
+}
+
 export function decadaDe(ano: number): number {
   return Math.floor(ano / 10) * 10;
 }

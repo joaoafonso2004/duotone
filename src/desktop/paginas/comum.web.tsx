@@ -16,6 +16,8 @@ import type { Track } from '../../types';
 import { COR } from '../tokens.web';
 import { styles } from '../estilos.web';
 import { faixasEmCache, lerFaixas, ouvirFaixas } from '../../lib/cacheDaBiblioteca';
+import { capaParaLista } from '../../lib/capaDoEcraBloqueado';
+import { capaComBarras, molduraSemBarras } from '../../lib/modoLimpo';
 
 import { mensagemDeErro } from '../../lib/mensagemDeErro';
 /**
@@ -110,7 +112,11 @@ export function useLibraryData(loader: () => Promise<Track[]> = getLibrary) {
 }
 
 export function PlaylistArtwork({ artworks, lado = 200 }: { artworks: string[]; lado?: number }) {
-  const capas = Array.from(new Set(artworks.filter(Boolean))).slice(0, 4);
+  // As capas do YouTube vêm como `hqdefault`: 4:3, com as barras pretas DENTRO da
+  // imagem, e cortar para quadrado não as tira (cada quarto do mosaico tinha uma
+  // faixa preta). O mesmo `capaParaLista` da colagem do iPhone (28/9) troca-as
+  // pela 16:9, que não as tem (8/11).
+  const capas = Array.from(new Set(artworks.map(capaParaLista).filter((u): u is string => !!u))).slice(0, 4);
   const moldura = [styles.playlistArt, { width: lado, height: lado }];
 
   if (!capas.length) {
@@ -118,6 +124,14 @@ export function PlaylistArtwork({ artworks, lado = 200 }: { artworks: string[]; 
   }
 
   if (capas.length === 1) {
+    // Uma capa só ocupa o quadrado todo: aí a 16:9 (180 px de altura) ficava
+    // esborratada. Fica a original, ampliada até as barras saírem pelos cantos,
+    // a mesma conta da `Artwork` das tabelas.
+    const original = artworks.find(Boolean)!;
+    if (capaComBarras(original)) {
+      const m = molduraSemBarras(lado);
+      return <View style={moldura}><Image source={{ uri: original }} style={{ position: 'absolute', width: m.largura, height: m.altura, left: m.esquerda, top: m.topo }} /></View>;
+    }
     return <View style={moldura}><Image source={{ uri: capas[0] }} style={StyleSheet.absoluteFill} resizeMode="cover" /></View>;
   }
 

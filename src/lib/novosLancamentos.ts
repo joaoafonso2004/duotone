@@ -61,6 +61,9 @@ export const MAX_ARTISTAS = 15;
 export const VERIFICAR_DE_MS = 20 * 60 * 60 * 1000;
 export const NOVO_DURANTE_MS = 14 * DIA_MS;
 export const MAX_NA_PRATELEIRA = 20;
+/** Quantos lançamentos de um mesmo artista entram na prateleira (8/11): um
+ * artista que lança nove singles numa semana tapava os outros todos. */
+export const MAX_POR_ARTISTA = 2;
 const MAX_VISTOS = 200;
 
 export function memoriaVazia(): MemoriaDosLancamentos {
@@ -214,13 +217,17 @@ export function limparNovos(m: MemoriaDosLancamentos, agora: number): MemoriaDos
 /**
  * A prateleira: os novos primeiro (os mais recentes à frente), e depois o
  * mais recente de cada artista se for deste ano, pela ordem dos artistas.
+ * No máximo `MAX_POR_ARTISTA` de cada um; os outros ficam na página dele.
  */
 export function prateleira(m: MemoriaDosLancamentos, agora: number, ordem: readonly string[] = []): ItemDaPrateleira[] {
   const fora: ItemDaPrateleira[] = [];
   const ids = new Set<string>();
+  const porArtista = new Map<string, number>();
+  const cabe = (l: Lancamento) => (porArtista.get(l.chave) ?? 0) < MAX_POR_ARTISTA;
+  const contar = (l: Lancamento) => { ids.add(l.id); porArtista.set(l.chave, (porArtista.get(l.chave) ?? 0) + 1); };
   for (const n of [...limparNovos(m, agora).novos].sort((a, b) => b.desde - a.desde)) {
-    if (ids.has(n.lancamento.id)) continue;
-    ids.add(n.lancamento.id);
+    if (ids.has(n.lancamento.id) || !cabe(n.lancamento)) continue;
+    contar(n.lancamento);
     fora.push({ lancamento: n.lancamento, novo: true });
   }
   const posicao = (chave: string) => { const i = ordem.indexOf(chave); return i < 0 ? ordem.length : i; };
@@ -229,8 +236,8 @@ export function prateleira(m: MemoriaDosLancamentos, agora: number, ordem: reado
     .filter((x): x is { chave: string; l: Lancamento } => !!x.l && anoRecente(x.l.ano, agora) && !ids.has(x.l.id))
     .sort((a, b) => Number(b.l.ano) - Number(a.l.ano) || posicao(a.chave) - posicao(b.chave));
   for (const { l } of recentes) {
-    if (ids.has(l.id)) continue;
-    ids.add(l.id);
+    if (ids.has(l.id) || !cabe(l)) continue;
+    contar(l);
     fora.push({ lancamento: l, novo: false });
   }
   return fora.slice(0, MAX_NA_PRATELEIRA);

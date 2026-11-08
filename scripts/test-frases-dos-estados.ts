@@ -117,7 +117,9 @@ caso('o artista sem músicas (PC e iPhone)', () => {
 console.log('\nA3: o erro da página de uma playlist do PC');
 caso('aparece uma vez (o bloco copiado da grelha saiu)', () => {
   const pl = ler('src/desktop/paginas/PlaylistPages.web.tsx');
-  const pagina = pl.slice(pl.indexOf('<Page title="Playlist" action='));
+  // 8/11: a página de uma playlist deixou o cabeçalho da `Page`; começa no voltar.
+  const pagina = pl.slice(pl.indexOf('<View style={styles.paginaDaPlaylist}>'));
+  assert.ok(pl.includes('<View style={styles.paginaDaPlaylist}>'), 'a página de uma playlist existe');
   assert.ok(!/Playlists unavailable/.test(pagina.slice(0, 600)), 'sem "Playlists unavailable" na página de UMA playlist');
   assert.match(pagina, /loadError \? <Empty icon="alert-circle-outline" title="Playlist unavailable"/);
 });

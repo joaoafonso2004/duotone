@@ -70,6 +70,8 @@ caso('a descoberta é um carrossel de capas grandes (a dois tons), e não uma pa
 caso('as décadas são números grandes em contorno, que se enchem com o rato', () => {
   assert.match(BIBLIOTECA, /<PrateleiraDeMisturas titulo="Decades" nota="your music from that era" variante="decada"/);
   assert.match(UI, /misturaDecada: \{[^}]*fontSize: 44[^}]*color: 'transparent', WebkitTextStroke: '1\.2px rgba\(233,234,238,\.55\)'/);
+  // 8/11: só o número ("2010s"); com o " mix" não cabia e lia-se "2010s…".
+  assert.match(UI, /\{decada \? numeroDaDecada\(m\.nome\) : m\.nome\}/);
   assert.match(CASCA, /\[data-dt~="cartao"\]:hover \[data-dt~="decada-nome"\], \[data-dt~="cartao"\]:focus-within \[data-dt~="decada-nome"\]\{ color: \$\{COR\.texto\}; -webkit-text-stroke-color: \$\{COR\.texto\}; \}/);
 });
 
