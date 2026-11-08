@@ -84,6 +84,10 @@ const mocks = {
   '../lib/prefs': { getOrdemDoArtista: async () => 'ouvidas', setOrdemDoArtista: async () => {} },
   '../state/saved': { useSaved: { getState: () => ({ refresh() {} }) } }, '../state/player': { usePlayer },
   '../state/mixDoArtista': { tocarMixDoArtista: async (...args) => { calls.push(['mix', ...args]); return true; } },
+  // O menu de um disco no toque longo (8/11): não entra neste ensaio do Play.
+  '../state/acoesDoDisco': { discoSemAbrir: async () => {}, guardarDiscoComoPlaylist: async () => {} },
+  '../lib/menuDoLancamento': { menuDoLancamento: () => [] },
+  '../state/connectivity': { useConnectivity: selector => selector({ offline: false }) },
   '../state/theme': { useTheme: selector => selector({ theme: { gradient: ['#000', '#333'], color: '#fff' } }) },
   '../theme': { colors: {}, spacing: {}, radii: {}, type: {}, MINI_PLAYER_HEIGHT: 64 }, '../lib/haptics': { hapticSelection() {} },
   '../lib/artistName': { chaveDeArtista: name => name.toLowerCase(), displayArtist: t => t.artist, tituloDaFaixa: t => t.title,

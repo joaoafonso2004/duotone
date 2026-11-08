@@ -1,7 +1,10 @@
 import {
   alturaDaCapaDoArtista, BolaDeVidro, BotaoDeTocar, CabecalhoDaSeccao, CapaDoArtista, DiscosDoArtista, FundoDaCorDoArtista,
-  GrelhaDeMusicas, LancamentoEmDestaque, ParecidosDoArtista, PilulaDeVidro, SobreOArtista,
+  GrelhaDeMusicas, LancamentoEmDestaque, ParecidosDoArtista, PilulaDeVidro, SobreOArtista, type Disco,
 } from '../components/SeccoesDoArtista';
+import { discoSemAbrir, guardarDiscoComoPlaylist } from '../state/acoesDoDisco';
+import { menuDoLancamento, type AcaoDoLancamento } from '../lib/menuDoLancamento';
+import { useConnectivity } from '../state/connectivity';
 import { MusicasDoArtistaSheet } from '../components/MusicasDoArtistaSheet';
 import { useVizinhancaDoArtista } from '../hooks/useVizinhancaDoArtista';
 import { gruposDaBiblioteca } from '../state/gruposDaBiblioteca';
@@ -32,7 +35,7 @@ import { marcarArtistaAberto } from '../state/novosLancamentos';
 import { hapticSelection } from '../lib/haptics';
 import { chaveDeArtista, displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { detalheDaLinha, infoDaPesquisa, infoDe, modosComDados, ordenarMusicasDoArtista } from '../lib/ordemDoArtista';
-import { discografia, fasDoArtista, metaDoAlbum, musicasAVista, musicasDoArtista, MUSICAS_NA_GRELHA } from '../lib/musicasDoArtista';
+import { discografia, fasDoArtista, legendaDoDisco, metaDoAlbum, musicasAVista, musicasDoArtista, MUSICAS_NA_GRELHA } from '../lib/musicasDoArtista';
 import { chaveDoTitulo } from '../lib/albunsDoArtista';
 import { getOrdemDoArtista, setOrdemDoArtista, type OrdemDoArtista } from '../lib/prefs';
 import { useAuth } from '../state/auth';
@@ -260,6 +263,16 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   const abrirDisco = (d: { id: string; title: string; artworkUrl: string | null }) => {
     setSelectedYtPlaylistId(d.id); setSelectedYtPlaylistTitle(d.title); setSelectedYtPlaylistArtwork(d.artworkUrl);
   };
+  // O toque longo num disco (8/11): o menu dele, com as linhas do clique direito
+  // do PC (`menuDoLancamento`). Sem "View artist": já se está na página dele.
+  const [discoComMenu, setDiscoComMenu] = useState<Disco | null>(null);
+  const offline = useConnectivity((s) => s.offline);
+  const fazerNoDisco = (d: Disco, acao: AcaoDoLancamento) => {
+    setDiscoComMenu(null);
+    if (acao === 'abrir') abrirDisco(d);
+    else if (acao === 'guardar') void guardarDiscoComoPlaylist(d);
+    else if (acao === 'tocar' || acao === 'baralhar' || acao === 'fila') void discoSemAbrir(d, acao);
+  };
   const tocarTudo = () => { if (!waiting) void tocarLista(faixasDaAba, shuffleLigado, shuffleInteligente, { tipo: 'artista', nome: name }); };
   const chavesTuas = useMemo(() => new Set(tracks.map((t) => `${t.source}:${t.sourceId}`)), [tracks]);
   const detalheDe = useCallback((t: Track) => detalheDaLinha(ordem, infoDaFaixa(t)) ?? undefined, [ordem, infoDaFaixa]);
@@ -318,6 +331,18 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
       aoMudarBiblioteca={load}
     />
 
+    {/* O menu de um disco: o mesmo cabeçalho (capa e nome) do menu de uma playlist.
+        Sem rede, as linhas que a pedem não aparecem (a folha não tem linhas apagadas). */}
+    <TrackActionsSheet
+      visible={!!discoComMenu}
+      track={null}
+      onClose={() => setDiscoComMenu(null)}
+      cabecalho={discoComMenu ? { titulo: discoComMenu.title, subtitulo: legendaDoDisco(discoComMenu), capas: discoComMenu.artworkUrl ? [discoComMenu.artworkUrl] : [] } : null}
+      actions={discoComMenu ? menuDoLancamento(discoComMenu, { semRede: offline, temArtista: false })
+        .filter((a) => !a.motivo)
+        .map((a) => ({ icon: a.icone as any, label: a.rotulo, onPress: () => fazerNoDisco(discoComMenu, a.id) })) : []}
+    />
+
     <YtPlaylistRecommendationSheet
       visible={!!selectedYtPlaylistId}
       playlistId={selectedYtPlaylistId}
@@ -353,10 +378,10 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
           {/* As outras dele ainda a chegar (as tuas já estão à vista). */}
           {!waiting && aCarregarOutras ? <SkeletonDeFaixas linhas={2} /> : null}
 
-          {pagina?.maisRecente ? <LancamentoEmDestaque album={pagina.maisRecente} aoAbrir={abrirDisco} /> : null}
+          {pagina?.maisRecente ? <LancamentoEmDestaque album={pagina.maisRecente} aoAbrir={abrirDisco} aoSegurar={setDiscoComMenu} /> : null}
           {loadingYtAlbums ? <SkeletonDePrateleira /> : <>
-            <DiscosDoArtista titulo="Albums" discos={discos.albuns} aoAbrir={abrirDisco} />
-            <DiscosDoArtista titulo="Singles & EPs" discos={discos.singles} aoAbrir={abrirDisco} lado={136} />
+            <DiscosDoArtista titulo="Albums" discos={discos.albuns} aoAbrir={abrirDisco} aoSegurar={setDiscoComMenu} />
+            <DiscosDoArtista titulo="Singles & EPs" discos={discos.singles} aoAbrir={abrirDisco} aoSegurar={setDiscoComMenu} lado={136} />
           </>}
           <ParecidosDoArtista nomes={vizinhanca.parecidos} aoAbrir={(n, f) => navigation.push('LibraryGroup', { type: 'artist', name: n, capa: f })} />
           {fas ? <SobreOArtista foto={capaDoArtista} fas={fas} numeros={numerosDoArtista} /> : null}

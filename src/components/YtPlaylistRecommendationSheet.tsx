@@ -23,6 +23,7 @@ import { colors, spacing, type, radii, gradients } from '../theme';
 import { useTheme } from '../state/theme';
 import { BottomSheet, BottomSheetFlatList } from './BottomSheet';
 import { TrackRow } from './TrackRow';
+import { TrackActionsSheet } from './TrackActionsSheet';
 import { hapticNotification } from '../lib/haptics';
 import { extractArtist } from '../lib/artistName';
 import type { Track } from '../types';
@@ -47,6 +48,8 @@ export function YtPlaylistRecommendationSheet({
   onImportDone,
 }: Props) {
   const [tracks, setTracks] = useState<Track[]>([]);
+  /** A música com o menu aberto (o toque longo numa linha). */
+  const [acao, setAcao] = useState<Track | null>(null);
   const [loadedTitle, setLoadedTitle] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -206,11 +209,17 @@ export function YtPlaylistRecommendationSheet({
               <TrackRow
                 track={item}
                 onPress={() => tocarMusica(item, tracks, true)}
+                // O toque longo abre o menu da música (8/11): o mesmo das Liked
+                // Songs. Aqui só tocava; segurar não fazia nada.
+                onAction={() => setAcao(item)}
               />
             )}
           />
         </>
       )}
+      {/* O menu de uma música abre-se DENTRO da folha: uma folha ao lado desta
+          não aparecia por cima dela (o mesmo da MusicasDoArtistaSheet). */}
+      <TrackActionsSheet visible={!!acao} track={acao} onClose={() => setAcao(null)} />
     </BottomSheet>
   );
 }

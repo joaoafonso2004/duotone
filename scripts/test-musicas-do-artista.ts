@@ -87,9 +87,10 @@ caso('uma página por secções, sem separadores, nos dois lados', () => {
   // último lançamento em destaque, a discografia, os parecidos e o About.
   assert.match(iphone, /<CabecalhoDaSeccao titulo=\{semDiscografia \? 'Songs' : 'Top Songs'\} aoCarregar=/);
   assert.match(iphone, /<GrelhaDeMusicas musicas=\{musicasAVista\(musicas, false, MUSICAS_NA_GRELHA\)\} renderLinha=\{linhaDaGrelha\} \/>/);
-  assert.match(iphone, /<LancamentoEmDestaque album=\{pagina\.maisRecente\} aoAbrir=\{abrirDisco\} \/>/);
+  // 8/11: os discos ganharam o toque longo (o menu do disco, `test-menu-do-lancamento.ts`).
+  assert.match(iphone, /<LancamentoEmDestaque album=\{pagina\.maisRecente\} aoAbrir=\{abrirDisco\} aoSegurar=\{setDiscoComMenu\} \/>/);
   assert.match(iphone, /<DiscosDoArtista titulo="Albums" discos=\{discos\.albuns\}/);
-  assert.match(iphone, /<DiscosDoArtista titulo="Singles & EPs" discos=\{discos\.singles\} aoAbrir=\{abrirDisco\} lado=\{136\} \/>/);
+  assert.match(iphone, /<DiscosDoArtista titulo="Singles & EPs" discos=\{discos\.singles\} aoAbrir=\{abrirDisco\} aoSegurar=\{setDiscoComMenu\} lado=\{136\} \/>/);
   assert.match(iphone, /<ParecidosDoArtista nomes=\{vizinhanca\.parecidos\}/);
   assert.match(iphone, /\{fas \? <SobreOArtista foto=\{capaDoArtista\} fas=\{fas\} numeros=\{numerosDoArtista\} \/> : null\}/, 'o About só com os fãs');
   assert.doesNotMatch(iphone, /UltimoLancamento|See all songs|setTodas/, 'iPhone: a caixa colada aos botões e o botão grande saíram');

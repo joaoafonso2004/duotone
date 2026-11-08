@@ -8,6 +8,7 @@ import { useFotoDoArtista } from '../hooks/useVizinhancaDoArtista';
 import { legendaDoDisco } from '../lib/musicasDoArtista';
 import { fotoNoTamanho } from '../lib/catalogo';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
+import { hapticSelection } from '../lib/haptics';
 import { useCorDoAmbiente } from '../hooks/useCorDoAmbiente';
 import { degradeDaCorDaCapa, EXTENSAO_DO_AMBIENTE } from '../lib/profileImageCrop';
 import { colors, ESCALA_MAXIMA, radii, spacing } from '../theme';
@@ -232,15 +233,24 @@ export function GrelhaDeMusicas({ musicas, renderLinha }: { musicas: readonly Tr
   );
 }
 
-type Disco = { id: string; title: string; artworkUrl: string | null; tipo: string; ano: string | null };
+export type Disco = { id: string; title: string; artworkUrl: string | null; tipo: string; ano: string | null };
+
+/**
+ * O toque longo num disco (8/11): o menu dele (`menuDoLancamento`, o mesmo do
+ * clique direito do PC). Não fazia nada. A vibração e os 350 ms são os das
+ * linhas de músicas (`TrackRow`).
+ */
+const segurar = (aoSegurar: ((d: Disco) => void) | undefined, d: Disco) => (aoSegurar
+  ? { onLongPress: () => { hapticSelection(); aoSegurar(d); }, delayLongPress: 350 }
+  : {});
 
 /** O último lançamento em destaque: a capa grande, o ano e o tipo. Abre o disco. */
-export function LancamentoEmDestaque({ album, aoAbrir }: { album: Disco; aoAbrir: (d: Disco) => void }) {
+export function LancamentoEmDestaque({ album, aoAbrir, aoSegurar }: { album: Disco; aoAbrir: (d: Disco) => void; aoSegurar?: (d: Disco) => void }) {
   return (
     <View>
       <CabecalhoDaSeccao titulo="Latest Release" />
       <Pressable accessibilityRole="button" accessibilityLabel={`Latest release, ${album.title}, ${legendaDoDisco(album)}`}
-        onPress={() => aoAbrir(album)} style={({ pressed }) => [styles.lancamento, pressed && { opacity: 0.8 }]}>
+        onPress={() => aoAbrir(album)} {...segurar(aoSegurar, album)} style={({ pressed }) => [styles.lancamento, pressed && { opacity: 0.8 }]}>
         {album.artworkUrl ? (
           <Image source={{ uri: capaParaLista(album.artworkUrl)! }} style={styles.lancamentoCapa} contentFit="cover" transition={200} />
         ) : (
@@ -258,8 +268,8 @@ export function LancamentoEmDestaque({ album, aoAbrir }: { album: Disco; aoAbrir
 }
 
 /** Um carrossel de discos (os álbuns maiores, os singles e EPs mais pequenos). Sem nenhum, não aparece. */
-export function DiscosDoArtista({ titulo, discos, aoAbrir, lado = 168 }: {
-  titulo: string; discos: readonly Disco[]; aoAbrir: (d: Disco) => void; lado?: number;
+export function DiscosDoArtista({ titulo, discos, aoAbrir, aoSegurar, lado = 168 }: {
+  titulo: string; discos: readonly Disco[]; aoAbrir: (d: Disco) => void; aoSegurar?: (d: Disco) => void; lado?: number;
 }) {
   if (!discos.length) return null;
   return (
@@ -267,7 +277,7 @@ export function DiscosDoArtista({ titulo, discos, aoAbrir, lado = 168 }: {
       <CabecalhoDaSeccao titulo={titulo} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.fila}>
         {discos.map((d) => (
-          <Pressable key={d.id} onPress={() => aoAbrir(d)} accessibilityRole="button"
+          <Pressable key={d.id} onPress={() => aoAbrir(d)} {...segurar(aoSegurar, d)} accessibilityRole="button"
             accessibilityLabel={`${d.title}, ${legendaDoDisco(d)}`}
             style={({ pressed }) => [{ width: lado }, pressed && { opacity: 0.8 }]}>
             {d.artworkUrl ? (

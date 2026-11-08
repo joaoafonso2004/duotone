@@ -66,5 +66,33 @@ caso('as pesquisas recentes só aparecem com a caixa em foco', () => {
     'e carregar numa etiqueta não lhe tira o foco antes do clique');
 });
 
+console.log('\no toque longo no iPhone (8/11: segurar um disco ou uma música do álbum não fazia nada)');
+caso('os discos da página do artista: o toque longo abre o menu, com a vibração e os 350 ms das músicas', () => {
+  const seccoes = ler('src/components/SeccoesDoArtista.tsx');
+  assert.match(seccoes, /\? \{ onLongPress: \(\) => \{ hapticSelection\(\); aoSegurar\(d\); \}, delayLongPress: 350 \}/);
+  assert.match(seccoes, /onPress=\{\(\) => aoAbrir\(album\)\} \{\.\.\.segurar\(aoSegurar, album\)\}/, 'o lançamento em destaque');
+  assert.match(seccoes, /onPress=\{\(\) => aoAbrir\(d\)\} \{\.\.\.segurar\(aoSegurar, d\)\}/, 'os carrosséis de álbuns e singles');
+  const artista = ler('src/screens/LibraryGroupScreen.tsx');
+  assert.equal((artista.match(/aoSegurar=\{setDiscoComMenu\}/g) ?? []).length, 3, 'o destaque, os álbuns e os singles');
+  // As mesmas linhas do PC, sem "View artist" (já se está na página dele), e sem as que pedem rede quando não há.
+  assert.match(artista, /menuDoLancamento\(discoComMenu, \{ semRede: offline, temArtista: false \}\)\n\s+\.filter\(\(a\) => !a\.motivo\)/);
+  assert.match(artista, /if \(acao === 'abrir'\) abrirDisco\(d\);\n\s+else if \(acao === 'guardar'\) void guardarDiscoComoPlaylist\(d\);\n\s+else if \(acao === 'tocar' \|\| acao === 'baralhar' \|\| acao === 'fila'\) void discoSemAbrir\(d, acao\);/);
+  assert.equal(menuDoLancamento({ tipo: 'Album' }, { semRede: false, temArtista: false }).some((l) => l.id === 'artista'), false);
+});
+caso('o que o menu faz no iPhone: as faixas como as lê a folha do álbum, e o jeito das playlists do iPhone', () => {
+  const acoes = ler('src/state/acoesDoDisco.ts');
+  assert.match(acoes, /const r = await fetchYouTubePlaylistById\(id\);/);
+  assert.match(acoes, /if \(modo === 'fila'\) \{ leitor\.addManyToQueue\(faixas\); hapticNotification\(\); return; \}/);
+  assert.match(acoes, /if \(modo === 'baralhar'\) await leitor\.playShuffled\(faixas, leitor\.shuffleInteligente, origem\);/);
+  assert.match(acoes, /const origem = \{ tipo: 'album' as const, nome: d\.title \};/, 'com a origem: entra no "Jump back in"');
+  assert.match(acoes, /const playlist = await createPlaylist\(d\.title\);\n\s+await addTracksToPlaylist\(playlist\.id, faixas\);/);
+});
+caso('segurar uma música dentro do álbum abre o menu da música, dentro da folha', () => {
+  const folha = ler('src/components/YtPlaylistRecommendationSheet.tsx');
+  assert.match(folha, /onAction=\{\(\) => setAcao\(item\)\}/);
+  assert.match(folha, /<TrackActionsSheet visible=\{!!acao\} track=\{acao\} onClose=\{\(\) => setAcao\(null\)\} \/>\n\s+<\/BottomSheet>/,
+    'dentro da BottomSheet: uma folha ao lado desta não aparecia por cima dela');
+});
+
 if (falhas) { console.error(`\n  ${falhas} caso(s) falharam.\n`); process.exit(1); }
 console.log('\n  Todos os casos passaram.\n');
