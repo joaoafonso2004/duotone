@@ -100,8 +100,25 @@ function preferePoucoMovimento(): boolean {
   }
 }
 
-export function GlitchArtwork({ uri, lado, modo, intensidade }: { uri: string | null; lado: number; modo: GlitchMode; intensidade: EffectIntensity }) {
+/**
+ * Quem quer o efeito noutro sitio alem da capa (8/11: as arestas da capa 3D).
+ * Chamado logo a seguir a cada desenho, na mesma tarefa: com o
+ * `preserveDrawingBuffer` desligado e so ai que o canvas ainda tem o quadro.
+ * `limpa` diz que o quadro e a capa sem efeito nenhum; `null`, que deixou de
+ * haver canvas (capa nova, modo "off", falha) e o que la estava ja nao vale.
+ */
+export type AoDesenharOEfeito = (tela: HTMLCanvasElement | null, limpa: boolean) => void;
+
+export function GlitchArtwork({ uri, lado, modo, intensidade, raio = RAIO.superficie, aoDesenhar }: {
+  uri: string | null; lado: number; modo: GlitchMode; intensidade: EffectIntensity;
+  /** Os cantos. Na capa 3D e 0: a caixa tem cantos vivos, e o raio da capa plana mostrava o fundo da face. */
+  raio?: number;
+  aoDesenhar?: AoDesenharOEfeito;
+}) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  // Fora das dependencias do efeito: trocar quem ouve nao refaz o renderer.
+  const aoDesenharRef = useRef(aoDesenhar);
+  aoDesenharRef.current = aoDesenhar;
   const [falhou, setFalhou] = useState(false);
   const [poucoMovimento, setPoucoMovimento] = useState(preferePoucoMovimento);
 
@@ -160,7 +177,7 @@ export function GlitchArtwork({ uri, lado, modo, intensidade }: { uri: string | 
       }
       if (!reativo) {
         // O glitch congelado le-se pela energia base, num so `drawArrays`.
-        r.desenhar(NIVEL_ESTATICO, 0, 0, SEMENTE_ESTATICA, ESPETRO_ESTATICO);
+        if (r.desenhar(NIVEL_ESTATICO, 0, 0, SEMENTE_ESTATICA, ESPETRO_ESTATICO)) aoDesenharRef.current?.(canvas, false);
         return;
       }
       captura = iniciarCaptura();
@@ -187,7 +204,9 @@ export function GlitchArtwork({ uri, lado, modo, intensidade }: { uri: string | 
         // o ataque, a energia grave so modula a intensidade da pancada — nao
         // cria um segundo movimento continuo por baixo dela.
         const nivelDoAtaque = batida > 0 ? energiaGrave * batida * 0.18 : 0;
-        r.desenhar(nivelDoAtaque, batida, agudos, (agora - inicio) / 1000, captura!.espetro());
+        // Limpa como o shader a ve: sem nivel nem batida, e a capa pixel a pixel.
+        const limpa = !(nivelDoAtaque > 0) && !(batida > 0);
+        if (r.desenhar(nivelDoAtaque, batida, agudos, (agora - inicio) / 1000, captura!.espetro())) aoDesenharRef.current?.(canvas, limpa);
         if (agora - ultimoAndamento > MEDIR_ANDAMENTO_CADA_MS) {
           ultimoAndamento = agora;
           const andamento = captura!.andamento();
@@ -212,13 +231,14 @@ export function GlitchArtwork({ uri, lado, modo, intensidade }: { uri: string | 
       imagem.onload = null;
       imagem.onerror = null;
       r.destruir();
+      aoDesenharRef.current?.(null, true);
     };
   }, [comCanvas, efetivo, intensidade, uri, lado]);
 
   const moldura = {
     width: lado,
     height: lado,
-    borderRadius: RAIO.superficie,
+    borderRadius: raio,
     overflow: 'hidden' as const,
     backgroundColor: COR.elevado,
   };

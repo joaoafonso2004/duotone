@@ -28,7 +28,8 @@ export type GlitchRenderer = {
   temTextura(): boolean;
   /** Tamanho em pixeis CSS; o renderer trata do devicePixelRatio. */
   redimensionar(lado: number): void;
-  desenhar(nivel: number, batida: number, agudos: number, tempoSegundos: number, espetro: Uint8Array): void;
+  /** `true` se desenhou (sem textura, ou com o contexto perdido, nao desenha nada). */
+  desenhar(nivel: number, batida: number, agudos: number, tempoSegundos: number, espetro: Uint8Array): boolean;
   destruir(): void;
 };
 
@@ -221,7 +222,7 @@ export function criarRenderer(
       if (!morto) gl.viewport(0, 0, px, px);
     },
     desenhar(nivel, batida, agudos, tempoSegundos, espetro) {
-      if (morto || !temTex) return;
+      if (morto || !temTex) return false;
       const levelBase = Math.max(0, Math.min(255, nivel * 255));
       const ataque = Math.max(0, Math.min(1, batida));
       const multiplicador = intensidade === 'subtle' ? 0.62 : intensidade === 'strong' ? 1.34 : 1;
@@ -252,6 +253,7 @@ export function criarRenderer(
       gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 256, 1, gl.LUMINANCE, gl.UNSIGNED_BYTE, espetro);
       gl.uniform4fv(uQuadro, quadro);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
+      return true;
     },
     destruir() {
       canvas.removeEventListener('webglcontextlost', perdeu);

@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   FORCA_DO_BRILHO, INCLINACAO_MAXIMA, LANCAR, POSE_DO_METAL, anguloCurto, anguloDoArrasto, anguloDoLado,
-  brilhoDaAresta, destinoAoLargar, inclinacao, molaAssente, mostraALetra, passoDaMola, ratoNaCapa,
+  brilhoDaAresta, criarArestasDoEfeito, destinoAoLargar, inclinacao, molaAssente, mostraALetra, passoDaMola, ratoNaCapa,
   type EstadoDaMola,
 } from '../src/lib/capaMetal3D.ts';
 import { CAPA_FLUTUANTE } from '../src/lib/capaFlutuante3D.ts';
@@ -210,6 +210,82 @@ caso('mexe só transform e opacidade, e pára quando assenta', () => {
   assert.match(COMPONENTE, /cancelAnimationFrame\(/);
   assert.match(COMPONENTE, /addEventListener\('pointermove', aoMoverORato, \{ passive: true \}\)/);
   assert.match(COMPONENTE, /prefers-reduced-motion/);
+});
+
+console.log('\no efeito do som nas arestas, e os cantos da face (8/11)');
+// Telas a fingir: só o que o `criarArestasDoEfeito` usa.
+type Copia = { qual: string; sx: number; sy: number; sw: number; sh: number };
+function telas() {
+  const copias: Copia[] = [];
+  const lateral = (qual: string) => ({
+    width: 300, height: 150, style: { opacity: '' },
+    getContext: () => ({ drawImage: (_f: unknown, sx: number, sy: number, sw: number, sh: number) => { copias.push({ qual, sx, sy, sw, sh }); } }),
+  });
+  const laterais = { esq: lateral('esq'), dir: lateral('dir'), cima: lateral('cima'), baixo: lateral('baixo') };
+  const arestas = criarArestasDoEfeito(() => 400);
+  for (const [qual, c] of Object.entries(laterais)) arestas.guardar(qual as 'esq', c as unknown as HTMLCanvasElement);
+  return { copias, laterais, arestas };
+}
+// Um canvas do efeito de 400 px a 1,5x.
+const efeito = () => ({ width: 600, height: 600 }) as unknown as HTMLCanvasElement;
+caso('cada lateral copia a faixa da sua borda, na espessura da caixa', () => {
+  const { copias, laterais, arestas } = telas();
+  arestas.aoDesenhar(efeito(), true);
+  const banda = Math.round(400 * POSE_DO_METAL.espessura * 1.5);
+  assert.deepEqual(copias.map((c) => [c.qual, c.sx, c.sy, c.sw, c.sh]), [
+    ['esq', 0, 0, banda, 600], ['dir', 600 - banda, 0, banda, 600],
+    ['cima', 0, 0, 600, banda], ['baixo', 0, 600 - banda, 600, banda],
+  ]);
+  assert.equal(laterais.esq.width, banda);
+  assert.equal(laterais.cima.height, banda);
+  assert.ok(Object.values(laterais).every((c) => c.style.opacity === '1'), 'aparecem depois do primeiro quadro');
+});
+caso('em repouso não copia nada; a mexer copia cada quadro, e mais um para voltar à capa limpa', () => {
+  const { copias, arestas } = telas();
+  const tela = efeito();
+  arestas.aoDesenhar(tela, true);
+  copias.length = 0;
+  for (let i = 0; i < 30; i++) arestas.aoDesenhar(tela, true);
+  assert.equal(copias.length, 0, 'um segundo de capa parada');
+  arestas.aoDesenhar(tela, false);
+  arestas.aoDesenhar(tela, false);
+  assert.equal(copias.length, 8, 'dois quadros da batida, quatro laterais');
+  arestas.aoDesenhar(tela, true);
+  assert.equal(copias.length, 12, 'o quadro limpo a seguir à batida');
+  arestas.aoDesenhar(tela, true);
+  assert.equal(copias.length, 12);
+});
+caso('sem canvas (capa nova, efeito desligado, falha) as laterais escondem-se e fica a faixa da imagem', () => {
+  const { copias, laterais, arestas } = telas();
+  arestas.aoDesenhar(efeito(), true);
+  arestas.aoDesenhar(null, true);
+  assert.ok(Object.values(laterais).every((c) => c.style.opacity === '0'));
+  copias.length = 0;
+  arestas.aoDesenhar(efeito(), true);
+  assert.equal(copias.length, 4, 'o canvas da capa nova copia logo no primeiro quadro, mesmo limpo');
+});
+caso('o efeito parado (modo estático) desenha uma vez e as laterais ficam com esse quadro', () => {
+  const { copias, arestas } = telas();
+  arestas.aoDesenhar(efeito(), false);
+  assert.equal(copias.length, 4);
+});
+const GLITCH = ler('src/desktop/glitch/GlitchArtwork.web.tsx');
+const RENDERER = ler('src/desktop/glitch/renderer.web.ts');
+caso('o efeito avisa a caixa a seguir a cada desenho, na mesma tarefa, e quando deixa de haver canvas', () => {
+  assert.match(RENDERER, /desenhar\(nivel: number, batida: number, agudos: number, tempoSegundos: number, espetro: Uint8Array\): boolean;/);
+  assert.match(GLITCH, /const limpa = !\(nivelDoAtaque > 0\) && !\(batida > 0\);\n\s*if \(r\.desenhar\(nivelDoAtaque, [^\n]*\)\) aoDesenharRef\.current\?\.\(canvas, limpa\);/);
+  assert.match(GLITCH, /if \(r\.desenhar\(NIVEL_ESTATICO, [^\n]*\)\) aoDesenharRef\.current\?\.\(canvas, false\);/);
+  assert.match(GLITCH, /r\.destruir\(\);\n\s*aoDesenharRef\.current\?\.\(null, true\);/);
+  assert.match(LEITOR, /front=\{\(arestas\) => <GlitchArtwork [^\n]*aoDesenhar=\{arestas\} \/>\}/);
+  assert.match(COMPONENTE, /typeof front === 'function' \? front\(arestasDoEfeito\.aoDesenhar\) : front/);
+  assert.match(COMPONENTE, /<FaixaDaCapa uri=\{capa\} [^\n]*\/>\n\s*<TelaDaAresta qual=\{qual\} guardar=\{guardar\} \/>\n\s*\{capaQueSai \?/);
+  assert.match(CASCA, /\[data-dt~="m3-vivo"\]\{ position: absolute; inset: 0; width: 100%; height: 100%; display: block; opacity: 0; \}/);
+});
+caso('a face da caixa tem os cantos vivos; o cubo plano fica com o raio de sempre', () => {
+  assert.match(GLITCH, /raio = RAIO\.superficie/);
+  assert.match(GLITCH, /borderRadius: raio,/);
+  assert.match(LEITOR, /<CapaMetal3D [^]*?<GlitchArtwork [^\n]*raio=\{0\}/);
+  assert.match(LEITOR, /<ArtworkLyricsCube [^\n]*\n\s*front=\{<GlitchArtwork uri=\{capaGrande\} lado=\{ladoCapa\} modo=\{glitch\} intensidade=\{effectIntensity\} \/>\} \/>/);
 });
 
 console.log(falhas === 0 ? '\nTudo bem.\n' : `\n${falhas} falha(s).\n`);

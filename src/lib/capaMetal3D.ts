@@ -231,3 +231,50 @@ export function brilhoDaAresta(
     lateral: suave(0.1, 0.9, escalar(rodar(n, rx, ry, rz, virar), MEIO)),
   };
 }
+
+/**
+ * Copia a borda do canvas do efeito para as laterais. Só quando a capa mexe:
+ * em repouso o efeito desenha a capa limpa, que as laterais já têm, e a chamada
+ * volta logo para trás -- parada, a caixa continua a não custar nada.
+ *
+ * As laterais mostram a faixa da borda espelhada (`geometriaDaLateral`): a da
+ * esquerda são as primeiras colunas, a da direita as últimas, e assim por diante.
+ * O espelho é o CSS que o faz, como na faixa da imagem. Quem desenha é
+ * `desktop/CapaMetal3D.web.tsx`; testado com telas a fingir em `test-capa-metal-3d.ts`.
+ */
+export function criarArestasDoEfeito(lado: () => number): {
+  guardar: (qual: LadoDaCaixa, tela: HTMLCanvasElement | null) => void;
+  aoDesenhar: (tela: HTMLCanvasElement | null, limpa: boolean) => void;
+} {
+  const telas = new Map<LadoDaCaixa, HTMLCanvasElement>();
+  const contextos = new WeakMap<HTMLCanvasElement, CanvasRenderingContext2D | null>();
+  let fonte: HTMLCanvasElement | null = null;
+  let limpaAntes = true;
+  const esconder = () => { for (const c of telas.values()) c.style.opacity = '0'; };
+  const guardar = (qual: LadoDaCaixa, tela: HTMLCanvasElement | null) => {
+    if (!tela) { telas.delete(qual); return; }
+    if (telas.get(qual) !== tela) fonte = null; // uma tela nova ainda não tem nada: copia no próximo quadro
+    telas.set(qual, tela);
+  };
+  const aoDesenhar = (tela: HTMLCanvasElement | null, limpa: boolean) => {
+    if (!tela) { fonte = null; esconder(); return; }
+    if (tela === fonte && limpa && limpaAntes) return;
+    const k = tela.width / lado();
+    // A espessura em píxeis do canvas: a faixa que a imagem mostra na aresta (`geometriaDaLateral`).
+    const banda = Math.max(1, Math.round(lado() * POSE_DO_METAL.espessura * k));
+    for (const [qual, c] of telas) {
+      const vertical = qual === 'esq' || qual === 'dir';
+      const w = vertical ? banda : tela.width;
+      const h = vertical ? tela.height : banda;
+      if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+      let ctx = contextos.get(c);
+      if (ctx === undefined) { ctx = c.getContext('2d', { alpha: false }); contextos.set(c, ctx); }
+      if (!ctx) continue;
+      ctx.drawImage(tela, qual === 'dir' ? tela.width - w : 0, qual === 'baixo' ? tela.height - h : 0, w, h, 0, 0, w, h);
+      if (c.style.opacity !== '1') c.style.opacity = '1';
+    }
+    fonte = tela;
+    limpaAntes = limpa;
+  };
+  return { guardar, aoDesenhar };
+}

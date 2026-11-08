@@ -341,11 +341,12 @@ export function NowPlayingPage({
           {/* A capa em 3D (5/11, "3D cover", desligada de origem): a mesma face da
               frente e a mesma letra, numa caixa que afunda onde está o rato e roda
               a arrastar, com a capa nas arestas e um brilho que corre por elas
-              (7/11). Sem ela, o cubo de sempre. */}
+              (7/11). O efeito do som também chega às arestas, e a face tem os
+              cantos vivos da caixa (8/11). Sem ela, o cubo de sempre. */}
           {capaMetal ? (
             <CapaMetal3D track={track} size={ladoCapa} artwork={track.artworkUrl} showLyrics={showLyrics} onChange={setShowLyrics}
               capaQueSai={capaQueSai} faceRef={faceDaCaixa} capaDasArestas={capaGrande}
-              front={<GlitchArtwork uri={capaGrande} lado={ladoCapa} modo={glitch} intensidade={effectIntensity} />} />
+              front={(arestas) => <GlitchArtwork uri={capaGrande} lado={ladoCapa} modo={glitch} intensidade={effectIntensity} raio={0} aoDesenhar={arestas} />} />
           ) : (
             <ArtworkLyricsCube track={track} size={ladoCapa} artwork={track.artworkUrl} showLyrics={showLyrics} onChange={setShowLyrics}
               front={<GlitchArtwork uri={capaGrande} lado={ladoCapa} modo={glitch} intensidade={effectIntensity} />} />

@@ -284,6 +284,7 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="m3-lado"]{ position: absolute; overflow: hidden; backface-visibility: hidden; background: #16161d; }
     [data-dt~="m3-esq"], [data-dt~="m3-dir"], [data-dt~="m3-cima"], [data-dt~="m3-baixo"]{ isolation: isolate; }
     [data-dt~="m3-tira"], [data-dt~="m3-veu"]{ position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+    [data-dt~="m3-vivo"]{ position: absolute; inset: 0; width: 100%; height: 100%; display: block; opacity: 0; }
     [data-dt~="m3-fio"], [data-dt~="m3-labio"], [data-dt~="m3-lustro"]{ position: absolute; overflow: hidden; pointer-events: none; z-index: 1; }
     [data-dt~="m3-lustro"]{ inset: 0; }
     [data-dt~="m3-fio"] i, [data-dt~="m3-labio"] i, [data-dt~="m3-lustro"] i{ position: absolute; display: block; opacity: 0; will-change: transform, opacity; }

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { LyricsView } from '../components/LyricsView';
 import { acceptsCubeSwipe } from '../lib/lyricsCubeGesture';
@@ -8,12 +8,12 @@ import { ENTRADA, ESTADO, SOLTAR, type Mola } from '../lib/movimento';
 import {
   COMPRIMENTO_DO_FIO, COMPRIMENTO_DO_LUSTRO, FORCA_DO_BRILHO, LANCAR, LIMIAR_DO_CAMINHO, LIMIAR_DO_GESTO,
   PAUSA_QUE_NAO_LANCA_MS, POSE_DO_METAL,
-  anguloCurto, anguloDoArrasto, anguloDoLado, brilhoDaAresta, destinoAoLargar, grausPorSegundo, inclinacao,
+  anguloCurto, anguloDoArrasto, anguloDoLado, brilhoDaAresta, criarArestasDoEfeito, destinoAoLargar, grausPorSegundo, inclinacao,
   molaAssente, mostraALetra, passoDaMola, ratoNaCapa, type EstadoDaMola,
 } from '../lib/capaMetal3D';
 import type { LadoDaCaixa } from '../lib/ocultacao';
 import type { Track } from '../types';
-import { useRecorteDaCapa } from './glitch/GlitchArtwork.web';
+import { useRecorteDaCapa, type AoDesenharOEfeito } from './glitch/GlitchArtwork.web';
 import type { LateralDaOcultacao } from './Ocultacao.web';
 
 /**
@@ -127,8 +127,28 @@ function FiosDaFace({ face, lado }: { face: 1 | -1; lado: number }) {
     <Fio marca="m3-fio" lado={face > 0 ? 'dir' : 'esq'} face={face} vertical junto="right" comprimento={c} />
   </>;
 }
+type GuardarTela = ReturnType<typeof criarArestasDoEfeito>['guardar'];
+
+/**
+ * O efeito nas arestas (8/11): a mesma faixa da borda, mas tirada do canvas do
+ * efeito em vez da imagem, para a aresta estremecer com a face. Fica por cima
+ * da faixa da capa e escondida até haver um quadro copiado; com o efeito
+ * desligado nunca aparece, e por baixo está a capa de sempre.
+ */
+function TelaDaAresta({ qual, guardar }: { qual: LadoDaCaixa; guardar: GuardarTela }) {
+  const espelho = qual === 'esq' || qual === 'dir' ? 'scaleX(-1)' : 'scaleY(-1)';
+  const ref = useCallback((c: HTMLCanvasElement | null) => guardar(qual, c), [guardar, qual]);
+  return (
+    <div data-dt="m3-tira" style={{ transform: espelho }}>
+      <canvas data-dt="m3-vivo" ref={ref} aria-hidden="true" />
+    </div>
+  );
+}
+
 /** O que vai dentro de uma lateral: a capa (e a que sai, na Ocultação), o véu, o lustro e os dois lábios. */
-function DentroDaLateral({ qual, lado, espessura, capa, capaQueSai }: { qual: LadoDaCaixa; lado: number; espessura: number; capa: string | null; capaQueSai: string | null }) {
+function DentroDaLateral({ qual, lado, espessura, capa, capaQueSai, guardar }: {
+  qual: LadoDaCaixa; lado: number; espessura: number; capa: string | null; capaQueSai: string | null; guardar: GuardarTela;
+}) {
   const g = geometriaDaLateral(NO_IPHONE[qual], lado, espessura);
   const vertical = qual === 'esq' || qual === 'dir';
   // A frente de cada lateral (a borda junto à face) e a de trás (junto ao verso).
@@ -140,6 +160,7 @@ function DentroDaLateral({ qual, lado, espessura, capa, capaQueSai }: { qual: La
     : { top: 0, bottom: 0, left: 0, width: comprimento, background: LUSTRO };
   return <>
     <FaixaDaCapa uri={capa} qual={qual} lado={lado} espessura={espessura} />
+    <TelaDaAresta qual={qual} guardar={guardar} />
     {capaQueSai ? <FaixaDaCapa uri={capaQueSai} qual={qual} lado={lado} espessura={espessura} /> : null}
     <div data-dt="m3-veu" style={{ background: `linear-gradient(${PARA_TRAS[qual]}, rgba(0,0,0,${g.veu.frente}), rgba(0,0,0,${g.veu.tras}))` }} />
     <b data-dt="m3-lustro" data-l={qual} data-v={vertical ? 1 : 0}><i style={lustro} /></b>
@@ -192,8 +213,11 @@ export function CapaMetal3D({ track, size, artwork, front, showLyrics, onChange,
   size: number;
   /** A miniatura, para o verso desfocado (a mesma do cubo). */
   artwork: string | null | undefined;
-  /** A face da frente: o `GlitchArtwork`, como no cubo. */
-  front: React.ReactNode;
+  /**
+   * A face da frente: o `GlitchArtwork`, como no cubo. Em função, recebe quem
+   * leva o efeito às arestas (8/11), para o passar ao `aoDesenhar` dele.
+   */
+  front: React.ReactNode | ((arestas: AoDesenharOEfeito) => React.ReactNode);
   showLyrics: boolean;
   onChange: (letra: boolean) => void;
   /**
@@ -215,6 +239,7 @@ export function CapaMetal3D({ track, size, artwork, front, showLyrics, onChange,
   const [aRodar, setARodar] = useState(false);
   const atual = useRef({ showLyrics, onChange, size, reduzido });
   atual.current = { showLyrics, onChange, size, reduzido };
+  const [arestasDoEfeito] = useState(() => criarArestasDoEfeito(() => atual.current.size));
   const motor = useRef<Motor | null>(null);
   if (!motor.current) {
     const a = showLyrics ? 180 : 0;
@@ -436,7 +461,7 @@ export function CapaMetal3D({ track, size, artwork, front, showLyrics, onChange,
   const meio = t / 2;
   const verso = desfoqueLeve(artwork, 28);
   const letras = showLyrics || aRodar;
-  const laterais = { lado: size, espessura: t, capa: capaDasArestas ?? artwork ?? null, capaQueSai };
+  const laterais = { lado: size, espessura: t, capa: capaDasArestas ?? artwork ?? null, capaQueSai, guardar: arestasDoEfeito.guardar };
   return (
     <div data-dt="m3-palco" ref={palcoRef} style={{ width: size, height: size, perspective: `${Math.round(size * POSE_DO_METAL.perspectiva)}px` }}>
       <div data-dt="m3-chao" ref={chaoRef} aria-hidden="true" style={{ width: size, height: size }}>
@@ -454,7 +479,7 @@ export function CapaMetal3D({ track, size, artwork, front, showLyrics, onChange,
         style={{ width: size, height: size }}>
         <div data-dt="m3-face" aria-hidden={showLyrics} ref={faceRef}
           style={{ transform: reduzido ? undefined : `translateZ(${meio}px)`, opacity: reduzido && showLyrics ? 0 : 1 }}>
-          {front}
+          {typeof front === 'function' ? front(arestasDoEfeito.aoDesenhar) : front}
           {/* Um <img> a sério, como na capa plana: a <Image> do RNW só desenha depois de recarregar. */}
           {capaQueSai ? <img data-dt="capa-sai" src={capaQueSai} alt=""
             style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 2 }} /> : null}
