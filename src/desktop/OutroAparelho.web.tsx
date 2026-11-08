@@ -113,8 +113,8 @@ export function BotaoDoOutroAparelho() {
     <>
       <P nativeID={ID_DO_BOTAO} accessibilityRole="button" accessibilityLabel={`Playing on ${nome}`} accessibilityState={{ expanded: aberto }}
         onPress={() => (aberto ? fecharOutroAparelho() : abrirOutroAparelho())}
-        style={({ hovered }: any) => [{ height: 32, borderRadius: RAIO.cartao, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 8, cursor: 'pointer' },
-          (hovered || aberto) && { backgroundColor: ESTADO.hover }]}>
+        // Sem fundo no hover nem aberto (8/11), como os botões de ícone ao lado.
+        style={{ height: 32, borderRadius: RAIO.cartao, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 8, cursor: 'pointer' }}>
         <View>
           <IconeDosAparelhos cor={COR.texto} />
           <View style={{ position: 'absolute', left: 13, top: -2, borderRadius: RAIO.pilula, borderWidth: 2, borderColor: '#0A0A0D' }}>

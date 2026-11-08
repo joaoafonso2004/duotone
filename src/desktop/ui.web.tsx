@@ -108,15 +108,24 @@ export function IconButton({ name, label, onPress, onPressIn, onPressOut, desenh
    */
   foraDoTab?: boolean;
 }) {
-  const cor = danger ? COR.erro : active ? COR.metalClaro : COR.textoMedio;
-  return <P {...comDica(label, atalho, 'premir')} tabIndex={foraDoTab ? -1 : undefined} accessibilityRole="button" accessibilityLabel={label} onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} style={({ hovered, pressed, focused }: any) => [
-    ui.iconButton, (hovered || focused) && ui.iconButtonHover, pressed && ui.pressed, active && ui.active,
+  // Sem quadrado (8/11, o João: "só o png"): nem o fundo do hover nem o do
+  // ligado. O rato por cima (ou o foco) acende o ícone; ligado, ele já fica
+  // claro e com o desenho do estado (o ponto do shuffle e do repeat, as ondas
+  // do Jam, o coração cheio). O foco do teclado continua com o anel por fora.
+  const corDoIcone = (aceso: boolean) => danger ? COR.erro : active || aceso ? COR.metalClaro : COR.textoMedio;
+  return <P {...comDica(label, atalho, 'premir')} tabIndex={foraDoTab ? -1 : undefined} accessibilityRole="button" accessibilityLabel={label} onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} style={({ pressed }: any) => [
+    ui.iconButton, pressed && ui.pressed,
   ]}>
-    {desenho ? desenho(cor) : <StateIcon name={name} size={19} color={cor} />}
-    {marca ? <View style={ui.marcaDeModo}><Text style={ui.marcaDeModoTexto}>{marca}</Text></View> : null}
-    {estrela ? <View style={{ position: 'absolute', top: 5, right: 5 }}>
-      <EstrelaInteligente tamanho={6} />
-    </View> : null}
+    {({ hovered, focused }: any) => {
+      const cor = corDoIcone(hovered || focused);
+      return <>
+        {desenho ? desenho(cor) : <StateIcon name={name} size={19} color={cor} />}
+        {marca ? <View style={ui.marcaDeModo}><Text style={ui.marcaDeModoTexto}>{marca}</Text></View> : null}
+        {estrela ? <View style={{ position: 'absolute', top: 5, right: 5 }}>
+          <EstrelaInteligente tamanho={6} />
+        </View> : null}
+      </>;
+    }}
   </P>;
 }
 
@@ -1524,9 +1533,7 @@ export const ui = StyleSheet.create({
   divisoriaLinha: { flex: 1, height: 1, backgroundColor: COR.linhaSuave },
 
   iconButton: { width: 34, height: 34, borderRadius: RAIO.cartao, alignItems: 'center', justifyContent: 'center' },
-  // Hover e escolhido pela regra dos estados (ESTADO, tokens.web.ts).
-  iconButtonHover: { backgroundColor: ESTADO.hover },
-  active: ESTADO.escolhido,
+  // Sem fundo no hover nem no ligado (8/11): quem muda é a cor do ícone.
   pressed: { opacity: .72, transform: [{ scale: .985 }] },
   disabled: { opacity: ESTADO.apagado },
   ocupado: { cursor: 'progress' } as any,

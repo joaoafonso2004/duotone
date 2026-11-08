@@ -40,9 +40,18 @@ caso('a regra vive nos tokens', () => {
   assert.match(tokens, /escolhido: \{ backgroundColor: COR\.metalSuave, boxShadow: 'inset 0 0 0 1px rgba\(233,234,238,0\.28\)' \}/);
   assert.match(tokens, /aresta: 'rgba\(233,234,238,0\.28\)',/);
 });
-caso('o botão de ícone e os separadores usam-na', () => {
-  assert.match(ui, /iconButtonHover: \{ backgroundColor: ESTADO\.hover \},/);
-  assert.match(ui, /active: ESTADO\.escolhido,/);
+caso('o botão de ícone não tem quadrado: o hover e o ligado acendem o ícone (8/11)', () => {
+  // O João: "remove estas bordas à volta dos botões, só o png".
+  assert.doesNotMatch(ui, /iconButtonHover|ui\.active\b|^\s*active: ESTADO/m);
+  assert.match(ui, /style=\{\(\{ pressed \}: any\) => \[\n\s+ui\.iconButton, pressed && ui\.pressed,\n\s+\]\}>/);
+  assert.match(ui, /const corDoIcone = \(aceso: boolean\) => danger \? COR\.erro : active \|\| aceso \? COR\.metalClaro : COR\.textoMedio;/);
+  assert.match(ui, /const cor = corDoIcone\(hovered \|\| focused\);/);
+  const olho = ler('src/desktop/IndicadorDeVisibilidade.web.tsx');
+  assert.match(olho, /style=\{\(\{ pressed \}: any\) => \[ui\.iconButton, pressed && ui\.pressed\]\}/);
+  assert.match(olho, /stroke: fechado \|\| hovered \|\| focused \? COR\.metalClaro : COR\.textoMedio/);
+  assert.doesNotMatch(ler('src/desktop/OutroAparelho.web.tsx'), /\(hovered \|\| aberto\) && \{ backgroundColor/);
+});
+caso('os separadores usam-na', () => {
   assert.match(ui, /separadorHover: \{ backgroundColor: ESTADO\.hover \},/);
   assert.match(ui, /separadorPilula: \{[^}]*\.\.\.ESTADO\.escolhido \}/);
   assert.match(ui, /buttonMarcado: \{ backgroundColor: COR\.metalSuave, borderColor: ESTADO\.aresta \},/);

@@ -74,16 +74,14 @@ export function IndicadorDeVisibilidade({ discordLigado, onJam, onAviso }: {
     onPress={carregar}
     accessibilityRole="button"
     accessibilityLabel={texto}
-    // A mesma ordem do IconButton: o ligado por último, para o hover não o
-    // apagar -- a cor de hover é mais escura do que a de ligado.
-    style={({ hovered, focused, pressed }: any) => [
-      ui.iconButton, (hovered || focused) && ui.iconButtonHover, pressed && ui.pressed, fechado && ui.active,
-    ]}
+    // Como o IconButton (8/11): sem quadrado. O rato por cima acende o olho, e
+    // fechado ele já fica claro, com as pestanas.
+    style={({ pressed }: any) => [ui.iconButton, pressed && ui.pressed]}
   >
-    <svg
+    {({ hovered, focused }: any) => <svg
       width={TAMANHO} height={TAMANHO} viewBox="0 0 24 24" aria-hidden
       fill="none" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"
-      style={{ overflow: 'visible', stroke: fechado ? COR.metalClaro : COR.textoMedio, transition: transicao(['stroke', 200]) }}
+      style={{ overflow: 'visible', stroke: fechado || hovered || focused ? COR.metalClaro : COR.textoMedio, transition: transicao(['stroke', 200]) }}
     >
       <title>{texto}</title>
       <g style={{
@@ -109,6 +107,6 @@ export function IndicadorDeVisibilidade({ discordLigado, onJam, onAviso }: {
           transition: fechado ? transicao(['opacity', 160, 150]) : transicao(['opacity', 90]),
         }} />
       </g>
-    </svg>
+    </svg>}
   </P>;
 }
