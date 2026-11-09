@@ -29,7 +29,7 @@ body{background:#0b0b0e;color:var(--texto);font-family:'Public Sans','Segoe UI',
 .notas li b{color:var(--texto);font-weight:600}
 
 /* ------------------------------------------------------------- a janela -- */
-.janela{width:1440px;height:900px;display:flex;flex-direction:column;background:var(--fundo);color:var(--texto);overflow:hidden;position:relative;border-radius:8px;box-shadow:0 0 0 1px rgba(255,255,255,.07),0 30px 90px rgba(0,0,0,.65);font-family:'Public Sans','Segoe UI',sans-serif}
+.janela{width:1440px;height:900px;display:flex;flex-direction:column;background:var(--fundo);color:var(--texto);overflow:hidden;position:relative;border-radius:8px;font-family:'Public Sans','Segoe UI',sans-serif}
 .janela svg{display:block;flex-shrink:0}
 .luz{position:absolute;inset:0;pointer-events:none;display:none}
 .titulo{height:38px;display:flex;align-items:center;flex-shrink:0;position:relative;z-index:2}
@@ -119,36 +119,56 @@ body{background:#0b0b0e;color:var(--texto);font-family:'Public Sans','Segoe UI',
 .vol i{width:90px;height:4px;border-radius:2px;background:rgba(233,234,238,.14);position:relative}
 .vol i::before{content:'';position:absolute;left:0;top:0;bottom:0;width:62%;border-radius:2px;background:#A09DA9}
 
+
+.palco > svg{display:block;width:100%;height:auto;max-width:1440px;border-radius:8px;box-shadow:0 30px 90px rgba(0,0,0,.65)}
+.janela::after{content:'';position:absolute;inset:0;border-radius:8px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.07);pointer-events:none;z-index:10}
+.radio{position:absolute;opacity:0;pointer-events:none}
+.opcoes label{font:600 13px 'Public Sans',sans-serif;color:var(--medio);border:1px solid var(--linha);border-radius:999px;padding:9px 16px;cursor:pointer;user-select:none}
+.opcoes label:hover{color:var(--texto)}
+.opcoes label em{font-style:normal;font-weight:400;opacity:.7;margin-left:4px}
+#o-hoje:checked ~ .opcoes label[for=o-hoje]{color:#111117;background:var(--texto);border-color:var(--texto)}
+#o-continua:checked ~ .opcoes label[for=o-continua]{color:#111117;background:var(--texto);border-color:var(--texto)}
+#o-fila:checked ~ .opcoes label[for=o-fila]{color:#111117;background:var(--texto);border-color:var(--texto)}
+#o-ilhas:checked ~ .opcoes label[for=o-ilhas]{color:#111117;background:var(--texto);border-color:var(--texto)}
+#o-hoje:focus-visible ~ .opcoes label[for=o-hoje]{outline:2px solid var(--texto);outline-offset:2px}
+#o-continua:focus-visible ~ .opcoes label[for=o-continua]{outline:2px solid var(--texto);outline-offset:2px}
+#o-fila:focus-visible ~ .opcoes label[for=o-fila]{outline:2px solid var(--texto);outline-offset:2px}
+#o-ilhas:focus-visible ~ .opcoes label[for=o-ilhas]{outline:2px solid var(--texto);outline-offset:2px}
+.notas{display:none}
+#o-hoje:checked ~ .n-hoje{display:grid}
+#o-continua:checked ~ .n-continua{display:grid}
+#o-fila:checked ~ .n-fila{display:grid}
+#o-ilhas:checked ~ .n-ilhas{display:grid}
+
 /* ---------------------------------------------- HOJE: o que está na app -- */
-.janela[data-v=hoje] .titulo{border-bottom:1px solid var(--suave)}
-.janela[data-v=hoje] .corpo{margin:4px 8px 0;border:1px solid var(--suave);border-radius:14px;overflow:hidden}
-.janela[data-v=hoje] .lateral{border-right:1px solid var(--suave);background:#08080A}
-.janela[data-v=hoje] .pagina{background:linear-gradient(180deg,#1d1d20 0%,#16161a 38%,#101013 100%);border-top-left-radius:12px}
-.janela[data-v=hoje] .leitor{margin:0 8px;border-top:1px solid var(--suave)}
+#o-hoje:checked ~ .palco .titulo{border-bottom:1px solid var(--suave)}
+#o-hoje:checked ~ .palco .corpo{margin:4px 8px 0;border:1px solid var(--suave);border-radius:14px;overflow:hidden}
+#o-hoje:checked ~ .palco .lateral{border-right:1px solid var(--suave);background:#08080A}
+#o-hoje:checked ~ .palco .pagina{background:linear-gradient(180deg,#1d1d20 0%,#16161a 38%,#101013 100%);border-top-left-radius:12px}
+#o-hoje:checked ~ .palco .leitor{margin:0 8px;border-top:1px solid var(--suave)}
 
 /* --------------------------------------- A: uma superfície, sem barras -- */
-.janela[data-v^=continua] .titulo{display:none}
-.janela[data-v^=continua] .flutuantes{display:flex}
-.janela[data-v^=continua] .marca-lateral{display:flex}
-.janela[data-v^=continua] .fio-lateral{background:transparent;margin:6px 0}
-.janela[data-v^=continua] .luz{display:block;background:
-  radial-gradient(1250px 700px at 780px -170px,rgba(233,234,238,.15),rgba(233,234,238,.06) 45%,rgba(233,234,238,0) 80%)}
-.janela[data-v=continua-fila] .luz{background:
-  radial-gradient(1050px 660px at 700px -170px,rgba(233,234,238,.15),rgba(233,234,238,.06) 45%,rgba(233,234,238,0) 80%)}
-.janela[data-v^=continua] .desvanecer{display:block}
-.janela[data-v^=continua] .rolar-lat,.janela[data-v^=continua] .rolar-pag,.janela[data-v=ilhas] .rolar-lat{opacity:0}
-.janela[data-v^=continua] .leitor{padding:0 24px}
-.janela[data-v^=continua] .conteudo{padding-top:58px}
-.janela[data-v=continua-fila] .fila{display:flex;padding-top:58px}
+#o-continua:checked ~ .palco .titulo,#o-fila:checked ~ .palco .titulo{display:none}
+#o-continua:checked ~ .palco .flutuantes,#o-fila:checked ~ .palco .flutuantes{display:flex}
+#o-continua:checked ~ .palco .marca-lateral,#o-fila:checked ~ .palco .marca-lateral{display:flex}
+#o-continua:checked ~ .palco .fio-lateral,#o-fila:checked ~ .palco .fio-lateral{background:transparent;margin:6px 0}
+#o-continua:checked ~ .palco .luz,#o-fila:checked ~ .palco .luz{display:block;background:radial-gradient(1250px 700px at 780px -170px,rgba(233,234,238,.15),rgba(233,234,238,.06) 45%,rgba(233,234,238,0) 80%)}
+#o-fila:checked ~ .palco .luz{background:radial-gradient(1050px 660px at 700px -170px,rgba(233,234,238,.15),rgba(233,234,238,.06) 45%,rgba(233,234,238,0) 80%)}
+#o-continua:checked ~ .palco .desvanecer,#o-fila:checked ~ .palco .desvanecer{display:block}
+#o-continua:checked ~ .palco .rolar-lat,#o-continua:checked ~ .palco .rolar-pag,#o-fila:checked ~ .palco .rolar-lat,#o-fila:checked ~ .palco .rolar-pag{opacity:0}
+#o-continua:checked ~ .palco .leitor,#o-fila:checked ~ .palco .leitor{padding:0 24px}
+#o-continua:checked ~ .palco .conteudo,#o-fila:checked ~ .palco .conteudo{padding-top:58px}
+#o-fila:checked ~ .palco .fila{display:flex;padding-top:58px}
 
 /* --------------------------------------- B: ilhas, ao género do Spotify -- */
-.janela[data-v=ilhas]{background:#000}
-.janela[data-v=ilhas] .corpo{padding:0 8px 8px;gap:8px}
-.janela[data-v=ilhas] .lateral{background:#101014;border-radius:12px}
-.janela[data-v=ilhas] .pagina{background:#101014;border-radius:12px}
-.janela[data-v=ilhas] .luz-pagina{display:block;background:radial-gradient(1000px 560px at 40% -140px,rgba(233,234,238,.10),rgba(233,234,238,0) 75%)}
-.janela[data-v=ilhas] .marca{color:var(--texto)}
-.janela[data-v=ilhas] .av i{border-color:#101014}
+#o-ilhas:checked ~ .palco .janela{background:#000}
+#o-ilhas:checked ~ .palco .corpo{padding:0 8px 8px;gap:8px}
+#o-ilhas:checked ~ .palco .lateral{background:#101014;border-radius:12px}
+#o-ilhas:checked ~ .palco .pagina{background:#101014;border-radius:12px}
+#o-ilhas:checked ~ .palco .luz-pagina{display:block;background:radial-gradient(1000px 560px at 40% -140px,rgba(233,234,238,.10),rgba(233,234,238,0) 75%)}
+#o-ilhas:checked ~ .palco .marca{color:var(--texto)}
+#o-ilhas:checked ~ .palco .av i{border-color:#101014}
+#o-ilhas:checked ~ .palco .rolar-lat{opacity:0}
 </style>
 </head>
 <body>
@@ -156,68 +176,33 @@ body{background:#0b0b0e;color:var(--texto);font-family:'Public Sans','Segoe UI',
   <h1>As barras da janela</h1>
   <p>Hoje a app vive dentro de uma moldura com contorno, recuada da janela, e cada zona é separada por um fio. Abaixo, a janela de hoje e duas maneiras de a limpar, ao tamanho real (1440 × 900) e encolhidas para caber. A página, a lateral e o leitor são os mesmos em todas: só muda o que separa.</p>
 </header>
-
+<input class="radio" type="radio" name="o" id="o-hoje">
+<input class="radio" type="radio" name="o" id="o-continua" checked>
+<input class="radio" type="radio" name="o" id="o-fila">
+<input class="radio" type="radio" name="o" id="o-ilhas">
 <div class="opcoes" role="group" aria-label="Opção">
-  <button type="button" data-o="hoje">Hoje</button>
-  <button type="button" data-o="continua" aria-pressed="true">A · Uma superfície <em>a minha escolha</em></button>
-  <button type="button" data-o="continua-fila">A · com a fila aberta</button>
-  <button type="button" data-o="ilhas">B · Ilhas <em>género Spotify</em></button>
+  <label for="o-hoje">Hoje</label>
+  <label for="o-continua">A · Uma superfície <em>a minha escolha</em></label>
+  <label for="o-fila">A · com a fila aberta</label>
+  <label for="o-ilhas">B · Ilhas <em>género Spotify</em></label>
 </div>
-
-<div class="palco" id="palco"><div class="escala" id="escala"></div></div>
-<section class="notas" id="notas"></section>
-
-<script>
-// Ícones (traço, 24 × 24). Os do leitor são os da app (IconesDeEstado.web.tsx).
-const P = {
-  home:'M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
-  coracao:'M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z',
-  mic:'M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v3',
-  listas:'M4 9h16v11H4zM6.5 5.5h11',
-  social:'M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 19c0-3 2.7-5 6-5s6 2 6 5M16 11a2.5 2.5 0 1 0 0-5M17.5 14c2.2.5 3.5 2.3 3.5 5',
-  roda:'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
-  busca:'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4',
-  shuffle:'M3 17h3.5c3 0 4.5-2 6-5 1.5-3 3-5 6-5H21M18 4l3 3-3 3M3 7h3.5c1.8 0 3 .8 4 2M13.5 15c1 1.4 2.3 2 4 2H21M18 14l3 3-3 3',
-  repeat:'M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3',
-  recarregar:'M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7',
-  olho:'M2.5 12Q12 1.5 21.5 12M2.5 12Q12 22.5 21.5 12M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4z',
-  jam:'M4 15v-3a8 8 0 0 1 16 0v3M4 15a2 2 0 0 1 2-2h1v6H6a2 2 0 0 1-2-2zM20 15a2 2 0 0 0-2-2h-1v6h1a2 2 0 0 0 2-2z',
-  aparelhos:'M3 5h12v9H3zM6.5 18h5M17.5 9h3.5v11h-3.5z',
-  arcos:'M15.5 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11',
-  fechar:'M6 6l12 12M18 6 6 18',
-  filaIc:'M4 6h16M4 12h16M4 18h10',
-  min:'M5 12h14', max:'M6.5 6.5h11v11h-11z', mais:'M12 5v14M5 12h14',
-  nota:'M9 18a2 2 0 1 1-2-2h2V6l10-2v10a2 2 0 1 1-2-2h2',
-};
-const ic = (n, t = 19, w = 1.6) => `<svg width="${t}" height="${t}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${P[n]}"/></svg>`;
-const cheio = (d, t = 16) => `<svg width="${t}" height="${t}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="${d}"/></svg>`;
-const logo = `<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="12" r="7" fill="#E9EAEE"/><circle cx="15" cy="12" r="7" fill="#34363E" stroke="#060608" stroke-width="1.5"/></svg>`;
-// Capas: cores no lugar das fotografias.
-const capa = (h, l = 32) => `background:linear-gradient(140deg,hsl(${h} 30% ${l + 18}%),hsl(${(h + 40) % 360} 35% ${l}%) 60%,hsl(${(h + 80) % 360} 30% ${l - 16}%))`;
-
-const NAV = [['home','Home'],['coracao','Liked Songs',1],['mic','Artists'],['listas','Playlists'],['social','Social']];
-const FIXAS = [['Daily mix','New every day',48],['isakaria','Playlist',220],['flowstate','Playlist',200],['Moradia','Playlist',30],['Lil Uzi Vert Mix','Playlist',15],['Gym bruto','Playlist',0]];
-const FAIXAS = [['dancingwiththestars','GUNNR','3:09',260],['PELEAMOS','elaggume','2:47',330],['Bar Da Praia','Isak','3:15',40],['Calipo De Cerveja','Isak','4:35',200],['areyoulistening','GUNNR','1:50',300],['Discernment','Razii','1:53',45],['Futsal Shuffle 2020 (Bonus Track)','Lil Uzi Vert','3:19',210],['still love you (Slowed)','GLM-RST','2:34',240],['Starstruck (OG V2) (Unreleased)','Juice WRLD','3:59',0],['ÜP OFF X (Prod. Opium Jai)','Yeat','1:51',120],['Bad Ideas','Isak','2:58',280]];
-
-const botoesJanela = `<div class="bj"><span>${ic('filaIc', 16)}</span><span>${ic('min', 15, 1.3)}</span><span>${ic('max', 14, 1.3)}</span><span>${ic('fechar', 15, 1.3)}</span></div>`;
-
-const janela = `
-<div class="janela" id="janela" data-v="continua">
+<div class="palco"><svg viewBox="0 0 1440 900" role="img" aria-label="A janela da Duotone na opção escolhida"><foreignObject x="0" y="0" width="1440" height="900"><div xmlns="http://www.w3.org/1999/xhtml">
+<div class="janela">
   <div class="luz"></div>
-  <div class="titulo"><div class="marca">${logo} Duotone</div><div class="esticar"></div>${botoesJanela}</div>
-  <div class="flutuantes">${botoesJanela}</div>
+  <div class="titulo"><div class="marca"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="12" r="7" fill="#E9EAEE"/><circle cx="15" cy="12" r="7" fill="#34363E" stroke="#060608" stroke-width="1.5"/></svg> Duotone</div><div class="esticar"></div><div class="bj"><span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span><span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg></span><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 6.5h11v11h-11z"/></svg></span><span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></span></div></div>
+  <div class="flutuantes"><div class="bj"><span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span><span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg></span><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 6.5h11v11h-11z"/></svg></span><span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></span></div></div>
   <div class="corpo">
     <aside class="lateral">
-      <div class="marca-lateral">${logo} Duotone</div>
+      <div class="marca-lateral"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="12" r="7" fill="#E9EAEE"/><circle cx="15" cy="12" r="7" fill="#34363E" stroke="#060608" stroke-width="1.5"/></svg> Duotone</div>
       <div class="rotulo">Library</div>
-      <nav class="nav">${NAV.map(([i, t, on]) => `<a class="${on ? 'on' : ''}">${ic(i)}${t}</a>`).join('')}</nav>
+      <nav class="nav"><a class=""><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Home</a><a class="on"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>Liked Songs</a><a class=""><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v3"/></svg>Artists</a><a class=""><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h16v11H4zM6.5 5.5h11"/></svg>Playlists</a><a class=""><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 19c0-3 2.7-5 6-5s6 2 6 5M16 11a2.5 2.5 0 1 0 0-5M17.5 14c2.2.5 3.5 2.3 3.5 5"/></svg>Social</a></nav>
       <div class="fio-lateral"></div>
-      <div class="conta"><div class="av" style="${capa(25, 40)}"></div><div style="flex:1"><b>Joao</b><small>@joao</small></div><span style="color:var(--medio)">${ic('roda', 18)}</span></div>
+      <div class="conta"><div class="av" style="background:linear-gradient(140deg,hsl(25 30% 58%),hsl(65 35% 40%) 60%,hsl(105 30% 24%))"></div><div style="flex:1"><b>Joao</b><small>@joao</small></div><span style="color:var(--medio)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></span></div>
       <div class="rotulo" style="margin-top:22px">Friends <span>2 online</span></div>
-      <div class="pessoa"><div class="av" style="${capa(200, 45)}"><i></i></div><div><b>afghankush</b><small>Online</small></div></div>
+      <div class="pessoa"><div class="av" style="background:linear-gradient(140deg,hsl(200 30% 63%),hsl(240 35% 45%) 60%,hsl(280 30% 29%))"><i></i></div><div><b>afghankush</b><small>Online</small></div></div>
       <div class="pessoa"><div class="av" style="background:#1C1C24">R<i></i></div><div><b>raton</b><small>Online</small></div></div>
-      <div class="rotulo" style="margin-top:22px">Pinned <span>${ic('mais', 14)}</span></div>
-      ${FIXAS.map(([t, s, h], i) => `<div class="fixa"><div class="capa" style="${i < 2 ? 'background:#1C1C24;display:grid;place-items:center' : capa(h)}">${i === 0 ? cheio('M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z', 15) : i === 1 ? ic('nota', 15) : ''}</div><div><b>${t}</b><small>${s}</small></div></div>`).join('')}
+      <div class="rotulo" style="margin-top:22px">Pinned <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span></div>
+      <div class="fixa"><div class="capa" style="background:#1C1C24;display:grid;place-items:center"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg></div><div><b>Daily mix</b><small>New every day</small></div></div><div class="fixa"><div class="capa" style="background:#1C1C24;display:grid;place-items:center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18a2 2 0 1 1-2-2h2V6l10-2v10a2 2 0 1 1-2-2h2"/></svg></div><div><b>isakaria</b><small>Playlist</small></div></div><div class="fixa"><div class="capa" style="background:linear-gradient(140deg,hsl(200 30% 50%),hsl(240 35% 32%) 60%,hsl(280 30% 16%))"></div><div><b>flowstate</b><small>Playlist</small></div></div><div class="fixa"><div class="capa" style="background:linear-gradient(140deg,hsl(30 30% 50%),hsl(70 35% 32%) 60%,hsl(110 30% 16%))"></div><div><b>Moradia</b><small>Playlist</small></div></div><div class="fixa"><div class="capa" style="background:linear-gradient(140deg,hsl(15 30% 50%),hsl(55 35% 32%) 60%,hsl(95 30% 16%))"></div><div><b>Lil Uzi Vert Mix</b><small>Playlist</small></div></div><div class="fixa"><div class="capa" style="background:linear-gradient(140deg,hsl(0 30% 50%),hsl(40 35% 32%) 60%,hsl(80 30% 16%))"></div><div><b>Gym bruto</b><small>Playlist</small></div></div>
       <div class="rolar-lat"></div>
     </aside>
     <main class="pagina">
@@ -225,15 +210,15 @@ const janela = `
       <div class="conteudo">
         <div class="cab">
           <div><div class="micro">PLAYLIST</div><div class="display">Liked Songs</div><div class="meta">80 songs · 5 h 43 min</div></div>
-          <div class="acoes"><div class="btn metal">${cheio('M8 5v14l11-7z', 15)}Play all</div><div class="btn sec">${ic('shuffle', 17)}Shuffle</div></div>
+          <div class="acoes"><div class="btn metal"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>Play all</div><div class="btn sec"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17h3.5c3 0 4.5-2 6-5 1.5-3 3-5 6-5H21M18 4l3 3-3 3M3 7h3.5c1.8 0 3 .8 4 2M13.5 15c1 1.4 2.3 2 4 2H21M18 14l3 3-3 3"/></svg>Shuffle</div></div>
         </div>
         <div class="ferr">
-          <div class="busca">${ic('busca', 17)}Search your library</div>
-          <div class="ferr-dir"><div class="seg"><span class="on">Recent</span><span>Title</span><span>Artist</span></div>${ic('recarregar', 18)}</div>
+          <div class="busca"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4"/></svg>Search your library</div>
+          <div class="ferr-dir"><div class="seg"><span class="on">Recent</span><span>Title</span><span>Artist</span></div><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg></div>
         </div>
         <div class="tabela">
           <div class="cab-tab"><span>#</span><span>TITLE</span><span>ARTIST</span><span>DURATION</span></div>
-          ${FAIXAS.map(([t, a, d, h], i) => `<div class="linha"><span class="n">${i === 0 ? `<svg width="14" height="14" viewBox="0 0 14 14" fill="#E9EAEE" aria-hidden="true"><rect x="1" y="4" width="2.4" height="9" rx="1"/><rect x="5.8" y="1" width="2.4" height="12" rx="1"/><rect x="10.6" y="7" width="2.4" height="6" rx="1"/></svg>` : i + 1}</span><span class="t"><span class="capa" style="${capa(h)}"></span><span>${t}</span></span><span class="a">${a}</span><span class="d">${d}</span></div>`).join('')}
+          <div class="linha"><span class="n"><svg width="14" height="14" viewBox="0 0 14 14" fill="#E9EAEE" aria-hidden="true"><rect x="1" y="4" width="2.4" height="9" rx="1"/><rect x="5.8" y="1" width="2.4" height="12" rx="1"/><rect x="10.6" y="7" width="2.4" height="6" rx="1"/></svg></span><span class="t"><span class="capa" style="background:linear-gradient(140deg,hsl(260 30% 50%),hsl(300 35% 32%) 60%,hsl(340 30% 16%))"></span><span>dancingwiththestars</span></span><span class="a">GUNNR</span><span class="d">3:09</span></div><div class="linha"><span class="n">2</span><span class="t"><span class="capa" style="background:linear-gradient(140deg,hsl(330 30% 50%),hsl(10 35% 32%) 60%,hsl(50 30% 16%))"></span><span>PELEAMOS</span></span><span class="a">elaggume</span><span class="d">2:47</span></div><div class="linha"><span class="n">3</span><span class="t"><span class="capa" style="background:linear-gradient(140deg,hsl(40 30% 50%),hsl(80 35% 32%) 60%,hsl(120 30% 16%))"></span><span>Bar Da Praia</span></span><span class="a">Isak</span><span class="d">3:15</span></div><div class="linha"><span class="n">4</span><span class="t"><span class="capa" style="background:linear-gradient(140deg,hsl(200 30% 50%),hsl(240 35% 32%) 60%,hsl(280 30% 16%))"></span><span>Calipo De Cerveja</span></span><span class="a">Isak</span><span class="d">4:35</span></div><div class="linha"><span class="n">5</span><span class="t"><span class="capa" style="background:linear-gradient(140deg,hsl(300 30% 50%),hsl(340 35% 32%) 60%,hsl(20 30% 16%))"></span><span>areyoulistening</span></span><span class="a">GUNNR</span><span class="d">1:50</span></div><div class="linha"><span class="n">6</span><span class="t"><span class="capa" style="background:linear-gradient(140deg,hsl(45 30% 50%),hsl(85 35% 32%) 60%,hsl(125 30% 16%))"></span><span>Discernment</span></span><span class="a">Razii</span><span class="d">1:53</span></div><div class="linha"><span class="n">7</span><span class="t"><span class="capa" style="background:linear-gradient(140deg,hsl(210 30% 50%),hsl(250 35% 32%) 60%,hsl(290 30% 16%))"></span><span>Futsal Shuffle 2020 (Bonus Track)</span></span><span class="a">Lil Uzi Vert</span><span class="d">3:19</span></div><div class="linha"><span class="n">8</span><span class="t"><span class="capa" style="background:linear-gradient(140deg,hsl(240 30% 50%),hsl(280 35% 32%) 60%,hsl(320 30% 16%))"></span><span>still love you (Slowed)</span></span><span class="a">GLM-RST</span><span class="d">2:34</span></div><div class="linha"><span class="n">9</span><span class="t"><span class="capa" style="background:linear-gradient(140deg,hsl(0 30% 50%),hsl(40 35% 32%) 60%,hsl(80 30% 16%))"></span><span>Starstruck (OG V2) (Unreleased)</span></span><span class="a">Juice WRLD</span><span class="d">3:59</span></div><div class="linha"><span class="n">10</span><span class="t"><span class="capa" style="background:linear-gradient(140deg,hsl(120 30% 50%),hsl(160 35% 32%) 60%,hsl(200 30% 16%))"></span><span>ÜP OFF X (Prod. Opium Jai)</span></span><span class="a">Yeat</span><span class="d">1:51</span></div><div class="linha"><span class="n">11</span><span class="t"><span class="capa" style="background:linear-gradient(140deg,hsl(280 30% 50%),hsl(320 35% 32%) 60%,hsl(0 30% 16%))"></span><span>Bad Ideas</span></span><span class="a">Isak</span><span class="d">2:58</span></div>
         </div>
       </div>
       <div class="rolar-pag"></div>
@@ -242,89 +227,23 @@ const janela = `
     <aside class="fila">
       <div class="seg"><span class="on">Queue</span><span>Lyrics</span></div>
       <div class="micro">NOW PLAYING</div>
-      <div class="item agora"><div class="capa" style="${capa(260)}"></div><div style="min-width:0"><b>dancingwiththestars</b><small>GUNNR</small></div></div>
+      <div class="item agora"><div class="capa" style="background:linear-gradient(140deg,hsl(260 30% 50%),hsl(300 35% 32%) 60%,hsl(340 30% 16%))"></div><div style="min-width:0"><b>dancingwiththestars</b><small>GUNNR</small></div></div>
       <div class="micro" style="margin-top:18px">NEXT UP</div>
-      ${FAIXAS.slice(1, 10).map(([t, a, , h]) => `<div class="item"><div class="capa" style="${capa(h)}"></div><div style="min-width:0"><b>${t}</b><small>${a}</small></div></div>`).join('')}
+      <div class="item"><div class="capa" style="background:linear-gradient(140deg,hsl(330 30% 50%),hsl(10 35% 32%) 60%,hsl(50 30% 16%))"></div><div style="min-width:0"><b>PELEAMOS</b><small>elaggume</small></div></div><div class="item"><div class="capa" style="background:linear-gradient(140deg,hsl(40 30% 50%),hsl(80 35% 32%) 60%,hsl(120 30% 16%))"></div><div style="min-width:0"><b>Bar Da Praia</b><small>Isak</small></div></div><div class="item"><div class="capa" style="background:linear-gradient(140deg,hsl(200 30% 50%),hsl(240 35% 32%) 60%,hsl(280 30% 16%))"></div><div style="min-width:0"><b>Calipo De Cerveja</b><small>Isak</small></div></div><div class="item"><div class="capa" style="background:linear-gradient(140deg,hsl(300 30% 50%),hsl(340 35% 32%) 60%,hsl(20 30% 16%))"></div><div style="min-width:0"><b>areyoulistening</b><small>GUNNR</small></div></div><div class="item"><div class="capa" style="background:linear-gradient(140deg,hsl(45 30% 50%),hsl(85 35% 32%) 60%,hsl(125 30% 16%))"></div><div style="min-width:0"><b>Discernment</b><small>Razii</small></div></div><div class="item"><div class="capa" style="background:linear-gradient(140deg,hsl(210 30% 50%),hsl(250 35% 32%) 60%,hsl(290 30% 16%))"></div><div style="min-width:0"><b>Futsal Shuffle 2020 (Bonus Track)</b><small>Lil Uzi Vert</small></div></div><div class="item"><div class="capa" style="background:linear-gradient(140deg,hsl(240 30% 50%),hsl(280 35% 32%) 60%,hsl(320 30% 16%))"></div><div style="min-width:0"><b>still love you (Slowed)</b><small>GLM-RST</small></div></div><div class="item"><div class="capa" style="background:linear-gradient(140deg,hsl(0 30% 50%),hsl(40 35% 32%) 60%,hsl(80 30% 16%))"></div><div style="min-width:0"><b>Starstruck (OG V2) (Unreleased)</b><small>Juice WRLD</small></div></div><div class="item"><div class="capa" style="background:linear-gradient(140deg,hsl(120 30% 50%),hsl(160 35% 32%) 60%,hsl(200 30% 16%))"></div><div style="min-width:0"><b>ÜP OFF X (Prod. Opium Jai)</b><small>Yeat</small></div></div>
     </aside>
   </div>
   <footer class="leitor">
-    <div class="l-faixa"><div class="capa" style="${capa(260)}"></div><div><b>dancingwiththestars</b><small>GUNNR</small></div></div>
+    <div class="l-faixa"><div class="capa" style="background:linear-gradient(140deg,hsl(260 30% 50%),hsl(300 35% 32%) 60%,hsl(340 30% 16%))"></div><div><b>dancingwiththestars</b><small>GUNNR</small></div></div>
     <div class="l-centro">
-      <div class="l-ctrl"><span class="ligado">${ic('shuffle', 20)}</span>${cheio('M6 5h2v14H6zM20 5v14L9 12z', 18)}<div class="disco">${cheio('M7 5h3.5v14H7zM13.5 5H17v14h-3.5z', 16)}</div>${cheio('M16 5h2v14h-2zM4 5v14l11-7z', 18)}${ic('repeat', 20)}</div>
+      <div class="l-ctrl"><span class="ligado"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17h3.5c3 0 4.5-2 6-5 1.5-3 3-5 6-5H21M18 4l3 3-3 3M3 7h3.5c1.8 0 3 .8 4 2M13.5 15c1 1.4 2.3 2 4 2H21M18 14l3 3-3 3"/></svg></span><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg><div class="disco"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg></div><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3"/></svg></div>
       <div class="progresso"><span>0:43</span><i></i><span>3:08</span></div>
     </div>
-    <div class="l-dir"><span style="color:var(--texto)">${cheio(P.coracao, 19)}</span>${ic('olho')}${ic('jam')}<span class="aparelho">${ic('aparelhos', 19)}IPHONE</span><span class="vol"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 9.5h3.2L12 5.5v13l-4.8-4H4z" fill="currentColor" stroke="none"/><path d="${P.arcos}"/></svg><i></i></span>${ic('fechar', 18)}</div>
+    <div class="l-dir"><span style="color:var(--texto)"><svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg></span><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12Q12 1.5 21.5 12M2.5 12Q12 22.5 21.5 12M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4z"/></svg><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 15v-3a8 8 0 0 1 16 0v3M4 15a2 2 0 0 1 2-2h1v6H6a2 2 0 0 1-2-2zM20 15a2 2 0 0 0-2-2h-1v6h1a2 2 0 0 0 2-2z"/></svg><span class="aparelho"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h12v9H3zM6.5 18h5M17.5 9h3.5v11h-3.5z"/></svg>IPHONE</span><span class="vol"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 9.5h3.2L12 5.5v13l-4.8-4H4z" fill="currentColor" stroke="none"/><path d="M15.5 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg><i></i></span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></div>
   </footer>
-</div>`;
-
-const NOTAS = {
-  hoje: [
-    ['O que se vê hoje', [
-      '<b>A moldura:</b> a lateral e a página estão dentro de uma caixa de cantos redondos com contorno, recuada 8 px dos lados e 4 px em cima. Fica uma faixa escura a contornar a app.',
-      '<b>Quatro fios:</b> por baixo da barra do título, entre a lateral e a página, por cima do leitor e dentro da lateral (por baixo do Social).',
-      '<b>A página</b> é um retângulo mais claro com o canto dele, dentro da caixa: caixa dentro de caixa.',
-    ]],
-    ['De onde vem', [
-      '<code>styles.main</code>, <code>titleBar</code>, <code>sidebar</code> e <code>player</code> em <code>desktop/estilos.web.ts</code>.',
-      'Em outubro saíram três molduras (janela, lateral e conteúdo, cada uma com borda). Ficou uma, e os fios no lugar das outras.',
-    ]],
-  ],
-  continua: [
-    ['O que muda', [
-      '<b>Sem barra do título.</b> A marca passa para o topo da lateral e os botões da janela ficam a flutuar no canto. A faixa de cima continua a arrastar a janela, só não se vê.',
-      '<b>Sem moldura nem margens.</b> A app encosta às bordas da janela. O contorno e os cantos redondos que ficam são os do próprio Windows.',
-      '<b>Sem fios.</b> A página distingue-se por uma luz larga por trás do cabeçalho, que se desfaz antes de chegar a qualquer borda. Pode ser a cor da capa, como já é na página das playlists.',
-      '<b>O leitor sem linha:</b> a lista desvanece antes de lhe chegar.',
-      'A lateral separa as secções pelo espaço; o fio por baixo do Social sai.',
-    ]],
-    ['Porque esta', [
-      '<b>Não há nenhuma barra.</b> O Spotify tirou os contornos mas pôs faixas pretas de 8 px à volta de cada painel (a opção B): continuam a ser barras, só mais grossas.',
-      'Ganha espaço: cerca de 16 px de largura e 40 px de altura para a página.',
-      'A pega para alargar a lateral continua lá: aparece com o rato na junção, como uma luz fina, e desaparece. As barras de rolar também só aparecem a rolar: paradas, a da lateral lia-se como mais um fio.',
-      'Se a página precisar de mais presença, a luz sobe de intensidade sem nunca virar um retângulo.',
-    ]],
-  ],
-  'continua-fila': [
-    ['Três zonas, nenhuma linha', [
-      'Com a fila aberta à direita, a página, a lateral e a fila ficam na mesma superfície.',
-      'Quem as separa é o espaço e a luz da página, que se centra no meio do que sobra.',
-      'A fila tem o mesmo topo da página (o cabeçalho alinha com o "PLAYLIST"), e os botões da janela continuam por cima dela.',
-    ]],
-    ['A ver', [
-      'Com a fila e a lateral largas ao mesmo tempo, a página fica estreita: é aí que se nota se faz falta um tom ligeiramente diferente na fila. Se fizer, é o tom, nunca um fio.',
-    ]],
-  ],
-  ilhas: [
-    ['O que muda', [
-      'A lateral e a página passam a ser dois painéis de cantos redondos sobre fundo preto, separados por 8 px de espaço. Sem contorno nem linha.',
-      'A barra do título fica no preto, sem linha; o leitor também.',
-      'A luz da página fica dentro do painel dela.',
-    ]],
-    ['Contra', [
-      '<b>É o que o Spotify faz</b>, e as faixas pretas entre os painéis são, na prática, as barras de hoje mais largas. Só sem contorno.',
-      'Perde espaço em vez de ganhar: mais 8 px à volta de cada painel.',
-    ]],
-  ],
-};
-
-document.getElementById('escala').innerHTML = janela;
-const j = document.getElementById('janela');
-const palco = document.getElementById('palco');
-const escala = document.getElementById('escala');
-function ajustar() {
-  const s = Math.min(1, palco.clientWidth / 1440);
-  escala.style.transform = `scale(${s})`;
-  palco.style.height = `${Math.ceil(900 * s)}px`;
-}
-function mostrar(o) {
-  j.dataset.v = o;
-  document.querySelectorAll('.opcoes button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.o === o)));
-  document.getElementById('notas').innerHTML = NOTAS[o].map(([t, l]) => `<div><h2>${t}</h2><ul>${l.map((x) => `<li>${x}</li>`).join('')}</ul></div>`).join('');
-}
-document.querySelectorAll('.opcoes button').forEach((b) => b.addEventListener('click', () => mostrar(b.dataset.o)));
-addEventListener('resize', ajustar);
-ajustar();
-mostrar(new URLSearchParams(location.search).get('o') || 'continua');
-</script>
+</div></div></foreignObject></svg></div>
+<section class="notas n-hoje"><div><h2>O que se vê hoje</h2><ul><li><b>A moldura:</b> a lateral e a página estão dentro de uma caixa de cantos redondos com contorno, recuada 8 px dos lados e 4 px em cima. Fica uma faixa escura a contornar a app.</li><li><b>Quatro fios:</b> por baixo da barra do título, entre a lateral e a página, por cima do leitor e dentro da lateral (por baixo do Social).</li><li><b>A página</b> é um retângulo mais claro com o canto dele, dentro da caixa: caixa dentro de caixa.</li></ul></div><div><h2>De onde vem</h2><ul><li><code>styles.main</code>, <code>titleBar</code>, <code>sidebar</code> e <code>player</code> em <code>desktop/estilos.web.ts</code>.</li><li>Em outubro saíram três molduras (janela, lateral e conteúdo, cada uma com borda). Ficou uma, e os fios no lugar das outras.</li></ul></div></section>
+<section class="notas n-continua"><div><h2>O que muda</h2><ul><li><b>Sem barra do título.</b> A marca passa para o topo da lateral e os botões da janela ficam a flutuar no canto. A faixa de cima continua a arrastar a janela, só não se vê.</li><li><b>Sem moldura nem margens.</b> A app encosta às bordas da janela. O contorno e os cantos redondos que ficam são os do próprio Windows.</li><li><b>Sem fios.</b> A página distingue-se por uma luz larga por trás do cabeçalho, que se desfaz antes de chegar a qualquer borda. Pode ser a cor da capa, como já é na página das playlists.</li><li><b>O leitor sem linha:</b> a lista desvanece antes de lhe chegar.</li><li>A lateral separa as secções pelo espaço; o fio por baixo do Social sai.</li></ul></div><div><h2>Porque esta</h2><ul><li><b>Não há nenhuma barra.</b> O Spotify tirou os contornos mas pôs faixas pretas de 8 px à volta de cada painel (a opção B): continuam a ser barras, só mais grossas.</li><li>Ganha espaço: cerca de 16 px de largura e 40 px de altura para a página.</li><li>A pega para alargar a lateral continua lá: aparece com o rato na junção, como uma luz fina, e desaparece. As barras de rolar também só aparecem a rolar: paradas, a da lateral lia-se como mais um fio.</li><li>Se a página precisar de mais presença, a luz sobe de intensidade sem nunca virar um retângulo.</li></ul></div></section>
+<section class="notas n-fila"><div><h2>Três zonas, nenhuma linha</h2><ul><li>Com a fila aberta à direita, a página, a lateral e a fila ficam na mesma superfície.</li><li>Quem as separa é o espaço e a luz da página, que se centra no meio do que sobra.</li><li>A fila tem o mesmo topo da página (o cabeçalho alinha com o "PLAYLIST"), e os botões da janela continuam por cima dela.</li></ul></div><div><h2>A ver</h2><ul><li>Com a fila e a lateral largas ao mesmo tempo, a página fica estreita: é aí que se nota se faz falta um tom ligeiramente diferente na fila. Se fizer, é o tom, nunca um fio.</li></ul></div></section>
+<section class="notas n-ilhas"><div><h2>O que muda</h2><ul><li>A lateral e a página passam a ser dois painéis de cantos redondos sobre fundo preto, separados por 8 px de espaço. Sem contorno nem linha.</li><li>A barra do título fica no preto, sem linha; o leitor também.</li><li>A luz da página fica dentro do painel dela.</li></ul></div><div><h2>Contra</h2><ul><li><b>É o que o Spotify faz</b>, e as faixas pretas entre os painéis são, na prática, as barras de hoje mais largas. Só sem contorno.</li><li>Perde espaço em vez de ganhar: mais 8 px à volta de cada painel.</li></ul></div></section>
 </body>
 </html>
