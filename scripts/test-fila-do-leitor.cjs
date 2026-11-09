@@ -69,6 +69,7 @@ const { useFilaDoLeitor } = carregar('src/desktop/useFilaDoLeitor.web.ts', {
     addTracksToPlaylist: async (id, faixas) => { calls.push(['add', id, faixas.map((t) => t.sourceId)]); },
   },
   '../lib/guardarFila': carregar('src/lib/guardarFila.ts'),
+  '../lib/origemDaFila': carregar('src/lib/origemDaFila.ts'),
   '../lib/mensagemDeErro': carregar('src/lib/mensagemDeErro.ts'),
 });
 const render = () => { cursor = 0; return useFilaDoLeitor({ more: (...args) => calls.push(['menu', ...args]), notify: (text) => calls.push(['notice', text]) }); };

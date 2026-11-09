@@ -79,6 +79,7 @@ const mocks = {
   // Guardar a fila como playlist (11/10): o pedido do nome, a API e o nome sugerido (puro).
   './PromptSheet':{PromptSheet:'Prompt'}, '../api/playlists':{createPlaylist:async()=>({id:'p'}),addTracksToPlaylist:async()=>{}},
   '../lib/guardarFila': carregar('src/lib/guardarFila.ts'),
+  '../lib/origemDaFila': carregar('src/lib/origemDaFila.ts'),
   './RecommendationPreferences':{RecommendationPreferences:'Recs'},
   './RadioQueueControl':{RadioQueueControl:'RadioQueueControl',ErroDoRadio:'ErroDoRadio'},
   '../lib/menuDoRadio':{MARCA_DA_FILA:{musica:'RADIO',mix:'MIX'}},

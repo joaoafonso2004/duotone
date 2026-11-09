@@ -95,3 +95,45 @@ export function rotuloDaOrigem(
   if (origem.tipo === 'album') return { antes: 'From album', nome: origem.nome, alvo: null };
   return { antes: 'From', nome: origem.nome, alvo: alvoDe(origem) };
 }
+
+/**
+ * A fila que se deixou ao começar outra (9/11): o "Back to Liked Songs" da fila.
+ *
+ * Tocar uma música da pesquisa a meio de uma playlist deitava a fila fora, e
+ * voltar era ir à playlist e procurar onde se ia. A store guarda UMA (a última
+ * que se deixou); voltar a ela troca as duas, como o botão do último canal.
+ */
+export type ResumoDaFila = {
+  origem: OrigemDaFila | null;
+  /** Quantas faixas tem a lista, e as chaves da primeira e da última. */
+  tamanho: number;
+  primeira: string | null;
+  ultima: string | null;
+};
+
+const mesmaOrigem = (a: OrigemDaFila | null, b: OrigemDaFila | null): boolean =>
+  !!a && !!b && a.tipo === b.tipo && (a.id ?? null) === (b.id ?? null) && a.nome === b.nome;
+
+/**
+ * Vale a pena guardar a fila que se deixa? Só com músicas por ouvir, e só se a
+ * nova é OUTRA lista: tocar noutra música das mesmas Liked Songs não é sair de lá.
+ * Sem origem dos dois lados, compara-se a lista (o tamanho e as pontas).
+ */
+export function valeGuardarAFilaDeixada(deixada: ResumoDaFila & { faltam: number }, nova: ResumoDaFila): boolean {
+  if (deixada.faltam < 1) return false;
+  if (mesmaOrigem(deixada.origem, nova.origem)) return false;
+  if (!deixada.origem && !nova.origem) {
+    return !(deixada.tamanho === nova.tamanho && deixada.primeira === nova.primeira && deixada.ultima === nova.ultima);
+  }
+  return true;
+}
+
+/** "Back to Liked Songs" e "43 left": a linha da fila que leva de volta. */
+export function fraseDeVoltar(origem: OrigemDaFila | null, faltam: number): { rotulo: string; detalhe: string; acessivel: string } {
+  const nome = origem?.nome?.trim();
+  const rotulo = !origem || !nome ? 'Back to your last queue'
+    : origem.tipo === 'pesquisa' ? `Back to search “${nome}”`
+    : `Back to ${nome}`;
+  const detalhe = `${faltam} left`;
+  return { rotulo, detalhe, acessivel: `${rotulo}, ${faltam} ${faltam === 1 ? 'song' : 'songs'} left` };
+}

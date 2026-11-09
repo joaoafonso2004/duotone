@@ -32,7 +32,7 @@ import { juntarAoLote } from '../lib/lancamentosNoRadio';
 import { chaveDoArtistaPrincipal, lancamentoParaOLote } from './lancamentosNoRadio';
 import { fetchRadioTracks } from '../api/radio';
 import { ancorasDoRadio, rememberRadioListen, rememberRadioSkip, radioSessionSeeds, type RadioListeningSession } from '../lib/radioSession';
-import { comecaListaNova, origemAoTocar, type OrigemDaFila } from '../lib/origemDaFila';
+import { comecaListaNova, origemAoTocar, valeGuardarAFilaDeixada, type OrigemDaFila, type ResumoDaFila } from '../lib/origemDaFila';
 import { candidatasParaDescoberta, loteDaMix } from '../api/descoberta';
 import { lerPerfilDeRecomendacoes } from '../api/perfilDeRecomendacoes';
 import { getLibrary } from '../api/library';
@@ -295,6 +295,18 @@ export type FotografiaDaFila = {
   radio?: Pick<PlayerState, 'radioMode' | 'radioTipo' | 'radioContext' | 'radioOwner' | 'radioStopped' | 'radioActive' | 'doRadio' | 'radioListeningSession'>;
 };
 
+/**
+ * A fila que se deixou ao começar outra lista (9/11): o "Back to …" da fila.
+ * Uma só, e só em memória. Ver `valeGuardarAFilaDeixada` em lib/origemDaFila.ts.
+ */
+export type FilaAnterior = {
+  faixa: Track; queue: Track[]; queueIndex: number; posicaoMs: number;
+  origem: OrigemDaFila | null;
+  shuffle: boolean; shuffleInteligente: boolean; shuffleOrder: string[];
+  /** Quantas ficaram por ouvir: é o que a linha diz ("43 left"). */
+  faltam: number;
+};
+
 /** O que vale no carro -- ver `carro` no estado. */
 /**
  * O preset que vale pela SAÍDA, por cima do de cada faixa: o do carro (30/9)
@@ -355,6 +367,8 @@ interface PlayerState {
   /** De onde veio a fila que toca ("From Chill Vibes" no Now Playing do PC).
    * Só muda quando começa uma lista nova -- ver lib/origemDaFila.ts. */
   origemDaFila: OrigemDaFila | null;
+  /** A fila que se deixou ao começar outra (9/11), para voltar a ela. */
+  filaAnterior: FilaAnterior | null;
   /** Chaves das faixas que o rádio acrescentou: essas não vieram da origem. */
   doRadio: string[];
   /** Chaves das postas na fila à mão ("Play next", "Add to queue") e ainda
@@ -607,6 +621,8 @@ interface PlayerState {
    * se repôs. Num Jam não faz nada (a fila é de todos).
    */
   reporFila: (foto: FotografiaDaFila, opcoes?: { radio?: boolean }) => boolean;
+  /** Volta à fila que se deixou, na música e no segundo onde se ia; a de agora fica no lugar dela. */
+  voltarAFilaAnterior: () => boolean;
 
   seekTo: (ms: number, interno?: boolean) => Promise<void>;
 
@@ -872,6 +888,26 @@ let radioInFlight = false;
 let radioRequest = 0;
 /** Impede que uma resolucao lenta de uma faixa antiga substitua um clique mais recente. */
 let playRequestId = 0;
+/**
+ * O `playShuffled` liga o shuffle e apaga o percurso ANTES de chamar o
+ * `playTrack`: a fotografia da fila que se deixa tira-se lá, e viaja por aqui.
+ */
+let fotoAntesDoShuffle: FilaAnterior | null = null;
+
+/** A fila de agora, como se deixa: para o "Back to …" (9/11). */
+function fotoParaVoltar(s: PlayerState): FilaAnterior | null {
+  if (!s.current || !s.queue.length) return null;
+  return {
+    faixa: s.current, queue: s.queue, queueIndex: s.queueIndex, posicaoMs: s.positionMs,
+    origem: s.origemDaFila, shuffle: s.shuffle, shuffleInteligente: s.shuffleInteligente,
+    shuffleOrder: s.shuffleOrder, faltam: s.upcomingQueue().length,
+  };
+}
+
+function resumoDaFila(queue: Track[], origem: OrigemDaFila | null): ResumoDaFila {
+  const ultima = queue[queue.length - 1];
+  return { origem, tamanho: queue.length, primeira: queue[0] ? trackKey(queue[0]) : null, ultima: ultima ? trackKey(ultima) : null };
+}
 
 /**
  * Quantas candidatas se pedem por sugestao, e de quantos artistas.
@@ -1267,6 +1303,7 @@ export const usePlayer = create<PlayerState>()(
   autoplayOnLoad: true,
   resumePositionMs: null,
   retomaDoHandoff: null,
+  filaAnterior: null,
   volume: getInitialVolume(),
   _yt: null,
   activeBackend: 'resolving',
@@ -1305,6 +1342,9 @@ export const usePlayer = create<PlayerState>()(
     const chamada={interno,mesmaFila:!!queue&&queue===get().queue};
     const origemSeguinte=origemAoTocar(get().origemDaFila,origem,chamada);
     const listaNova=comecaListaNova(origem,chamada);
+    // A fila que se deixa (9/11), lida AGORA: o `set` de baixo já lhe apaga as marcas.
+    const deixada = fotoAntesDoShuffle ?? (listaNova ? fotoParaVoltar(get()) : null);
+    fotoAntesDoShuffle = null;
     if (listaNova) { invalidarPedidosDoSmartShuffle(); radioRequest++; set({ radioMode: 'off', radioContext: [], radioOwner: null, radioStopped: false, radioError: null, radioActive: false }); }
     // `applyPlaybackAlternative` e o download podem demorar. O backend da
     // faixa anterior tem de se calar no proprio gesto, antes desses awaits;
@@ -1384,6 +1424,10 @@ export const usePlayer = create<PlayerState>()(
       shuffleOrder,
       origemDaFila: origemSeguinte,
       ...(abrir ? { expanded: true } : {}),
+      // Outra lista, e a de antes tinha músicas por ouvir: fica guardada para se voltar.
+      ...(listaNova && deixada && valeGuardarAFilaDeixada(
+        { ...resumoDaFila(deixada.queue, deixada.origem), faltam: deixada.faltam }, resumoDaFila(q, origemSeguinte))
+        ? { filaAnterior: deixada } : {}),
       // Numa lista nova, as marcas do rádio da anterior deixam de valer.
       ...(listaNova ? { doRadio: [], postasAMao: [], escutasDaSessao: null } : {}),
       error: null,
@@ -1580,6 +1624,7 @@ export const usePlayer = create<PlayerState>()(
     // do player discordavam, e a fila ficava fisicamente desordenada face à
     // biblioteca. Agora liga-se o modo a sério e a ordem é Fisher-Yates.
     const start = Math.floor(Math.random() * tracks.length);
+    fotoAntesDoShuffle = fotoParaVoltar(get());
     // Percurso limpo: sem isto o reconcile aproveitaria a ordem da fila
     // anterior e a primeira faixa podia cair no fim do percurso.
     set({
@@ -1901,6 +1946,7 @@ export const usePlayer = create<PlayerState>()(
 
   close: async () => {
     if (!await get().prepararFecho()) return;
+    set({ filaAnterior: null });
     contarEscolha();
     invalidarPedidosDoSmartShuffle();
     ++playRequestId; // Respostas de uma resolução antiga não reabrem o player.
@@ -2862,6 +2908,24 @@ export const usePlayer = create<PlayerState>()(
     const radio = opcoes?.radio ? foto.radio : undefined;
     if (radio) radioRequest++;
     set({ queue: foto.queue, queueIndex: i, shuffleOrder: foto.shuffleOrder, ...(radio ? { ...radio, radioError: null } : {}) });
+    return true;
+  },
+
+  voltarAFilaAnterior: () => {
+    const f = get().filaAnterior;
+    if (!f || ouvirJuntos() || seguindoAmigo()) return false;
+    // A que se deixa agora fica no lugar dela: voltar outra vez troca as duas.
+    const agora = fotoParaVoltar(get());
+    const troca = agora && valeGuardarAFilaDeixada(
+      { ...resumoDaFila(agora.queue, agora.origem), faltam: agora.faltam }, resumoDaFila(f.queue, f.origem)) ? agora : null;
+    ++mudancasDoShuffle;
+    set({ shuffle: f.shuffle, shuffleInteligente: f.shuffleInteligente });
+    // O mesmo caminho do "Continue here": instala a fila e retoma no segundo
+    // certo nos dois motores. Não abre o leitor nem mexe no Radio (fica desligado).
+    get().adoptSession({ track: f.faixa, queue: f.queue, queueIndex: f.queueIndex, positionMs: f.posicaoMs });
+    set({ origemDaFila: f.origem, filaAnterior: troca, ...(f.shuffle ? { shuffleOrder: f.shuffleOrder } : {}) });
+    persistShuffle(f.shuffle).catch(() => {});
+    persistShuffleInteligente(f.shuffleInteligente).catch(() => {});
     return true;
   },
 

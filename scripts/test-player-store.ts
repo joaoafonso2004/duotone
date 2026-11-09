@@ -1037,5 +1037,39 @@ console.log('\nEnd of track');
   usePlayer.getState().setSleepTimer(0);
 }
 
+console.log('\nvoltar à fila que se deixou (9/11)');
+// ===========================================================================
+{
+  const guardadas = { tipo: 'guardadas' as const, nome: 'Liked Songs' };
+  const anterior = () => usePlayer.getState().filaAnterior;
+  preparar({ current: faixa('b'), queueIndex: 1, autoplayRadio: false, positionMs: 42_000, origemDaFila: guardadas, filaAnterior: null });
+  await usePlayer.getState().playTrack(faixa('x'), fila('x', 'y'), false, false, undefined, { tipo: 'pesquisa', nome: 'x' });
+  eq('tocar de outra lista guarda a que se deixou', anterior()?.queue.map((t) => t.sourceId).join(), 'a,b,c,d');
+  eq('com a música, o segundo e as que faltavam', `${anterior()?.faixa.sourceId}@${anterior()?.posicaoMs}|${anterior()?.faltam}`, 'b@42000|2');
+  eq('volta', usePlayer.getState().voltarAFilaAnterior(), true);
+  eq('a fila de antes, na música onde se ia', `${ids().join()}|${atual()}@${usePlayer.getState().queueIndex}`, 'a,b,c,d|b@1');
+  eq('no segundo onde se ia', usePlayer.getState().positionMs, 42_000);
+  eq('e de onde vinha', usePlayer.getState().origemDaFila?.nome, 'Liked Songs');
+  eq('a que se deixou agora fica no lugar dela', anterior()?.queue.map((t) => t.sourceId).join(), 'x,y');
+  eq('voltar outra vez troca as duas', usePlayer.getState().voltarAFilaAnterior() && ids().join(), 'x,y');
+  eq('e a primeira fica outra vez guardada', anterior()?.origem?.nome, 'Liked Songs');
+
+  preparar({ autoplayRadio: false, origemDaFila: guardadas, filaAnterior: null });
+  await usePlayer.getState().playTrack(faixa('c'), fila('a', 'b', 'c', 'd'), false, false, undefined, guardadas);
+  eq('outra música da MESMA lista não guarda nada', anterior(), null);
+
+  preparar({ current: faixa('d'), queueIndex: 3, autoplayRadio: false, origemDaFila: guardadas, filaAnterior: null });
+  await usePlayer.getState().playTrack(faixa('x'), fila('x', 'y'), false, false, undefined, { tipo: 'pesquisa', nome: 'x' });
+  eq('sem músicas por ouvir, não há para onde voltar', anterior(), null);
+  eq('e voltar não faz nada', usePlayer.getState().voltarAFilaAnterior(), false);
+
+  preparar({ autoplayRadio: false, origemDaFila: guardadas, filaAnterior: null });
+  await usePlayer.getState().playShuffled(fila('x', 'y', 'z'), false, { tipo: 'playlist', nome: 'Outra', id: 'p1' });
+  await assentar();
+  eq('o Shuffle de outra lista guarda a de antes, com o shuffle de antes', `${anterior()?.queue.length}|${anterior()?.shuffle}`, '4|false');
+  eq('voltar desliga o shuffle que a outra ligou', usePlayer.getState().voltarAFilaAnterior() && usePlayer.getState().shuffle, false);
+  eq('e a fila é a de antes', ids().join(), 'a,b,c,d');
+}
+
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);

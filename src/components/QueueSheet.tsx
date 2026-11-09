@@ -27,6 +27,7 @@ import { AddToPlaylistSheet } from './AddToPlaylistSheet';
 import { PromptSheet } from './PromptSheet';
 import { addTracksToPlaylist, createPlaylist } from '../api/playlists';
 import { faixasDaFila, nomeParaAFila } from '../lib/guardarFila';
+import { fraseDeVoltar } from '../lib/origemDaFila';
 import { ShareFriendSheet } from './ShareFriendSheet';
 import { RecommendationPreferences } from './RecommendationPreferences';
 import { acoesDaLinha, fraseDoMover, menuCompacto, menuDaFaixa, type IdDaAcao, type LinhaDoMenu, type NomeDaAcaoDaLinha } from '../lib/menuDaFaixa';
@@ -154,6 +155,8 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
   // aterra) vive em `useArrastarLista`, partilhado com a edição de uma playlist.
   const arrasto = useArrastarLista({ chaves, aoReordenar: reordenarProximas });
   const arrastar = arrasto.arrastar;
+  const filaAnterior = usePlayer((s) => s.filaAnterior);
+  const voltar = !emSessao && !seguido && filaAnterior ? fraseDeVoltar(filaAnterior.origem, filaAnterior.faltam) : null;
 
   /**
    * O menu de uma música da fila (25/10, pedido do João: "um menu decente como
@@ -344,6 +347,18 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
       ) : (
         <Text style={styles.emptyText}>Nothing playing</Text>
       )}
+
+      {/* Voltar à fila que se deixou (9/11, como no PC): entre a que toca e as
+          próximas. Só na fila de cada um -- num Jam ou a seguir um amigo não há. */}
+      {voltar ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={voltar.acessivel}
+          onPress={() => { hapticSelection(); usePlayer.getState().voltarAFilaAnterior(); }}
+          style={({ pressed }) => [styles.voltar, pressed && { opacity: 0.7 }]}>
+          <Ionicons name="return-up-back" size={18} color={colors.textSecondary} />
+          <Text numberOfLines={1} style={[type.caption, styles.voltarRotulo]}>{voltar.rotulo}</Text>
+          <Text style={[type.caption, { color: colors.textTertiary }]}>{voltar.detalhe}</Text>
+        </Pressable>
+      ) : null}
 
       <View style={styles.tituloDaFila}>
         <Text style={[type.micro, styles.sectionTitle, { flex: 1, marginBottom: 0 }]}>
@@ -590,6 +605,8 @@ const styles = StyleSheet.create({
   encher: { flex: 1 },
   // Por baixo da pega do iOS (que fica por cima do conteúdo).
   folhaNativa: { flex: 1, paddingTop: 22, paddingHorizontal: spacing.lg },
+  voltar: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44, marginTop: spacing.xs },
+  voltarRotulo: { flex: 1, minWidth: 0, color: colors.text, fontWeight: '600' },
   tituloDaFila: {
     flexDirection: 'row',
     alignItems: 'center',

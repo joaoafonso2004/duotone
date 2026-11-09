@@ -1,3 +1,4 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useRef, useState } from 'react';
 import { refDoAlvo } from './Arrastar.web';
 import { alvoDaFila } from './alvosDeLargar.web';
@@ -94,6 +95,14 @@ export function CabecaDaFila({ fila, compacta = false, abas }: {
     {compacta ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESP.sm, paddingHorizontal: ESP.sm, paddingBottom: ESP.sm }}>
       <RadioEmTresEstados />
     </View> : null}
+    {/* Voltar à fila que se deixou (9/11): por baixo da cabeça e por cima das
+        linhas, com as letras do Save e do Clear. Nas abas, só na "Up next". */}
+    {fila.anterior && (!abas || abas.aba === 'fila') ? <Pressable accessibilityRole="button" accessibilityLabel={fila.anterior.acessivel}
+      onPress={fila.voltar} style={({ hovered, focused }: any) => [styles.npFilaVoltar, (hovered || focused) && { backgroundColor: ESTADO.hover }]}>
+      <Ionicons name="return-up-back" size={15} color={COR.textoMedio} />
+      <Text numberOfLines={1} style={[styles.npFilaLimparTexto, { flex: 1, minWidth: 0 }]}>{fila.anterior.rotulo}</Text>
+      <Text style={styles.npFilaVoltarDetalhe}>{fila.anterior.detalhe}</Text>
+    </Pressable> : null}
     {fila.radioErro && !fila.emJam ? <Text accessibilityRole="alert" style={styles.npRadioErro}>{fila.radioErro}</Text> : null}
     {/* Num portal (30/10): cada View do RNW tem `z-index: 0`, e o diálogo, dentro
         da cabeça da fila, ficava preso a essa camada -- o veu só cobria a cabeça,

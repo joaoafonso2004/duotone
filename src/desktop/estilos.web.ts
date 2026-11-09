@@ -305,6 +305,9 @@ export const styles = StyleSheet.create({
   npFilaContagem: { ...TIPO.numero, color: COR.textoFraco },
   npFilaLimpar: { paddingHorizontal: ESP.sm, paddingVertical: 4, borderRadius: RAIO.cartao },
   npFilaLimparTexto: { ...TIPO.corpo, fontSize: 13, color: COR.textoMedio, fontWeight: '600' as any },
+  // "Back to Liked Songs · 43 left" (9/11): uma linha inteira, com o hover do Save e do Clear.
+  npFilaVoltar: { flexDirection: 'row', alignItems: 'center', gap: ESP.sm, minHeight: 32, paddingHorizontal: ESP.sm, marginBottom: ESP.sm, borderRadius: RAIO.cartao },
+  npFilaVoltarDetalhe: { ...TIPO.legenda, color: COR.textoFraco },
   // A pastilha do Radio (5/10): transparente, sobre o fundo da capa como o resto.
   npRadio: { flexDirection: 'row', alignItems: 'center', gap: 7, height: 28, paddingLeft: 9, paddingRight: 11, borderRadius: 14,
     borderWidth: 1, borderColor: 'rgba(233,234,238,0.16)', backgroundColor: 'transparent', alignSelf: 'center' },

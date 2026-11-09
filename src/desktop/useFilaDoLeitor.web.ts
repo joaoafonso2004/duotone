@@ -10,6 +10,7 @@ import type { CommonPageProps } from './rotas';
 import type { Track } from '../types';
 import { addTracksToPlaylist, createPlaylist } from '../api/playlists';
 import { faixasDaFila, nomeParaAFila } from '../lib/guardarFila';
+import { fraseDeVoltar } from '../lib/origemDaFila';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
 
 const LINHAS_DA_FILA = 100;
@@ -56,6 +57,10 @@ export function useFilaDoLeitor({ more, notify }: Pick<CommonPageProps, 'more' |
     return () => clearTimeout(t);
   }, [aConfirmarLimpar]);
   const podeEditar = !emJam && !seguido;
+  // A fila que se deixou ao começar outra (9/11): uma linha por baixo da cabeça
+  // leva de volta, na música e no segundo onde se ia. Só na fila de cada um.
+  const filaAnterior = usePlayer((s) => s.filaAnterior);
+  const anterior = podeEditar && filaAnterior ? fraseDeVoltar(filaAnterior.origem, filaAnterior.faltam) : null;
   const podeLimpar = !seguido && (!emJam || podeLimparNaSala);
   useEffect(() => { setAConfirmarLimpar(false); }, [sessao?.id, podeLimpar, seguido]);
   // Limpar (30/10): as linhas saem em cascata e SÓ DEPOIS se tira da fila (a
@@ -144,6 +149,7 @@ export function useFilaDoLeitor({ more, notify }: Pick<CommonPageProps, 'more' |
     entrada: (novaDaRadio ? 'vira' : null) as 'vira' | null,
     inicioDoGrupo, aLimpar,
     aGuardar, setAGuardar, pedirNome, guardar, aGravar,
+    anterior, voltar: () => { usePlayer.getState().voltarAFilaAnterior(); },
     notaDoFim: fimDaFila({ emJam: emJam || !!seguido, repeatMode, autoplayRadio: autoplayRadio && !radioParado, vazia: !upNext.length }),
     aoTocar: (t: Track) => { if (!seguido) void playTrack(t, queue); },
     aoMenu: (t: Track, indiceReal: number) => emJam || seguido ? more(t) : more(t, undefined, { fila: indiceReal }),
