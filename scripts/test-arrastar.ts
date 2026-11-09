@@ -88,7 +88,8 @@ const ler = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'ut
 const ui = ler('src/desktop/ui.web.tsx');
 const motor = ler('src/desktop/Arrastar.web.tsx');
 caso('pega-se numa linha de qualquer tabela e num cartão das prateleiras (o carrossel só na vertical)', () => {
-  assert.match(ui, /onPointerDown=\{\(\(event: any\) => comecarArrasto\(event, track, \{ lista: listKey, indice: index \}\)\) as any\}/);
+  // Com Ctrl ou Shift o clique escolhe (9/11): só sem teclas é que começa um arrasto.
+  assert.match(ui, /onPointerDown=\{\(\(event: any\) => \{[\s\S]{0,160}if \(event\?\.ctrlKey \|\| event\?\.metaKey \|\| event\?\.shiftKey\) return;\n\s+comecarArrasto\(event, track, \{ lista: listKey, indice: index \}\);\n\s+\}\) as any\}/);
   assert.match(ui, /onPointerDown=\{\(\(e: any\) => comecarArrasto\(e, t\)\) as any\}/);
   assert.match(ui, /onPointerDown=\{\(\(e: any\) => comecarArrasto\(e, t, \{\}, \{ soVertical: true \}\)\) as any\}/);
 });

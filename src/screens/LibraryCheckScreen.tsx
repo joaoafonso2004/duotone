@@ -4,10 +4,11 @@ import { Image } from 'expo-image';
 import React, { useEffect, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PesquisaNaLinha } from '../components/PesquisaNaLinha';
 import { PillButton } from '../components/PillButton';
 import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import { useOfflineMode } from '../hooks/useOfflineMode';
-import { tituloDaFaixa } from '../lib/artistName';
+import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { hapticSelection } from '../lib/haptics';
 import {
   duracaoCurta, motivoDaIndisponivel, resumoDoRelatorio, type GrupoDeDuplicados,
@@ -20,7 +21,7 @@ import { useTheme } from '../state/theme';
 import {
   CHAVE_DE_REMOVER_TODAS, CHAVE_DO_DESFAZER, chaveDaCapa, chaveDaIndisponivel, chaveDoGrupo,
   corrigirCapaDe, desfazerUltima, juntarGrupo, pararVerificacao, procurarCopiaPara,
-  removerIndisponivel, removerTodasAsIndisponiveis, substituirPelaCopia,
+  removerIndisponivel, removerTodasAsIndisponiveis, substituirPelaCopia, substituirPor,
   useVerificacaoDaBiblioteca, verificarBiblioteca, type Indisponivel,
 } from '../state/verificacaoDaBiblioteca';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
@@ -50,7 +51,7 @@ export function LibraryCheckScreen({ navigation }: Props) {
 
   return (
     <Screen encolhe={cab} title="Library check" onBack={() => navigation.goBack()}>
-      <Animated.ScrollView onScroll={cab.onScroll} scrollEventThrottle={cab.scrollEventThrottle} scrollIndicatorInsets={{ top: cab.espaco }} contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: insets.bottom + MINI_PLAYER_HEIGHT + spacing.xxl }}>
+      <Animated.ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets onScroll={cab.onScroll} scrollEventThrottle={cab.scrollEventThrottle} scrollIndicatorInsets={{ top: cab.espaco }} contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: insets.bottom + MINI_PLAYER_HEIGHT + spacing.xxl }}>
         <View style={styles.cabeca}>
           <Text style={[type.body, { color: colors.textSecondary, lineHeight: 21 }]}>
             Finds songs saved twice, videos that no longer play and covers that don&apos;t load.
@@ -259,6 +260,9 @@ function LinhaIndisponivel({ item }: { item: Indisponivel }) {
   const chave = chaveDaIndisponivel(item);
   const feito = useVerificacaoDaBiblioteca((s) => s.resolvidos[chave]);
   const aTratar = useVerificacaoDaBiblioteca((s) => s.aTratar === chave);
+  // A pesquisa à mão (9/11), como no PC: depois de a procura da cópia correr, o
+  // Search abre-a ali mesmo, a mesma da lista "Not found" da importação.
+  const [aProcurar, setAProcurar] = useState(false);
 
   return (
     <View style={styles.cartao}>
@@ -274,15 +278,26 @@ function LinhaIndisponivel({ item }: { item: Indisponivel }) {
               <PillButton label="Find a copy" variant="ghost" small disabled={offline} loading={aTratar}
                 onPress={() => { hapticSelection(); void procurarCopiaPara(item); }} />
             ) : null}
+            {item.copia !== undefined && !aProcurar ? (
+              <PillButton label="Search" variant="ghost" small disabled={offline || aTratar}
+                onPress={() => { hapticSelection(); setAProcurar(true); }} />
+            ) : null}
             <PillButton label="Remove" variant="ghost" small disabled={offline} loading={aTratar}
               onPress={() => { hapticSelection(); void removerIndisponivel(item); }} />
           </View>
         )}
       </View>
-      {!feito && item.copia === null ? (
-        <Text style={[type.caption, styles.semCopia]}>No safe copy found. Try again later, or remove it.</Text>
+      {!feito && aProcurar ? (
+        <View style={styles.pesquisa}>
+          <PesquisaNaLinha titulo={tituloDaFaixa(item.faixa)} textoInicial={`${displayArtist(item.faixa)} ${tituloDaFaixa(item.faixa)}`}
+            acao={{ tipo: 'replace', rotulo: (t) => `Replace with ${t}` }} aoFechar={() => setAProcurar(false)}
+            ouvirDesligado={emJam} aoEscolher={(t) => substituirPor(item, t)} />
+        </View>
       ) : null}
-      {!feito && item.copia ? (
+      {!feito && !aProcurar && item.copia === null ? (
+        <Text style={[type.caption, styles.semCopia]}>No safe copy found. Search for one, or remove it.</Text>
+      ) : null}
+      {!feito && !aProcurar && item.copia ? (
         <>
           <View style={[styles.linhaNoCartao, styles.copia]}>
             <Capa faixa={item.copia} />
@@ -373,6 +388,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
   },
   semCopia: { paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
+  pesquisa: { paddingHorizontal: spacing.md, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   erroRecuado: { paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
   capa: { width: 44, height: 44, borderRadius: radii.sm, backgroundColor: colors.surfaceHigh },
   semCapa: { alignItems: 'center', justifyContent: 'center' },

@@ -94,7 +94,7 @@ import { mensagemDeErro } from '../lib/mensagemDeErro';
 import { DentroDeUmModal, useModalDoRNAberto } from '../components/dentroDeUmModal';
 
 import { FRASES_DOS_ESTADOS } from '../lib/frasesDosEstados';
-import { atualizarDaOrigem } from '../state/origemDasPlaylists';
+import { atualizarDaOrigem, esquecerOrigem } from '../state/origemDasPlaylists';
 import { acoesDaLinha, fraseDoMover } from '../lib/menuDaFaixa';
 type Props = NativeStackScreenProps<RootStackParamList, 'PlaylistDetail'>;
 
@@ -517,6 +517,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
     setBusy(true);
     try {
       await deletePlaylist(id);
+      void esquecerOrigem(id);
       setDeleteOpen(false);
       navigation.goBack();
       // Apagar não tem volta: já se confirmou, e o aviso só informa (3/10).

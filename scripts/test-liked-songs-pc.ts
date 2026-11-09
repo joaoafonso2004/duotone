@@ -72,8 +72,8 @@ caso('sem fundo escuro e sem ficar preso: só as letras e um fio, e rola com a l
 
 console.log('\no atalho para a que toca');
 caso('só com o `saltoParaAtual`, e só as Liked Songs o ligam por agora', () => {
-  assert.match(UI, /saltoParaAtual = false \}: \{/);
-  assert.match(PAGINA, /<TrackTable plain saltoParaAtual listKey=/);
+  assert.match(UI, /saltoParaAtual = false[,} ]/);
+  assert.match(PAGINA, /<TrackTable plain saltoParaAtual /);
   assert.equal((PAGINA.match(/saltoParaAtual/g) ?? []).length, 1);
 });
 caso('mede-se ao rolar (não com um IntersectionObserver, que não vê quem passa de baixo a cima)', () => {

@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { frasesDaImportacao } from '../lib/frasesDaImportacao';
 import { importacaoEmDestaque, useImportacoes, type Importacao } from '../state/importacoes';
+import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { PesquisaNaLinha } from './PesquisaNaLinha.web';
 import { COR, ESP, ESTADO, RAIO, TIPO } from './tokens.web';
 import { Dialog } from './ui.web';
@@ -81,6 +82,8 @@ export function ProgressoDaImportacao() {
  */
 function FaltasDaImportacao({ imp, faltaram }: { imp: Importacao; faltaram: string[] }) {
   const [aberta, setAberta] = useState<number | null>(null);
+  // Num Jam ouvir é sugerir à sala: o ▶ não aparece, como no Library check.
+  const emJam = useOuvirJuntos((s) => !!s.sessao);
   // A última da lista saiu: fecha-se, em vez de ficar aberta uma que não existe.
   useEffect(() => { if (aberta != null && aberta >= faltaram.length) setAberta(null); }, [aberta, faltaram.length]);
   const destino = imp.resultado?.destino === 'gostadas' ? 'your Liked Songs' : (imp.resultado?.nome ?? imp.nome ?? 'the playlist');
@@ -92,7 +95,7 @@ function FaltasDaImportacao({ imp, faltaram }: { imp: Importacao; faltaram: stri
       {faltaram.map((n, i) => aberta === i
         // A chave leva o nome: a que entra no lugar de uma que saiu monta de novo e pesquisa.
         ? <PesquisaNaLinha key={`${i}:${n}`} titulo={n} textoInicial={n} aoFechar={() => setAberta(null)}
-            acao={{ tipo: 'mais', rotulo: (t) => `Add ${t} to ${destino}` }}
+            acao={{ tipo: 'mais', rotulo: (t) => `Add ${t} to ${destino}` }} ouvirDesligado={emJam}
             aoEscolher={(faixa) => useImportacoes.getState().resolverFalta(imp.id, n, faixa)} />
         : <Pressable key={`${i}:${n}`} accessibilityRole="button" accessibilityLabel={`Search for ${n}`}
             {...({ 'aria-expanded': false } as any)}

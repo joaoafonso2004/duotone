@@ -110,6 +110,29 @@ caso('o Replace à mão faz a mesma junção do Replace da cópia, com o mesmo U
   assert.match(v, /export function substituirPor\(item: Indisponivel, escolhida: Track\): Promise<void> \{[\s\S]{0,260}resolver\(chave, 'Replaced', \[\{ tipo: 'juncao', juncao: await substituir\(item\.faixa, escolhida\) \}\]/);
 });
 
+caso('iPhone: a mesma peça, no Library check (Replace) e na lista "Not found" (+)', () => {
+  const peca = ler('src/components/PesquisaNaLinha.tsx');
+  assert.match(peca, /useMusicSearch\(texto, \(\) => \{\}\)/);
+  assert.match(peca, /useEffect\(\(\) => \{ pesquisarAgora\(\); \}, \[\]\);/);
+  assert.match(peca, /<PillButton label="Replace" small loading=\{aFazer\}/);
+  assert.match(peca, /setFalhou\(true\);/, 'o erro fica na linha: dentro de uma folha um aviso não se via');
+  const lc = ler('src/screens/LibraryCheckScreen.tsx');
+  assert.match(lc, /<PillButton label="Search" variant="ghost" small disabled=\{offline \|\| aTratar\}/);
+  assert.match(lc, /ouvirDesligado=\{emJam\} aoEscolher=\{\(t\) => substituirPor\(item, t\)\}/);
+  assert.match(lc, /<Animated\.ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets/, 'com o teclado aberto os resultados tocam-se e a lista sobe');
+  assert.match(lc, /No safe copy found\. Search for one, or remove it\./);
+  const barraDoIphone = ler('src/components/ProgressoDaImportacao.tsx');
+  assert.match(barraDoIphone, /<FaltasDaImportacao imp=\{imp\} faltaram=\{faltaram\} \/>/);
+  assert.match(barraDoIphone, /<ScrollView keyboardShouldPersistTaps="handled"/);
+  assert.match(barraDoIphone, /aoEscolher=\{\(faixa\) => useImportacoes\.getState\(\)\.resolverFalta\(imp\.id, n, faixa\)\}/);
+  assert.match(barraDoIphone, /if \(verFaltas && !faltaram\.length\) setVerFaltas\(false\);/, 'a última fecha a folha');
+});
+caso('num Jam ouvir é sugerir à sala: o ▶ dos resultados não aparece, nos dois', () => {
+  for (const f of ['src/desktop/ProgressoDaImportacao.web.tsx', 'src/components/ProgressoDaImportacao.tsx']) {
+    assert.match(ler(f), /ouvirDesligado=\{emJam\}/, f);
+  }
+});
+
 console.log('\n3 · a playlist importada atualiza-se sozinha (as regras)');
 caso('as linhas conhecem-se sem acentos nem maiúsculas; as do YouTube pelo vídeo', () => {
   assert.equal(chaveDaLinha({ artist: 'Plutónio', title: '  Sexto  Sentido ' }), 'l:plutonio - sexto sentido');
@@ -149,6 +172,13 @@ caso('abrir a playlist atualiza-a sozinha (PC e iPhone), com aviso e Undo; as qu
   assert.match(o, /useImportacoes\.getState\(\)\.registarAtualizacao\(nome, playlistId, entraram\.length, faltaram\);/);
   assert.doesNotMatch(o, /Spotify/, 'nada a convidar a ir ao Spotify: "the playlist you imported it from"');
   assert.match(ler('src/lib/frasesDaImportacao.ts'), /const titulo = i\.atualizacao \? `\$\{nome\} got new songs`/);
+});
+caso('apagar a playlist esquece o link dela, nos quatro sítios onde se apaga', () => {
+  const pc = ler('src/desktop/paginas/PlaylistPages.web.tsx');
+  assert.match(pc, /void esquecerOrigem\(apagar\.id\);/);
+  assert.match(pc, /back\(\); void esquecerOrigem\(id\);/);
+  assert.match(ler('src/screens/PlaylistDetailScreen.tsx'), /await deletePlaylist\(id\);\n\s+void esquecerOrigem\(id\);/);
+  assert.match(ler('src/screens/PlaylistsScreen.tsx'), /await deletePlaylist\(deleteFor\.id\);\n\s+void esquecerOrigem\(deleteFor\.id\);/);
 });
 
 if (falhas) { console.error(`\n${falhas} caso(s) falharam.`); process.exit(1); }

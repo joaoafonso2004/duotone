@@ -57,7 +57,7 @@ import { estaFixado } from '../../lib/atalhosDaLateral';
 
 import { FRASES_DOS_ESTADOS } from '../../lib/frasesDosEstados';
 import { removerDaPlaylist } from '../acoesDasEscolhidas.web';
-import { atualizarDaOrigem } from '../../state/origemDasPlaylists';
+import { atualizarDaOrigem, esquecerOrigem } from '../../state/origemDasPlaylists';
 // As páginas são exclusivamente web e usam uma propriedade CSS (`overflowY`)
 // que não existe no tipo comum de View do React Native.
 const View = NativeView as any;
@@ -182,7 +182,7 @@ export function PlaylistsPage({ navigate, notify, share }: { navigate: (route: R
   };
   const confirmarApagar = async () => {
     if (!apagar) return;
-    try { await deletePlaylist(apagar.id); setApagar(null); void refresh(); }
+    try { await deletePlaylist(apagar.id); setApagar(null); void refresh(); void esquecerOrigem(apagar.id); }
     catch (e: any) { avisarErro(mensagemDeErro(e, "Couldn't delete the playlist.")); }
   };
 
@@ -346,7 +346,7 @@ export function PlaylistPage({ id, title, back, share, navigate, abrirPessoas = 
     window.addEventListener('duotone:refresh-playlist', atualizar);
     return()=>{detailRequest.current++;window.removeEventListener('duotone:refresh-playlist', atualizar);};
   }, [id, refresh]);
-  const remove = async () => { try { await deletePlaylist(id); cacheDePlaylist.delete(id); back(); } catch (e: any) { avisarErro(mensagemDeErro(e, "Couldn't delete playlist.")); } };
+  const remove = async () => { try { await deletePlaylist(id); cacheDePlaylist.delete(id); back(); void esquecerOrigem(id); } catch (e: any) { avisarErro(mensagemDeErro(e, "Couldn't delete playlist.")); } };
 
   const doRename = async () => {
     const trimmed = renameVal.trim();

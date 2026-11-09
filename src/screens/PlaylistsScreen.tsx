@@ -41,6 +41,7 @@ import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import { usePuxarParaAtualizar } from '../components/PuxarParaAtualizar';
 import { usePlaylists } from '../state/playlists';
+import { esquecerOrigem } from '../state/origemDasPlaylists';
 import { useTheme } from '../state/theme';
 import type { Playlist } from '../types';
 import { useAlturaDosSeparadores } from '../state/doca';
@@ -218,6 +219,7 @@ export function PlaylistsScreen() {
     setBusy(true);
     try {
       await deletePlaylist(deleteFor.id);
+      void esquecerOrigem(deleteFor.id);
       // Apagar não tem volta: já se confirmou, e o aviso só informa (3/10).
       avisarRemocao({ texto: 'Playlist deleted', detalhe: deleteFor.name });
       setDeleteFor(null);

@@ -1,14 +1,17 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { FullWindowOverlay } from 'react-native-screens';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { frasesDaImportacao } from '../lib/frasesDaImportacao';
-import { importacaoEmDestaque, useImportacoes } from '../state/importacoes';
+import { hapticSelection } from '../lib/haptics';
+import { importacaoEmDestaque, useImportacoes, type Importacao } from '../state/importacoes';
 import { useNotifications } from '../state/notifications';
+import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { useTheme } from '../state/theme';
 import { colors, spacing, type } from '../theme';
 import { BottomSheet } from './BottomSheet';
+import { PesquisaNaLinha } from './PesquisaNaLinha';
 
 /** Quanto tempo o "já está" fica à vista antes de sair sozinho. */
 const FEITA_MS = 8000;
@@ -36,6 +39,8 @@ export function ProgressoDaImportacao() {
     const t = setTimeout(() => useImportacoes.getState().dispensar(imp.id), FEITA_MS);
     return () => clearTimeout(t);
   }, [imp?.id, acabou, faltaram.length]);
+  // A última encontrada à mão fecha a lista: já não há nada para mostrar.
+  useEffect(() => { if (verFaltas && !faltaram.length) setVerFaltas(false); }, [verFaltas, faltaram.length]);
 
   if (!imp || haAvisoSocial) return null;
   const { titulo, linha, fracao } = frasesDaImportacao(imp, lista.filter((i) => i.estado === 'na-fila').length);
@@ -76,16 +81,46 @@ export function ProgressoDaImportacao() {
   );
   const faltas = (
     <BottomSheet visible={verFaltas} onClose={() => setVerFaltas(false)} titulo={`Not found (${faltaram.length})`}>
-      <Text style={[type.caption, { marginBottom: spacing.md }]}>No good match turned up for these, so they were left out. You can search for them and add them by hand.</Text>
-      <ScrollView style={{ maxHeight: 380 }}>
-        {faltaram.map((n, i) => <Text key={i} selectable numberOfLines={1} style={[type.body, { paddingVertical: 6 }]}>{n}</Text>)}
-      </ScrollView>
+      <FaltasDaImportacao imp={imp} faltaram={faltaram} />
     </BottomSheet>
   );
   return <>{Platform.OS === 'ios' ? <FullWindowOverlay>{cartao}</FullWindowOverlay> : cartao}{faltas}</>;
 }
 
+/**
+ * A lista "Not found" no iPhone (9/11), como a do PC: cada nome é um botão que
+ * abre ali mesmo a pesquisa da app, e o resultado certo entra no destino da
+ * importação com o +. A que entrou sai da lista, e a seguinte abre-se no lugar dela.
+ */
+function FaltasDaImportacao({ imp, faltaram }: { imp: Importacao; faltaram: string[] }) {
+  const [aberta, setAberta] = useState<number | null>(null);
+  const emJam = useOuvirJuntos((s) => !!s.sessao);
+  // Com o teclado aberto a folha sobe: a lista não pode passar do topo do ecrã.
+  const { height } = useWindowDimensions();
+  // A última da lista saiu: fecha-se, em vez de ficar aberta uma que não existe.
+  useEffect(() => { if (aberta != null && aberta >= faltaram.length) setAberta(null); }, [aberta, faltaram.length]);
+  const destino = imp.resultado?.destino === 'gostadas' ? 'your Liked Songs' : (imp.resultado?.nome ?? imp.nome ?? 'the playlist');
+  return <>
+    <Text style={[type.caption, { marginBottom: spacing.md }]}>
+      No good match turned up for these, so they were left out. Tap one to search for it and add it to {destino}.
+    </Text>
+    <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: Math.min(380, Math.round(height * 0.4)) }}>
+      {faltaram.map((n, i) => aberta === i
+        // A chave leva o nome: a que entra no lugar de uma que saiu monta de novo e pesquisa.
+        ? <PesquisaNaLinha key={`${i}:${n}`} titulo={n} textoInicial={n} aoFechar={() => setAberta(null)}
+            acao={{ tipo: 'mais', rotulo: (t) => `Add ${t} to ${destino}` }} ouvirDesligado={emJam}
+            aoEscolher={(faixa) => useImportacoes.getState().resolverFalta(imp.id, n, faixa)} />
+        : <Pressable key={`${i}:${n}`} accessibilityRole="button" accessibilityLabel={`Search for ${n}`}
+            accessibilityState={{ expanded: false }} onPress={() => { hapticSelection(); setAberta(i); }} style={styles.falta}>
+            <Text numberOfLines={1} style={[type.body, { flex: 1, minWidth: 0 }]}>{n}</Text>
+            <Ionicons name="search" size={16} color={colors.textTertiary} />
+          </Pressable>)}
+    </ScrollView>
+  </>;
+}
+
 const styles = StyleSheet.create({
+  falta: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44 },
   host: { position: 'absolute', left: 12, right: 12, zIndex: 10000, elevation: 30, alignItems: 'center' },
   cartao: {
     width: '100%', maxWidth: 520, backgroundColor: colors.surfaceHigh, borderWidth: 1, borderColor: colors.borderStrong,
