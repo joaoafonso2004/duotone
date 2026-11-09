@@ -9,6 +9,8 @@ import type { LinhaDaPlaylist } from '../lib/linkDePlaylist';
 import { useSaved } from './saved';
 import { lerLink } from '../lib/linkDePlaylist';
 import { usePlaylists } from './playlists';
+import { guardarOrigem } from './origemDasPlaylists';
+import type { LinkDePlaylist } from '../lib/linkDePlaylist';
 
 /**
  * As importações a correr em segundo plano (26/9; de qualquer sítio a 5/11),
@@ -34,7 +36,11 @@ export interface Importacao {
    * linhas vão pelo comparador; as `faixas` (do YouTube) entram direto. O
    * destino diz para onde vão (as Liked Songs vão para as Liked Songs).
    */
-  conta?: { linhas: LinhaDaPlaylist[]; faixas?: FaixaImportada[]; cortada: boolean; limite?: number | null; destino: Destino };
+  conta?: { linhas: LinhaDaPlaylist[]; faixas?: FaixaImportada[]; cortada: boolean; limite?: number | null; destino: Destino;
+    /** O link de onde veio (9/11): a playlist passa a atualizar-se sozinha (`state/origemDasPlaylists.ts`). */
+    origem?: LinkDePlaylist };
+  /** Não é uma importação: músicas novas do link de uma playlist já importada (9/11). */
+  atualizacao?: boolean;
 }
 
 interface Estado {
@@ -44,7 +50,9 @@ interface Estado {
   /** Listas já lidas da conta do Spotify, uma importação cada, pela ordem. */
   importarDaConta: (listas: { nome: string; linhas: LinhaDaPlaylist[]; cortada: boolean; destino: 'playlist' | 'gostadas' }[]) => void;
   /** Uma playlist ou lista já lida no ecrã de importar, para o destino escolhido. */
-  importarLida: (l: Leitura, destino: Destino) => void;
+  importarLida: (l: Leitura, destino: Destino, origem?: LinkDePlaylist | null) => void;
+  /** Uma atualização sozinha trouxe músicas que o comparador não encontrou: mostram-se como as de uma importação. */
+  registarAtualizacao: (nome: string, playlistId: string, adicionadas: number, faltaram: string[]) => void;
   dispensar: (id: string) => void;
   /**
    * Uma das que faltaram, escolhida à mão na lista "Not found" (9/11): entra no
@@ -76,6 +84,9 @@ export const useImportacoes = create<Estado>((set, get) => {
                 proxima.conta.destino, dependenciasReais, aoProgresso)
               : await importarLinhas({ nome, ...proxima.conta }, dependenciasReais, aoProgresso);
             mudar(proxima.id, { estado: 'feita', resultado });
+            if (proxima.conta.origem && proxima.conta.destino === 'playlist' && resultado.playlistId) {
+              void guardarOrigem(resultado.playlistId, proxima.conta.origem, { linhas: proxima.conta.linhas, faixas: proxima.conta.faixas });
+            }
             if (proxima.conta.destino === 'gostadas') void useSaved.getState().refresh();
             else void usePlaylists.getState().carregar(true);
           } catch (e: any) {
@@ -91,6 +102,7 @@ export const useImportacoes = create<Estado>((set, get) => {
           const resultado = await importarLeitura(lida, 'playlist', dependenciasReais,
             (p) => mudar(proxima.id, { estado: p.fase, feitas: p.feitas, total: p.total }));
           mudar(proxima.id, { estado: 'feita', resultado, nome: resultado.nome });
+          if (resultado.playlistId) void guardarOrigem(resultado.playlistId, link, lida);
           void usePlaylists.getState().carregar(true);
         } catch (e: any) {
           mudar(proxima.id, {
@@ -123,15 +135,22 @@ export const useImportacoes = create<Estado>((set, get) => {
       set({ lista: [...get().lista, ...novas] });
       void correr();
     },
-    importarLida: (l, destino) => {
+    importarLida: (l, destino, origem) => {
       const nova: Importacao = {
         id: `imp-${++contador}`, tipo: l.origem, texto: '', nome: l.nome, estado: 'na-fila', feitas: 0, total: l.total,
-        conta: { linhas: l.linhas ?? [], faixas: l.faixas, cortada: l.cortada, limite: l.limite, destino },
+        conta: { linhas: l.linhas ?? [], faixas: l.faixas, cortada: l.cortada, limite: l.limite, destino, ...(origem ? { origem } : {}) },
       };
       set({ lista: [...get().lista, nova] });
       void correr();
     },
     dispensar: (id) => set({ lista: get().lista.filter((i) => i.id !== id) }),
+    registarAtualizacao: (nome, playlistId, adicionadas, faltaram) => {
+      const nova: Importacao = {
+        id: `imp-${++contador}`, tipo: 'lista', texto: '', nome, estado: 'feita', feitas: 0, total: 0, atualizacao: true,
+        resultado: { nome, playlistId, adicionadas, deFora: faltaram.length, cortada: false, faltaram, destino: 'playlist' },
+      };
+      set({ lista: [...get().lista, nova] });
+    },
     resolverFalta: async (id, nome, faixa) => {
       const r = get().lista.find((i) => i.id === id)?.resultado;
       if (!r) return;

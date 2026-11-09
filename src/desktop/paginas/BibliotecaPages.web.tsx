@@ -56,7 +56,8 @@ import { styles } from '../estilos.web';
 import { BotaoVoltar,
   Artwork, Button, ContentScroll, Dialog, Empty, Field, IconButton, marcar, Page,
   capaDaFaixa, Chips, PrateleiraDeMisturas, Separadores, Shelf, ShelfDeLancamentos, TrackTable, type ColunaOrdenavel,
-} from '../ui.web';
+} from '../ui.web';
+
 import { Carregando } from '../Carregando.web';
 import { useMisturaDoDia } from '../../state/misturaDoDia';
 import { marcarArtistaAberto, useNovosLancamentos } from '../../state/novosLancamentos';
@@ -76,6 +77,7 @@ import { registar } from '../../lib/eventos';
 
 import { avisarErro } from '../../lib/avisoDeRemocao';
 import { FRASES_DOS_ESTADOS } from '../../lib/frasesDosEstados';
+import { removerDasGostadas } from '../acoesDasEscolhidas.web';
 /** As prateleiras menos usadas ficam atrás de um botão, e a escolha fica entre visitas (30/10). */
 let outrasPrateleirasAbertas = false;
 
@@ -570,7 +572,7 @@ export function SongsPage(props: CommonPageProps) {
         void data.refresh().then((ok) => { if (!ok && comLista) avisarErro("Couldn't refresh your liked songs."); });
       }} />
     </View>
-    <ContentScroll scrollKey="songs">{data.loading ? <Carregando forma="linhas" quantas={10} aoTentar={() => void data.refresh()} /> : data.semLista ? <Empty icon="alert-circle-outline" title="Couldn't load your library" body="Check your connection. Nothing was removed: your songs are still saved." action={<Button onPress={() => void data.refresh()}>Try again</Button>} /> : <TrackTable plain saltoParaAtual listKey={`songs:${ordem ?? 'recent'}`} ordenacao={{ modo: ordem, aoMudar: setOrdem }} tracks={filteredTracks} onPlay={(t) => props.tocarMusica(t, filteredTracks, undefined, { tipo: 'guardadas', nome: 'Liked Songs' })} onMore={props.more} empty={query ? <Empty icon="search-outline" title={FRASES_DOS_ESTADOS.semCorrespondencias.titulo} body={FRASES_DOS_ESTADOS.semCorrespondencias.corpo(query, 'songs')} /> : <Empty icon="heart-outline" title={FRASES_DOS_ESTADOS.semGostadas.titulo} body={FRASES_DOS_ESTADOS.semGostadas.corpo} />} />}</ContentScroll>
+    <ContentScroll scrollKey="songs">{data.loading ? <Carregando forma="linhas" quantas={10} aoTentar={() => void data.refresh()} /> : data.semLista ? <Empty icon="alert-circle-outline" title="Couldn't load your library" body="Check your connection. Nothing was removed: your songs are still saved." action={<Button onPress={() => void data.refresh()}>Try again</Button>} /> : <TrackTable plain saltoParaAtual saoGostadas removerVarias={removerDasGostadas} listKey={`songs:${ordem ?? 'recent'}`} ordenacao={{ modo: ordem, aoMudar: setOrdem }} tracks={filteredTracks} onPlay={(t) => props.tocarMusica(t, filteredTracks, undefined, { tipo: 'guardadas', nome: 'Liked Songs' })} onMore={props.more} empty={query ? <Empty icon="search-outline" title={FRASES_DOS_ESTADOS.semCorrespondencias.titulo} body={FRASES_DOS_ESTADOS.semCorrespondencias.corpo(query, 'songs')} /> : <Empty icon="heart-outline" title={FRASES_DOS_ESTADOS.semGostadas.titulo} body={FRASES_DOS_ESTADOS.semGostadas.corpo} />} />}</ContentScroll>
   </Page></>;
 }
 

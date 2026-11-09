@@ -47,7 +47,8 @@ export function ImportYouTubeScreen({ navigation }: Props) {
   const importar = () => {
     if (!leitura) return;
     Keyboard.dismiss();
-    useImportacoes.getState().importarLida(leitura, destino);
+    // O link vai junto (9/11): a playlist passa a atualizar-se sozinha.
+    useImportacoes.getState().importarLida(leitura, destino, entrada.tipo === 'link' ? entrada.link : null);
     hapticNotification();
     avisarInfo('Importing in the background. You can keep listening.');
     navigation.goBack();

@@ -228,7 +228,7 @@ await caso('um link lê-se uma vez, depois de se acabar de colar, e não outra v
   for (const f of ['src/desktop/paginas/ImportPage.web.tsx', 'src/screens/ImportYouTubeScreen.tsx']) {
     const ecra = ler(f);
     assert.match(ecra, /useImportacaoPreparada\(/, f);
-    assert.match(ecra, /useImportacoes\.getState\(\)\.importarLida\(leitura, destino\)/, f);
+    assert.match(ecra, /useImportacoes\.getState\(\)\.importarLida\(leitura, destino, /, f);
   }
 });
 await caso('as que faltaram veem-se nas duas barras, e a barra não sai sozinha com elas', () => {
@@ -260,13 +260,15 @@ await caso('PC: cada uma é um botão que pesquisa ali mesmo, com ▶ e +, e a s
   assert.match(b, /<FaltasDaImportacao imp=\{imp\} faltaram=\{faltaram\} \/>/);
   assert.match(b, /accessibilityRole="button" accessibilityLabel=\{`Search for \$\{n\}`\}/);
   assert.match(b, /onPress=\{\(\) => setAberta\(i\)\}/);
-  assert.match(b, /useMusicSearch\(texto, \(\) => \{\}\)/, 'a mesma pesquisa da página Search');
-  assert.match(b, /useEffect\(\(\) => \{ pesquisarAgora\(\); \}, \[\]\);/, 'a primeira vai já');
-  assert.match(b, /<Field icon="search" value=\{texto\} onChangeText=\{setTexto\}/, 'o nome corrige-se');
-  assert.match(b, /await useImportacoes\.getState\(\)\.resolverFalta\(imp\.id, nome, faixa\);/);
-  assert.match(b, /label=\{`Play \$\{titulo\}`\} onPress=\{\(\) => void usePlayer\.getState\(\)\.tocarLista\(\[faixa\], false\)\}/);
+  // A pesquisa ali mesmo é uma peça partilhada com o Library check (9/11).
+  const peca = ler('src/desktop/PesquisaNaLinha.web.tsx');
+  assert.match(peca, /useMusicSearch\(texto, \(\) => \{\}\)/, 'a mesma pesquisa da página Search');
+  assert.match(peca, /useEffect\(\(\) => \{ pesquisarAgora\(\); \}, \[\]\);/, 'a primeira vai já');
+  assert.match(peca, /<Field icon="search" value=\{texto\} onChangeText=\{setTexto\}/, 'o nome corrige-se');
+  assert.match(peca, /onPress=\{\(\) => \(aoOuvir \? aoOuvir\(faixa\) : void usePlayer\.getState\(\)\.tocarLista\(\[faixa\], false\)\)\}/);
+  assert.match(b, /aoEscolher=\{\(faixa\) => useImportacoes\.getState\(\)\.resolverFalta\(imp\.id, n, faixa\)\}/);
   // A aberta fica no mesmo índice: quando a dela sai, a seguinte ocupa-o e pesquisa.
-  assert.match(b, /key=\{`\$\{i\}:\$\{n\}`\} imp=\{imp\} nome=\{n\}/);
+  assert.match(b, /<PesquisaNaLinha key=\{`\$\{i\}:\$\{n\}`\} titulo=\{n\}/);
   assert.match(b, /if \(verFaltas && !faltaram\.length\) setVerFaltas\(false\);/, 'a última fecha a lista');
 });
 

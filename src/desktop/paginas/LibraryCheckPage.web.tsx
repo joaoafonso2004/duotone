@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { tituloDaFaixa } from '../../lib/artistName';
+import { displayArtist, tituloDaFaixa } from '../../lib/artistName';
 import {
   duracaoCurta, motivoDaIndisponivel, resumoDoRelatorio, type GrupoDeDuplicados,
 } from '../../lib/higieneDaBiblioteca';
@@ -11,11 +11,12 @@ import { useOuvirJuntos } from '../../state/ouvirJuntos';
 import {
   CHAVE_DE_REMOVER_TODAS, CHAVE_DO_DESFAZER, chaveDaCapa, chaveDaIndisponivel, chaveDoGrupo,
   corrigirCapaDe, desfazerUltima, juntarGrupo, pararVerificacao, procurarCopiaPara,
-  removerIndisponivel, removerTodasAsIndisponiveis, substituirPelaCopia,
+  removerIndisponivel, removerTodasAsIndisponiveis, substituirPelaCopia, substituirPor,
   useVerificacaoDaBiblioteca, verificarBiblioteca, type Indisponivel,
 } from '../../state/verificacaoDaBiblioteca';
 import type { Track } from '../../types';
 import { COR, ESP, RAIO, TIPO } from '../tokens.web';
+import { PesquisaNaLinha } from '../PesquisaNaLinha.web';
 import { BotaoVoltar, Artwork, Button, ContentScroll, Page } from '../ui.web';
 
 /**
@@ -222,6 +223,9 @@ function Morta({ item, offline, play }: { item: Indisponivel; offline: boolean; 
   const chave = chaveDaIndisponivel(item);
   const feito = useVerificacaoDaBiblioteca((st) => st.resolvidos[chave]);
   const aTratar = useVerificacaoDaBiblioteca((st) => st.aTratar === chave);
+  // A pesquisa à mão (9/11): depois de a procura da cópia correr, o Search abre-a
+  // ali mesmo, a mesma da lista "Not found" da importação.
+  const [aProcurar, setAProcurar] = useState(false);
 
   return (
     <View style={s.cartao}>
@@ -238,15 +242,26 @@ function Morta({ item, offline, play }: { item: Indisponivel; offline: boolean; 
                 {aTratar ? 'Searching…' : 'Find a copy'}
               </Button>
             ) : null}
+            {item.copia !== undefined && !aProcurar ? (
+              <Button secondary icon="search" disabled={offline || aTratar} onPress={() => setAProcurar(true)}>Search</Button>
+            ) : null}
             <Button secondary icon="trash-outline" disabled={offline || aTratar}
               onPress={() => void removerIndisponivel(item)}>Remove</Button>
           </View>
         )}
       </View>
-      {!feito && item.copia === null ? (
-        <Text style={[s.meta, s.semCopia]}>No safe copy found. Try again later, or remove it.</Text>
+      {!feito && aProcurar ? (
+        <View style={s.semCopia}>
+          <PesquisaNaLinha titulo={tituloDaFaixa(item.faixa)} textoInicial={`${displayArtist(item.faixa)} ${tituloDaFaixa(item.faixa)}`}
+            acao={{ tipo: 'replace', rotulo: (t) => `Replace with ${t}` }} aoFechar={() => setAProcurar(false)}
+            ouvirDesligado={emJam} aoOuvir={(t) => play(t, [t])}
+            aoEscolher={(t) => substituirPor(item, t)} />
+        </View>
       ) : null}
-      {!feito && item.copia ? (
+      {!feito && !aProcurar && item.copia === null ? (
+        <Text style={[s.meta, s.semCopia]}>No safe copy found. Search for one, or remove it.</Text>
+      ) : null}
+      {!feito && !aProcurar && item.copia ? (
         <>
           <View style={[s.linha, s.copia]}>
             <Artwork track={item.copia} size={40} />

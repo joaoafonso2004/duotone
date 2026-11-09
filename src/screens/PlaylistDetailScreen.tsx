@@ -59,7 +59,8 @@ import { estadoDoGuardar, mensagemDeFalhaAoGuardar } from '../lib/guardarPlaylis
 import { BottomSheet } from '../components/BottomSheet';
 import { CabecalhoDaPlaylist } from '../components/CabecalhoDaPlaylist';
 import { ConfirmSheet } from '../components/ConfirmSheet';
-import { EmptyState } from '../components/EmptyState';
+import { EmptyState } from '../components/EmptyState';
+
 import { SkeletonDeFaixas } from '../components/Skeleton';
 import { PillButton } from '../components/PillButton';
 import { Input } from '../components/Input';
@@ -93,6 +94,7 @@ import { mensagemDeErro } from '../lib/mensagemDeErro';
 import { DentroDeUmModal, useModalDoRNAberto } from '../components/dentroDeUmModal';
 
 import { FRASES_DOS_ESTADOS } from '../lib/frasesDosEstados';
+import { atualizarDaOrigem } from '../state/origemDasPlaylists';
 import { acoesDaLinha, fraseDoMover } from '../lib/menuDaFaixa';
 type Props = NativeStackScreenProps<RootStackParamList, 'PlaylistDetail'>;
 
@@ -368,6 +370,10 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
       if(token===detailRequest.current&&!silencioso)setLoading(false);
     }
   }, [id, offline, userId]);
+
+  // Uma playlist importada de um link atualiza-se sozinha ao abrir, no máximo
+  // uma vez por dia (9/11, `state/origemDasPlaylists.ts`). As outras: nada.
+  useEffect(() => { void atualizarDaOrigem(id, name, () => void load({ silencioso: true })); }, [id]);
 
   // Alguém mexeu (7/10): relê-se por baixo. A editar não -- o rascunho é teu, e
   // o Save ou o Cancel releem a seguir.

@@ -102,7 +102,8 @@ caso('o Enter é do Pressable (toca como o clique), e uma linha por montar monta
 });
 caso('o teclado não reordena (é a arrastar), e o arrastar da tabela ficou', () => {
   assert.ok(!/aoMover\(acao/.test(tabela), 'nenhuma tecla muda a ordem');
-  assert.match(tabela, /onPointerDown=\{\(\(event: any\) => comecarArrasto\(event, track, \{ lista: listKey, indice: index \}\)\) as any\}/);
+  // Com Ctrl ou Shift o clique escolhe (9/11, `test-melhorias-de-uso.ts`): só sem eles começa o arrasto.
+  assert.match(tabela, /onPointerDown=\{\(\(event: any\) => \{\n[^\n]*\n\s+if \(event\?\.ctrlKey \|\| event\?\.metaKey \|\| event\?\.shiftKey\) return;\n\s+comecarArrasto\(event, track, \{ lista: listKey, indice: index \}\);/);
 });
 const fila = ler('src/desktop/FilaArrastavel.web.tsx');
 caso('a fila do PC alcança-se com o teclado: um ponto de Tab, as setas andam, Enter toca', () => {

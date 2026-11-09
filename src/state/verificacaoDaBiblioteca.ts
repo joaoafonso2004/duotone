@@ -279,6 +279,19 @@ export function substituirPelaCopia(item: Indisponivel): Promise<void> {
 }
 
 /**
+ * Trocar pela que se escolheu à mão (9/11): sem cópia segura, o Search da linha
+ * procura ali mesmo e o Replace de um resultado faz o mesmo que o da cópia --
+ * a mesma junção, com o mesmo Undo.
+ */
+export function substituirPor(item: Indisponivel, escolhida: Track): Promise<void> {
+  const chave = chaveDaIndisponivel(item);
+  return tratar(chave, async () => {
+    resolver(chave, 'Replaced', [{ tipo: 'juncao', juncao: await substituir(item.faixa, escolhida) }],
+      comNome('Replaced', item.faixa));
+  });
+}
+
+/**
  * Tirar uma música que já não toca da biblioteca e das playlists.
  *
  * O Library check encontrava-as e dizia "remove it yourself" (o João, a 20/9):

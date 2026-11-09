@@ -614,6 +614,8 @@ export function injectDesktopDocumentStyles() {
     /* As lavagens desfazem-se nos lados e em cima (9/11): sem a moldura, a borda
        reta da cor (a da playlist, o cinzento das Liked Songs) lia-se como um fio
        entre a lateral e a página, e outro por baixo da faixa da janela. */
+    /* A barra das escolhidas (9/11) entra como as placas, por cima do leitor. */
+    [data-dt~="barra-das-escolhidas"]{ animation: dt-placa var(--dt-premir-ms) var(--dt-premir) both; }
     [data-dt~="lavagem"], [data-dt~="lavagem-da-playlist"]{
       -webkit-mask-image: linear-gradient(90deg, transparent, #000 160px, #000 calc(100% - 160px), transparent), linear-gradient(180deg, transparent, #000 56px);
       -webkit-mask-composite: source-in;

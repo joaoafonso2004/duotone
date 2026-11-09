@@ -1,16 +1,11 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
-import { useMusicSearch } from '../hooks/useMusicSearch';
-import { displayArtist, tituloDaFaixa } from '../lib/artistName';
-import { avisarErro } from '../lib/avisoDeRemocao';
-import { FRASES_DA_PESQUISA } from '../lib/estadoDaPesquisa';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { frasesDaImportacao } from '../lib/frasesDaImportacao';
 import { importacaoEmDestaque, useImportacoes, type Importacao } from '../state/importacoes';
-import { usePlayer } from '../state/player';
-import type { Track } from '../types';
+import { PesquisaNaLinha } from './PesquisaNaLinha.web';
 import { COR, ESP, ESTADO, RAIO, TIPO } from './tokens.web';
-import { Artwork, Dialog, Field, formatTime, IconButton } from './ui.web';
+import { Dialog } from './ui.web';
 
 const { createPortal } = require('react-dom') as { createPortal: (filho: React.ReactNode, onde: Element) => React.ReactElement };
 
@@ -77,9 +72,6 @@ export function ProgressoDaImportacao() {
   );
 }
 
-/** Quantos resultados se mostram por música: os primeiros chegam quase sempre. */
-const RESULTADOS_POR_FALTA = 5;
-
 /**
  * A lista "Not found" (9/11, o João: "não havia uma maneira rápida de procurar
  * cada música, podia dar para clicar no título e pesquisava automático"). Cada
@@ -99,7 +91,9 @@ function FaltasDaImportacao({ imp, faltaram }: { imp: Importacao; faltaram: stri
     <ScrollView style={{ maxHeight: 440 }}>
       {faltaram.map((n, i) => aberta === i
         // A chave leva o nome: a que entra no lugar de uma que saiu monta de novo e pesquisa.
-        ? <FaltaAberta key={`${i}:${n}`} imp={imp} nome={n} destino={destino} aoFechar={() => setAberta(null)} />
+        ? <PesquisaNaLinha key={`${i}:${n}`} titulo={n} textoInicial={n} aoFechar={() => setAberta(null)}
+            acao={{ tipo: 'mais', rotulo: (t) => `Add ${t} to ${destino}` }}
+            aoEscolher={(faixa) => useImportacoes.getState().resolverFalta(imp.id, n, faixa)} />
         : <Pressable key={`${i}:${n}`} accessibilityRole="button" accessibilityLabel={`Search for ${n}`}
             {...({ 'aria-expanded': false } as any)}
             onPress={() => setAberta(i)}
@@ -109,66 +103,4 @@ function FaltasDaImportacao({ imp, faltaram }: { imp: Importacao; faltaram: stri
           </Pressable>)}
     </ScrollView>
   </>;
-}
-
-/** Uma das que faltaram, aberta: a pesquisa com o nome (que se pode corrigir) e os resultados. */
-function FaltaAberta({ imp, nome, destino, aoFechar }: { imp: Importacao; nome: string; destino: string; aoFechar: () => void }) {
-  const [texto, setTexto] = useState(nome);
-  // A mesma pesquisa da página Search: a biblioteca primeiro, depois o resto.
-  const { results, naBiblioteca, loading, errorMsg, pesquisarAgora } = useMusicSearch(texto, () => {});
-  // A primeira vai já, sem a espera de quem ainda está a escrever.
-  useEffect(() => { pesquisarAgora(); }, []);
-  const vistas = new Set<string>();
-  const faixas = [...naBiblioteca.slice(0, 2), ...results].filter((t) => {
-    const chave = `${t.source}:${t.sourceId}`;
-    if (t.source !== 'youtube' || vistas.has(chave)) return false;
-    vistas.add(chave);
-    return true;
-  }).slice(0, RESULTADOS_POR_FALTA);
-  return <View style={{ marginVertical: ESP.xs, padding: ESP.sm, borderRadius: RAIO.cartao, backgroundColor: 'rgba(233,234,238,0.04)', gap: ESP.sm }}>
-    <Pressable accessibilityRole="button" accessibilityLabel={`Close the search for ${nome}`} {...({ 'aria-expanded': true } as any)} onPress={aoFechar}
-      style={{ flexDirection: 'row', alignItems: 'center', gap: ESP.sm, paddingHorizontal: ESP.xs }}>
-      <Text numberOfLines={1} style={{ ...TIPO.corpo, color: COR.texto, fontWeight: '600', flex: 1, minWidth: 0 }}>{nome}</Text>
-      <Ionicons name="chevron-up" size={14} color={COR.textoFraco} />
-    </Pressable>
-    <Field icon="search" value={texto} onChangeText={setTexto} placeholder="Search for this song" accessibilityLabel={`Search for ${nome}`}
-      onSubmitEditing={pesquisarAgora} />
-    {loading && !faixas.length
-      ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESP.sm, padding: ESP.sm }}>
-          <ActivityIndicator size={14} color={COR.textoMedio} />
-          <Text style={{ ...TIPO.legenda, color: COR.textoMedio }}>Searching…</Text>
-        </View>
-      : !faixas.length
-        ? <Text style={{ ...TIPO.legenda, color: COR.textoMedio, padding: ESP.sm }}>{errorMsg ?? `${FRASES_DA_PESQUISA.semResultados}. ${FRASES_DA_PESQUISA.semResultadosCorpo}`}</Text>
-        : faixas.map((t) => <ResultadoDaFalta key={`${t.source}:${t.sourceId}`} imp={imp} nome={nome} faixa={t} destino={destino} />)}
-  </View>;
-}
-
-/** Um resultado: ▶ para ouvir antes, + para pôr no destino da importação. */
-function ResultadoDaFalta({ imp, nome, faixa, destino }: { imp: Importacao; nome: string; faixa: Track; destino: string }) {
-  const [aPor, setAPor] = useState(false);
-  const titulo = tituloDaFaixa(faixa);
-  const adicionar = async () => {
-    if (aPor) return;
-    setAPor(true);
-    try {
-      await useImportacoes.getState().resolverFalta(imp.id, nome, faixa);
-    } catch {
-      avisarErro(`Couldn't add "${titulo}". Try again.`);
-      setAPor(false);
-    }
-  };
-  return <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESP.md, paddingHorizontal: ESP.xs }}>
-    <Artwork track={faixa} size={36} />
-    <View style={{ flex: 1, minWidth: 0 }}>
-      <Text numberOfLines={1} style={{ ...TIPO.corpo, color: COR.texto, fontWeight: '600' }}>{titulo}</Text>
-      <Text numberOfLines={1} style={{ ...TIPO.legenda, color: COR.textoMedio }}>
-        {displayArtist(faixa)}{faixa.durationSeconds ? ` · ${formatTime(faixa.durationSeconds)}` : ''}
-      </Text>
-    </View>
-    <IconButton name="play" label={`Play ${titulo}`} onPress={() => void usePlayer.getState().tocarLista([faixa], false)} />
-    {aPor
-      ? <View style={{ width: 34, height: 34, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator size={16} color={COR.texto} /></View>
-      : <IconButton name="add" label={`Add ${titulo} to ${destino}`} onPress={() => void adicionar()} />}
-  </View>;
 }

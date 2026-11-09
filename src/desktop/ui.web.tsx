@@ -12,6 +12,8 @@ import { useCorDoAmbiente } from '../hooks/useCorDoAmbiente';
 import { useSaved } from '../state/saved';
 import { ouvirRefrao, temRefrao, useRefrao } from '../state/refrao';
 import { comecarArrasto, refDoAlvo, type Alvo, type ArrastoAtivo } from './Arrastar.web';
+import { useSelecao, type RemoverVarias } from './selecao.web';
+import { acaoDoClique, alternar, escolhidasPorOrdem, intervalo, todas, type EstadoDaSelecao } from '../lib/selecaoDeFaixas';
 import { destinoDaOrdem, posicaoDeInsercao, ROTULOS_DO_ARRASTO, topoDaInsercao } from '../lib/arrastar';
 import type { DiscoveryContext } from '../lib/contextoDaDescoberta';
 import type { OrigemDaFila } from '../lib/origemDaFila';
@@ -47,6 +49,8 @@ const P = Pressable as any;
 
 /** Referência estável: um Set novo a cada render fazia a tabela redesenhar. */
 const EMPTY_KEYS: ReadonlySet<string> = new Set();
+/** Nenhuma escolhida nesta lista: o mesmo array, para a tabela não redesenhar à toa. */
+const SEM_CHAVES: string[] = [];
 
 /**
  * A paleta antiga, agora derivada dos tokens (tokens.web.ts).
@@ -1121,9 +1125,13 @@ type ContextoDaLinha = {
   listKey?: string;
   aoTeclar: (e: any, index: number) => void;
   aoFocar: (index: number) => void;
+  /** O clique: tocar, ou escolher com Ctrl/Shift (9/11, `lib/selecaoDeFaixas.ts`). */
+  aoCarregar: (e: any, track: Track, index: number) => void;
+  /** O botão direito: numa escolhida, o menu para todas; senão o da música. */
+  aoMenu: (e: any, track: Track, escolhida: boolean) => void;
 };
 
-export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = false, plain = false, listKey, contexto, ordenacao, colunaDoArtista = true, caraDaLinha, larguraDaCara = 34, divisoria, reordenar, saltoParaAtual = false }: {
+export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = false, plain = false, listKey, contexto, ordenacao, colunaDoArtista = true, caraDaLinha, larguraDaCara = 34, divisoria, reordenar, saltoParaAtual = false, removerVarias = null, saoGostadas = false }: {
   tracks: Track[]; onPlay: (track: Track, discoveryContext?: DiscoveryContext) => void; onMore?: (track: Track, discoveryContext?: DiscoveryContext) => void; empty?: ReactNode;
   /** Marcar as que já estão na biblioteca. Só em listas que misturam
    * guardadas e não guardadas (pesquisa) — na tabela de Songs seria um
@@ -1161,6 +1169,13 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
    * do ecrã (30/10): leva-te até ela. Só nas listas onde faz sentido (as Liked Songs).
    */
   saltoParaAtual?: boolean;
+  /**
+   * Escolhidas várias (9/11): tirá-las de onde estão, se esta lista deixa (as
+   * Liked Songs, uma playlist tua). Sem isto a barra não mostra "Remove".
+   */
+  removerVarias?: RemoverVarias | null;
+  /** As Liked Songs: a barra das escolhidas não oferece "Like". */
+  saoGostadas?: boolean;
 }) {
   // A coluna do artista só existe com largura para ela; numa janela estreita
   // o artista volta a ir por baixo do título.
@@ -1215,6 +1230,11 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
   });
   const teclar = useRef<(e: any, index: number) => void>(() => {});
   teclar.current = (e: any, index: number) => {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'a' || e.key === 'A')) {
+      e.preventDefault();
+      escolher(todas(chaveDaLista, tracks));
+      return;
+    }
     const acao = teclaNaLista(e.key, e.altKey, index, tracks.length);
     // O Enter já toca pelo Pressable (o PressResponder do RNW), como o clique.
     if (!acao || acao.tipo === 'tocar') return;
@@ -1225,9 +1245,53 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
   };
   const aoTeclar = useCallback((e: any, index: number) => teclar.current(e, index), []);
   const aoFocar = useCallback((index: number) => setFoco(index), []);
+  // As escolhidas (9/11): só as desta lista; as de outra não acendem aqui.
+  const idProprio = useRef(`tabela:${Math.random().toString(36).slice(2)}`).current;
+  const chaveDaLista = listKey ?? idProprio;
+  const chavesEscolhidas = useSelecao((s) => (s.lista === chaveDaLista ? s.chaves : SEM_CHAVES));
+  const escolhidas = useMemo(() => new Set(chavesEscolhidas), [chavesEscolhidas]);
+  const extras = useRef({ remover: removerVarias, saoGostadas });
+  extras.current = { remover: removerVarias, saoGostadas };
+  const faixasAgora = useRef(tracks);
+  faixasAgora.current = tracks;
+  const escolher = (s: EstadoDaSelecao) =>
+    useSelecao.getState().definir(s, escolhidasPorOrdem(s, chaveDaLista, faixasAgora.current), extras.current);
+  // A lista mudou (filtrada, reordenada): as escolhidas que saíram deixam de contar.
+  useEffect(() => {
+    const s = useSelecao.getState();
+    if (s.lista === chaveDaLista) s.definir(s, escolhidasPorOrdem(s, chaveDaLista, tracks), extras.current);
+  }, [tracks, chaveDaLista]);
+  // Sair da página (ou a lista desmontar) larga as escolhidas.
+  useEffect(() => () => { if (useSelecao.getState().lista === chaveDaLista) useSelecao.getState().limpar(); }, [chaveDaLista]);
+  const carregar = useRef<(e: any, track: Track, index: number) => void>(() => {});
+  carregar.current = (e: any, track: Track, index: number) => {
+    const n = e?.nativeEvent ?? e;
+    const s = useSelecao.getState();
+    const acao = acaoDoClique({ ctrl: !!n?.ctrlKey, meta: !!n?.metaKey, shift: !!n?.shiftKey }, s.lista === chaveDaLista && s.chaves.length > 0);
+    if (acao === 'tocar') { onPlay(track, contexto?.(track)); return; }
+    if (acao === 'limpar') { s.limpar(); return; }
+    escolher(acao === 'alternar' ? alternar(s, chaveDaLista, tracks, index) : intervalo(s, chaveDaLista, tracks, index));
+  };
+  const aoCarregar = useCallback((e: any, track: Track, index: number) => carregar.current(e, track, index), []);
+  const menu = useRef<(e: any, track: Track, escolhida: boolean) => void>(() => {});
+  menu.current = (e: any, track: Track, escolhida: boolean) => {
+    e?.preventDefault?.();
+    const s = useSelecao.getState();
+    if (escolhida && s.faixas.length > 1) {
+      // Onde está o rato; do teclado (Shift+F10) vem em 0,0, e abre junto da linha.
+      const n = e?.nativeEvent ?? e;
+      const r = n?.target?.getBoundingClientRect?.();
+      s.abrirMenu(n?.clientX || n?.clientY ? { x: n.clientX, y: n.clientY } : { x: (r?.left ?? 0) + 24, y: (r?.top ?? 0) + 32 });
+      return;
+    }
+    // O botão direito numa que não está escolhida é sobre ela: as outras largam-se.
+    if (s.lista === chaveDaLista && s.chaves.length) s.limpar();
+    onMore?.(track, contexto?.(track));
+  };
+  const aoMenu = useCallback((e: any, track: Track, escolhida: boolean) => menu.current(e, track, escolhida), []);
   const ctx = useMemo<ContextoDaLinha>(() => ({
-    onPlay, onMore, contexto, caraDaLinha, larguraDaCara, plain, comArtista, showTime, savedKeys, listKey, aoTeclar, aoFocar,
-  }), [onPlay, onMore, contexto, caraDaLinha, larguraDaCara, plain, comArtista, showTime, savedKeys, listKey, aoTeclar, aoFocar]);
+    onPlay, onMore, contexto, caraDaLinha, larguraDaCara, plain, comArtista, showTime, savedKeys, listKey, aoTeclar, aoFocar, aoCarregar, aoMenu,
+  }), [onPlay, onMore, contexto, caraDaLinha, larguraDaCara, plain, comArtista, showTime, savedKeys, listKey, aoTeclar, aoFocar, aoCarregar, aoMenu]);
   // Para o reordenar: quantas linhas ficaram de fora, em cima.
   const inicioDaJanela = useRef(0);
   inicioDaJanela.current = janela.inicio;
@@ -1260,7 +1324,7 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
         {separar ? <View style={ui.divisoriaDaTabela} accessibilityRole="header">
           <Text style={ui.divisoriaTexto}>{divisoria!.rotulo.toUpperCase()}</Text><View style={ui.divisoriaLinha} />
         </View> : null}
-        <LinhaDaTabela track={track} index={index} aTocar={aTocar}
+        <LinhaDaTabela track={track} index={index} aTocar={aTocar} escolhida={escolhidas.has(`${track.source}:${track.sourceId}`)}
           focavel={index === focavel} entrar={entrar} ctx={ctx} />
       </React.Fragment>;
     })}
@@ -1274,28 +1338,35 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
  * Uma linha da `TrackTable`. Memorizada (7/11): a tabela redesenha-se quando a
  * janela anda ou a música muda, e as linhas que não mudaram ficam como estão.
  */
-const LinhaDaTabela = React.memo(function LinhaDaTabela({ track, index, aTocar, focavel, entrar, ctx }: {
-  track: Track; index: number; aTocar: boolean; focavel: boolean; entrar: boolean; ctx: ContextoDaLinha;
+const LinhaDaTabela = React.memo(function LinhaDaTabela({ track, index, aTocar, escolhida, focavel, entrar, ctx }: {
+  track: Track; index: number; aTocar: boolean; escolhida: boolean; focavel: boolean; entrar: boolean; ctx: ContextoDaLinha;
 }) {
-  const { onPlay, onMore, contexto, caraDaLinha, larguraDaCara, plain, comArtista, showTime, savedKeys, listKey, aoTeclar, aoFocar } = ctx;
+  const { onMore, contexto, caraDaLinha, larguraDaCara, plain, comArtista, showTime, savedKeys, listKey, aoTeclar, aoFocar, aoCarregar, aoMenu } = ctx;
   // 40 e não 48: as linhas passaram de 56 para 52 (25/9), e uma biblioteca de
   // milhares de faixas lê-se melhor com mais linhas à vista.
   const artworkSize = 40;
   // A marca da linha, e o índice na lista inteira (o teclado e as medidas da janela procuram-no).
   const marca = entrar ? marcar('fila', 'entra') : marcar('fila');
-  return <P onPress={() => onPlay(track,contexto?.(track))}
+  return <P onPress={(e: any) => aoCarregar(e, track, index)}
       tabIndex={focavel ? 0 : -1} onFocus={() => aoFocar(index)}
       onKeyDown={(e: any) => aoTeclar(e, index)}
-      onContextMenu={((event: any) => { event.preventDefault(); onMore?.(track,contexto?.(track)); }) as any}
-      onPointerDown={((event: any) => comecarArrasto(event, track, { lista: listKey, indice: index })) as any}
+      onContextMenu={((event: any) => aoMenu(event, track, escolhida)) as any}
+      onPointerDown={((event: any) => {
+        // Com Ctrl ou Shift o clique escolhe: não começa um arrasto.
+        if (event?.ctrlKey || event?.metaKey || event?.shiftKey) return;
+        comecarArrasto(event, track, { lista: listKey, indice: index });
+      }) as any}
       dataSet={{ ...marca.dataSet, i: String(index) }}
-      style={({ hovered, pressed, focused }: any) => [ui.trackRow, plain && ui.trackRowPlain, (hovered || focused) && ui.trackHover, pressed && ui.pressed]}>
+      {...({ 'aria-selected': escolhida } as any)}
+      style={({ hovered, pressed, focused }: any) => [ui.trackRow, plain && ui.trackRowPlain, (hovered || focused) && ui.trackHover, escolhida && ui.trackEscolhida, pressed && ui.pressed]}>
       {/* O número, o ▶ e as barrinhas ocupam o MESMO lugar: quem troca entre
           eles é o CSS (`dt-fila`), porque uma troca feita em JS obrigava a um
           estado de hover por linha -- duzentas linhas, duzentos estados. */}
       <View style={ui.celaDoNumero}>
         {aTocar ? (
           <BarrasATocar />
+        ) : escolhida ? (
+          <Ionicons name="checkmark" size={16} color={COR.texto} />
         ) : <>
           <Text style={ui.trackIndex} {...marcar('numero')}>{index + 1}</Text>
           <View style={ui.setaDeTocar} pointerEvents="none" {...marcar('toca')}>
@@ -1596,6 +1667,8 @@ export const ui = StyleSheet.create({
   // célula do título e estes). Na cabeça e nas linhas, que ficam alinhadas.
   colunaDoArtista: { flex: 0.6, minWidth: 0, paddingLeft: ESP.xl, paddingRight: ESP.sm },
   trackHover: { backgroundColor: COR.hover },
+  // Escolhida (9/11): o metal a 10 %, por cima do hover, com o ✓ no lugar do número.
+  trackEscolhida: { backgroundColor: 'rgba(233,234,238,0.10)' },
   trackIndex: { ...TIPO.numero, color: COR.textoFraco, textAlign: 'center' },
   /** O lugar onde o número, o ▶ e as barrinhas se sobrepõem. */
   celaDoNumero: { width: 40, alignItems: 'center', justifyContent: 'center' },

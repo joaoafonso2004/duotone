@@ -62,7 +62,8 @@ export function ImportPage({ back, navigate }: { back: () => void; notify: (s: s
 
   const importar = () => {
     if (!leitura) return;
-    useImportacoes.getState().importarLida(leitura, destino);
+    // O link vai junto (9/11): a playlist passa a atualizar-se sozinha.
+    useImportacoes.getState().importarLida(leitura, destino, entrada.tipo === 'link' ? entrada.link : null);
     avisarInfo('Importing in the background. You can keep listening.');
     back();
   };

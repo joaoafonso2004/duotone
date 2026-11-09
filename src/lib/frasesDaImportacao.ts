@@ -10,6 +10,8 @@ export interface ImportacaoParaFrases {
   total: number;
   resultado?: { adicionadas: number; deFora: number; cortada: boolean; limite?: number | null; destino?: 'playlist' | 'gostadas' };
   erro?: string;
+  /** Músicas novas do link de uma playlist já importada (9/11), e não uma importação. */
+  atualizacao?: boolean;
 }
 
 const musicas = (n: number) => `${n} ${n === 1 ? 'song' : 'songs'}`;
@@ -46,7 +48,8 @@ export function frasesDaImportacao(
       const r = i.resultado!;
       const fora = r.deFora > 0 ? ` · ${r.deFora} not found` : '';
       const corte = r.cortada ? ` · first ${r.limite ?? 100} only` : '';
-      const titulo = r.destino === 'gostadas' ? 'Added to your Liked Songs' : `${nome} is in your playlists`;
+      const titulo = i.atualizacao ? `${nome} got new songs`
+        : r.destino === 'gostadas' ? 'Added to your Liked Songs' : `${nome} is in your playlists`;
       return { titulo, linha: `${musicas(r.adicionadas)}${fora}${corte}`, fracao: 1 };
     }
     case 'falhou':

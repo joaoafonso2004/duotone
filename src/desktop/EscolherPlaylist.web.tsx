@@ -30,8 +30,13 @@ const CAPA = 28;
  * Trata das suas teclas (`TECLAS_PROPRIAS`): ↑↓ andam pelo campo e pelas
  * linhas, Esc limpa a procura e depois volta ao menu, ← volta ao menu.
  */
-export function EscolherPlaylist({ faixa, aoEscolher, aoCriar, aoFechar, aoVoltar }: {
+export function EscolherPlaylist({ faixa, aoEscolher, aoCriar, aoFechar, aoVoltar, semMarcas = false }: {
   faixa: Track;
+  /**
+   * Várias músicas de uma vez (9/11, a barra das escolhidas): sem o ✓, que é de
+   * uma música só. Escolher junta-as sempre; as que já lá estavam ficam como estão.
+   */
+  semMarcas?: boolean;
   /** Com o menu já fechado. `jaLaEsta`: tinha o ✓. */
   aoEscolher: (playlist: Playlist, jaLaEsta: boolean) => void;
   /** Criar a playlist e pôr lá a música, com o menu já fechado. */
@@ -52,6 +57,7 @@ export function EscolherPlaylist({ faixa, aoEscolher, aoCriar, aoFechar, aoVolta
   useEffect(() => {
     // A lista da store (fresca 30 s); as marcas só desta música, e só a resposta desta abertura.
     usePlaylists.getState().carregar().catch(() => {});
+    if (semMarcas) return;
     const marcas = criarMarcasDasPlaylists<Track>(playlistsComAFaixa, (ids) => setDentro(ids));
     void marcas.abrir(faixa);
     return () => marcas.esquecer();
