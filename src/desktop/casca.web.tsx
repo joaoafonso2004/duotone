@@ -93,8 +93,15 @@ export function injectDesktopDocumentStyles() {
        a sobrancelha em mono saia em Public Sans. A familia vai EXPLICITA em
        cada estilo de texto (ver TIPO em tokens.web.ts). */
     ::selection{background:rgba(233,234,238,.24)} ::-webkit-scrollbar{width:11px;height:11px}
-    ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:#30303b;border:3px solid transparent;border-radius:8px;background-clip:padding-box}
+    /* A barra de rolar só aparece com o rato por cima do que rola (9/11): parada,
+       a da lateral lia-se como mais um fio entre a lateral e a página. */
+    ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:transparent;border:3px solid transparent;border-radius:8px;background-clip:padding-box}
+    *:hover::-webkit-scrollbar-thumb{background:#30303b;border:3px solid transparent;background-clip:padding-box}
     ::-webkit-scrollbar-thumb:hover{background:#494857;border:3px solid transparent;background-clip:padding-box}
+    /* A página desvanece nos últimos 40 px antes do leitor (9/11): era um fio
+       por cima da barra que a separava. O fundo da página (48 px) deixa a última
+       linha subir acima disto. */
+    [data-dt~="rolo-da-pagina"]{ -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(180deg, #000 calc(100% - 40px), transparent); }
     /* O anel do foco do teclado, no metal. Era [data-focusable="true"], que o
        react-native-web 0.21 ja nao escreve: a regra nao apanhava nada e via-se
        o anel do browser (medido a 20/10 na pagina de ensaio). Os sliders tem o
@@ -604,6 +611,15 @@ export function injectDesktopDocumentStyles() {
        devagar, em vez de aparecer de repente (so opacidade). */
     [data-dt~="lavagem-da-playlist"]{ animation: dt-lavagem 600ms var(--dt-curva) both; }
     @keyframes dt-lavagem { from { opacity: 0; } to { opacity: 1; } }
+    /* As lavagens desfazem-se nos lados e em cima (9/11): sem a moldura, a borda
+       reta da cor (a da playlist, o cinzento das Liked Songs) lia-se como um fio
+       entre a lateral e a página, e outro por baixo da faixa da janela. */
+    [data-dt~="lavagem"], [data-dt~="lavagem-da-playlist"]{
+      -webkit-mask-image: linear-gradient(90deg, transparent, #000 160px, #000 calc(100% - 160px), transparent), linear-gradient(180deg, transparent, #000 56px);
+      -webkit-mask-composite: source-in;
+      mask-image: linear-gradient(90deg, transparent, #000 160px, #000 calc(100% - 160px), transparent), linear-gradient(180deg, transparent, #000 56px);
+      mask-composite: intersect;
+    }
 
     /* O Social (30/10, passo 7, components/SocialOverview.web.tsx). Um amigo a
        ouvir: as barrinhas mexem-se, e o "Listen along" aparece com o rato no
@@ -764,7 +780,22 @@ export function injectDesktopDocumentStyles() {
 }
 
 /** `comPainel`: a seta do painel da Queue e das Lyrics só existe com a app aberta (no login não há painel). */
-export function TitleBar({ comPainel = false }: { comPainel?: boolean }) {
+/**
+ * A marca da janela no topo da lateral (9/11): saiu da barra de título, que na app
+ * passou a ser só a faixa por cima da página. Arrasta a janela e o duplo clique
+ * maximiza, como a barra de onde veio. Recolhida, fica só o símbolo.
+ */
+export function MarcaDaJanela({ compacta = false }: { compacta?: boolean }) {
+  return <View style={[styles.marcaDaJanela, compacta && { paddingLeft: 0, justifyContent: 'center' }] as any}
+    onDoubleClick={() => window.duotoneDesktop?.toggleMaximize()}>
+    <Image source={require('../../assets/auth-logo.png')} style={{ width: 22, height: 22 }} resizeMode="contain" />
+    {compacta ? null : <Text style={styles.titleText}>Duotone</Text>}
+  </View>;
+}
+
+export function TitleBar({ comPainel = false, semMarca = false }: { comPainel?: boolean;
+  /** Na app a marca está no topo da lateral (`MarcaDaJanela`); no login fica aqui. */
+  semMarca?: boolean }) {
   const [maximized, setMaximized] = useState(false);
   useEffect(() => {
     const bridge = window.duotoneDesktop;
@@ -772,7 +803,7 @@ export function TitleBar({ comPainel = false }: { comPainel?: boolean }) {
     return bridge?.onMaximizedChange(setMaximized);
   }, []);
   return <View style={styles.titleBar as any} onDoubleClick={() => window.duotoneDesktop?.toggleMaximize()}>
-    <View style={styles.titleBrand}><Image source={require('../../assets/auth-logo.png')} style={{ width: 22, height: 22 }} resizeMode="contain" /><Text style={styles.titleText}>Duotone</Text></View>
+    {semMarca ? null : <View style={styles.titleBrand}><Image source={require('../../assets/auth-logo.png')} style={{ width: 22, height: 22 }} resizeMode="contain" /><Text style={styles.titleText}>Duotone</Text></View>}
     <View style={styles.dragRegion as any} />
     {comPainel ? <SetaDoPainel /> : null}
     <View style={styles.windowButtons as any}>
@@ -869,6 +900,7 @@ export function Sidebar({ route, navigate, notify, voltar, leitorAberto = false 
   // a lista "Pinned" crescia para lá do fundo, cortada, e o scroll dela nunca
   // chegava a existir -- os de baixo não se alcançavam (João, 20/10).
   return <View style={[styles.sidebar, { flex: 1, minHeight: 0 }]}>
+    <MarcaDaJanela compacta={compacta} />
     {/* Do tamanho do que tem: o espaço de baixo é dos atalhos. */}
     <ScrollView style={{ flexGrow: 0, flexShrink: 0 }} contentContainerStyle={styles.sidebarContent}>
       {realce?<View pointerEvents="none" {...marcar('desliza')}

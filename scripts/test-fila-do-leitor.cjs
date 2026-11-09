@@ -161,7 +161,8 @@ assert.match(painel, /transform: `translateX\(\$\{noSitio \? 0 : 100\}%\)`/, 'o 
 // A seta ficava no canto do conteúdo, por cima dos botões das páginas (11/10):
 // vive na barra de título, à esquerda do minimizar.
 assert.match(casca, /<View style=\{styles\.dragRegion as any\} \/>\s*\{comPainel \? <SetaDoPainel \/> : null\}/, 'a seta na barra de título, e só com a app aberta (não no login)');
-assert.match(fs.readFileSync(require('node:path').join(__dirname, '../src/navigation/RootNavigator.web.tsx'), 'utf8'), /<TitleBar comPainel \/>/);
+// Desde 9/11 a barra de título é só a faixa por cima da página, sem a marca (está no topo da lateral).
+assert.match(fs.readFileSync(require('node:path').join(__dirname, '../src/navigation/RootNavigator.web.tsx'), 'utf8'), /<TitleBar comPainel semMarca \/>/);
 assert.match(painel, /overflow: 'clip'/, 'a janela não se deixa deslizar pelo foco');
 assert.match(painel, /focus\?\.\(\{ preventScroll: true \}\)/, 'o foco não desliza nada');
 assert.doesNotMatch(painel, /position: 'absolute', right: 16, top: 12/, 'a seta já não flutua por cima das páginas');

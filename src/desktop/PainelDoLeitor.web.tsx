@@ -170,6 +170,11 @@ export function PainelDoLeitor({ children, more, notify }: Pick<CommonPageProps,
       transform: `translateX(${noSitio ? 0 : 100}%)`,
       pointerEvents: estado.aberto ? 'auto' : 'none',
       boxShadow: porCimaAgora && noSitio ? '-16px 0 44px rgba(0,0,0,0.3)' : undefined,
+      // Encostado, o painel é a mesma superfície da página (9/11): sem fundo nem
+      // linha, separa-o o espaço. Por cima da página (a deslizar, ou na janela
+      // estreita) leva fundo, senão via-se a página através dele.
+      backgroundColor: porCimaAgora ? FUNDO_POR_CIMA : 'transparent',
+      transition: menosMovimento ? undefined : 'background-color 220ms var(--dt-curva)',
     }}>
     {(estado.aberto || conteudoMontado) && <SeparadorDoPainel />}
     {(estado.aberto || conteudoMontado) && <View style={[s.painel, porCima && { maxWidth: '100%' }]}>
@@ -218,9 +223,11 @@ function focarSemDeslizar(el: any) {
   try { el?.focus?.({ preventScroll: true }); } catch { /* sem foco, continua */ }
 }
 
+/** O fundo do painel quando flutua por cima da página. */
+const FUNDO_POR_CIMA = 'rgba(12,12,16,0.96)';
+
 const s = StyleSheet.create({
-  painel: { flex: 1, width: '100%', flexShrink: 0, minHeight: 0, borderLeftWidth: 1, borderLeftColor: COR.linhaSuave,
-    backgroundColor: 'rgba(12,12,16,0.96)' },
+  painel: { flex: 1, width: '100%', flexShrink: 0, minHeight: 0 },
   cabeca: { height: 58, paddingHorizontal: ESP.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   abas: { flexDirection: 'row', gap: ESP.xs },
   aba: { borderRadius: 999, paddingHorizontal: ESP.md, paddingVertical: ESP.sm },

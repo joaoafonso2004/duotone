@@ -23,29 +23,34 @@ export const styles = StyleSheet.create({
     resizeMode: 'cover', zIndex: 0, pointerEvents: 'none',
     filter: 'blur(16px) brightness(45%)',
   } as any,
-  // Barra de titulo sem cor propria: e o fundo que se ve, e so uma linha a
-  // separa da area de conteudo.
-  titleBar: { height: 38, backgroundColor: 'transparent', borderBottomWidth: 1, borderBottomColor: COR.linhaSuave, flexDirection: 'row', alignItems: 'stretch', zIndex: 20, WebkitAppRegion: 'drag' } as any,
+  // Barra de título sem cor nem linha (9/11, o João: "detestamos estas barras"):
+  // na app é só a faixa por cima da página onde se arrasta a janela, com a fila
+  // e os botões da janela. A marca passou para o topo da lateral.
+  titleBar: { height: 38, backgroundColor: 'transparent', flexDirection: 'row', alignItems: 'stretch', zIndex: 20, WebkitAppRegion: 'drag' } as any,
   titleBrand: { width: 224, flexDirection: 'row', alignItems: 'center', paddingLeft: 15, gap: 9 }, brandDots: { flexDirection: 'row', gap: 3 }, brandDot: { width: 8, height: 8, borderRadius: 4 }, titleText: { fontFamily: FONT.body, color: COR.textoMedio, fontSize: 12, fontWeight: '600' }, dragRegion: { flex: 1 }, windowButtons: { flexDirection: 'row', WebkitAppRegion: 'no-drag' } as any, windowButton: { width: 46, height: 37, alignItems: 'center', justifyContent: 'center' }, windowButtonHover: { backgroundColor: COR.hover }, closeHover: { backgroundColor: '#C42B3B' },
-  main: {
-    flex: 1, flexDirection: 'row', minHeight: 0, backgroundColor: 'transparent',
-    borderRadius: RAIO.superficie, borderWidth: 1, borderColor: COR.linhaSuave,
-    marginLeft: ESP.sm, marginRight: ESP.sm, marginTop: ESP.xs, marginBottom: 0,
-    overflow: 'hidden',
-  } as any,
-  // A barra lateral deixou de ser um cartão: vive na mesma superfície, separada
-  // por um fio. Duas caixas com borda dentro de uma janela com borda eram três
-  // molduras para a mesma coisa.
+  // UMA superfície sem moldura (9/11, maquete `docs/barras-da-janela-maquete.html`,
+  // opção A): a lateral, a página e o leitor encostam às bordas da janela e não há
+  // fio entre eles. Era uma caixa de cantos redondos com contorno, recuada 8 px da
+  // janela, e cada zona separada por um fio. O fundo (`panelOpacity`) vai na
+  // `superficie`, que leva também o leitor: com ele de fora, a junção era um degrau.
+  superficie: { flex: 1, minHeight: 0 },
+  main: { flex: 1, flexDirection: 'row', minHeight: 0, backgroundColor: 'transparent', overflow: 'hidden' } as any,
+  // A coluna da página: a faixa onde se arrasta a janela e, por baixo, a página e a fila.
+  colunaDaPagina: { flex: 1, minWidth: 0, minHeight: 0 },
+  // A marca da janela, no topo da lateral: arrasta a janela como a barra de título.
+  marcaDaJanela: { height: 38, flexDirection: 'row', alignItems: 'center', gap: 9, paddingLeft: 22, WebkitAppRegion: 'drag' } as any,
+  // A barra lateral vive na mesma superfície, sem fio: separa-a o espaço. A pega
+  // de largura (`SeparadorDaLateral`) só se acende com o rato na junção.
   // A largura vem da variável `--dt-lateral` (31/10, `estadoDasBarras.web.ts`): a lateral é ajustável.
-  sidebar: { width: 'var(--dt-lateral, 232px)', borderRightWidth: 1, borderRightColor: COR.linhaSuave } as any, sidebarContent: { padding: ESP.md, paddingTop: ESP.xl }, navLabel: { ...TIPO.micro, color: COR.textoFraco, marginHorizontal: ESP.md, marginBottom: ESP.sm, marginTop: ESP.md }, navItem: { height: 38, paddingHorizontal: ESP.md, borderRadius: RAIO.cartao, flexDirection: 'row', alignItems: 'center', gap: ESP.md, marginBottom: 1 },
+  sidebar: { width: 'var(--dt-lateral, 232px)' } as any, sidebarContent: { padding: ESP.md, paddingTop: ESP.xl }, navLabel: { ...TIPO.micro, color: COR.textoFraco, marginHorizontal: ESP.md, marginBottom: ESP.sm, marginTop: ESP.md }, navItem: { height: 38, paddingHorizontal: ESP.md, borderRadius: RAIO.cartao, flexDirection: 'row', alignItems: 'center', gap: ESP.md, marginBottom: 1 },
   // Realces de baixo contraste: com o `hover` e o `accentSoft` cheios, cada
   // linha lia-se como um cartãozinho independente.
   navHover: { backgroundColor: 'rgba(233,234,238,0.04)' }, navActive: { backgroundColor: 'rgba(233,234,238,0.07)' },
   /** O realce que atravessa entre os separadores da barra lateral. Absoluto,
    * para o texto não se mexer enquanto ele anda. */
-  navRealce: { position: 'absolute', left: ESP.md, right: ESP.md, top: 0, borderRadius: RAIO.cartao } as any, navText: { ...TIPO.corpo, color: COR.textoMedio, fontWeight: '500' as any, flex: 1 }, navTextActive: { color: COR.texto, fontWeight: '650' as any }, navDivider: { height: 1, backgroundColor: COR.linha, marginVertical: 14, marginHorizontal: 8 },
-  account: { minHeight: 67, paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.03)', flexDirection: 'row', alignItems: 'center', gap: 10 },
-  accountRow: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingRight: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.03)' },
+  navRealce: { position: 'absolute', left: ESP.md, right: ESP.md, top: 0, borderRadius: RAIO.cartao } as any, navText: { ...TIPO.corpo, color: COR.textoMedio, fontWeight: '500' as any, flex: 1 }, navTextActive: { color: COR.texto, fontWeight: '650' as any },
+  account: { minHeight: 67, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  accountRow: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingRight: 10 },
   accountPerfil: { flex: 1, minWidth: 0, borderTopWidth: 0, borderRadius: 8, marginLeft: 4, paddingHorizontal: 10 },
   accountDefinicoes: { width: 34, height: 34, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }, avatar: { width: 31, height: 31, borderRadius: RAIO.cartao, backgroundColor: COR.metalEscuro, alignItems: 'center', justifyContent: 'center' }, avatarText: { fontFamily: FONT.body, color: COR.texto, fontSize: 12, fontWeight: '800' }, accountName: { fontFamily: FONT.body, color: COR.texto, fontSize: 12, fontWeight: '650' as any }, accountEmail: { fontFamily: FONT.mono, color: COR.textoFraco, fontSize: 10, marginTop: 2 }, content: { flex: 1, minWidth: 0, overflow: 'hidden' } as any,
   auth: { flex: 1, backgroundColor: 'transparent', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, authGlow: { position: 'absolute', width: 900, height: 900, borderRadius: 450, backgroundColor: 'rgba(233,234,238,.045)', top: -480 }, authCard: { width: 440, maxWidth: 'calc(100vw - 48px)' as any, padding: ESP.xxl, borderRadius: RAIO.superficie, backgroundColor: COR.painel, borderWidth: 1, borderColor: COR.linha, boxShadow: '0 30px 100px rgba(0,0,0,.55)' } as any, authLogo: { flexDirection: 'row', gap: 5, marginBottom: 25 }, authTitle: { ...TIPO.titulo, color: COR.texto, fontSize: 28, fontWeight: '700' as any }, authBody: { ...TIPO.corpo, color: COR.textoMedio, lineHeight: 21, marginTop: ESP.sm, marginBottom: ESP.xl }, segment: { height: 38, padding: 3, borderRadius: 8, backgroundColor: COR.fundo, flexDirection: 'row', marginBottom: 18 }, segmentItem: { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: RAIO.ctrl }, segmentActive: ESTADO.escolhido, segmentText: { fontFamily: FONT.body, color: COR.texto, fontSize: 12, fontWeight: '600' }, error: { fontFamily: FONT.body, color: '#FF858A', fontSize: 12, lineHeight: 17 }, authFoot: { fontFamily: FONT.mono, color: COR.textoFraco, fontSize: 10, marginTop: 20 },
@@ -121,11 +126,11 @@ export const styles = StyleSheet.create({
   definicoesPainel: { flex: 1, minWidth: 0 },
   settingsGrid: { flexDirection: 'column', alignItems: 'stretch', gap: ESP.lg, maxWidth: 720 }, settingsCard: { width: '100%' as any, maxWidth: 720, borderRadius: RAIO.cartao, borderWidth: 1, borderColor: COR.linha, backgroundColor: COR.painel, overflow: 'hidden' }, settingsCardTitle: { height: 53, paddingHorizontal: 17, flexDirection: 'row', alignItems: 'center', gap: 9, borderBottomWidth: 1, borderBottomColor: COR.linha }, settingLine: { minHeight: 52, paddingHorizontal: 17, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COR.linha, flexDirection: 'row', alignItems: 'center', gap: 12 }, settingHover: { backgroundColor: COR.hover }, settingLabel: { ...TIPO.corpo, color: COR.texto, fontWeight: '600' as any }, settingValue: { fontFamily: FONT.body, color: COR.textoMedio, fontSize: 12, textAlign: 'right', maxWidth: 230 }, settingDescription: { fontFamily: FONT.body, color: COR.textoMedio, fontSize: 12, lineHeight: 17, marginTop: 3 }, smallSegment: { padding: 3, backgroundColor: COR.fundo, borderRadius: RAIO.cartao, flexDirection: 'row' }, smallSegmentItem: { minHeight: 30, paddingHorizontal: 10, borderRadius: RAIO.ctrl, alignItems: 'center', justifyContent: 'center' }, smallSegmentActive: ESTADO.escolhido, smallSegmentText: { fontFamily: FONT.mono, color: COR.textoFraco, fontSize: 11 },
   player: {
+    // Sem linha por cima (9/11): a lista da página desvanece antes de lhe chegar
+    // (`rolo-da-pagina`). Os 24 px de lado são os 8 de margem e os 16 de antes.
     height: 72, backgroundColor: 'transparent',
-    borderTopWidth: 1, borderTopColor: COR.linhaSuave,
-    marginLeft: ESP.sm, marginRight: ESP.sm,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: ESP.lg, zIndex: 25,
+    paddingHorizontal: ESP.xl, zIndex: 25,
   }, playerTrack: { width: '30%', minWidth: 210, maxWidth: 390, flexDirection: 'row', alignItems: 'center', gap: ESP.xs }, playerTrackLink: { maxWidth: '100%', minWidth: 0, flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: ESP.md }, playerSave: { flexShrink: 0 }, playerTitle: { ...TIPO.corpo, color: COR.texto, fontWeight: '600' as any, minWidth: 0, flexShrink: 1 }, playerArtista: { ...TIPO.corpo, fontSize: 12, color: COR.textoMedio, marginTop: 1 }, playerCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', maxWidth: 760 }, playerControls: { flexDirection: 'row', alignItems: 'center', gap: 6 }, playButton: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginHorizontal: 5 }, progressRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 3 }, timeText: { ...TIPO.numero, width: 42, color: COR.textoFraco, fontSize: 11, textAlign: 'center' }, progressHit: { flex: 1, height: 14, justifyContent: 'center', cursor: 'pointer' } as any, progressTrack: { height: 3, backgroundColor: '#353540', borderRadius: 2, overflow: 'hidden' }, progressFill: { height: 3, backgroundColor: COR.texto, borderRadius: 2 }, marcaDoRefraoRotulo: { fontFamily: FONT.body, fontSize: 11, color: COR.textoMedio }, playerRight: { width: '30%', minWidth: 120, maxWidth: 390, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' }, playerError: { fontFamily: FONT.body, color: COR.erro, fontSize: 10, maxWidth: 220 },
   volumeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginRight: 16 }, volumeHit: { width: 90, height: 14, justifyContent: 'center', cursor: 'pointer' } as any, volumeTrack: { height: 8, backgroundColor: '#353540', overflow: 'hidden' }, volumeFill: { height: 8, backgroundColor: '#A09DA9' },
 

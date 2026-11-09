@@ -229,7 +229,7 @@ export function Page({ title, subtitle, eyebrow, action, lavagem, children }: {
   // desaparecer pelo topo (preview de 20/9). O conteúdo ganha o espaço.
   const [rolado, setRolado] = useState(false);
   return <View style={ui.page}>
-    {lavagem ? <View pointerEvents="none" aria-hidden style={[ui.lavagem, { backgroundImage: `linear-gradient(180deg, ${lavagem}, rgba(6,6,8,0))` } as any]} /> : null}
+    {lavagem ? <View {...marcar('lavagem')} pointerEvents="none" aria-hidden style={[ui.lavagem, { backgroundImage: `linear-gradient(180deg, ${lavagem}, rgba(6,6,8,0))` } as any]} /> : null}
     {/* O cabeçalho entra por blocos, como as prateleiras (30/10). */}
     <View {...marcar('bloco')} style={[ui.pageHeader, rolado && ui.pageHeaderCurto]}>
       <View style={{ flex: 1 }}>
@@ -278,6 +278,7 @@ export function ContentScroll({ children, scrollKey, aoChegarAoFim }: {
   };
   return <ScrollView
     ref={ref}
+    {...marcar('rolo-da-pagina')}
     style={{ flex: 1 }}
     contentContainerStyle={ui.scrollContent}
     scrollEventThrottle={100}
@@ -895,7 +896,7 @@ function ArtistaDaLinha({ track }: { track: Track }) {
   const nome = displayArtist(track);
   const temArtista = !!nome && nome !== 'Unknown artist';
   const { irPara } = useDestinos();
-  return <View style={[ui.colunaDoArtista, { paddingHorizontal: ESP.sm }]}>
+  return <View style={ui.colunaDoArtista}>
     {temArtista
       ? <P accessibilityRole="link" accessibilityLabel={`View ${nome}`} style={{ alignSelf: 'flex-start', maxWidth: '100%' } as any}
           onPress={() => irPara({ tipo: 'artista', nome })}>
@@ -1245,7 +1246,7 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
     <View style={[ui.tableHeader, plain && ui.tableHeaderPlain]}>
       <Text numberOfLines={1} style={[ui.colHead, { width: 40, textAlign: 'center' }]}>#</Text>
       <CabecaDeColuna rotulo="Title" estilo={[ui.colunaDoTitulo, { paddingLeft: ESP.sm }]} ativa={ordenacao?.modo === 'title'} aoOrdenar={ordenarPor('title')} />
-      {comArtista && <CabecaDeColuna rotulo="Artist" estilo={[ui.colunaDoArtista, { paddingHorizontal: ESP.sm }]} ativa={ordenacao?.modo === 'artist'} aoOrdenar={ordenarPor('artist')} />}
+      {comArtista && <CabecaDeColuna rotulo="Artist" estilo={ui.colunaDoArtista} ativa={ordenacao?.modo === 'artist'} aoOrdenar={ordenarPor('artist')} />}
       {caraDaLinha && <View style={{ width: larguraDaCara }} />}
       {showTime && <CabecaDeColuna rotulo="Duration" estilo={{ width: LARGURA_DURACAO, paddingHorizontal: ESP.sm }} alinhar="right" ativa={ordenacao?.modo === 'duration'} aoOrdenar={ordenarPor('duration')} />}
       <View style={{ width: 42 }} />
@@ -1590,7 +1591,10 @@ export const ui = StyleSheet.create({
   // título curto e o artista abria-se um buraco. O que sobra fica depois do
   // artista, antes da duração, como nas outras apps.
   colunaDoTitulo: { flex: 1, minWidth: 0, maxWidth: 560 },
-  colunaDoArtista: { flex: 0.6, minWidth: 0 },
+  // 24 px à esquerda (9/11): com a fila aberta a tabela estreita, e o título cortado
+  // ficava a 16 px do artista, a ler-se como uma linha só. Agora são 32 (os 8 da
+  // célula do título e estes). Na cabeça e nas linhas, que ficam alinhadas.
+  colunaDoArtista: { flex: 0.6, minWidth: 0, paddingLeft: ESP.xl, paddingRight: ESP.sm },
   trackHover: { backgroundColor: COR.hover },
   trackIndex: { ...TIPO.numero, color: COR.textoFraco, textAlign: 'center' },
   /** O lugar onde o número, o ▶ e as barrinhas se sobrepõem. */
