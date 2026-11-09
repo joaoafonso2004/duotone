@@ -125,6 +125,23 @@ export interface Leitura {
 
 const nomeDaLinha = (l: LinhaDaPlaylist) => `${l.artist} - ${l.title}`;
 
+/**
+ * Uma das que faltaram, encontrada à mão (9/11, o João: "não havia uma maneira
+ * rápida de procurar cada música"): sai da lista e passa a contar como
+ * adicionada. Com o mesmo nome duas vezes, sai uma só.
+ */
+export function semAFalta(r: Resultado, nome: string): Resultado {
+  const faltaram = r.faltaram ?? [];
+  const i = faltaram.indexOf(nome);
+  if (i < 0) return r;
+  return {
+    ...r,
+    faltaram: [...faltaram.slice(0, i), ...faltaram.slice(i + 1)],
+    adicionadas: r.adicionadas + 1,
+    deFora: Math.max(0, r.deFora - 1),
+  };
+}
+
 /** As linhas de uma playlist lida, cortadas ao máximo por importação. */
 export function leituraDasLinhas(origem: Leitura['origem'], p: PlaylistLida, limiteDoSitio: number | null): Leitura {
   const linhas = p.faixas.slice(0, MAXIMO_POR_IMPORTACAO);

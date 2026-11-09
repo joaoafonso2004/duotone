@@ -14,8 +14,8 @@ import {
 import { lerLinhaDeTexto, lerListaDeMusicas } from '../src/lib/listaDeMusicas.ts';
 import { entradaDaImportacao, notaDoCorte } from '../src/lib/entradaDaImportacao.ts';
 import {
-  importarLeitura, importarLinhas, leituraDasLinhas, lerPlaylist, MAXIMO_POR_IMPORTACAO,
-  type Dependencias, type FaixaImportada,
+  importarLeitura, importarLinhas, leituraDasLinhas, lerPlaylist, MAXIMO_POR_IMPORTACAO, semAFalta,
+  type Dependencias, type FaixaImportada, type Resultado,
 } from '../src/lib/importacaoPorLink.ts';
 import { frasesDaImportacao } from '../src/lib/frasesDaImportacao.ts';
 
@@ -237,6 +237,37 @@ await caso('as que faltaram veem-se nas duas barras, e a barra não sai sozinha 
     assert.match(b, /if \(!imp \|\| !acabou \|\| faltaram\.length\) return;/, f);
     assert.match(b, /See the songs not found/, f);
   }
+});
+
+console.log('\nas que faltaram, procuradas à mão (9/11)');
+await caso('uma encontrada sai da lista e passa a contar como adicionada', () => {
+  const r: Resultado = { nome: 'P', playlistId: 'p1', adicionadas: 82, deFora: 18, cortada: false, faltaram: ['A - a', 'B - b', 'A - a'], destino: 'playlist' };
+  const depois = semAFalta(r, 'A - a');
+  assert.deepEqual({ ad: depois.adicionadas, fora: depois.deFora, faltaram: depois.faltaram }, { ad: 83, fora: 17, faltaram: ['B - b', 'A - a'] }, 'com o mesmo nome duas vezes, sai uma só');
+  assert.equal(semAFalta(r, 'Z - z'), r, 'um nome que não está fica tudo igual');
+  assert.deepEqual(r.faltaram, ['A - a', 'B - b', 'A - a'], 'não mexe no resultado de antes');
+  assert.equal(semAFalta({ ...r, deFora: 0 }, 'B - b').deFora, 0, 'nunca abaixo de zero');
+});
+await caso('a loja põe-na no destino (a playlist criada ou as Liked Songs) e tira-a da lista', () => {
+  const loja = ler('src/state/importacoes.ts');
+  assert.match(loja, /resolverFalta: async \(id, nome, faixa\) => \{/);
+  assert.match(loja, /if \(r\.destino === 'gostadas'\) \{\n\s+await dependenciasReais\.guardarNasGostadas!\(\[f\]\);/);
+  assert.match(loja, /await dependenciasReais\.adicionar\(r\.playlistId, \[f\]\);/);
+  assert.match(loja, /if \(agora\) mudar\(id, \{ resultado: semAFalta\(agora, nome\) \}\);/);
+});
+await caso('PC: cada uma é um botão que pesquisa ali mesmo, com ▶ e +, e a seguinte abre-se no lugar', () => {
+  const b = ler('src/desktop/ProgressoDaImportacao.web.tsx');
+  assert.match(b, /<FaltasDaImportacao imp=\{imp\} faltaram=\{faltaram\} \/>/);
+  assert.match(b, /accessibilityRole="button" accessibilityLabel=\{`Search for \$\{n\}`\}/);
+  assert.match(b, /onPress=\{\(\) => setAberta\(i\)\}/);
+  assert.match(b, /useMusicSearch\(texto, \(\) => \{\}\)/, 'a mesma pesquisa da página Search');
+  assert.match(b, /useEffect\(\(\) => \{ pesquisarAgora\(\); \}, \[\]\);/, 'a primeira vai já');
+  assert.match(b, /<Field icon="search" value=\{texto\} onChangeText=\{setTexto\}/, 'o nome corrige-se');
+  assert.match(b, /await useImportacoes\.getState\(\)\.resolverFalta\(imp\.id, nome, faixa\);/);
+  assert.match(b, /label=\{`Play \$\{titulo\}`\} onPress=\{\(\) => void usePlayer\.getState\(\)\.tocarLista\(\[faixa\], false\)\}/);
+  // A aberta fica no mesmo índice: quando a dela sai, a seguinte ocupa-o e pesquisa.
+  assert.match(b, /key=\{`\$\{i\}:\$\{n\}`\} imp=\{imp\} nome=\{n\}/);
+  assert.match(b, /if \(verFaltas && !faltaram\.length\) setVerFaltas\(false\);/, 'a última fecha a lista');
 });
 
 console.log(falhas ? `\n  ${falhas} falha(s)` : '\n  Importar de qualquer sítio: todos os casos passaram.');

@@ -1,9 +1,10 @@
 import { create } from 'zustand';
 import { dependenciasReais } from '../api/playlistPorLink';
 import {
-  ErroDaImportacao, importarLeitura, importarLinhas, lerPlaylist,
+  ErroDaImportacao, importarLeitura, importarLinhas, lerPlaylist, semAFalta,
   type Destino, type FaixaImportada, type Leitura, type Progresso, type Resultado,
 } from '../lib/importacaoPorLink';
+import type { Track } from '../types';
 import type { LinhaDaPlaylist } from '../lib/linkDePlaylist';
 import { useSaved } from './saved';
 import { lerLink } from '../lib/linkDePlaylist';
@@ -45,6 +46,11 @@ interface Estado {
   /** Uma playlist ou lista já lida no ecrã de importar, para o destino escolhido. */
   importarLida: (l: Leitura, destino: Destino) => void;
   dispensar: (id: string) => void;
+  /**
+   * Uma das que faltaram, escolhida à mão na lista "Not found" (9/11): entra no
+   * destino da importação (a playlist criada, ou as Liked Songs) e sai da lista.
+   */
+  resolverFalta: (id: string, nome: string, faixa: Track) => Promise<void>;
 }
 
 let contador = 0;
@@ -126,6 +132,22 @@ export const useImportacoes = create<Estado>((set, get) => {
       void correr();
     },
     dispensar: (id) => set({ lista: get().lista.filter((i) => i.id !== id) }),
+    resolverFalta: async (id, nome, faixa) => {
+      const r = get().lista.find((i) => i.id === id)?.resultado;
+      if (!r) return;
+      const f = faixa as unknown as FaixaImportada;
+      if (r.destino === 'gostadas') {
+        await dependenciasReais.guardarNasGostadas!([f]);
+        void useSaved.getState().refresh();
+      } else {
+        if (!r.playlistId) throw new Error('A importação não criou playlist.');
+        await dependenciasReais.adicionar(r.playlistId, [f]);
+        void usePlaylists.getState().carregar(true);
+      }
+      // Lida outra vez: entretanto pode ter saído outra da lista.
+      const agora = get().lista.find((i) => i.id === id)?.resultado;
+      if (agora) mudar(id, { resultado: semAFalta(agora, nome) });
+    },
   };
 });
 
