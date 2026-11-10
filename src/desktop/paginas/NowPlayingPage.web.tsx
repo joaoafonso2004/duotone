@@ -32,6 +32,7 @@ import type { CommonPageProps, NavegarFn, ShareTarget } from '../rotas';
 import type { Track } from '../../types';
 import { CoracaoAnimado } from '../../components/CoracaoAnimado';
 import { useCoracaoAoCarregar } from '../../hooks/useCoracaoAoCarregar';
+import { useCorDoAmbiente } from '../../hooks/useCorDoAmbiente';
 import { displayArtist, tituloDaFaixa } from '../../lib/artistName';
 import { comCatalogo, garantirCatalogo, useCatalogoDeFaixas } from '../../state/catalogoDeFaixas';
 
@@ -224,6 +225,8 @@ export function NowPlayingPage({
   // nas dependências para o ecrã redesenhar quando a resposta chegar.
   const versaoDoCatalogo = useCatalogoDeFaixas((s) => s.versao);
   const track = useMemo(() => (current ? comCatalogo(current) : current), [current, versaoDoCatalogo]);
+  // A cor da capa lava o topo do equalizador (10/11); so se le com ele aberto.
+  const corDoEq = useCorDoAmbiente(eqAberto ? track?.artworkUrl : null);
   // A foto do artista para o fundo, com "Now Playing background: Artist photo"
   // (5/11). Sem ela (a de origem, ou um artista sem foto), a capa desfocada.
   const fotoDoFundo = useFotoDoFundo(track);
@@ -554,7 +557,7 @@ export function NowPlayingPage({
           </View>
         </ScrollView>
       )}
-      <Dialog open={eqAberto} title="Equaliser" onClose={() => setEqAberto(false)} width={560} semVeu>
+      <Dialog open={eqAberto} title="Equaliser" onClose={() => setEqAberto(false)} width={580} semVeu lavagem={corDoEq}>
         <PainelEqualizador
           ganhos={eqGanhos}
           aoMudarGanhos={setEqGanhos}

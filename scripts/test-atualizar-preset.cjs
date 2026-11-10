@@ -80,6 +80,7 @@ for (const plataforma of ['ios', 'windows']) {
   });
   const desktop = carregar('src/desktop/PainelEqualizador.web.tsx', {
     ...comuns, '../components/AdjustmentSyncStatus': { AdjustmentSyncStatus: 'Sync' }, '../components/SelectionPill': { SelectionPill: 'SelectionPill' },
+    '../state/trackAdjustments': { useAdjustmentSync: (f) => f({ status: 'saved' }) }, '../state/connectivity': { useConnectivity: (f) => f({ offline: false }) },
     './RecomendadoDoEq.web': { EscolhaDoModelo: 'Modelo', LinhaDoRecomendado: 'Recomendado' }, './BarraVelocidade.web': { BarraVelocidade: 'Velocidade' },
     './tokens.web': { COR: {}, ESP: {}, ESTADO: {}, RAIO: {}, TIPO: {} }, './ui.web': { Button: 'Button', Field: 'Input', ui: {} },
   });
@@ -140,7 +141,7 @@ for (const plataforma of ['ios', 'windows']) {
   escolher('Other');
   mudarBanda(novos);
   const antesDaTroca = memoria['u-outro'];
-  const saveAs = todos(desenhar()).find(n => n.type === equalizador.BotaoGuardarPreset || n.props?.rotulo === 'SAVE AS PRESET');
+  const saveAs = todos(desenhar()).find(n => n.type === equalizador.BotaoGuardarPreset || n.props?.rotulo === 'Save as preset');
   assert.ok(saveAs, 'continua a haver Save as preset');
   (saveAs.props.aoGuardar ?? saveAs.props.aoPremir)();
   todos(desenhar()).find(n => n.type === 'Input').props.onChangeText('Copy');

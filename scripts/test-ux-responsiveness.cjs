@@ -75,7 +75,7 @@ const camadas=acessibilidade.criarPilhaDeCamadas();
 let menuAberto=null;
 const tecla=(key,extra={})=>({key,preventDefault(){this.defaultPrevented=true;},...extra});
 const scope={exports:{},React,useEffect:fn=>{remove=fn();},useRef:current=>({current}),window:{addEventListener:(_k,fn)=>keydown=fn,removeEventListener:()=>keydown=null},
-  View:'View',P:'Pressable',Text:'Text',IconButton:'IconButton',StyleSheet:{absoluteFill:{}},ui:{},marcar:()=>({}),
+  View:'View',P:'Pressable',Text:'Text',IconButton:'IconButton',StyleSheet:{absoluteFill:{}},ui:{},marcar:()=>({}),NoDialogo:{Provider:'NoDialogo'},
   camadas,focoAoTab:acessibilidade.focoAoTab,focaveisDentro:()=>[],requestAnimationFrame:()=>1,cancelAnimationFrame(){},document:{activeElement:null,querySelector:()=>menuAberto}};
 vm.runInNewContext(code,scope);
 const dialog=scope.exports.Dialog({open:true,title:'Share track',children:'recipients',onClose:()=>closes++});

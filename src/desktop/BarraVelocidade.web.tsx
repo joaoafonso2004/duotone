@@ -34,9 +34,12 @@ const V = View as any;
 export function BarraVelocidade({
   valor,
   aoMudar,
+  rotulo,
 }: {
   valor: number;
   aoMudar: (v: number) => void;
+  /** O nome à esquerda da barra ("Speed"), quando não há um título por cima. */
+  rotulo?: string;
 }) {
   const trilho = useRef<any>(null);
   const actual = arredondar(valor);
@@ -74,6 +77,7 @@ export function BarraVelocidade({
   return (
     <View style={{ gap: ESP.sm }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESP.md }}>
+        {rotulo ? <Text style={{ ...TIPO.corpo, fontSize: 13, fontWeight: '600', color: COR.textoMedio, width: 48 } as any}>{rotulo}</Text> : null}
         <V
           role="slider"
           aria-label="Playback speed"
@@ -95,13 +99,14 @@ export function BarraVelocidade({
           {...marcar('calha')}
           style={{ flex: 1, height: 22, justifyContent: 'center', cursor: 'pointer' } as any}
         >
-          <View style={{ height: 3, backgroundColor: COR.elevado, borderRadius: RAIO.pilula, overflow: 'hidden' }}>
+          <View style={{ height: 4, backgroundColor: 'rgba(233,234,238,0.08)', borderRadius: RAIO.pilula, overflow: 'hidden' }}>
             <V
               {...marcar('cheio')}
-              style={{ height: 3, width: `${fraccao * 100}%`, backgroundColor: COR.texto, borderRadius: RAIO.pilula }}
+              style={{ height: 4, width: `${fraccao * 100}%`, backgroundColor: COR.texto, borderRadius: RAIO.pilula }}
             />
           </View>
-          <V {...marcar('pega')} style={{ left: `${fraccao * 100}%` }} />
+          <V pointerEvents="none" style={{ position: 'absolute', top: '50%', left: `${fraccao * 100}%`, width: 16, height: 16, marginTop: -8, marginLeft: -8,
+            borderRadius: 8, zIndex: 1, backgroundImage: 'radial-gradient(circle at 35% 30%, #fff, #C9CBD1 60%, #8E9199)', boxShadow: '0 3px 10px rgba(0,0,0,.6)' }} />
           {/* A marca do 1x: sem ela nao se encontra o normal a olho. */}
           <V
               pointerEvents="none"
@@ -132,7 +137,7 @@ export function BarraVelocidade({
                 hovered && { backgroundColor: ESTADO.hover },
               ]}
             >
-              <Text style={[TIPO.micro, { color: COR.textoFraco }]}>RESET</Text>
+              <Text style={{ ...TIPO.corpo, fontSize: 13, fontWeight: '600', color: COR.textoMedio } as any}>Reset</Text>
             </Pressable>
           )}
         </View>

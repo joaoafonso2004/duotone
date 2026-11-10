@@ -17,7 +17,7 @@ import { acaoDoClique, alternar, escolhidasPorOrdem, intervalo, todas, type Esta
 import { destinoDaOrdem, posicaoDeInsercao, ROTULOS_DO_ARRASTO, topoDaInsercao } from '../lib/arrastar';
 import type { DiscoveryContext } from '../lib/contextoDaDescoberta';
 import type { OrigemDaFila } from '../lib/origemDaFila';
-import { COR, ESP, ESTADO, FONT, LINHA_LISTA, RAIO, TIPO } from './tokens.web';
+import { flutuante, RAIO_FLUTUANTE, COR, ESP, ESTADO, FONT, LINHA_LISTA, RAIO, TIPO } from './tokens.web';
 import { isShowTrackDurationSync } from '../lib/prefs';
 import { capaComBarras, molduraSemBarras } from '../lib/modoLimpo';
 import { pertoDoFim } from '../lib/grelhaQueCresce';
@@ -165,9 +165,12 @@ export function Button({ children, onPress, icon, iconNode, secondary = false, d
   marcado?: boolean;
 }) {
   const corDoTexto = danger ? COR.erro : secondary ? COR.texto : COR.fundo;
+  const noDialogo = useContext(NoDialogo);
   return <P {...marcar('premir')} accessibilityRole="button" accessibilityState={{ disabled: disabled || ocupado, busy: ocupado }}
     disabled={disabled || ocupado} onPress={onPress} style={({ hovered, pressed, focused }: any) => [
-    ui.button, secondary && ui.buttonSecondary, marcado && ui.buttonMarcado, danger && ui.buttonDanger, (hovered || focused) && !ocupado && ui.buttonHover,
+    ui.button, secondary && ui.buttonSecondary, marcado && ui.buttonMarcado, danger && ui.buttonDanger,
+    noDialogo && ui.buttonNoDialogo, noDialogo && secondary && !marcado && !danger && ui.buttonSecNoDialogo, noDialogo && danger && ui.buttonDangerNoDialogo,
+    (hovered || focused) && !ocupado && ui.buttonHover,
     pressed && ui.pressed, disabled && !ocupado && ui.disabled, ocupado && ui.ocupado,
     brilho && { overflow: 'hidden' as const },
   ]}>{brilho ? <BrilhoInteligente /> : null}{ocupado ? <ActivityIndicator size={16} color={corDoTexto} /> : iconNode ?? (icon && <Ionicons name={icon} size={16} color={corDoTexto} />)}<Text style={[ui.buttonText, secondary && ui.buttonTextSec, danger && ui.buttonTextDanger]}>{children}</Text></P>;
@@ -193,7 +196,8 @@ export const Field = React.forwardRef<any, React.ComponentProps<typeof TextInput
   // So nas lupas: um X num campo de mensagem nao quer dizer nada, e este
   // componente serve os dois. Aparece so quando ha o que limpar.
   const limpavel = icon === 'search' && !!rest.value && !!(rest as any).onChangeText;
-  return <View style={[ui.fieldWrap, pilula && ui.fieldPilula]} {...marcar('campo')}>{icon && <Ionicons name={icon} size={18} color={COR.textoFraco} />}<TextInput
+  const noDialogo = useContext(NoDialogo);
+  return <View style={[ui.fieldWrap, pilula && ui.fieldPilula, noDialogo && !pilula && ui.fieldNoDialogo]} {...marcar('campo')}>{icon && <Ionicons name={icon} size={18} color={COR.textoFraco} />}<TextInput
     ref={ref} placeholderTextColor={COR.textoFraco} selectionColor={COR.metalClaro} onSubmitEditing={onSubmitEditing} {...(rest as any)} onKeyPress={handleKeyDown} style={[ui.field, style]} />
     {atalho && !rest.value ? <Text style={ui.fieldAtalho} accessibilityElementsHidden importantForAccessibility="no">{atalho}</Text> : null}
     {limpavel && <P accessibilityRole="button" accessibilityLabel="Clear search"
@@ -1463,7 +1467,7 @@ const estiloDoSalto = StyleSheet.create({
   // Altura zero e presa 56 px acima do fundo da janela: a pílula sobe a partir daí.
   preso: { height: 0, alignItems: 'center', position: 'sticky', bottom: 56, zIndex: 5 } as any,
   pilula: { position: 'absolute', bottom: 0, flexDirection: 'row', alignItems: 'center', gap: 8, height: 34, paddingHorizontal: 14,
-    maxWidth: 420, borderRadius: 17, borderWidth: 1, borderColor: COR.linha, backgroundColor: COR.elevado, boxShadow: '0 8px 24px rgba(0,0,0,.45)' } as any,
+    maxWidth: 420, ...flutuante(17) } as any,
   texto: { ...TIPO.legenda, color: COR.texto, fontWeight: '600', flexShrink: 1 },
 });
 
@@ -1491,7 +1495,14 @@ function focaveisDentro(caixa: HTMLElement): HTMLElement[] {
  * fechar. O Escape fecha SÓ o de cima -- e nem esse, se um menu está aberto por
  * cima dele (o `MenuDeContexto` fecha-se com a mesma tecla).
  */
-export function Dialog({ open, title, children, onClose, width = 460, semVeu = false }: { open: boolean; title: string; children: ReactNode; onClose: () => void; width?: number; semVeu?: boolean }) {
+/** Dentro de um diálogo? O `Button` e o `Field` desenham-se de outra maneira lá dentro (10/11). */
+const NoDialogo = createContext(false);
+
+export function Dialog({ open, title, children, onClose, width = 460, semVeu = false, lavagem = null }: {
+  open: boolean; title: string; children: ReactNode; onClose: () => void; width?: number; semVeu?: boolean;
+  /** Uma cor (a da capa) a lavar o topo da caixa. */
+  lavagem?: string | null;
+}) {
   const caixa = useRef<any>(null);
   // As páginas passam o `onClose` em linha; o ouvinte fica o mesmo enquanto
   // o diálogo está aberto, e a camada não sai da pilha a cada render.
@@ -1541,8 +1552,9 @@ export function Dialog({ open, title, children, onClose, width = 460, semVeu = f
     <P style={StyleSheet.absoluteFill} onPress={onClose} focusable={false} aria-hidden />
     <View ref={caixa} role="dialog" aria-modal aria-label={title} tabIndex={-1}
       style={[ui.dialog, { width, maxWidth: 'calc(100vw - 48px)' as any }]} {...marcar('dialogo')}>
-      <View style={ui.dialogHeader}><Text style={ui.dialogTitle}>{title}</Text><IconButton name="close" label="Close dialog" atalho="Esc" onPress={onClose} /></View>
-      {children}
+      {lavagem ? <View aria-hidden style={[ui.dialogLavagem, { backgroundImage: `radial-gradient(520px 240px at 30% -40px, ${lavagem}, transparent 70%)`, opacity: 0.6 } as any]} /> : null}
+      <View style={ui.dialogHeader}><Text style={ui.dialogTitle}>{title}</Text><View style={ui.dialogFechar}><IconButton name="close" label="Close dialog" atalho="Esc" onPress={onClose} /></View></View>
+      <NoDialogo.Provider value>{children}</NoDialogo.Provider>
     </View>
   </View>;
 }
@@ -1685,9 +1697,19 @@ export const ui = StyleSheet.create({
   artFallback: { borderRadius: RAIO.ctrl, backgroundColor: COR.elevado, alignItems: 'center', justifyContent: 'center' },
 
   dialogLayer: { position: 'absolute', inset: 0, zIndex: 100, backgroundColor: 'rgba(3,3,4,.72)', alignItems: 'center', justifyContent: 'center' } as any,
-  dialog: { padding: ESP.xl, borderRadius: RAIO.superficie, backgroundColor: COR.painel, borderWidth: 1, borderColor: COR.linha, boxShadow: '0 28px 90px rgba(0,0,0,.7)' } as any,
-  dialogHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: ESP.lg },
-  dialogTitle: { flex: 1, ...TIPO.seccao, color: COR.texto },
+  // A caixa de todos os diálogos (10/11): sem fio, com a luz em cima (`flutuante`).
+  dialog: { paddingTop: 28, paddingHorizontal: 30, paddingBottom: 24, overflow: 'hidden', ...flutuante(RAIO_FLUTUANTE.dialogo, true) } as any,
+  dialogHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 18 },
+  dialogTitle: { flex: 1, fontFamily: FONT.display, fontSize: 21, fontWeight: '650' as any, letterSpacing: -0.3, color: COR.texto },
+  // O fechar é um disco discreto, e não um ícone solto ao canto.
+  dialogFechar: { width: 34, height: 34, borderRadius: 17, backgroundColor: ESTADO.hover, marginTop: -4, marginRight: -6, overflow: 'hidden' },
+  // A cor da capa a lavar o topo da caixa, como lava a janela (o equalizador).
+  dialogLavagem: { position: 'absolute', left: 0, right: 0, top: 0, height: 240, pointerEvents: 'none' } as any,
+  // Dentro de um diálogo os botões são pílulas: o "Cancel" sem contorno, o destrutivo com fundo.
+  buttonNoDialogo: { borderRadius: RAIO.pilula, minHeight: 36 },
+  buttonSecNoDialogo: { backgroundColor: ESTADO.hover, borderColor: 'transparent' },
+  buttonDangerNoDialogo: { backgroundColor: 'rgba(190,95,98,.16)', borderColor: 'rgba(190,95,98,.38)' },
+  fieldNoDialogo: { height: 46, borderRadius: 12, borderColor: 'transparent', backgroundColor: 'rgba(233,234,238,0.06)' },
 
   shelfTitle: { ...TIPO.titulo, color: COR.texto },
   shelfNota: { ...TIPO.legenda, color: COR.textoFraco },
@@ -1750,6 +1772,6 @@ export const ui = StyleSheet.create({
   shelfCardTitle: { ...TIPO.corpo, color: COR.texto, fontWeight: '500' as any, marginTop: ESP.sm },
   shelfCardArtista: { ...TIPO.legenda, color: COR.textoMedio },
 
-  toast: { position: 'absolute', right: ESP.xl, bottom: 110, zIndex: 110, minHeight: 42, paddingHorizontal: ESP.lg, borderRadius: RAIO.cartao, backgroundColor: COR.elevado, borderWidth: 1, borderColor: COR.linha, flexDirection: 'row', alignItems: 'center', gap: ESP.sm, boxShadow: '0 12px 34px rgba(0,0,0,.5)', overflow: 'hidden' } as any,
+  toast: { position: 'absolute', right: ESP.xl, bottom: 110, zIndex: 110, minHeight: 42, paddingHorizontal: ESP.lg, flexDirection: 'row', alignItems: 'center', gap: ESP.sm, ...flutuante(RAIO_FLUTUANTE.aviso), overflow: 'hidden' } as any,
   toastText: { ...TIPO.legenda, color: COR.texto },
 });

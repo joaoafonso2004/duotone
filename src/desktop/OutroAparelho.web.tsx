@@ -9,7 +9,7 @@ import { continuarAqui, usePosicaoDoOutro } from '../lib/sessionSync';
 import { abrirOutroAparelho, fecharOutroAparelho, useOutroAparelho } from '../state/outroAparelho';
 import { useTheme } from '../state/theme';
 import { styles } from './estilos.web';
-import { COR, ESP, ESTADO, FONT, RAIO, TIPO } from './tokens.web';
+import { COR, ESP, ESTADO, flutuante, FONT, RAIO, RAIO_FLUTUANTE, TIPO } from './tokens.web';
 import { Artwork } from './ui.web';
 
 const { createPortal } = require('react-dom') as { createPortal: (filho: React.ReactNode, onde: Element) => React.ReactElement };
@@ -153,8 +153,7 @@ function CartaoDoOutroAparelho({ sessao }: { sessao: RemoteSession }) {
       {/* Um clique fora fecha. */}
       <P accessibilityLabel="Close" onPress={fecharOutroAparelho} style={{ position: 'absolute', inset: 0, cursor: 'default' } as any} />
       <View accessibilityRole={'dialog' as any} accessibilityLabel={`Playing on ${nome}`}
-        style={{ position: 'absolute', right: lugar.right, bottom: lugar.bottom, width: 360, borderRadius: 12, backgroundColor: '#15151B',
-          borderWidth: 1, borderColor: COR.linha, boxShadow: '0 26px 60px rgba(0,0,0,.65)', overflow: 'hidden',
+        style={{ position: 'absolute', right: lugar.right, bottom: lugar.bottom, width: 360, ...flutuante(RAIO_FLUTUANTE.menu), overflow: 'hidden',
           animationName: 'dt-linha', animationDuration: '260ms', animationTimingFunction: 'var(--dt-curva)' } as any}>
         <Text style={[TIPO.seccao, { color: COR.texto, paddingHorizontal: ESP.lg, paddingTop: 14, paddingBottom: ESP.sm }]}>Playing on {nome}</Text>
         <View style={{ marginHorizontal: 10, marginBottom: 10, borderRadius: RAIO.cartao, padding: ESP.md, borderWidth: 1, borderColor: COR.linha, backgroundColor: 'rgba(233,234,238,0.03)' }}>

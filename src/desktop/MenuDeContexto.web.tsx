@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { posicaoDoMenu, posicaoDoSubmenu } from '../lib/menuDoAmigo';
-import { COR, FONT, RAIO, TIPO } from './tokens.web';
+import { COR, flutuante, FONT, RAIO, RAIO_FLUTUANTE, TIPO } from './tokens.web';
 import { marcar } from './ui.web';
 import { pausarAtalhosDaJanela } from './useAtalhosDaJanela.web';
 
@@ -63,8 +63,7 @@ const LARGURA = 280;
 const ESPERA_DO_SUBMENU = 150;
 
 const caixaDoMenu = {
-  position: 'fixed', padding: 6, borderRadius: 14, backgroundColor: '#18181F',
-  borderWidth: 1, borderColor: '#33333C', boxShadow: '0 16px 40px rgba(0,0,0,.55)',
+  position: 'fixed', padding: 6, ...flutuante(RAIO_FLUTUANTE.menu),
   maxHeight: 'calc(100vh - 16px)',
 } as const;
 

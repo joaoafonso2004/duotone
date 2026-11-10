@@ -190,7 +190,7 @@ caso('I5: a pesquisa da Home do iPhone tem "Cancel"', () => {
   assert.match(s, /\{isFocused \|\| query\.length > 0 \? \([\s\S]{0,300}Keyboard\.dismiss\(\); setQuery\(''\); setIsFocused\(false\);[\s\S]{0,120}>Cancel</);
 });
 caso('o EQ do PC não escurece o leitor por trás', () => {
-  assert.match(ler('src/desktop/paginas/NowPlayingPage.web.tsx'), /<Dialog open=\{eqAberto\} title="Equaliser"[\s\S]{0,120}width=\{560\} semVeu>/);
+  assert.match(ler('src/desktop/paginas/NowPlayingPage.web.tsx'), /<Dialog open=\{eqAberto\} title="Equaliser"[\s\S]{0,120}width=\{580\} semVeu /);
   assert.match(ler('src/desktop/ui.web.tsx'), /semVeu && \{ backgroundColor: 'transparent' \}/);
 });
 

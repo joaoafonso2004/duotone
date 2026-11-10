@@ -1,9 +1,11 @@
 import {AdjustmentSyncStatus} from '../components/AdjustmentSyncStatus';
+import { useAdjustmentSync } from '../state/trackAdjustments';
+import { useConnectivity } from '../state/connectivity';
 import {SelectionPill} from '../components/SelectionPill';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import {
-  BANDAS, ETIQUETAS_BANDAS, GANHO_MAXIMO, chaveDaFaixa, normalizar, PERFIS, PLANO, type Ganhos,
+  BANDAS, ETIQUETAS_BANDAS, GANHO_MAXIMO, chaveDaFaixa, normalizar, ondaDoEqualizador, PERFIS, PLANO, type Ganhos,
 } from '../lib/equalizer';
 import {
   criarPreset, limparNome, novoIdDePreset, podeGuardarComoPreset, presetDosGanhos, presetsVisiveis,
@@ -18,120 +20,145 @@ import { useSeguirAmigo } from '../state/seguirAmigo';
 import { useEdicaoDoPreset } from '../hooks/useEdicaoDoPreset';
 import { avisarFeito } from '../lib/avisoDeRemocao';
 import { COR, ESP, ESTADO, RAIO, TIPO } from './tokens.web';
-import { Button, Field, ui } from './ui.web';
+import { Button, Field } from './ui.web';
 
 /**
- * O painel do equalizador: perfis, dez bandas e a velocidade.
+ * O painel do equalizador: os presets, a curva das dez bandas e a velocidade,
+ * tudo numa vista só (10/11, opção B de `docs/menus-maquete.html`; o João:
+ * "tudo numa aba e não em abas separadas").
  *
- * Os deslizadores são VERTICAIS como em qualquer equalizador gráfico — é a
- * forma que diz "isto é uma curva de frequências" antes de se ler uma única
- * etiqueta. Um EQ em linhas horizontais lê-se como uma lista de definições.
+ * As dez bandas são UMA curva com dez puxadores, e não dez deslizadores: vê-se
+ * a forma do som de uma vez, e é a mesma onda que o iPhone já desenha
+ * (`ondaDoEqualizador`). Cada banda continua a ser um `slider` -- uma coluna
+ * inteira onde se arrasta na vertical, com as mesmas setas e o mesmo duplo
+ * clique --, por isso acertar meio dB custa o mesmo que custava.
  *
  * O que o painel NÃO faz é fingir. Quando o grafo não pega (sem faixa a tocar,
- * ou o iframe ainda a montar) diz-se isso em cima, em vez de mostrar
- * deslizadores bonitos que não mexem no som.
+ * ou o iframe ainda a montar) diz-se isso, em vez de mostrar uma curva bonita
+ * que não mexe no som.
  */
 
-const ALTURA = 132;
-export const pillPalette={fill:COR.metalSuave,text:COR.texto,muted:COR.textoMedio,border:COR.linhaSuave};
+/** A altura do gráfico, e a folga em cima e em baixo para o puxador não cortar. */
+const ALTURA = 190;
+const FOLGA = 16;
+const UTIL = ALTURA - FOLGA * 2;
+/** A largura do desenho (o SVG estica na horizontal; a altura é a verdadeira). */
+const LARGURA_DO_DESENHO = 1000;
+// O escolhido usa o estado "ligado" do resto da app (o metal a 12 % com a aresta);
+// os outros não têm contorno.
+export const pillPalette={fill:COR.metalSuave,text:COR.texto,muted:COR.textoMedio,border:'transparent',selectedBorder:ESTADO.aresta};
+const METAL = 'radial-gradient(circle at 35% 30%, #fff, #C9CBD1 60%, #8E9199)';
+/** Uma ação em texto, como o Save e o Clear da fila. */
+const textoDeAcao = { ...TIPO.corpo, fontSize: 13, fontWeight: '600', color: COR.textoMedio } as any;
+const nomeDaBanda = (s: string) => s.charAt(0) + s.slice(1).toLowerCase();
+const comSinal = (v: number) => (v > 0 ? `+${v}` : String(v));
+/** A altura de um ganho no gráfico: +12 em cima, -12 em baixo. */
+const alturaDe = (v: number) => FOLGA + (1 - (v + GANHO_MAXIMO) / (GANHO_MAXIMO * 2)) * UTIL;
 
-function DeslizadorVertical({
-  valor,
-  etiqueta,
-  aoMudar,
-}: {
-  valor: number;
-  etiqueta: string;
-  aoMudar: (v: number) => void;
+function CurvaDoEqualizador({ ganhos, aoMudarBanda }: {
+  ganhos: readonly number[];
+  aoMudarBanda: (banda: number, valor: number) => void;
 }) {
-  const trilho = useRef<any>(null);
+  // A banda com o rato, o foco ou o arrasto: é a que mostra o valor.
+  const [ativa, setAtiva] = useState<number | null>(null);
+  const aArrastar = useRef<number | null>(null);
+  const mudar = useRef(aoMudarBanda);
+  mudar.current = aoMudarBanda;
 
-  const daPosicao = useCallback((clientY: number) => {
-    const el = trilho.current;
-    if (!el?.getBoundingClientRect) return;
-    const r = el.getBoundingClientRect();
-    if (!r.height) return;
-    // Em cima é +12, em baixo é −12.
-    const f = 1 - (clientY - r.top) / r.height;
-    aoMudar(Math.round((f * 2 - 1) * GANHO_MAXIMO * 2) / 2);
-  }, [aoMudar]);
+  const { linha, area } = useMemo(() => {
+    const y = ondaDoEqualizador(ganhos, LARGURA_DO_DESENHO, UTIL);
+    let d = '';
+    for (let x = 0; x <= LARGURA_DO_DESENHO; x += 8) d += `${x === 0 ? 'M' : 'L'}${x},${(FOLGA + y(x)).toFixed(1)} `;
+    const zero = alturaDe(0);
+    return { linha: d, area: `${d}L${LARGURA_DO_DESENHO},${zero} L0,${zero} Z` };
+  }, [ganhos]);
 
-  const arrastar = useCallback((e: any) => {
+  const arrastar = (e: any, banda: number) => {
     e.preventDefault?.();
-    trilho.current = e.currentTarget;
+    const r = e.currentTarget.getBoundingClientRect();
     const mover = (ev: any) => {
       const y = ev.clientY ?? ev.touches?.[0]?.clientY;
-      if (typeof y === 'number') daPosicao(y);
+      if (typeof y !== 'number') return;
+      const f = Math.max(0, Math.min(1, (y - r.top - FOLGA) / UTIL));
+      // Em cima é +12, em baixo é −12, de meio em meio dB.
+      mudar.current(banda, Math.round((1 - f * 2) * GANHO_MAXIMO * 2) / 2);
     };
+    aArrastar.current = banda;
+    setAtiva(banda);
     mover(e);
     const largar = () => {
+      aArrastar.current = null;
       window.removeEventListener('mousemove', mover);
       window.removeEventListener('mouseup', largar);
     };
     window.addEventListener('mousemove', mover);
     window.addEventListener('mouseup', largar);
-  }, [daPosicao]);
-
-  // 0 no topo, 1 em baixo.
-  const fraccao = 1 - (valor + GANHO_MAXIMO) / (GANHO_MAXIMO * 2);
+  };
 
   return (
-    <View style={{ alignItems: 'center', gap: ESP.xs, flex: 1 }}>
-      <Text style={[TIPO.numero, { color: valor === 0 ? COR.textoFraco : COR.texto, fontSize: 10 }]}>
-        {valor > 0 ? `+${valor}` : String(valor)}
-      </Text>
-      <div
-        role="slider"
-        aria-label={`${etiqueta} band`}
-        aria-valuemin={-GANHO_MAXIMO}
-        aria-valuemax={GANHO_MAXIMO}
-        aria-valuenow={valor}
-        tabIndex={0}
-        onKeyDown={(e: any) => {
-          if (e.key === 'ArrowUp') { e.preventDefault(); aoMudar(Math.min(GANHO_MAXIMO, valor + 0.5)); }
-          if (e.key === 'ArrowDown') { e.preventDefault(); aoMudar(Math.max(-GANHO_MAXIMO, valor - 0.5)); }
-        }}
-        onDoubleClick={() => aoMudar(0)}
-        onMouseDown={arrastar}
-        style={{
-          height: ALTURA,
-          width: 26,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'ns-resize',
-          position: 'relative',
-          touchAction: 'none',
-        } as any}
-      >
-        {/* O trilho. A linha do meio marca o zero — sem ela não se vê onde é
-            que a banda está neutra. */}
-        <div style={{ width: 3, height: '100%', background: COR.elevado, borderRadius: 999 } as any} />
-        <div style={{
-          position: 'absolute', left: 4, right: 4, top: '50%',
-          height: 1, background: COR.linha,
-        } as any} />
-        {/* O preenchimento vai do meio até ao valor: um EQ mostra o DESVIO ao
-            neutro, não um nível a contar de baixo. */}
-        <div style={{
-          position: 'absolute',
-          width: 3,
-          left: '50%', marginLeft: -1.5,
-          background: valor === 0 ? 'transparent' : COR.texto,
-          top: valor > 0 ? `${fraccao * 100}%` : '50%',
-          height: `${Math.abs(fraccao - 0.5) * 100}%`,
-          borderRadius: 999,
-        } as any} />
-        <div style={{
-          position: 'absolute',
-          left: '50%', marginLeft: -6,
-          top: `calc(${fraccao * 100}% - 6px)`,
-          width: 12, height: 12, borderRadius: 999,
-          background: COR.texto,
-          boxShadow: '0 2px 6px rgba(0,0,0,.5)',
-        } as any} />
+    <View>
+      <div style={{ position: 'relative', height: ALTURA } as any}>
+        <svg aria-hidden viewBox={`0 0 ${LARGURA_DO_DESENHO} ${ALTURA}`} preserveAspectRatio="none" width="100%" height={ALTURA}
+          style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none' } as any}>
+          {/* O zero: uma só linha a atravessar as dez bandas. */}
+          <line x1={0} x2={LARGURA_DO_DESENHO} y1={alturaDe(0)} y2={alturaDe(0)} stroke="rgba(233,234,238,0.16)"
+            strokeDasharray="2 5" vectorEffect="non-scaling-stroke" />
+          <path d={area} fill="rgba(233,234,238,0.09)" />
+          <path d={linha} fill="none" stroke={COR.texto} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+        </svg>
+        <div style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, display: 'flex' } as any}>
+          {BANDAS.map((hz, i) => {
+            const valor = ganhos[i] ?? 0;
+            const y = alturaDe(valor);
+            const acesa = ativa === i;
+            return (
+              <div
+                key={hz}
+                role="slider"
+                aria-label={`${ETIQUETAS_BANDAS[i]} band`}
+                aria-valuemin={-GANHO_MAXIMO}
+                aria-valuemax={GANHO_MAXIMO}
+                aria-valuenow={valor}
+                aria-valuetext={`${comSinal(valor)} dB`}
+                tabIndex={0}
+                onKeyDown={(e: any) => {
+                  if (e.key === 'ArrowUp') { e.preventDefault(); aoMudarBanda(i, Math.min(GANHO_MAXIMO, valor + 0.5)); }
+                  if (e.key === 'ArrowDown') { e.preventDefault(); aoMudarBanda(i, Math.max(-GANHO_MAXIMO, valor - 0.5)); }
+                }}
+                onDoubleClick={() => aoMudarBanda(i, 0)}
+                onMouseDown={(e: any) => arrastar(e, i)}
+                onMouseEnter={() => { if (aArrastar.current === null) setAtiva(i); }}
+                onMouseLeave={() => { if (aArrastar.current === null) setAtiva(null); }}
+                onFocus={() => setAtiva(i)}
+                onBlur={() => { if (aArrastar.current === null) setAtiva(null); }}
+                style={{ flex: 1, position: 'relative', cursor: 'ns-resize', touchAction: 'none', outline: 'none' } as any}
+              >
+                {/* A guia da banda: só se vê na que tem o rato. */}
+                <div style={{ position: 'absolute', left: '50%', top: FOLGA, bottom: FOLGA, width: 1, marginLeft: -0.5,
+                  background: acesa ? 'rgba(233,234,238,0.14)' : 'rgba(233,234,238,0.04)' } as any} />
+                <div style={{ position: 'absolute', left: '50%', top: y, width: 16, height: 16, margin: '-8px 0 0 -8px', borderRadius: 999,
+                  background: METAL, boxShadow: '0 3px 10px rgba(0,0,0,.6), inset 0 0 0 .5px rgba(0,0,0,.35)',
+                  transform: acesa ? 'scale(1.2)' : 'scale(1)', transition: 'transform 140ms var(--dt-curva)' } as any} />
+                {acesa ? (
+                  <div style={{ position: 'absolute', left: '50%', top: y - 14, transform: 'translate(-50%, -100%)', pointerEvents: 'none',
+                    padding: '3px 9px', borderRadius: 999, background: COR.texto, color: '#111117', whiteSpace: 'nowrap',
+                    fontFamily: (TIPO.numero as any).fontFamily, fontSize: 11 } as any}>
+                    {`${comSinal(valor)} dB`}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
       </div>
-      <Text style={[TIPO.micro, { color: COR.textoFraco }]}>{etiqueta}</Text>
+      <View style={{ flexDirection: 'row', marginTop: 2 }}>
+        {BANDAS.map((hz, i) => (
+          <Text key={hz} numberOfLines={1} style={[TIPO.legenda, { flex: 1, textAlign: 'center',
+            color: ativa === i ? COR.texto : COR.textoMedio, fontWeight: ativa === i ? '600' : '400' }]}>
+            {nomeDaBanda(ETIQUETAS_BANDAS[i]!)}
+          </Text>
+        ))}
+      </View>
     </View>
   );
 }
@@ -191,20 +218,14 @@ export function BandasDoEqualizador({
         ))}
       </View>}
       {!semPresets && recomendado?.escolhido ? recomendado.linha : null}
-      <View style={{ flexDirection: 'row', gap: 2, marginTop: semPresets ? 0 : ESP.sm }}>
-        {BANDAS.map((hz, i) => (
-          <DeslizadorVertical
-            key={hz}
-            valor={g[i]}
-            etiqueta={ETIQUETAS_BANDAS[i]}
-            aoMudar={(v) => {
-              const novo = g.slice();
-              novo[i] = v;
-              aoMudarGanhos(normalizar(novo));
-            }}
-          />
-        ))}
-      </View>
+      <CurvaDoEqualizador
+        ganhos={g}
+        aoMudarBanda={(i, v) => {
+          const novo = g.slice();
+          novo[i] = v;
+          aoMudarGanhos(normalizar(novo));
+        }}
+      />
     </View>
   );
 }
@@ -219,7 +240,7 @@ function AccaoPequena({ rotulo, aoPremir }: { rotulo: string; aoPremir: () => vo
         hovered && { backgroundColor: ESTADO.hover },
       ]}
     >
-      <Text style={[TIPO.micro, { color: COR.texto }]}>{rotulo}</Text>
+      <Text style={textoDeAcao}>{rotulo}</Text>
     </Pressable>
   );
 }
@@ -234,8 +255,27 @@ export function ReporEqualizador({ aoRepor }: { aoRepor: () => void }) {
         hovered && { backgroundColor: ESTADO.hover },
       ]}
     >
-      <Text style={[TIPO.micro, { color: COR.textoFraco }]}>RESET</Text>
+      <Text style={textoDeAcao}>Reset</Text>
     </Pressable>
+  );
+}
+
+/**
+ * O estado numa linha só: o que este EQ é ("Saved for this track") e se já
+ * chegou aos outros aparelhos. Eram dois rodapés (a nuvem numa linha, a frase
+ * noutra). Com a sincronização falhada volta a peça inteira, que tem o "retry".
+ */
+function EstadoDoAjuste({ dica, guardado }: { dica: string; guardado: boolean }) {
+  const estado = useAdjustmentSync((s) => s.status);
+  const offline = useConnectivity((s) => s.offline);
+  if (estado === 'error' && !offline) return <AdjustmentSyncStatus />;
+  const sinc = offline ? 'on this device' : estado === 'saved' ? 'synced' : estado === 'syncing' ? 'syncing…'
+    : estado === 'pending' ? 'sync pending' : estado === 'local' ? 'on this device' : '';
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESP.sm, flexShrink: 1, minWidth: 0 }}>
+      {guardado ? <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: COR.ok }} /> : null}
+      <Text numberOfLines={1} style={{ ...TIPO.legenda, color: COR.textoMedio, flexShrink: 1 }}>{guardado && sinc ? `${dica} · ${sinc}` : dica}</Text>
+    </View>
   );
 }
 
@@ -293,34 +333,32 @@ export function PainelEqualizador({
         ? temEqDaJam ? 'Following the Jam host’s live EQ' : 'Waiting for the Jam host’s EQ'
         : `Following ${seguindo!.nome}'s ${temEqDaEscuta ? 'live EQ and speed' : 'speed · waiting for live EQ'}`}</Text>
       <View pointerEvents="none" {...({ inert: true } as any)}>
-        <BarraVelocidade valor={velocidadePresa?.ritmo ?? 1} aoMudar={() => {}} />
         <BandasDoEqualizador ganhos={ganhos} aoMudarGanhos={() => {}} semPresets />
+        <View style={{ marginTop: ESP.lg }}><BarraVelocidade rotulo="Speed" valor={velocidadePresa?.ritmo ?? 1} aoMudar={() => {}} /></View>
       </View>
     </View>
   );
 
-  return (
-    <View style={{ gap: ESP.xl }}>
-      <View style={{ gap: ESP.sm }}>
-        <Text style={ui.eyebrow}>SPEED</Text>
-        {velocidadePresa ? (
-          // Numa Jam (ou a ouvir com um amigo) a velocidade não é a escolhida:
-          // a barra fica parada no valor real, e diz porquê (18/10).
-          <>
-            <View pointerEvents="none" style={{ opacity: 0.45 }}>
-              <BarraVelocidade valor={velocidadePresa.ritmo} aoMudar={() => {}} />
-            </View>
-            <Text style={{ ...TIPO.legenda, color: COR.textoMedio }}>{velocidadePresa.motivo}</Text>
-          </>
-        ) : <BarraVelocidade valor={rate} aoMudar={aoMudarRate} />}
-      </View>
+  const velocidade = (
+    <View style={{ gap: ESP.xs, marginTop: ESP.md }}>
+      {velocidadePresa ? (
+        // Numa Jam (ou a ouvir com um amigo) a velocidade não é a escolhida:
+        // a barra fica parada no valor real, e diz porquê (18/10).
+        <>
+          <View pointerEvents="none" style={{ opacity: 0.45 }}>
+            <BarraVelocidade rotulo="Speed" valor={velocidadePresa.ritmo} aoMudar={() => {}} />
+          </View>
+          <Text style={{ ...TIPO.legenda, color: COR.textoMedio }}>{velocidadePresa.motivo}</Text>
+        </>
+      ) : <BarraVelocidade rotulo="Speed" valor={rate} aoMudar={aoMudarRate} />}
+    </View>
+  );
 
+  return (
+    <View style={{ gap: ESP.lg }}>
       <View style={{ gap: ESP.sm }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Text style={ui.eyebrow}>EQUALISER</Text>
-          {/* Dizer a verdade em vez de mostrar deslizadores que nao mexem. */}
-          {!activo && <Text style={[TIPO.micro, { color: COR.textoFraco }]}>WAITING FOR PLAYBACK</Text>}
-        </View>
+        {/* Dizer a verdade em vez de mostrar uma curva que nao mexe no som. */}
+        {!activo ? <Text style={{ ...TIPO.legenda, color: COR.textoFraco }}>Waiting for playback</Text> : null}
 
         {aEscolherModelo ? <EscolhaDoModelo aoFechar={() => setAEscolherModelo(false)} /> : <>
         <BandasDoEqualizador
@@ -341,7 +379,7 @@ export function PainelEqualizador({
           </Button>
         ) : null}
 
-<AdjustmentSyncStatus />
+        {velocidade}
         {aGuardar ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESP.sm, marginTop: ESP.xs }}>
             <View style={{ flex: 1 }}>
@@ -353,12 +391,11 @@ export function PainelEqualizador({
           </View>
         ) : (
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: ESP.xs }}>
-            <Text style={[TIPO.micro, { color: COR.textoFraco }]}>
-              {naBaseRecomendada ? 'FOR EVERY SONG WITHOUT ITS OWN EQ' : lembrado ? 'SAVED FOR THIS TRACK' : 'DOUBLE-CLICK A BAND TO ZERO IT'}
-            </Text>
+            <EstadoDoAjuste guardado={naBaseRecomendada || lembrado}
+              dica={naBaseRecomendada ? 'For every song without its own EQ' : lembrado ? 'Saved for this track' : 'Double-click a band to zero it'} />
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               {!recomendadoNaFaixa && podeGuardarComoPreset(memoria, ganhos) && (
-                <AccaoPequena rotulo="SAVE AS PRESET" aoPremir={() => { setNome(''); setAGuardar(true); }} />
+                <AccaoPequena rotulo="Save as preset" aoPremir={() => { setNome(''); setAGuardar(true); }} />
               )}
               <ReporEqualizador aoRepor={() => mudarGanhos(PLANO.slice())} />
             </View>

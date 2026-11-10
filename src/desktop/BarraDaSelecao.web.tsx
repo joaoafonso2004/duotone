@@ -14,7 +14,7 @@ import { EscolherPlaylist } from './EscolherPlaylist.web';
 import { MenuDeContexto, pontoDoEvento, type LinhaDoMenu, type PontoNoEcra } from './MenuDeContexto.web';
 import { mudouAPlaylist } from './porNaPlaylist.web';
 import { useSelecao } from './selecao.web';
-import { COR, ESP, ESTADO, TIPO } from './tokens.web';
+import { COR, ESP, ESTADO, flutuante, RAIO, TIPO } from './tokens.web';
 import { marcar } from './ui.web';
 
 type Acao = 'tocar' | 'seguinte' | 'fila' | 'playlist' | 'gostar' | 'remover';
@@ -107,8 +107,7 @@ export function BarraDaSelecao({ notify }: { notify: (texto: string) => void }) 
     {faixas.length ? (
       <View pointerEvents="box-none" style={{ position: 'absolute', left: 0, right: 0, bottom: ESP.lg, alignItems: 'center', zIndex: 40 }}>
         <View {...marcar('barra-das-escolhidas')} accessibilityRole="toolbar" accessibilityLabel={`${musicas(faixas.length)} selected`}
-          style={{ flexDirection: 'row', alignItems: 'center', gap: 2, paddingLeft: ESP.lg, paddingRight: 6, paddingVertical: 6, borderRadius: 999,
-            backgroundColor: COR.hover, borderWidth: 1, borderColor: COR.linha, boxShadow: '0 16px 50px rgba(0,0,0,.6)' } as any}>
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 2, paddingLeft: ESP.lg, paddingRight: 6, paddingVertical: 6, ...flutuante(RAIO.pilula) } as any}>
           <Text style={{ ...TIPO.legenda, color: COR.texto, fontWeight: '650', marginRight: ESP.sm } as any}>{faixas.length} selected</Text>
           <Botao icone="play" rotulo="Play" aoCarregar={() => void fazer('tocar')} />
           <Botao icone="list-outline" rotulo="Queue" aoCarregar={() => void fazer('fila')} />

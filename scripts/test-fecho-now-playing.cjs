@@ -66,6 +66,7 @@ function ensaiar(inicial) {
     '../aparenciaDoLeitor.web': { useDisposicaoDoLeitor: () => estado.disposicao, useFotoDoFundo: () => null },
     '../../components/CoracaoAnimado': { CoracaoAnimado: 'Coracao' },
     '../../hooks/useCoracaoAoCarregar': { useCoracaoAoCarregar: () => ({}) },
+    '../../hooks/useCorDoAmbiente': { useCorDoAmbiente: () => null },
     '../../lib/artistName': { displayArtist: t => t.artist, tituloDaFaixa: t => t.title },
     '../../state/catalogoDeFaixas': { useCatalogoDeFaixas: sel => sel({ versao: 0 }), comCatalogo: t => t, garantirCatalogo: noop },
     '../../lib/frasesDosEstados': { FRASES_DOS_ESTADOS: { nadaATocar: { titulo: 'Nothing playing', corpo: 'Choose a song' } } },

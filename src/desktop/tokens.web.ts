@@ -153,6 +153,27 @@ export const ESP = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, xxxl: 48 } a
 export const LINHA_LISTA = 56;
 
 /**
+ * A superfície que FLUTUA (10/11, maquete `docs/menus-maquete.html`): diálogos,
+ * menus de contexto, painéis e avisos. Uma só caixa para todos -- antes cada um
+ * tinha a sua cor de fundo, o seu fio e a sua sombra.
+ *
+ * Sem fio à volta: a aresta de cima é luz (uma sombra de dentro), e o fundo
+ * desce de claro para escuro. `grande` é a sombra de um diálogo, por cima de um
+ * véu; as outras flutuam sem véu e levam um anel muito ténue para se
+ * destacarem de um fundo escuro.
+ */
+export const RAIO_FLUTUANTE = { dialogo: 20, menu: 14, aviso: 12 } as const;
+export const flutuante = (raio: number, grande = false) => ({
+  borderRadius: raio,
+  borderWidth: 0,
+  backgroundColor: '#0E0E12',
+  backgroundImage: 'linear-gradient(180deg, #17171D, #0E0E12 46%)',
+  boxShadow: grande
+    ? 'inset 0 1px 0 rgba(233,234,238,0.09), 0 40px 120px rgba(0,0,0,0.72)'
+    : 'inset 0 1px 0 rgba(233,234,238,0.09), inset 0 0 0 1px rgba(233,234,238,0.04), 0 18px 50px rgba(0,0,0,0.6)',
+}) as any;
+
+/**
  * Elevação por LUZ, não por sombra: um degradê subtil e uma aresta clara em
  * cima, como o bordo iluminado dos discos do símbolo.
  */
