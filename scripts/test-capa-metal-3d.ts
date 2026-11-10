@@ -212,6 +212,17 @@ caso('mexe só transform e opacidade, e pára quando assenta', () => {
   assert.match(COMPONENTE, /prefers-reduced-motion/);
 });
 
+caso('sem o botão premido não há arrasto: o arrasto fantasma (11/11)', () => {
+  // Um gesto que começou na capa e acabou fora dela virava um arrasto ativo
+  // quando o rato voltava a passar por cima: a caixa rodava sozinha e a letra
+  // ficava sem cliques nem scroll até um clique na capa. Visto no Chromium.
+  assert.match(COMPONENTE, /if \(\(e\.buttons & 1\) === 0\) \{\n\s+if \(a\.ativo\) aoLargar\(e\);\n\s+else m\.arrasto = null;\n\s+return;\n\s+\}/);
+  assert.match(COMPONENTE, /window\.addEventListener\('pointerup', aoLargarEmQualquerSitio\)/, 'largado fora da capa, o gesto acaba');
+  assert.match(COMPONENTE, /window\.removeEventListener\('pointerup', aoLargarEmQualquerSitio\)/);
+  assert.match(COMPONENTE, /caixa\.addEventListener\('lostpointercapture', aoPerderACaptura\)/, 'a captura perdida é um cancelar');
+  assert.match(COMPONENTE, /caixa\.removeEventListener\('lostpointercapture', aoPerderACaptura\)/);
+});
+
 console.log('\no efeito do som nas arestas, e os cantos da face (8/11)');
 // Telas a fingir: só o que o `criarArestasDoEfeito` usa.
 type Copia = { qual: string; sx: number; sy: number; sw: number; sh: number };

@@ -354,6 +354,18 @@ export function CapaMetal3D({ track, size, artwork, front, showLyrics, onChange,
     const aoArrastar = (e: PointerEvent) => {
       const a = m.arrasto;
       if (!a || a.id !== e.pointerId) return;
+      // Sem o botão premido não há arrasto (11/11, o arrasto fantasma). Um gesto
+      // que começou na capa e acabou fora dela (um arrasto vertical para ler a
+      // letra, largado por baixo) ficava guardado, e o rato a passar por cima
+      // virava-o num arrasto ATIVO sem ninguém carregar: a caixa rodava atrás
+      // do rato, o aRodar ficava ligado, e a letra perdia os cliques e o
+      // scroll até um clique na capa. O mesmo ponteiro do rato tem sempre o
+      // mesmo id, e por isso o gesto velho parecia o atual.
+      if ((e.buttons & 1) === 0) {
+        if (a.ativo) aoLargar(e);
+        else m.arrasto = null;
+        return;
+      }
       const dx = e.clientX - a.x, dy = e.clientY - a.y;
       if (!a.ativo) {
         if (!acceptsCubeSwipe(dx, dy)) return;
@@ -414,6 +426,14 @@ export function CapaMetal3D({ track, size, artwork, front, showLyrics, onChange,
       m.molaVirar = ENTRADA;
       acordar();
     };
+    // Largado fora da capa: o gesto que lá começou acaba aqui (o pointerup da
+    // caixa só chega com a captura, que um gesto parado ainda não tem).
+    const aoLargarEmQualquerSitio = (e: PointerEvent) => {
+      const a = m.arrasto;
+      if (a && a.id === e.pointerId && !a.ativo) m.arrasto = null;
+    };
+    // A captura perdida sem pointerup (a janela perde o foco a meio): é um cancelar.
+    const aoPerderACaptura = (e: PointerEvent) => { if (m.arrasto?.ativo) aoCancelar(e); };
     const aoVoltarAJanela = () => { if (!document.hidden) acordar(); };
     // Uma imagem dentro da caixa (a capa da face) começava o "arrastar imagem"
     // do browser, que cancela o ponteiro: o arrasto nunca chegava a rodar.
@@ -426,6 +446,8 @@ export function CapaMetal3D({ track, size, artwork, front, showLyrics, onChange,
     caixa.addEventListener('pointerup', aoLargar, true);
     caixa.addEventListener('pointercancel', aoCancelar, true);
     caixa.addEventListener('dragstart', semArrastoNativo, true);
+    caixa.addEventListener('lostpointercapture', aoPerderACaptura);
+    window.addEventListener('pointerup', aoLargarEmQualquerSitio);
     document.addEventListener('visibilitychange', aoVoltarAJanela);
     pintar();
     return () => {
@@ -438,6 +460,8 @@ export function CapaMetal3D({ track, size, artwork, front, showLyrics, onChange,
       caixa.removeEventListener('pointerup', aoLargar, true);
       caixa.removeEventListener('pointercancel', aoCancelar, true);
       caixa.removeEventListener('dragstart', semArrastoNativo, true);
+      caixa.removeEventListener('lostpointercapture', aoPerderACaptura);
+      window.removeEventListener('pointerup', aoLargarEmQualquerSitio);
       document.removeEventListener('visibilitychange', aoVoltarAJanela);
     };
   }, []);

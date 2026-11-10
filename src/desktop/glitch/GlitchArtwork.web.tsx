@@ -4,7 +4,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { COR, RAIO } from '../tokens.web';
 import type { EffectIntensity, GlitchMode } from '../../lib/prefs';
 import { criarRenderer, recorteDaCapa, type Recorte } from './renderer.web';
-import { iniciarCaptura, type Captura } from './beat.web';
+import { largarCaptura, pedirCaptura, type Captura } from './beat.web';
 import { medirCompasso } from '../../state/compasso.web';
 
 /**
@@ -180,7 +180,8 @@ export function GlitchArtwork({ uri, lado, modo, intensidade, raio = RAIO.superf
         if (r.desenhar(NIVEL_ESTATICO, 0, 0, SEMENTE_ESTATICA, ESPETRO_ESTATICO)) aoDesenharRef.current?.(canvas, false);
         return;
       }
-      captura = iniciarCaptura();
+      // A mesma captura da capa anterior (11/11): uma música nova não pede outra, que sem um gesto falhava.
+      captura = pedirCaptura();
       captura.definirAtiva(!document.hidden);
       const inicio = performance.now();
       const laco = (agora: number) => {
@@ -226,7 +227,7 @@ export function GlitchArtwork({ uri, lado, modo, intensidade, raio = RAIO.superf
       // "Desligado" tem de desligar a captura, e sair do ecra conta: ficar a
       // analisar som para ninguem ver gasta CPU e mantem aberta uma permissao
       // de captura sem motivo.
-      captura?.parar();
+      if (captura) largarCaptura(captura);
       document.removeEventListener('visibilitychange',visibilidade);
       imagem.onload = null;
       imagem.onerror = null;

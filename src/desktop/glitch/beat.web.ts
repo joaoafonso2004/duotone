@@ -57,6 +57,10 @@ export type Captura = {
   estado(): EstadoCaptura;
   /** Suspende/retoma o AudioContext sem perder a captura. */
   definirAtiva(ativa: boolean): void;
+  /** Esquece os ataques e o andamento, mas fica com o som: uma música nova (11/11). */
+  recomecar(): void;
+  /** Já não volta: a pista acabou, ou a falha não foi de falta de um gesto. */
+  terminou(): boolean;
   parar(): void;
 };
 
@@ -159,6 +163,7 @@ export function iniciarCaptura(aoMudarEstado?: (e: EstadoCaptura) => void): Capt
   let relogio: ReturnType<typeof setInterval> | null = null;
   let desejadaAtiva = true;
   let desarmarGesto: (() => void) | null = null;
+  let definitivo = false;
 
   const envelope = (agoraMs: number) => {
     if (!picoAmplitude) return 0;
@@ -277,7 +282,7 @@ export function iniciarCaptura(aoMudarEstado?: (e: EstadoCaptura) => void): Capt
     // A pista morre se a captura for revogada por fora (fim do frame, o
     // utilizador a parar a partilha). Sem isto ficava a devolver zeros para
     // sempre e ninguem sabia porque.
-    s.getAudioTracks()[0]?.addEventListener('ended', () => mudar('indisponivel'));
+    s.getAudioTracks()[0]?.addEventListener('ended', () => { definitivo = true; mudar('indisponivel'); });
     mudar('ativa');
     if(!desejadaAtiva)void ctx.suspend().catch(()=>{});
     else ligarRelogio();
@@ -300,7 +305,7 @@ export function iniciarCaptura(aoMudarEstado?: (e: EstadoCaptura) => void): Capt
       // Qualquer outra falha (sem suporte, sem handler no main) e definitiva.
       const semGesto = e?.name === 'InvalidStateError' || e?.name === 'NotAllowedError';
       if (semGesto && !desarmarGesto) armarGesto();
-      else console.warn('[glitch] sem captura de audio:', e);
+      else if (!semGesto) { definitivo = true; console.warn('[glitch] sem captura de audio:', e); }
     }
   };
 
@@ -378,6 +383,19 @@ export function iniciarCaptura(aoMudarEstado?: (e: EstadoCaptura) => void): Capt
       if(!ctx)return;
       void (ativa?ctx.resume():ctx.suspend()).catch(()=>{});
     },
+    recomecar() {
+      fluxos.fill(0);
+      escritos = 0;
+      cursor = 0;
+      rmsAnterior = 0;
+      ataques.length = 0;
+      picoAmplitude = 0;
+      picoMs = 0;
+      energia = 0;
+      energiaAguda = 0;
+      ultimaBatidaMs = 0;
+    },
+    terminou: () => parado || definitivo,
     parar() {
       parado = true;
       desligarRelogio();
@@ -393,4 +411,47 @@ export function iniciarCaptura(aoMudarEstado?: (e: EstadoCaptura) => void): Capt
       mudar('inativa');
     },
   };
+}
+
+/**
+ * Uma captura para a app inteira (11/11, o João: "às vezes o efeito reativo ao
+ * som não funciona e só funciona quando clico no bloco 3D").
+ *
+ * Cada capa (`GlitchArtwork`) pedia a sua, e largava-a ao desmontar: a cada
+ * música nova, e a cada capa refeita (a capa 3D remonta por música). O
+ * `getDisplayMedia` só passa com um gesto da pessoa, e uma música que começa
+ * sozinha não tem gesto: o pedido falhava e o efeito ficava parado até ao
+ * próximo clique. Por isso o clique na capa "o arranjava".
+ *
+ * Agora quem pede recebe a mesma captura enquanto ela viver, e uma música nova
+ * só esquece os ataques (`recomecar`). Largada por todos, fica suspensa uns
+ * segundos (o tempo de a capa seguinte a pedir) e depois pára de vez, como
+ * antes: "desligado" continua a desligar.
+ */
+const FOLGA_ANTES_DE_PARAR_MS = 15_000;
+let partilhada: { captura: Captura; donos: number; adeus: ReturnType<typeof setTimeout> | null } | null = null;
+
+export function pedirCaptura(): Captura {
+  if (partilhada && !partilhada.captura.terminou()) {
+    if (partilhada.adeus) { clearTimeout(partilhada.adeus); partilhada.adeus = null; }
+    partilhada.donos++;
+    partilhada.captura.recomecar();
+    return partilhada.captura;
+  }
+  partilhada?.captura.parar();
+  partilhada = { captura: iniciarCaptura(), donos: 1, adeus: null };
+  return partilhada.captura;
+}
+
+export function largarCaptura(captura: Captura): void {
+  if (!partilhada || partilhada.captura !== captura) { captura.parar(); return; }
+  partilhada.donos = Math.max(0, partilhada.donos - 1);
+  if (partilhada.donos > 0) return;
+  captura.definirAtiva(false);
+  const esta = partilhada;
+  esta.adeus = setTimeout(() => {
+    if (partilhada !== esta || esta.donos > 0) return;
+    esta.captura.parar();
+    partilhada = null;
+  }, FOLGA_ANTES_DE_PARAR_MS);
 }

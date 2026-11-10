@@ -219,6 +219,53 @@ async function run() {
   const mudo = await correr(120, { ganho: 0, segundos: 6 });
   assert.equal(mudo.acendeu.length, 0, 'sem som não acende nada');
 
+  // --- Uma captura para a app inteira (11/11) ------------------------------
+  // O efeito parava até a um clique: cada música pedia outra captura, e o
+  // getDisplayMedia sem um gesto falha. Agora passa de uma capa para a outra.
+  {
+    const { som } = faixa(120, 4);
+    const mundo = montarMundo(som);
+    let pedidos = 0;
+    const pedirOriginal = mundo.caixa.navigator.mediaDevices.getDisplayMedia;
+    mundo.caixa.navigator.mediaDevices.getDisplayMedia = async (...args) => { pedidos++; return pedirOriginal(...args); };
+    const adeus = new Map();
+    let proximo = 1;
+    mundo.caixa.setTimeout = (fn) => { const id = proximo++; adeus.set(id, fn); return id; };
+    mundo.caixa.clearTimeout = (id) => { adeus.delete(id); };
+    const { pedirCaptura, largarCaptura } = carregar('src/desktop/glitch/beat.web.ts', {
+      '../../lib/compasso': { andamentoDosAtaques: () => null },
+    }, mundo.caixa);
+
+    const a = pedirCaptura();
+    await vazio(); await vazio();
+    assert.equal(a.estado(), 'ativa', 'a primeira capa monta a captura');
+    mundo.andar(3000);
+    let acendeu = false;
+    mundo.andar(1000, (t) => { if (a.batida(t) > 0) acendeu = true; });
+    assert.ok(acendeu, 'a captura ouve as batidas');
+
+    // A música acaba e a capa seguinte monta-se: a mesma captura, sem pedir outra.
+    largarCaptura(a);
+    const b = pedirCaptura();
+    assert.equal(b, a, 'a capa da música seguinte recebe a mesma captura');
+    assert.equal(pedidos, 1, 'sem um getDisplayMedia novo (sem um gesto, falhava)');
+    assert.equal(b.batida(mundo.quandoEstamos()), 0, 'mas a batida da música anterior esquece-se');
+    assert.equal(adeus.size, 0, 'a folga para parar foi desmarcada');
+
+    // Largada por todos: suspende-se, e depois da folga pára de vez.
+    largarCaptura(b);
+    assert.equal(mundo.quantosRelogios(), 0, 'suspensa, o relógio do detetor pára');
+    assert.equal(adeus.size, 1, 'marca-se a paragem');
+    for (const fn of [...adeus.values()]) fn();
+    assert.equal(b.terminou(), true, 'depois da folga, parou');
+    const c = pedirCaptura();
+    await vazio(); await vazio();
+    assert.notEqual(c, a, 'uma nova, depois de parada');
+    assert.equal(pedidos, 2);
+    largarCaptura(c);
+    for (const fn of [...adeus.values()]) fn();
+  }
+
   console.log('Batida do glitch: relógio próprio, nenhum bombo perdido de 90 a 190 BPM, e quieto em silêncio.');
 }
 
