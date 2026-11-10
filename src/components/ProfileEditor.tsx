@@ -2,7 +2,7 @@ import React,{useEffect,useRef,useState} from 'react';
 import { ActivityIndicator,Image,Platform,Pressable,ScrollView,StyleSheet,Switch,Text,TextInput,View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Crypto from 'expo-crypto';
-import { appearanceOf,saveProfileEdits,type SocialProfile,type ProfileHighlights } from '../api/profiles';
+import { appearanceOf,definirEstatisticasPublicas,saveProfileEdits,type SocialProfile,type ProfileHighlights } from '../api/profiles';
 import { setPlaylistVisibility } from '../api/playlists';
 import { getLibrary } from '../api/library';
 import { lerFaixas } from '../lib/cacheDaBiblioteca';
@@ -140,6 +140,15 @@ export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{pr
   const destacadas=(featured?.playlistIds??[]).filter(id=>porId.has(id)&&visiveis[id]);
   const candidatas=playlists.filter(p=>visiveis[p.id]&&!destacadas.includes(p.id));
   const mudarDestaques=(ids:string[])=>{if(featured){setFeatured({...featured,playlistIds:ids});marcar();}};
+  // Os números do perfil para quem não é amigo (10/11). Grava-se logo, como um
+  // interruptor das Definições: não é uma edição do perfil que espera pelo Save.
+  // Sem a migração (perfil-limitado.sql) o servidor não diz nada e a linha não aparece.
+  const [numerosPublicos,setNumerosPublicos]=useState<boolean|null>(profile.statsPublic??null);
+  const alternarNumeros=(v:boolean)=>{
+    const antes=numerosPublicos;
+    setNumerosPublicos(v);
+    void definirEstatisticasPublicas(v).catch(()=>{setNumerosPublicos(antes);setError("Couldn't change who sees your stats. Please try again.");});
+  };
   const alternarVisivel=(id:string,v:boolean)=>{
     setVisiveis(x=>({...x,[id]:v}));
     // Uma que deixa de aparecer deixa também de estar em destaque.
@@ -319,6 +328,14 @@ export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{pr
       {playlists.length>0&&<Grupo cabecalho="Shown on your profile" rodape="Your friends see these. Only playlists shown here can be featured.">
         {playlists.map(p=>linhaDePlaylist(p,<Switch value={!!visiveis[p.id]} disabled={!!stage} onValueChange={v=>alternarVisivel(p.id,v)}
           trackColor={{false:colors.surfacePressed,true:colors.text}} thumbColor="#fff"/>))}
+      </Grupo>}
+
+      {numerosPublicos!==null&&<Grupo cabecalho="Privacy" rodape="People who aren't your friends see how many songs you've played, when you joined and when you last listened. Never what you listen to.">
+        <View style={e.linha}>
+          <Text style={[e.nome,{flex:1}]}>Show my stats to everyone</Text>
+          <Switch value={numerosPublicos} disabled={!!stage} onValueChange={alternarNumeros}
+            trackColor={{false:colors.surfacePressed,true:colors.text}} thumbColor="#fff" accessibilityLabel="Show my stats to everyone"/>
+        </View>
       </Grupo>}
 
       {!!error && <Text accessibilityRole="alert" style={[s.error,{paddingHorizontal:20,marginTop:16}]}>{error}</Text>}

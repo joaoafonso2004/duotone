@@ -14,6 +14,19 @@ export interface ProfileAppearance {
 export interface SocialProfile {
   profile: PublicProfile; canView: boolean; appearance: ProfileAppearance | null;
   stats: DbPlayStats | null; friendCount: number | null;
+  /**
+   * Para quem não é amigo (10/11, supabase/perfil-limitado.sql): só números, e só
+   * se a pessoa não os escondeu. Sem a migração, ou escondido, não vem.
+   */
+  limited?: PerfilLimitado | null;
+  /** A escolha da própria pessoa (só no seu perfil): mostrar os números a todos. */
+  statsPublic?: boolean | null;
+}
+export type PerfilLimitado = { memberSince: string; totalPlays: number; uniqueTracks: number; lastPlayedOn: string | null };
+/** Mostrar (ou esconder) os números do perfil a quem não é amigo. */
+export async function definirEstatisticasPublicas(publicas: boolean): Promise<void> {
+  const { error } = await supabase.rpc('definir_estatisticas_publicas', { p_publicas: publicas });
+  if (error) throw error;
 }
 export type ProfileTrack = Track & { count: number; lastPlayed: number };
 export type ProfileHighlights = { playlistIds: string[]; moment: Track | null };

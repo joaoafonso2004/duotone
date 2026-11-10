@@ -11,6 +11,7 @@ import { usePlayer } from '../state/player';
 import { useSocial } from '../state/social';
 import { useProfileMedia } from '../lib/profileMedia';
 import { ultimaAtividade } from '../lib/socialPresence';
+import { desdeQuando, quantoOuviu, ultimaEscuta } from '../lib/perfilLimitado';
 import { chaveDeArtista, displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { colors, radii, SOCIAL_GUTTER } from './socialTokens';
@@ -372,7 +373,16 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef,aoMenuDaF
           <View style={{flex:1,minWidth:0}}><Text style={estilos.rotulo}>Listening now</Text><Text numberOfLines={1} style={[s.text,{fontWeight:'600'}]}>{friend.currentlyPlaying.title}</Text></View>
           <View style={estilos.play}><Ionicons name="play" size={20} color={colors.bg} style={{marginLeft:2}}/></View>
         </Pressable>}
-        {!profile.canView?<Text style={s.muted}>Stats become available once you are friends.</Text>:<>
+        {/* De quem não é amigo (10/11): só números -- desde quando, quanto, e quando
+            ouviu pela última vez. O que ouve fica para os amigos. */}
+        {!profile.canView?(profile.limited?<View style={[estilos.cartao,{flexDirection:'column',alignItems:'flex-start',gap:4,padding:16}]}>
+            <Text style={estilos.rotulo}>On Duotone</Text>
+            <Text style={[s.text,{fontWeight:'600'}]}>{quantoOuviu(profile.limited)}</Text>
+            {(()=>{const linha=[ultimaEscuta(profile.limited!,now),desdeQuando(profile.limited!)].filter(Boolean).join(' · ');
+              return linha?<Text style={s.muted}>{linha}</Text>:null;})()}
+            <Text style={[s.muted,{marginTop:6}]}>Become friends to see what they listen to.</Text>
+          </View>
+          :<Text style={s.muted}>Stats become available once you are friends.</Text>):<>
           {/* A música do momento abre a página: uma linha, sem cartão. O menu
               da faixa conserva as ações, incluindo tirá-la do perfil. */}
           {highlights.moment&&<View style={{gap:11}}>

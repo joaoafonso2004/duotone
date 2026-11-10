@@ -24,6 +24,7 @@ export type Migracao = {
 };
 
 export const MIGRACOES: readonly Migracao[] = [
+  { ficheiro: 'perfil-limitado.sql', marca: 'fn:definir_estatisticas_publicas', efeito: "Limited stats on the profile of someone who isn't a friend" },
   { ficheiro: 'caber-no-plano-gratis.sql', marca: 'fn:limpar_o_que_envelheceu', efeito: 'Keeps the database inside the free plan (old events and cache cleaned)' },
   { ficheiro: '20261103040216_eq_do_jam.sql', marca: 'fn:partilhar_eq_do_jam', efeito: 'Host can share live EQ with the Jam or keep personal EQ' },
   { ficheiro: '20261102222643_escuta_ao_vivo.sql', marca: 'pol:realtime.messages:escuta: receber som', efeito: "Listen along follows live EQ and speed" },
