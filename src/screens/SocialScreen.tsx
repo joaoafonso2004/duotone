@@ -4,6 +4,8 @@ import { useIsFocused } from '@react-navigation/native';
 import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import { SocialHub } from '../components/SocialHub';
 import { SocialIconButton } from '../components/socialUI';
+import { TrackActionsSheet } from '../components/TrackActionsSheet';
+import type { Track } from '../types';
 import { useDestinos } from '../navigation/destinos';
 
 export function SocialScreen() {
@@ -11,6 +13,8 @@ export function SocialScreen() {
   const focused=useIsFocused();
   const [novaConversa,setNovaConversa]=useState(false);
   const [procurar,setProcurar]=useState(false);
+  // O menu de uma música é o das listas (10/11), como na conversa.
+  const [menu,setMenu]=useState<Track|null>(null);
   // O título encolhe ao rolar a lista das conversas (3/10).
   const cab=useCabecalhoQueEncolhe();
   // O "voltar" e para o Perfil, que e de onde se vem -- a arrastar ou pelo
@@ -24,6 +28,7 @@ export function SocialScreen() {
       <SocialIconButton label="New chat" icon="add" onPress={()=>setNovaConversa(true)}/>
     </View>}
     onBack={()=>irPara({tipo:'perfil'})} encolhe={cab}>
-    <SocialHub cabecalho={cab} novaConversa={{aberta:novaConversa,definir:setNovaConversa}} procurar={procurar} visible={focused}/>
+    <SocialHub cabecalho={cab} novaConversa={{aberta:novaConversa,definir:setNovaConversa}} procurar={procurar} visible={focused} aoMenuDaFaixa={setMenu}/>
+    <TrackActionsSheet visible={!!menu} track={menu} onClose={()=>setMenu(null)}/>
   </Screen>;
 }

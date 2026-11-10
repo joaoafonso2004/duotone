@@ -39,7 +39,7 @@ import { SkeletonDeConversas } from './Skeleton';
 import { usePuxarParaAtualizar } from './PuxarParaAtualizar';
 import { CabecalhoDoAmigo, FaixaPartilhada, FundoDaApp } from './ChatAmigo';
 import { MusicasDaConversa } from './MusicasDaConversa';
-import { contarMusicasCarregadas } from '../lib/musicasDaConversa';
+import { contarMusicasCarregadas, musicasUnicas, origemDaConversa } from '../lib/musicasDaConversa';
 import { SocialOverview } from './SocialOverview';
 import { OpcoesDoAmigo } from './OpcoesDoAmigo';
 import { useDestinos } from '../navigation/destinos';
@@ -426,7 +426,10 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
         {cit}
         {!!m.message&&<Text selectable style={[s.text,{flexShrink:1,paddingHorizontal:m.trackData||m.playlistId?3:0},claro&&{color:colors.bg}]}>{m.message}</Text>}
         {m.trackData&&<FaixaPartilhada faixa={m.trackData} minha={minha} onPress={()=>aoMenuDaFaixa?aoMenuDaFaixa(m.trackData!):setTrack(m.trackData)}
-          onTocar={()=>void usePlayer.getState().tocarMusica(m.trackData!,undefined,true)}/>}
+          onTocar={()=>void usePlayer.getState().tocarMusica(m.trackData!,
+            // As músicas desta conversa, pela ordem dela, e de onde vêm (10/11): o
+            // "From chat with …" do leitor e a seguinte da conversa. Era só esta, sem origem.
+            musicasUnicas(messages.map(x=>x.trackData)),true,undefined,origemDaConversa({tipo:group?'grupo':'amigo',nome:title}))}/>}
         {m.playlistId&&<SharedPlaylistCard semFundo playlist={playlistsDoChat.get(m.playlistId)} onPress={()=>onPlaylist(m.playlistId!)}/>}
         </MessageBubble>
         <ReactionRow reactions={reacoes.get(m.id)??[]} myId={myId} own={minha}

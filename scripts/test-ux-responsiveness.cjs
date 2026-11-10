@@ -29,7 +29,7 @@ assert.notEqual(groups([...seeds]),groups(seeds),'bibliotecas distintas não par
 assert.equal(seeds[0].title,'saved-a','não altera a biblioteca original');
 
 const React={createElement:(type,props,...children)=>({type,props:{...props,children}}),
-  useRef:current=>({current}),useMemo:fn=>fn(),useEffect:fn=>fn()};
+  useRef:current=>({current}),useMemo:fn=>fn(),useEffect:fn=>fn(),useState:v=>[v,()=>{}]};
 const all=node=>!node||typeof node!=='object'?[]:[node,...(node.props.children??[]).flat(Infinity).flatMap(all)];
 let focused=true, cleanup, social={conversation:null}, backs=0;
 const navigation={goBack:()=>backs++,navigate(){}};
@@ -39,12 +39,15 @@ const {ConversaScreen}=load('src/screens/ConversaScreen.tsx',{
   '@react-navigation/native':{useIsFocused:()=>focused,useFocusEffect:fn=>{cleanup=fn();}},
   'react-native-safe-area-context':{useSafeAreaInsets:()=>({top:59,bottom:34})},
   '../components/SocialHub':{SocialHub:'Hub'},'../components/socialTokens':{colors:{bg:'#000'}},
+  '../components/TrackActionsSheet':{TrackActionsSheet:'Menu'},
   '../state/social':{useSocial:{getState:()=>social,setState:patch=>Object.assign(social,patch)}},
 });
 const screen=ConversaScreen({route:{params:target},navigation});
 const hub=all(screen).find(n=>n.type==='Hub');
 assert.equal(social.conversation,target);
 assert.equal(hub.props.conversationTarget,target);
+assert.equal(typeof hub.props.aoMenuDaFaixa,'function','the track menu is the list one, not the old sheet');
+assert.ok(all(screen).some(n=>n.type==='Menu'));
 hub.props.onCloseConversation();assert.equal(backs,1,'back uses a single native pop');
 cleanup();assert.equal(social.conversation,null,'blur releases the notification context');
 assert.equal(hub.props.conversationTarget,target,'closing preserves the rendered chat during the transition');
