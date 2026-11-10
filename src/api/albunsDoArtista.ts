@@ -1,12 +1,13 @@
 import { chaveDeArtista, tituloNoLeitor, registarArtistasDoVideo } from '../lib/artistName';
 import {
-  canalPelasProvas, canalSemProvas, chaveDoTitulo, FORMA_DO_CANAL, fotoDoCanal, legendaDoAlbum, lerAlbunsDoCanal, lerCancoesComArtistas, lerMusicasDoCanal,
+  canalPelasProvas, canalSemProvas, chaveDoTitulo, FORMA_DO_CANAL, fotoDoCanal, juntarAlbunsDaPesquisa, legendaDoAlbum, lerAlbunsDoCanal, lerCancoesComArtistas, lerMusicasDoCanal,
   maisRecente, mixDoCanal, type AlbumDoArtista, type CancaoComArtistas, type MixDoArtista, type Prova,
 } from '../lib/albunsDoArtista';
 import type { Track } from '../types';
 import { INFO_VAZIA, infoDasMusicas, lerReproducoes, type InfoDasMusicas } from '../lib/ordemDoArtista';
 import type { YtRecommendedPlaylist } from './youtube';
-import { lerNoYtMusic, pesquisarCancoesCru } from './ytMusic';
+import { lerNoYtMusic, pesquisarCancoesCru, pesquisarNoYtMusicCru } from './ytMusic';
+import { lerAlbunsDaPesquisa } from '../lib/pesquisaPorTipo';
 
 /** Quantas músicas da biblioteca se procuram para saber qual é o canal. */
 const PROVAS = 3;
@@ -121,8 +122,13 @@ async function procurar(nome: string, alvo: string, provas: Prova[], escolhido: 
   const canal = await canalPara(nome, alvo, provas, escolhido);
   if (!canal) return VAZIA;
 
-  const paginaDoCanal = await lerNoYtMusic(canal);
-  const lidos = lerAlbunsDoCanal(paginaDoCanal);
+  // A pesquisa de álbuns corre ao mesmo tempo que a página do canal (11/11):
+  // as prateleiras do canal só mostram uma parte. Falhar é ficar só com elas.
+  const [paginaDoCanal, pesquisaDeAlbuns] = await Promise.all([
+    lerNoYtMusic(canal),
+    Promise.resolve().then(() => pesquisarNoYtMusicCru(nome, 'albuns')).catch(() => null),
+  ]);
+  const lidos = juntarAlbunsDaPesquisa(lerAlbunsDoCanal(paginaDoCanal), pesquisaDeAlbuns ? lerAlbunsDaPesquisa(pesquisaDeAlbuns) : [], canal);
   const { topo, todas } = lerMusicasDoCanal(paginaDoCanal);
   // A lista inteira é um pedido a mais (grátis); se falhar, ficam as do topo.
   const daLista = todas ? lerCancoesComArtistas(await lerNoYtMusic(todas)) : [];

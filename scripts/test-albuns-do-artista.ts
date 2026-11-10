@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  canalPelasProvas, canalSemProvas, chaveDoTitulo, FORMA_DA_CONTINUACAO, FORMA_DA_LISTA, legendaDoAlbum, lerAlbunsDoCanal,
+  canalPelasProvas, canalSemProvas, chaveDoTitulo, FORMA_DA_CONTINUACAO, FORMA_DA_LISTA, juntarAlbunsDaPesquisa, legendaDoAlbum, lerAlbunsDoCanal,
   fotoDoCanal, lerCancoesComArtistas, lerMusicasDoCanal, lerPaginaDaPlaylist, lerRadioDoYtMusic, maisRecente, mixDoCanal,
 } from '../src/lib/albunsDoArtista.ts';
 
@@ -178,5 +178,30 @@ assert.match(pc, /const faixasDaAba = musicas;/, 'PC: o Play toca a página toda
 assert.match(iphone, /const faixasDaAba = musicas;/, 'iPhone: o Play toca a página toda');
 assert.match(pc, /tocarLista\(faixasDaAba, ligado, inteligente, \{ tipo: 'artista', nome: name \}\)/);
 assert.match(iphone, /tocarLista\(faixasDaAba, shuffleLigado, shuffleInteligente, \{ tipo: 'artista', nome: name \}\)/);
+
+// Os que a prateleira do canal não mostra (11/11, os álbuns da Ariana Grande):
+// a pesquisa de álbuns completa-a, só com os do MESMO canal, sem repetir, do
+// mais novo para o mais velho.
+{
+  const CANAL = 'UCaaaaaaaaaaaaaaaaaaaaaa';
+  const OUTRO = 'UCbbbbbbbbbbbbbbbbbbbbbb';
+  const doCanal = [
+    { id: 'OLAK5uy_eternalsunshine1', titulo: 'eternal sunshine', tipo: 'Album', ano: '2024', capa: null },
+    { id: 'OLAK5uy_positions000001', titulo: 'Positions', tipo: 'Album', ano: '2020', capa: null },
+  ];
+  const daPesquisa = [
+    { id: 'OLAK5uy_eternalsunshine1', titulo: 'eternal sunshine', tipo: 'Album', ano: '2024', capa: null, canais: [CANAL] },
+    { id: 'OLAK5uy_deluxe00000001', titulo: 'Positions', tipo: 'Album', ano: '2020', capa: null, canais: [CANAL] },
+    { id: 'OLAK5uy_yours0000000001', titulo: 'Yours Truly', tipo: 'Album', ano: '2013', capa: null, canais: [CANAL] },
+    { id: 'OLAK5uy_sweetener00001', titulo: 'Sweetener', tipo: 'Album', ano: '2018', capa: null, canais: [CANAL, OUTRO] },
+    { id: 'OLAK5uy_homonimo000001', titulo: 'Outro Disco', tipo: 'Album', ano: '2022', capa: null, canais: [OUTRO] },
+    { id: 'OLAK5uy_semcanal000001', titulo: 'Sem Canal', tipo: 'Album', ano: '2021', capa: null, canais: [] },
+  ];
+  const juntos = juntarAlbunsDaPesquisa(doCanal, daPesquisa, CANAL);
+  assert.deepEqual(juntos.map((a) => a.titulo), ['eternal sunshine', 'Positions', 'Sweetener', 'Yours Truly'],
+    'os que faltavam, sem repetir (o mesmo id ou o mesmo título) e sem os de outro canal');
+  assert.deepEqual(juntarAlbunsDaPesquisa(doCanal, [], CANAL), doCanal, 'sem pesquisa, fica a prateleira como estava');
+  assert.equal(juntarAlbunsDaPesquisa([], daPesquisa, CANAL).length, 4, 'uma prateleira vazia também se completa');
+}
 
 console.log('Álbuns do artista: passou.');

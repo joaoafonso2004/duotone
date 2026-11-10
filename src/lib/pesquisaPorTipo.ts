@@ -43,6 +43,12 @@ export type AlbumEncontrado = {
   artista: string;
   ano: string | null;
   capa: string | null;
+  /**
+   * Os canais (`UC...`) dos artistas do álbum, pela ligação de cada nome
+   * (11/11). É o que distingue dois artistas com o mesmo nome: a página do
+   * artista só fica com os álbuns do canal dela.
+   */
+  canais: string[];
 };
 
 export type PlaylistEncontrada = {
@@ -109,8 +115,12 @@ export function lerAlbunsDaPesquisa(resposta: unknown): AlbumEncontrado[] {
     const semAno = p.filter((x) => x !== ano);
     const tipo = semAno.length > 1 ? semAno[0]! : 'Album';
     const artista = semAno.length > 1 ? semAno.slice(1).join(' • ') : semAno[0] ?? '';
+    const runs = it?.flexColumns?.[1]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs;
+    const canais = (Array.isArray(runs) ? runs : [])
+      .map((r: any) => r?.navigationEndpoint?.browseEndpoint?.browseId)
+      .filter((c: unknown): c is string => typeof c === 'string' && /^UC[\w-]{22}$/.test(c));
     vistos.add(id);
-    fora.push({ id, titulo, tipo, artista, ano, capa: miniatura(it) });
+    fora.push({ id, titulo, tipo, artista, ano, capa: miniatura(it), canais });
   }
   return fora;
 }

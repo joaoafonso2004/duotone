@@ -300,6 +300,36 @@ export function lerAlbunsDoCanal(resposta: unknown): AlbumDoArtista[] {
   return fora;
 }
 
+/**
+ * Os álbuns da página de um artista, com os que faltavam (11/11). A página do
+ * canal só mostra uma parte de cada prateleira ("Albums", "Singles & EPs",
+ * com um "More" à parte): uma utilizadora não via todos os da Ariana Grande,
+ * e pesquisando o título encontrava-os. Junta-se a pesquisa de álbuns pelo
+ * nome, só com os do MESMO canal (o nome não chega: há homónimos), e sem
+ * repetir nenhum (o mesmo id, ou o mesmo título do mesmo tipo). Do mais novo
+ * para o mais velho; no mesmo ano, a ordem da página.
+ */
+export function juntarAlbunsDaPesquisa(
+  doCanal: readonly AlbumDoArtista[],
+  daPesquisa: readonly { id: string; titulo: string; tipo: string; ano: string | null; capa: string | null; canais: readonly string[] }[],
+  canal: string,
+): AlbumDoArtista[] {
+  const ids = new Set(doCanal.map((a) => a.id));
+  const titulos = new Set(doCanal.map((a) => `${a.tipo.toLowerCase()}|${chaveDoTitulo(a.titulo)}`));
+  const novos: AlbumDoArtista[] = [];
+  for (const a of daPesquisa) {
+    if (!a.canais.includes(canal) || ids.has(a.id)) continue;
+    const chave = `${a.tipo.toLowerCase()}|${chaveDoTitulo(a.titulo)}`;
+    if (titulos.has(chave)) continue;
+    ids.add(a.id);
+    titulos.add(chave);
+    novos.push({ id: a.id, titulo: a.titulo, tipo: a.tipo, ano: a.ano, capa: a.capa });
+  }
+  if (!novos.length) return [...doCanal];
+  const ano = (a: AlbumDoArtista) => (a.ano ? Number(a.ano) : -1);
+  return [...doCanal, ...novos].map((a, i) => ({ a, i })).sort((x, y) => ano(y.a) - ano(x.a) || x.i - y.i).map((x) => x.a);
+}
+
 /** A linha por baixo do título do álbum: "EP · 2025". */
 export function legendaDoAlbum(a: Pick<AlbumDoArtista, 'tipo' | 'ano'>): string {
   return a.ano ? `${a.tipo} · ${a.ano}` : a.tipo;

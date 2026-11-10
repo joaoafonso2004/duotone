@@ -33,6 +33,10 @@ assert.equal(jon.ano, '2026');
 assert.equal(legendaDoAlbumEncontrado(jon), 'Album · Isak, Zigarro & Armando Teles · 2026');
 assert.ok(albuns.some((a) => a.tipo === 'Single') && albuns.some((a) => a.tipo === 'EP'));
 assert.ok(albuns.every((a) => /^OLAK5uy_/.test(a.id)));
+// Os canais dos artistas (11/11): é o que separa o Isak do Isak Danielson na página do artista.
+assert.deepEqual(jon.canais, ['UCX24KmsuxFB4jacvMSd3G2Q', 'UCPza7vr8h5aaBTmv92bzQhA', 'UChwTeO3w8qCuQH0X7GPd2uQ']);
+assert.deepEqual(albuns.find((a) => a.artista === 'Isak Danielson')!.canais, ['UC75RhrKQDnf2gCFLlvIPQqQ']);
+assert.deepEqual(albuns.find((a) => a.artista === 'Isak Montrel')!.canais, [], 'um nome sem ligação não tem canal');
 
 // ---- playlists ("drake playlist", 29/9): as de pessoas e as editoriais
 const dePessoas = lerPlaylistsDaPesquisa(ler('ytmusic-pesquisa-playlists-comunidade.json'), false);

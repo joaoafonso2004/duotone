@@ -96,6 +96,8 @@ const resposta = (corpo) => ({ ok: true, json: async () => corpo });
       'src/api/ytMusic.ts': {
         reproducoesConhecidas: () => null,
         pesquisarCancoesCru: async (query) => { procuradas.push(query); return semCanal ? null : fixture('ytmusic-isak-telescopio.json'); },
+        // A pesquisa de álbuns da página do artista (11/11): aqui não traz nada.
+        pesquisarNoYtMusicCru: async () => null,
         lerNoYtMusic: async (id) => { canais.push(id); return id.startsWith('UC') ? fixture('ytmusic-artista-isak.json') : null; },
         radioJaLido: () => null,
       },
@@ -163,6 +165,7 @@ const resposta = (corpo) => ({ ok: true, json: async () => corpo });
     'src/api/ytMusic.ts': {
       reproducoesConhecidas: () => null,
       pesquisarCancoesCru: async () => null,
+      pesquisarNoYtMusicCru: async () => null,
       lerNoYtMusic: async () => null,
       lerRadioPeloYtMusic: async (mix) => { radios.push(mix); return [semente, futebol, ...parecidas]; },
       radioJaLido: () => null,
