@@ -21,6 +21,7 @@ const KEY_SEARCH_HISTORY = 'pref:searchHistory';
 const MAX_SEARCH_HISTORY = 10;
 const KEY_POT_SERVER_URL = 'pref:potServerUrl';
 const KEY_AUTOPLAY_RADIO = 'pref:autoplayRadio';
+const KEY_ATUALIZAR_IMPORTADAS = 'pref:atualizarImportadas';
 const KEY_JAM_AUTO_FILA = 'pref:jamAutoFila';
 const KEY_VOLUME_NORMALIZATION = 'pref:volumeNormalization';
 const KEY_SOUND_PRESET = 'pref:soundPreset';
@@ -133,6 +134,18 @@ export async function getAutoplayRadio(): Promise<boolean> {
 }
 export async function setAutoplayRadio(v: boolean): Promise<void> {
   await setBool(KEY_AUTOPLAY_RADIO, v);
+}
+
+/**
+ * As playlists importadas de um link juntam sozinhas as músicas novas ao abrir,
+ * uma vez por dia (9/11, `state/origemDasPlaylists.ts`). Ligada de origem; o
+ * João pediu o interruptor nas Definições a 10/11.
+ */
+export async function getAtualizarImportadas(): Promise<boolean> {
+  return getBool(KEY_ATUALIZAR_IMPORTADAS, true);
+}
+export async function setAtualizarImportadas(v: boolean): Promise<void> {
+  await setBool(KEY_ATUALIZAR_IMPORTADAS, v);
 }
 
 

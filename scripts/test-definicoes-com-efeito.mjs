@@ -47,6 +47,9 @@ const TABELA = [
     leitores: [['src/components/YouTubePlayerView.tsx', /volumeNormalization/]] },
   { opcao: 'Autoplay radio', escreve: ['setAutoplayRadio'],
     leitores: [['src/lib/radioSync.ts', /s\.autoplayRadio/]] },
+  // 10/11: desligada, a playlist importada não lê o link ao abrir.
+  { opcao: 'Update imported playlists', escreve: ['setAtualizarImportadas'],
+    leitores: [['src/state/origemDasPlaylists.ts', /if \(!\(await getAtualizarImportadas\(\)\)\) return;/]] },
   { opcao: 'AutoMix', escreve: ['setAutomix'],
     leitores: [['src/components/YouTubePlayerView.tsx', /st\.automix && temAutomixNativo/]] },
   // Escrita pela store (`ligarMarcaDoRefrao`), lida pelas duas barras do leitor.

@@ -24,6 +24,7 @@ export const ROTULOS = {
   recomendacoes: 'Recommendations',
   identificar: 'Identify library',
   libraryCheck: 'Library check',
+  atualizarImportadas: 'Update imported playlists',
   email: 'Email',
   reporPassword: 'Reset password',
   sair: 'Sign out',

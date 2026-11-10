@@ -62,6 +62,8 @@ import {
   setAutomix,
   setCrossfadeSegundos,
   setIntensidadeDoSmartShuffle,
+  getAtualizarImportadas,
+  setAtualizarImportadas,
 } from '../lib/prefs';
 import { formatCacheSize, getAudioCacheBytes, isAudioCached, MAX_CACHE_BYTES } from '../lib/youtubeCache';
 import type { RootStackParamList } from '../navigation/RootNavigator';
@@ -196,6 +198,8 @@ export function SettingsScreen({ navigation }: Props) {
   const [audioQuality, setAudioQualityState] = useState<AudioQuality>('high');
   const [crossfade, setCrossfadeState] = useState<DuracaoDoCrossfade>(0);
   const [showDuration, setShowDuration] = useState(true);
+  // As playlists importadas a atualizar-se sozinhas (10/11): ligado de origem.
+  const [atualizarImportadas, setAtualizarImportadasEstado] = useState(true);
   const [hapticsOn, setHapticsOn] = useState(false);
   const [keepAwakeOn, setKeepAwakeOn] = useState(false);
   const [notificationsOn, setNotificationsOn] = useState(true);
@@ -218,6 +222,7 @@ export function SettingsScreen({ navigation }: Props) {
     getAudioQuality().then(setAudioQualityState);
     getCrossfadeSegundos().then(setCrossfadeState);
     getShowTrackDuration().then(setShowDuration);
+    getAtualizarImportadas().then(setAtualizarImportadasEstado);
     getHapticsEnabled().then(setHapticsOn);
 
     // Só reflete o estado — quem o aplica no arranque é o App.tsx.
@@ -601,6 +606,10 @@ export function SettingsScreen({ navigation }: Props) {
             aoTocar={aIdentificar ? () => { pararIdentificacao.current = true; } : () => void identificarBiblioteca()}
           />
           <Linha icone="checkmark-done" rotulo={ROTULOS.libraryCheck} chevron aoTocar={() => navigation.navigate('LibraryCheck')} />
+        </Grupo>
+        <Grupo rodape="Playlists you imported from a link pick up the songs added there since, once a day when you open them.">
+          <LinhaInterruptor icone="refresh" rotulo={ROTULOS.atualizarImportadas} valor={atualizarImportadas}
+            aoMudar={(v: boolean) => { setAtualizarImportadasEstado(v); void setAtualizarImportadas(v); }} />
         </Grupo>
 
         {/* O "Clear cache" apaga TODO o áudio guardado, os downloads feitos de

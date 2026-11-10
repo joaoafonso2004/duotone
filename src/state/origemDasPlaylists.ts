@@ -7,6 +7,7 @@ import type { LinkDePlaylist } from '../lib/linkDePlaylist';
 import {
   chavesDaLeitura, deveVer, juntarConhecidas, novasDaLeitura, type OrigemDaPlaylist,
 } from '../lib/origemDasPlaylists';
+import { getAtualizarImportadas } from '../lib/prefs';
 import { useConnectivity } from './connectivity';
 import { useImportacoes } from './importacoes';
 import { usePlaylists } from './playlists';
@@ -62,6 +63,8 @@ const emCurso = new Set<string>();
  */
 export async function atualizarDaOrigem(playlistId: string, nome: string, aoMudar?: () => void): Promise<void> {
   if (!playlistId || emCurso.has(playlistId) || useConnectivity.getState().offline) return;
+  // Desligado nas Definições (10/11): nada se lê nem se junta.
+  if (!(await getAtualizarImportadas())) return;
   const origem = (await ler())[playlistId];
   if (!deveVer(origem, Date.now())) return;
   emCurso.add(playlistId);

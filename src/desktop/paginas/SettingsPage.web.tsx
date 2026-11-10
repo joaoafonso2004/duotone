@@ -32,6 +32,7 @@ import {
   setShowRewindButton, setShowTrackDuration, setShowTrackDurationCache,
   setAutoplayRadio as persistAutoplayRadio,
   getNotificationsEnabled, setNotificationsEnabled,
+  getAtualizarImportadas, setAtualizarImportadas,
 } from '../../lib/prefs';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../state/auth';
@@ -252,6 +253,10 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
         && ganhosDaFaixa.every((g, i) => Math.abs(g - padraoGanhos[i]) < 0.05),
     }),
   };
+
+  // As playlists importadas a atualizar-se sozinhas (10/11): ligado de origem.
+  const [atualizarImportadas, setAtualizarImportadasEstado] = useState(true);
+  useEffect(() => { void getAtualizarImportadas().then(setAtualizarImportadasEstado); }, []);
 
   useEffect(() => {
     Promise.all([
@@ -549,6 +554,8 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                   </View>
                   <Button secondary onPress={() => navigate({ name: 'library-check' })}>Open</Button>
                 </View>
+                <ToggleLine label={ROTULOS.atualizarImportadas} description="Playlists you imported from a link pick up the songs added there since, once a day when you open them."
+                  value={atualizarImportadas} onChange={(v) => { setAtualizarImportadasEstado(v); void setAtualizarImportadas(v); }} />
               </SettingsCard>}
 
               {aberta === 'sobre' && <SettingsCard title="About">

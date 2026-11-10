@@ -180,6 +180,14 @@ caso('apagar a playlist esquece o link dela, nos quatro sítios onde se apaga', 
   assert.match(ler('src/screens/PlaylistDetailScreen.tsx'), /await deletePlaylist\(id\);\n\s+void esquecerOrigem\(id\);/);
   assert.match(ler('src/screens/PlaylistsScreen.tsx'), /await deletePlaylist\(deleteFor\.id\);\n\s+void esquecerOrigem\(deleteFor\.id\);/);
 });
+caso('desliga-se nas Definições (10/11), no PC e no iPhone; ligado de origem', () => {
+  const prefs = ler('src/lib/prefs.ts');
+  assert.match(prefs, /export async function getAtualizarImportadas\(\): Promise<boolean> \{\n\s+return getBool\(KEY_ATUALIZAR_IMPORTADAS, true\);/);
+  assert.match(ler('src/lib/rotulosDasDefinicoes.ts'), /atualizarImportadas: 'Update imported playlists',/);
+  assert.match(ler('src/state/origemDasPlaylists.ts'), /if \(!\(await getAtualizarImportadas\(\)\)\) return;\n\s+const origem = \(await ler\(\)\)\[playlistId\];/, 'desligado, nem se lê o link');
+  assert.match(ler('src/desktop/paginas/SettingsPage.web.tsx'), /<ToggleLine label=\{ROTULOS\.atualizarImportadas\}[\s\S]{0,260}void setAtualizarImportadas\(v\);/);
+  assert.match(ler('src/screens/SettingsScreen.tsx'), /<LinhaInterruptor icone="refresh" rotulo=\{ROTULOS\.atualizarImportadas\} valor=\{atualizarImportadas\}/);
+});
 
 if (falhas) { console.error(`\n${falhas} caso(s) falharam.`); process.exit(1); }
 console.log('\nTodos os casos passaram.');
