@@ -1,4 +1,5 @@
 import AVFoundation
+import CoreImage
 import ExpoModulesCore
 import MediaPlayer
 import UIKit
@@ -23,6 +24,21 @@ public class DuotoneRemoteCommandsModule: Module {
   private var capaTask: URLSessionDataTask?
   private var capaUrlAtual: String?
   private var capaCache: [String: MPMediaItemArtwork] = [:]
+
+  /**
+   * O aspeto da capa no ecrã bloqueado (10/11, pedido do João: "personalizar
+   * mais o locked screen"): "original" ou "duotone", os dois tons do PC.
+   * O iOS usa esta imagem no cartão, na capa em grande e para pintar o fundo
+   * do ecrã bloqueado -- é o que dá para mudar ali.
+   */
+  private var estiloDaCapa = "original"
+  /** As fontes da faixa que toca: mudar de estilo volta a desenhá-la. */
+  private var ultimasUrls: [String] = []
+  /**
+   * Sem gestão de cor, para as contas serem as do CSS do PC (que filtra em
+   * sRGB, sem passar para linear).
+   */
+  private lazy var contextoDaCapa = CIContext(options: [.workingColorSpace: NSNull()])
 
   /** Ver `aoInterromper`. Guardado para se poder largar no `OnDestroy`. */
   private var observadorDeInterrupcao: NSObjectProtocol?
@@ -81,6 +97,19 @@ public class DuotoneRemoteCommandsModule: Module {
     Function("setArtwork") { (urls: [String]) in
       DispatchQueue.main.async { [weak self] in
         self?.definirCapa(urls)
+      }
+    }
+
+    /** "original" ou "duotone". A capa que está a tocar redesenha-se já. */
+    Function("setArtworkStyle") { (estilo: String) in
+      DispatchQueue.main.async { [weak self] in
+        guard let self = self else { return }
+        let novo = estilo == "duotone" ? "duotone" : "original"
+        if novo == self.estiloDaCapa { return }
+        self.estiloDaCapa = novo
+        // A capa de agora, outra vez, no estilo novo (a chave da cache leva o estilo).
+        self.capaUrlAtual = nil
+        self.definirCapa(self.ultimasUrls)
       }
     }
 
@@ -260,7 +289,10 @@ public class DuotoneRemoteCommandsModule: Module {
    * do YouTube, em vez de ecrã de bloqueio sem imagem nenhuma.
    */
   private func definirCapa(_ urls: [String]) {
-    let chave = urls.first ?? ""
+    ultimasUrls = urls
+    let estilo = estiloDaCapa
+    // O estilo faz parte da chave: a mesma faixa a dois tons é outra imagem.
+    let chave = urls.first.map { "\(estilo)|\($0)" } ?? ""
 
     if chave.isEmpty {
       capaTask?.cancel()
@@ -287,10 +319,10 @@ public class DuotoneRemoteCommandsModule: Module {
 
     // Não deixar ficar a capa da faixa anterior à espera do download.
     escreverCapa(nil)
-    descarregar(urls, indice: 0, chave: chave)
+    descarregar(urls, indice: 0, chave: chave, estilo: estilo)
   }
 
-  private func descarregar(_ urls: [String], indice: Int, chave: String) {
+  private func descarregar(_ urls: [String], indice: Int, chave: String, estilo: String) {
     guard indice < urls.count, let url = URL(string: urls[indice]) else { return }
 
     let task = URLSession.shared.dataTask(with: url) { [weak self] dados, resposta, _ in
@@ -302,12 +334,13 @@ public class DuotoneRemoteCommandsModule: Module {
         // fonte seguinte.
         DispatchQueue.main.async {
           guard self.capaUrlAtual == chave else { return }
-          self.descarregar(urls, indice: indice + 1, chave: chave)
+          self.descarregar(urls, indice: indice + 1, chave: chave, estilo: estilo)
         }
         return
       }
 
-      let limpa = self.semBarras(imagem)
+      let semBarras = self.semBarras(imagem)
+      let limpa = estilo == "duotone" ? self.emDoisTons(semBarras) : semBarras
       // O tamanho PEDIDO tem de ser respeitado. Devolver sempre a mesma
       // imagem, como estava aqui, faz o iOS recusar a arte -- e foi por isso
       // que o ecrã de bloqueio e o centro de controlo ficaram sem capa.
@@ -462,6 +495,45 @@ public class DuotoneRemoteCommandsModule: Module {
 
     if util.isEmpty { return quadradoCentral(cg, tudo) ?? imagem }
     return quadradoCentral(cg, util) ?? imagem
+  }
+
+  /**
+   * A capa a dois tons, a mesma conta do PC (`[data-dt~="duo"]` na casca e
+   * `lib/doisTons.ts`): a imagem a cinzentos com `contrast(1.12)` e
+   * `brightness(1.04)`, multiplicada pelo tom claro (#cfd3de) e aclarada pelo
+   * escuro (#0a0b10) -- o `mix-blend-mode: lighten` é o máximo por canal.
+   * Corre uma vez por capa, fora da thread principal (no fim do download).
+   */
+  private func emDoisTons(_ imagem: UIImage) -> UIImage {
+    guard let cg = imagem.cgImage else { return imagem }
+    let base = CIImage(cgImage: cg)
+    let extensao = base.extent
+    let cinza = base.applyingFilter("CIColorControls", parameters: [
+      kCIInputSaturationKey: 0.0,
+      kCIInputContrastKey: 1.12,
+      kCIInputBrightnessKey: 0.0,
+    ])
+    // O brightness do CSS multiplica (não soma) e satura em 1.
+    let clara = cinza
+      .applyingFilter("CIColorMatrix", parameters: [
+        "inputRVector": CIVector(x: 1.04, y: 0, z: 0, w: 0),
+        "inputGVector": CIVector(x: 0, y: 1.04, z: 0, w: 0),
+        "inputBVector": CIVector(x: 0, y: 0, z: 1.04, w: 0),
+        "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 1),
+      ])
+      .applyingFilter("CIColorClamp")
+    // O multiply sobre o fundo claro.
+    let multiplicada = clara.applyingFilter("CIColorMatrix", parameters: [
+      "inputRVector": CIVector(x: 0xcf / 255.0, y: 0, z: 0, w: 0),
+      "inputGVector": CIVector(x: 0, y: 0xd3 / 255.0, z: 0, w: 0),
+      "inputBVector": CIVector(x: 0, y: 0, z: 0xde / 255.0, w: 0),
+      "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 1),
+    ])
+    // O lighten com o tom escuro.
+    let escuro = CIImage(color: CIColor(red: 0x0a / 255.0, green: 0x0b / 255.0, blue: 0x10 / 255.0)).cropped(to: extensao)
+    let final = multiplicada.applyingFilter("CIMaximumCompositing", parameters: [kCIInputBackgroundImageKey: escuro])
+    guard let saida = contextoDaCapa.createCGImage(final, from: extensao) else { return imagem }
+    return UIImage(cgImage: saida)
   }
 
   /// A imagem desenhada numa grelha pequena, uma média por célula.

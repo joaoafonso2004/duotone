@@ -126,6 +126,16 @@ export function definirCapaDoEcraBloqueado(urls: string[]): void {
   native?.setArtwork(urls);
 }
 
+/**
+ * O aspeto da capa no ecrã bloqueado (10/11): a original, ou a dois tons, como
+ * as capas do PC. O iOS usa-a no cartão, na capa em grande e no fundo. Um
+ * binário anterior não tem a função: fica a original.
+ */
+export type EstiloDaCapaDoEcraBloqueado = 'original' | 'duotone';
+export function definirEstiloDaCapaDoEcraBloqueado(estilo: EstiloDaCapaDoEcraBloqueado): void {
+  native?.setArtworkStyle?.(estilo);
+}
+
 
 /**
  * A capa reduzida a uma grelha de médias (r,g,b seguidos).

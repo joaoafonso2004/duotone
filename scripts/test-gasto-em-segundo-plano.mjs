@@ -30,8 +30,11 @@ const vigia = ler('src/hooks/useArranqueTravado.ts');
 assert.match(vigia, /if \(p\.positionMs >= ARRANCOU_MS && \(doMotor == null \|\| doMotor >= ARRANCOU_MS\)\) \{ desarmar\(\); return; \}/);
 assert.match(vigia, /if \(!vigia && s\.current\?\.sourceId === faixa && s\.positionMs < 1000\) armar\(\);/, 'e volta ao 0, volta a vigiar');
 
-// 5. O widget saiu (1/10, pedido do João: não funcionava).
+// 5. O widget saiu (1/10, pedido do João: não funcionava). O `@bacons/apple-targets`
+// voltou a 10/11 para os botões do ecrã bloqueado (`targets/controlos`), SEM App
+// Group: é o App Group que não volta, nem o estado do widget a ser escrito pela app.
 assert.doesNotMatch(ler('App.tsx'), /useEstadoDoWidget/);
-assert.doesNotMatch(ler('app.json'), /apple-targets|application-groups/);
+assert.doesNotMatch(ler('app.json'), /application-groups/);
+assert.doesNotMatch(ler('targets/controlos/expo-target.config.js'), /application-groups/);
 
 console.log('Gasto em segundo plano: canal social, sessão, handoff, vigia e widget passaram.');

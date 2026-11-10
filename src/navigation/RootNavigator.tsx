@@ -4,6 +4,7 @@ import { GRAFITE_DAS_FOLHAS } from '../lib/aparencia';
 import type { NavigatorScreenParams } from '@react-navigation/native';
 import { CommonActions } from '@react-navigation/native';
 import { rotaNoIphone, type Destino } from '../lib/destinos';
+import { eLinkDeControlo } from '../lib/atalhosDoIcone';
 import { DestinosProvider } from './destinos';
 import { registarToque } from '../lib/ultimoToque';
 import {useReducedMotion} from '../hooks/useReducedMotion';
@@ -311,6 +312,9 @@ export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 // deixava-o na página onde já estava.
 const linking: LinkingOptions<RootStackParamList> = {
   prefixes: ['duotone://'],
+  // Os botões do ecrã bloqueado (10/11) não são páginas: tocam, pelo
+  // `useAtalhosDoIcone`. Sem isto a navegação procurava um ecrã "controlo".
+  filter: (url) => !eLinkDeControlo(url),
   config: {
     screens: {
       // O Social passou a viver DENTRO dos separadores, por isso o caminho

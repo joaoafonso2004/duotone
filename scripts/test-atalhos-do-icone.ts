@@ -38,7 +38,9 @@ assert.ok(ponte.indexOf("addListener('onAtalho'") < ponte.indexOf('nativo.tirarP
 assert.match(ler('src/navigation/RootNavigator.tsx'), /useAtalhosDoIcone\(session\?\.user\.id \?\? null\);/);
 const hook = ler('src/hooks/useAtalhosDoIcone.ts');
 assert.match(hook, /if \(Platform\.OS === 'web' \|\| !userId\) return;/);
-assert.match(hook, /executarAtalhoDoIcone\(tipo/, 'executa pelo que é partilhado com a lista de saltos do Windows');
+// Desde 10/11 os botões do ecrã bloqueado (`targets/controlos`) usam o mesmo caminho: ver `test-ecra-bloqueado.ts`.
+assert.match(hook, /void executarAtalhoDoIcone\(acao, avisar\)/, 'executa pelo que é partilhado com a lista de saltos do Windows');
+assert.match(hook, /const pararIcone = ouvirAtalhosDoIcone\(executar\);/);
 assert.match(ler('src/state/atalhosDoIcone.ts'), /await sessaoLida\(\);/, 'o Resume espera pela sessão guardada do leitor');
 assert.match(ler('src/navigation/RootNavigator.web.tsx'), /useBarraDeTarefas\(notify\);/, 'no PC, a lista de saltos faz o mesmo');
 

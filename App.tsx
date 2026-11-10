@@ -17,8 +17,10 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { UpdateSheet } from './src/components/UpdateSheet';
 import { RootNavigator } from './src/navigation/RootNavigator';
+import { definirEstiloDaCapaDoEcraBloqueado } from './modules/duotone-remote-commands';
 import {
   getAutoplayRadio,
+  getCapaDoEcraBloqueadoADoisTons,
   getKeepAwake,
   getRepeatMode,
   getShowRewindButton,
@@ -366,6 +368,11 @@ export default function App() {
       // recusar; falhar a manter o ecrã ligado não pode partir o arranque.
       if (on) activateKeepAwakeAsync().catch(() => {});
     });
+    // A capa do ecrã bloqueado a dois tons (10/11): o módulo desenha a próxima
+    // capa (e a de agora) no estilo escolhido. Sem o módulo, nada.
+    if (Platform.OS === 'ios') {
+      void getCapaDoEcraBloqueadoADoisTons().then((sim) => definirEstiloDaCapaDoEcraBloqueado(sim ? 'duotone' : 'original'));
+    }
     return () => {
       saiu = true;
       pararLimpeza?.();

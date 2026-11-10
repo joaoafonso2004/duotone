@@ -64,7 +64,10 @@ import {
   setIntensidadeDoSmartShuffle,
   getAtualizarImportadas,
   setAtualizarImportadas,
+  getCapaDoEcraBloqueadoADoisTons,
+  setCapaDoEcraBloqueadoADoisTons,
 } from '../lib/prefs';
+import { definirEstiloDaCapaDoEcraBloqueado } from '../../modules/duotone-remote-commands';
 import { formatCacheSize, getAudioCacheBytes, isAudioCached, MAX_CACHE_BYTES } from '../lib/youtubeCache';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useAuth } from '../state/auth';
@@ -200,6 +203,8 @@ export function SettingsScreen({ navigation }: Props) {
   const [showDuration, setShowDuration] = useState(true);
   // As playlists importadas a atualizar-se sozinhas (10/11): ligado de origem.
   const [atualizarImportadas, setAtualizarImportadasEstado] = useState(true);
+  // A capa do ecrã bloqueado a dois tons (10/11): desligada de origem.
+  const [capaADoisTons, setCapaADoisTons] = useState(false);
   const [hapticsOn, setHapticsOn] = useState(false);
   const [keepAwakeOn, setKeepAwakeOn] = useState(false);
   const [notificationsOn, setNotificationsOn] = useState(true);
@@ -223,6 +228,7 @@ export function SettingsScreen({ navigation }: Props) {
     getCrossfadeSegundos().then(setCrossfadeState);
     getShowTrackDuration().then(setShowDuration);
     getAtualizarImportadas().then(setAtualizarImportadasEstado);
+    getCapaDoEcraBloqueadoADoisTons().then(setCapaADoisTons);
     getHapticsEnabled().then(setHapticsOn);
 
     // Só reflete o estado — quem o aplica no arranque é o App.tsx.
@@ -554,6 +560,11 @@ export function SettingsScreen({ navigation }: Props) {
           />
           {Platform.OS === 'ios' && (
             <Linha icone="cube-outline" rotulo="Artwork style" valor={valorDe('capa')} chevron aoTocar={abrirMenu('capa')} />
+          )}
+          {/* O ecrã bloqueado (10/11): a capa que o iOS mostra no cartão, em grande e no fundo. */}
+          {Platform.OS === 'ios' && (
+            <LinhaInterruptor icone="contrast-outline" rotulo="Two-tone lock screen" valor={capaADoisTons}
+              aoMudar={(v: boolean) => { setCapaADoisTons(v); definirEstiloDaCapaDoEcraBloqueado(v ? 'duotone' : 'original'); void setCapaDoEcraBloqueadoADoisTons(v); }} />
           )}
           {/* A personalização (10/10): temas, o fundo, as listas e o leitor. */}
           {Platform.OS === 'ios' && (

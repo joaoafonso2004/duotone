@@ -22,6 +22,7 @@ const MAX_SEARCH_HISTORY = 10;
 const KEY_POT_SERVER_URL = 'pref:potServerUrl';
 const KEY_AUTOPLAY_RADIO = 'pref:autoplayRadio';
 const KEY_ATUALIZAR_IMPORTADAS = 'pref:atualizarImportadas';
+const KEY_CAPA_DO_ECRA_BLOQUEADO = 'pref:capaDoEcraBloqueado';
 const KEY_JAM_AUTO_FILA = 'pref:jamAutoFila';
 const KEY_VOLUME_NORMALIZATION = 'pref:volumeNormalization';
 const KEY_SOUND_PRESET = 'pref:soundPreset';
@@ -146,6 +147,18 @@ export async function getAtualizarImportadas(): Promise<boolean> {
 }
 export async function setAtualizarImportadas(v: boolean): Promise<void> {
   await setBool(KEY_ATUALIZAR_IMPORTADAS, v);
+}
+
+/**
+ * A capa do ecrã bloqueado do iPhone a dois tons, como as capas do PC (10/11,
+ * o João: "personalizar mais o locked screen"). Desligada de origem. Quem a
+ * aplica no arranque é o App.tsx; o desenho é do módulo nativo.
+ */
+export async function getCapaDoEcraBloqueadoADoisTons(): Promise<boolean> {
+  return getBool(KEY_CAPA_DO_ECRA_BLOQUEADO, false);
+}
+export async function setCapaDoEcraBloqueadoADoisTons(v: boolean): Promise<void> {
+  await setBool(KEY_CAPA_DO_ECRA_BLOQUEADO, v);
 }
 
 

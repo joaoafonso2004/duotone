@@ -48,6 +48,9 @@ const TABELA = [
   { opcao: 'Autoplay radio', escreve: ['setAutoplayRadio'],
     leitores: [['src/lib/radioSync.ts', /s\.autoplayRadio/]] },
   // 10/11: desligada, a playlist importada não lê o link ao abrir.
+  // 10/11: a capa do ecrã bloqueado a dois tons; quem a aplica é o módulo nativo.
+  { opcao: 'Two-tone lock screen', escreve: ['setCapaDoEcraBloqueadoADoisTons'],
+    leitores: [['App.tsx', /getCapaDoEcraBloqueadoADoisTons\(\)\.then\(\(sim\) => definirEstiloDaCapaDoEcraBloqueado\(sim \? 'duotone' : 'original'\)\)/]] },
   { opcao: 'Update imported playlists', escreve: ['setAtualizarImportadas'],
     leitores: [['src/state/origemDasPlaylists.ts', /if \(!\(await getAtualizarImportadas\(\)\)\) return;/]] },
   { opcao: 'AutoMix', escreve: ['setAutomix'],
