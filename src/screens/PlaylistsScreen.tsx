@@ -297,13 +297,13 @@ export function PlaylistsScreen() {
         <EmptyState
           icon="albums-outline"
           title="No playlists yet"
-          subtitle="Bring one over from YouTube, or start an empty one and fill it as you go."
+          subtitle="Bring one over from Spotify or anywhere else, or start an empty one and fill it as you go."
         >
           <View style={{ gap: spacing.sm, marginTop: spacing.xl, alignSelf: "stretch", paddingHorizontal: spacing.xl }}>
             <PrimeiroPasso
-              icon="logo-youtube"
-              label="Import a YouTube playlist"
-              nota="Tracks from both sources live side by side"
+              icon="download-outline"
+              label="Import a playlist"
+              nota="Paste a Spotify, YouTube, Apple Music or Deezer link"
               onPress={() => navigation.navigate("ImportYouTube")}
             />
             <PrimeiroPasso
@@ -484,8 +484,14 @@ export function PlaylistsScreen() {
             pressed && { backgroundColor: colors.surfacePressed }
           ]}
         >
-          <Ionicons name="logo-youtube" size={20} color={colors.youtube} />
-          <Text style={[type.body, { fontWeight: '600', marginLeft: 8 }]}>Import from YouTube</Text>
+          {/* O ecrã importa de qualquer sítio desde 5/11 (Spotify, YouTube, Deezer,
+              Apple Music, uma lista colada), mas o menu dizia "Import from YouTube"
+              com o logótipo, e ninguém percebia que um link do Spotify serve (10/11). */}
+          <Ionicons name="download-outline" size={20} color={colors.text} />
+          <View style={{ marginLeft: 8, flex: 1 }}>
+            <Text style={[type.body, { fontWeight: '600' }]}>Import a playlist</Text>
+            <Text style={type.caption}>Spotify, YouTube, Apple Music or Deezer link</Text>
+          </View>
         </Pressable>
 
         <Pressable
