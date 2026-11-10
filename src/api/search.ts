@@ -1,4 +1,5 @@
 import { continuarPesquisaFree, pesquisarPaginaFree, type FreeSearchResult } from './ytSearchFree';
+import { semClean } from '../state/versoesClean';
 import { searchYouTube } from './youtube';
 import type { Track } from '../types';
 
@@ -46,7 +47,8 @@ export async function pesquisarMusica(query: string, signal?: AbortSignal): Prom
     // unidades por chamada de um tecto diário de 10.000, e uma pesquisa sem
     // resultados costuma ser mesmo uma pesquisa sem resultados. A alternativa
     // paga é para quando a livre FALHA.
-    return { faixas: pagina.resultados.map((r) => r.track), continuacao: pagina.continuacao, detalhes: detalhesDe(pagina.resultados) };
+    // As clean que este aparelho ja conhece saem aqui, sem pedido nenhum (state/versoesClean.ts).
+    return { faixas: await semClean(pagina.resultados.map((r) => r.track)), continuacao: pagina.continuacao, detalhes: detalhesDe(pagina.resultados) };
   } catch {
     // Apagar o campo não deve lançar uma pesquisa paga para o texto antigo.
     if (signal?.aborted) return VAZIO;
@@ -55,7 +57,7 @@ export async function pesquisarMusica(query: string, signal?: AbortSignal): Prom
     signal?.removeEventListener('abort', cancelar);
   }
   if (signal?.aborted) return VAZIO;
-  return { faixas: await searchYouTube(query), continuacao: null };
+  return { faixas: await semClean(await searchYouTube(query)), continuacao: null };
 }
 
 /**
@@ -77,5 +79,5 @@ export async function pesquisarMaisMusica(
 ): Promise<ResultadoDePesquisa> {
   if (signal?.aborted) return VAZIO;
   const pagina = await continuarPesquisaFree(continuacao, signal);
-  return { faixas: pagina.resultados.map((r) => r.track), continuacao: pagina.continuacao, detalhes: detalhesDe(pagina.resultados) };
+  return { faixas: await semClean(pagina.resultados.map((r) => r.track)), continuacao: pagina.continuacao, detalhes: detalhesDe(pagina.resultados) };
 }

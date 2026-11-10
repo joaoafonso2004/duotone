@@ -1,4 +1,5 @@
 import { fetchYouTubePlaylistById } from './youtube';
+import { semCleanNosResultados } from '../state/versoesClean';
 import { searchYouTubeFreeWithChannel } from './ytSearchFree';
 import { addTracksToPlaylist, createPlaylist } from './playlists';
 import { guardarMuitasNasGostadas } from './library';
@@ -100,7 +101,8 @@ export const dependenciasReais: Dependencias = {
   resolver: async (linhas, aoAvancar, sinal) => {
     const r = await importSpotifyCsv({
       rows: linhas,
-      search: (q) => searchYouTubeFreeWithChannel(q, sinal),
+      // As clean conhecidas trocam-se pela explicita antes de o comparador escolher (sem pedidos).
+      search: async (q) => semCleanNosResultados(await searchYouTubeFreeWithChannel(q, sinal)),
       signal: sinal,
       onProgress: (p) => aoAvancar(p.done),
     });

@@ -187,6 +187,8 @@ const pesquisa = ambiente(async () => {}, {
     continuarPesquisaFree: async () => ({ resultados: [], continuacao: null }),
   },
   'src/api/youtube.ts': { searchYouTube: async () => { pagas++; return ['alternativa']; } },
+  // As versões clean (9/11) têm o teste delas (test-versoes-clean.ts): aqui passam como vêm.
+  'src/state/versoesClean.ts': { semClean: async (faixas) => faixas },
 }).carregar('src/api/search.ts');
 assert.equal((await pesquisa.pesquisarMusica('sem resultados')).faixas.length, 0);
 assert.equal(pagas, 0, 'Uma pesquisa livre vazia não gasta quota');

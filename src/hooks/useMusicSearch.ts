@@ -6,6 +6,7 @@ import { FRASES_DA_PESQUISA } from '../lib/estadoDaPesquisa';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
 import { pesquisarNaBiblioteca } from '../lib/pesquisaLocal';
 import { comCatalogo, useCatalogoDeFaixas } from '../state/catalogoDeFaixas';
+import { trocarClean, verGemeas } from '../state/versoesClean';
 import type { Track } from '../types';
 
 /** Pesquisa partilhada; mudar ou apagar o texto invalida logo o pedido anterior. */
@@ -72,6 +73,11 @@ export function useMusicSearch(query: string, onFound: (query: string) => void) 
         setResults(found.faixas);
         if (found.faixas.length) aoEncontrar.current(q);
         setLoading(false);
+        // Duas iguais nos resultados (9/11): pergunta-se qual e a explicita, uma vez
+        // por par, e a clean sai da lista. Na maior parte das pesquisas nao ha pedido.
+        void verGemeas(found.faixas, controller.signal).then((trocas) => {
+          if (atual && trocas) setResults((antes) => trocarClean(antes, trocas));
+        }).catch(() => {});
 
         // A segunda página vai atrás, sem ninguém esperar por ela.
         //
