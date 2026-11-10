@@ -442,3 +442,44 @@ export const temRecomendacoes = (r: Recomendacoes): boolean =>
 export function refreshSuggestionPreferences():void {
   useRecomendacoes.setState({...arrumarPrateleiras(),misturas:arrumarMisturas()});
 }
+
+/**
+ * As prateleiras da Home NO APARELHO (10/11): abrir a app sem rede mostrava a
+ * Home sem secções. A última Home pronta fica guardada por conta e entra ao
+ * arrancar se a store ainda estiver vazia, com o estado 'vazio' -- assim o
+ * `carregar` corre quando houver rede e substitui-a, como sempre.
+ */
+const COPIA_DA_HOME = (userId: string) => `duotone:home:${userId}`;
+
+export function iniciarCopiaDaHome(userId: string): () => void {
+  let vivo = true;
+  void (async () => {
+    try {
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      const texto = await AsyncStorage.getItem(COPIA_DA_HOME(userId));
+      if (!vivo || !texto || useRecomendacoes.getState().estado !== 'vazio') return;
+      const c = JSON.parse(texto);
+      if (!c || typeof c !== 'object') return;
+      for (const nome of ORDEM_DAS_PRATELEIRAS) if (Array.isArray(c[nome])) rawShelves[nome] = c[nome];
+      rawMixes = Array.isArray(c.misturas) ? c.misturas : [];
+      useRecomendacoes.setState({
+        ...arrumarPrateleiras(), misturas: arrumarMisturas(), misturasProntas: rawMixes.length > 0,
+        prontas: ORDEM_DAS_PRATELEIRAS.filter((nome) => Array.isArray(c[nome])),
+      });
+    } catch { /* uma cópia partida é como não haver cópia */ }
+  })();
+  let paraGuardar: ReturnType<typeof setTimeout> | undefined;
+  const parar = useRecomendacoes.subscribe((s) => {
+    if (s.estado !== 'pronto') return;
+    clearTimeout(paraGuardar);
+    paraGuardar = setTimeout(() => {
+      if (!vivo) return;
+      const copia: Record<string, unknown> = { misturas: rawMixes };
+      for (const nome of ORDEM_DAS_PRATELEIRAS) if (rawShelves[nome]) copia[nome] = rawShelves[nome];
+      void import('@react-native-async-storage/async-storage')
+        .then((m) => m.default.setItem(COPIA_DA_HOME(userId), JSON.stringify(copia)))
+        .catch(() => { /* sem espaço: fica a da memória */ });
+    }, 3000);
+  });
+  return () => { vivo = false; clearTimeout(paraGuardar); parar(); };
+}

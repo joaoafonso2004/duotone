@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 /**
  * O perfil já lido, para não se esperar por ele outra vez.
  *
@@ -13,12 +14,14 @@
  * mudou alguma coisa, o ecrã actualiza-se sem piscar; se não mudou, ninguém
  * esperou por nada.
  *
- * ## Em memória, e sem prazo de validade
+ * ## Em memória, e o PRÓPRIO também no aparelho (10/11)
  *
- * Não se persiste em disco de propósito: um perfil de ontem escrito em disco
- * envelhece mal -- mudam capas, nomes, playlists -- e reinstalar a app passaria
- * a mostrar dados velhos antes dos verdadeiros. Aqui morre com o processo, que
- * é exactamente a vida que deve ter.
+ * Era só em memória, de propósito: um perfil de ontem envelhece mal. Mas abrir
+ * a app sem rede (no comboio) deixava o próprio perfil vazio, e foi essa a
+ * queixa ("o perfil nunca fica guardado"). Agora a última leitura boa do
+ * PRÓPRIO perfil fica também no aparelho (`COPIA`), e entra na memória ao
+ * arrancar se ainda lá não houver nada. Com rede, a leitura nova substitui-a
+ * logo, como sempre. Os perfis dos outros continuam só em memória.
  *
  * E não tem prazo porque não precisa: o que está em cache é sempre substituído
  * pela leitura que corre a seguir. Um prazo só serviria para decidir se se
@@ -37,6 +40,32 @@ export type PerfilEmCache = {
 };
 
 const cache = new Map<string, PerfilEmCache>();
+
+/** A cópia do próprio perfil no aparelho, por conta. */
+const COPIA = (userId: string) => `duotone:perfil-proprio:${userId}`;
+let proprio: string | null = null;
+
+function guardarNoAparelho(userId: string, dados: PerfilEmCache): void {
+  if (userId !== proprio) return;
+  const copia = { ...dados, guardadas: [...dados.guardadas] };
+  AsyncStorage.setItem(COPIA(userId), JSON.stringify(copia)).catch(() => { /* sem espaço: fica a da memória */ });
+}
+
+/**
+ * Ao arrancar, com a conta lida: a cópia do aparelho entra na memória se ainda
+ * lá não houver nada (a leitura da rede, se houver rede, vem por cima).
+ */
+export async function hidratarPerfilProprio(userId: string): Promise<void> {
+  proprio = userId;
+  if (!userId || cache.has(userId)) return;
+  try {
+    const texto = await AsyncStorage.getItem(COPIA(userId));
+    if (!texto || cache.has(userId) || proprio !== userId) return;
+    const copia = JSON.parse(texto);
+    cache.set(userId, { ...copia, guardadas: new Set<string>(Array.isArray(copia.guardadas) ? copia.guardadas : []) });
+    avisar(userId);
+  } catch { /* uma cópia partida é como não haver cópia */ }
+}
 
 /**
  * Quem quer saber quando um perfil chega à cache.
@@ -65,6 +94,7 @@ export function perfilEmCache(userId: string): PerfilEmCache | null {
 
 export function guardarPerfil(userId: string, dados: PerfilEmCache): void {
   cache.set(userId, dados);
+  guardarNoAparelho(userId, dados);
   avisar(userId);
 }
 
@@ -74,6 +104,9 @@ export function guardarPerfil(userId: string, dados: PerfilEmCache): void {
  */
 export function limparCachePerfil(): void {
   cache.clear();
+  // A cópia no aparelho é de quem sai: vai com ele.
+  if (proprio) AsyncStorage.removeItem(COPIA(proprio)).catch(() => {});
+  proprio = null;
 }
 
 /**
@@ -119,7 +152,7 @@ async function lerParaCache(userId: string): Promise<void> {
     const { loadProfileSections } = await import('../api/profileSections');
     const perfil = await getSocialProfile(userId);
     const r = await loadProfileSections(userId, true, (perfil as any)?.canView ?? true);
-    cache.set(userId, {
+    guardarPerfil(userId, {
       perfil,
       most: r.most.status === 'fulfilled' ? (r.most.value as unknown[]) : [],
       recent: r.recent.status === 'fulfilled' ? (r.recent.value as unknown[]) : [],
@@ -130,7 +163,6 @@ async function lerParaCache(userId: string): Promise<void> {
         : { playlistIds: [], moment: null },
       highlightsLidos: r.highlights.status === 'fulfilled',
     });
-    avisar(userId);
   } catch {
     // Idem.
   }

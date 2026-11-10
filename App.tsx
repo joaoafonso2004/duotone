@@ -3,7 +3,7 @@ import { startConnectivity,useConnectivity } from './src/state/connectivity';
 import { loadRecommendationFeedback,useRecommendationFeedback } from './src/state/recommendationFeedback';
 import { refreshSuggestionPreferences } from './src/state/recomendacoes';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {useLyricsPrefetch} from './src/hooks/useLyricsPrefetch';
 import { useComandosDoAparelho } from './src/lib/connectSync';
 import { esquecerCapasAquecidas, useAquecerCapas } from './src/hooks/useAquecerCapas';
@@ -62,18 +62,18 @@ import { tocaSemRede } from './src/lib/descarregarFaixa';
 import { descarregadorNativo } from './modules/duotone-download';
 import { useTheme } from './src/state/theme';
 import { useAcompanharCapa } from './src/hooks/useAcompanharCapa';
-import { useRecomendacoes } from './src/state/recomendacoes';
+import { iniciarCopiaDaHome, useRecomendacoes } from './src/state/recomendacoes';
 import { useMisturaDoDia } from './src/state/misturaDoDia';
 import { usePlaylists } from './src/state/playlists';
 import { iniciarPresenca } from './src/lib/presenceSync';
 import { useOuvirJuntos } from './src/state/ouvirJuntos';
 import { useSeguirAmigo } from './src/state/seguirAmigo';
-import { aquecerPerfilProprio, limparCachePerfil } from './src/lib/cachePerfil';
+import { aquecerPerfilProprio, hidratarPerfilProprio, limparCachePerfil } from './src/lib/cachePerfil';
 import { sincronizarPreferencias } from './src/lib/prefsSync';
 import { ResumoDoMes } from './src/components/ResumoDoMes';
 import { Abertura } from './src/components/Abertura';
 import { iniciarEventos } from './src/lib/eventos';
-import { iniciarSocial } from './src/state/social';
+import { iniciarSocial, useSocial } from './src/state/social';
 import { garantirPrivacidade } from './src/state/privacidade';
 import { limparPerfisPublicos } from './src/state/perfisPublicos';
 import { iniciarArtistasFavoritos, useArtistasFavoritos } from './src/state/artistasFavoritos';
@@ -197,7 +197,6 @@ export default function App() {
       void getEqPadrao().then((ganhos) => usePlayer.setState({ padraoGanhos: ganhos })).catch(() => {});
     });
     const pararEventos = iniciarEventos(userId);
-    const pararSocial = iniciarSocial(userId);
     // Fechar a app nao e sair de uma sessao de escuta: se ficou uma aberta,
     // volta-se a entrar nela em silencio. Sair e uma decisao, e faz-se pela
     // barra.
@@ -206,13 +205,35 @@ export default function App() {
     // e esquecida: os dados de quem sai nao podem aparecer a quem entra.
     void aquecerPerfilProprio(userId);
     return () => {
-      pararPresenca(); pararSocial(); pararPrefs(); pararEventos();
+      pararPresenca(); pararPrefs(); pararEventos();
       useOuvirJuntos.getState().desligar();
+    };
+  }, [userId,offline]);
+
+  // O Social e as cópias do perfil são da CONTA, não da rede (10/11). Estavam no
+  // efeito de cima, e perder a rede no comboio corria a limpeza de quem sai da
+  // conta: o Social ficava vazio, a mensagem a meio de escrever perdia-se e o
+  // perfil deixava de ter cópia. Sem rede ficam como estavam (com a faixa "No
+  // internet connection"), e as leituras falhadas não apagam nada.
+  useEffect(() => {
+    if (!userId) return;
+    void hidratarPerfilProprio(userId);
+    const pararSocial = iniciarSocial(userId);
+    return () => {
+      pararSocial();
       limparCachePerfil();
       esquecerCapasAquecidas();
       limparPerfisPublicos();
     };
-  }, [userId,offline]);
+  }, [userId]);
+  // Ao voltar a rede, o Social relê (as leituras sem rede falharam e ficaram assim).
+  const estavaSemRede = useRef(false);
+  useEffect(() => {
+    if (offline) { estavaSemRede.current = true; return; }
+    if (!estavaSemRede.current || !userId) return;
+    estavaSemRede.current = false;
+    void useSocial.getState().refresh();
+  }, [offline, userId]);
 
   // O relatório do Library check é da biblioteca de quem sai. Só a conta o
   // apaga: com o efeito de cima, uma quebra de rede levava-o a meio.
@@ -234,8 +255,14 @@ export default function App() {
     if (!userId||offline) return;
     let active=true;
     void loadRecommendationFeedback(userId).then(()=>{if(active)void useRecomendacoes.getState().carregar();});
-    return () => {active=false;useRecomendacoes.getState().limpar();useMisturaDoDia.getState().limpar();};
+    return () => {active=false;};
   }, [userId,offline]);
+  // As prateleiras da Home são da conta (10/11): perder a rede deixava-as vazias.
+  useEffect(() => {
+    if (!userId) return;
+    const pararCopia = iniciarCopiaDaHome(userId);
+    return () => {pararCopia();useRecomendacoes.getState().limpar();useMisturaDoDia.getState().limpar();};
+  }, [userId]);
 
   /**
    * As playlists saem com a conta.

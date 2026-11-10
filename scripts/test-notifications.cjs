@@ -154,6 +154,7 @@ async function main() {
     '../lib/recuperacaoDaInbox':load('src/lib/recuperacaoDaInbox.ts'),
     '../lib/socialActivity':load('src/lib/socialActivity.ts'),
     '../api/conversationPreviews':{getConversationPreviews:async()=>({activity:{},previews:{},complete:true})},
+    './connectivity':{useConnectivity:{getState:()=>({offline:false})}},
   },{setInterval:(cb,ms)=>{intervals.set(ms,cb);return ms;},clearInterval:id=>intervals.delete(id),
     console:{warn(){}}});
   const stop=socialModule.iniciarSocial('me');await flush();

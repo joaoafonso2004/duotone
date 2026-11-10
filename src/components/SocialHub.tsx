@@ -39,6 +39,8 @@ import { SkeletonDeConversas } from './Skeleton';
 import { usePuxarParaAtualizar } from './PuxarParaAtualizar';
 import { CabecalhoDoAmigo, FaixaPartilhada, FundoDaApp } from './ChatAmigo';
 import { MusicasDaConversa } from './MusicasDaConversa';
+import { useConnectivity } from '../state/connectivity';
+import { copiaEmMemoria, guardarCopiaDaConversa, lerCopiaDaConversa } from '../lib/copiaDasConversas';
 import { contarMusicasCarregadas, musicasUnicas, origemDaConversa } from '../lib/musicasDaConversa';
 import { SocialOverview } from './SocialOverview';
 import { OpcoesDoAmigo } from './OpcoesDoAmigo';
@@ -212,15 +214,20 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
   useEffect(()=>{
     if(!conversation || !visible)return;
     let active=true,loading=false,firstLoad=true,reload=false,aoVivo=false,jaLigou=false,ultimaCarga=0,esteveAtras=false,perdida=false;
-    setMessages([]);setHasOlder(false);setChatLoading(true);
+    // As últimas que se viram desta conversa (10/11): sem rede é o que há, e com
+    // rede aparecem já, antes da leitura. Da memória na hora; do aparelho a seguir.
+    const daMemoria=myId?copiaEmMemoria(myId,key):null;
+    setMessages(daMemoria??[]);setHasOlder(false);setChatLoading(!daMemoria);
+    if(!daMemoria&&myId)void lerCopiaDaConversa(myId,key).then(c=>{if(active&&c?.length){setMessages(previous=>previous.length?previous:c);setChatLoading(false);}});
     const load=async()=>{
       if(!active)return;
       // Escondida não lê, mas fica a dever: o próximo foco relê.
       if(!appEstaVisivel()){perdida=true;return;}
       if(loading){reload=true;return;}loading=true;reload=false;perdida=false;ultimaCarga=Date.now();
       try{const rows=conversation.kind==='group'?await getGroupMessages(conversation.id):await getChatMessages(conversation.id);
-        if(active){if(firstLoad){setHasOlder(rows.length===100);firstLoad=false;}setMessages(previous=>mergeMessages(previous,rows));useSocial.getState().rememberConversation(key,rows);const last=rows.filter(m=>m.sender.id!==myId).at(-1);if(last&&canRead())await useSocial.getState().markRead(key,last.createdAt);}}
-      catch(e:any){if(active)setError(e.message || "Couldn't refresh this conversation.");}
+        if(active){if(firstLoad){setHasOlder(rows.length===100);firstLoad=false;}setMessages(previous=>mergeMessages(previous,rows));useSocial.getState().rememberConversation(key,rows);if(myId)guardarCopiaDaConversa(myId,key,rows);const last=rows.filter(m=>m.sender.id!==myId).at(-1);if(last&&canRead())await useSocial.getState().markRead(key,last.createdAt);}}
+      // Sem rede não é um erro: ficam as que se viram, com a faixa "No internet connection" (10/11).
+      catch(e:any){if(active&&!useConnectivity.getState().offline)setError(e.message || "Couldn't refresh this conversation.");}
       finally{loading=false;if(active){setChatLoading(false);if(reload)void load();}}
     };
     // Realtime entrega mensagens novas imediatamente. Esta consulta é apenas

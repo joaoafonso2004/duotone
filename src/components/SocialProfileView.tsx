@@ -9,6 +9,7 @@ import { sendFriendRequest } from '../api/social';
 import { useAuth } from '../state/auth';
 import { usePlayer } from '../state/player';
 import { useSocial } from '../state/social';
+import { useConnectivity } from '../state/connectivity';
 import { useProfileMedia } from '../lib/profileMedia';
 import { ultimaAtividade } from '../lib/socialPresence';
 import { desdeQuando, quantoOuviu, ultimaEscuta } from '../lib/perfilLimitado';
@@ -139,7 +140,8 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef,aoMenuDaF
         playlists:l.status==='rejected'?(missingProfilePlaylistColumns(l.reason)?PROFILE_SHARING_UNAVAILABLE:"Couldn't load playlists."):'',
         copies:c.status==='rejected'?"Couldn't check your saved playlists.":'',
       });
-    }catch{if(id===request.current)setError("Couldn't open this profile. Please try again.");}finally{if(id===request.current&&!silencioso)setLoading(false);}
+    // Sem rede não é um erro: fica a cópia, e a faixa "No internet connection" diz porquê (10/11).
+    }catch{if(id===request.current&&!useConnectivity.getState().offline)setError("Couldn't open this profile. Please try again.");}finally{if(id===request.current&&!silencioso)setLoading(false);}
   },[userId,own]);
   // Limpar só quando se troca de pessoa: o que está no ecrã passa a ser de
   // outra conta e não pode ficar à vista. Uma mudança de amizade ou uma ação

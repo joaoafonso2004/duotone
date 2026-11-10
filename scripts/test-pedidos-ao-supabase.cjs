@@ -85,6 +85,7 @@ function social(plataforma) {
     '../lib/recuperacaoDaInbox': load('src/lib/recuperacaoDaInbox.ts'),
     '../lib/socialActivity': load('src/lib/socialActivity.ts'),
     '../api/conversationPreviews': { getConversationPreviews: async () => { c.previews++; return { activity: {}, previews: {}, complete: true }; } },
+    './connectivity': { useConnectivity: { getState: () => ({ offline: false }) } },
   }, { document, window, setInterval: () => 0, clearInterval() {}, console: { warn() {} } });
   return { modulo, c, ambiente };
 }

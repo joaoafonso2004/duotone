@@ -340,6 +340,7 @@ const TESTES = [
   `${TS} scripts/test-menus-do-pc.ts`,
   `${TS} scripts/test-menos-pedidos-app-publica.ts`,
   `${TS} scripts/test-perfil-limitado.ts`,
+  `${DUPLOS} scripts/test-sem-rede.ts`,
   `${RESOLVER} scripts/test-musicas-da-conversa.ts`,
   `${TS} scripts/test-fila-animada.ts`,
   `${TS} scripts/test-liked-songs-pc.ts`,

@@ -11,6 +11,7 @@ import { appEstaVisivel, intervaloComAppVisivel } from '../lib/appVisibility';
 import { serialRefresh, type InboxSnapshot } from '../lib/inAppNotifications';
 import { deveRelerAInbox, TIQUE_DA_INBOX_MS } from '../lib/recuperacaoDaInbox';
 import { getConversationPreviews } from '../api/conversationPreviews';
+import { useConnectivity } from './connectivity';
 import { musicActivity, mergePreviews, previewOf, receivedPreviews, type MusicActivity, type ConversationPreview } from '../lib/socialActivity';
 
 export type SocialFriend = Friendship & { musicActivity?: MusicActivity | null };
@@ -208,7 +209,8 @@ export const useSocial = create<SocialState>((set, get) => ({
       } catch (e) {
         // Os fixos que falharam ficam pedidos para a próxima.
         if (lerFixos) fixosPedidos = true;
-        if (gen === generation) set({ loading: false, error: "Couldn't refresh Social. What you see may be out of date." });
+        // Sem rede não é um erro: fica a lista que havia (10/11).
+        if (gen === generation) set({ loading: false, error: useConnectivity.getState().offline ? null : "Couldn't refresh Social. What you see may be out of date." });
         console.warn('Erro ao atualizar o Social:', e);
       }
     };
@@ -303,6 +305,49 @@ function createInboxRefresh(userId: string, gen: number) {
 }
 
 
+/**
+ * A última lista do Social NO APARELHO (10/11), para abrir sem rede: os amigos,
+ * os grupos, as conversas e as mensagens recebidas mais recentes. Sem ela, abrir
+ * a app no comboio mostrava o Social vazio. Com rede, a leitura nova vem por
+ * cima, como sempre; a cópia só entra se a lista ainda estiver vazia.
+ */
+const COPIA_DO_SOCIAL = (userId: string) => `duotone:social:${userId}`;
+/** Pedido só quando é preciso: os testes que carregam esta loja não o conhecem. */
+const armazenamento = () => import('@react-native-async-storage/async-storage').then((m) => m.default);
+/** Recebidas guardadas: as mais recentes chegam para a lista e para os não lidos. */
+const RECEBIDAS_NA_COPIA = 150;
+
+async function lerCopiaDoSocial(userId: string, gen: number): Promise<void> {
+  try {
+    const texto = await (await armazenamento()).getItem(COPIA_DO_SOCIAL(userId));
+    if (!texto || gen !== generation) return;
+    const s = useSocial.getState();
+    if (s.friends.length || s.groups.length || Object.keys(s.conversationPreviews).length) return;
+    const c = JSON.parse(texto);
+    if (Array.isArray(c.amizades) && !rawFriends.length) rawFriends = c.amizades;
+    useSocial.setState({
+      friends: friendsNow(Date.now() + clockOffset),
+      contacts: Array.isArray(c.contacts) ? c.contacts : [],
+      groups: Array.isArray(c.groups) ? c.groups : [],
+      received: Array.isArray(c.received) ? c.received : [],
+      activity: c.activity && typeof c.activity === 'object' ? c.activity : {},
+      conversationPreviews: c.conversationPreviews && typeof c.conversationPreviews === 'object' ? c.conversationPreviews : {},
+      loading: false,
+    });
+  } catch { /* uma cópia partida é como não haver cópia */ }
+}
+
+function guardarCopiaDoSocial(userId: string): void {
+  const s = useSocial.getState();
+  if (!rawFriends.length && !s.groups.length && !Object.keys(s.conversationPreviews).length) return;
+  const recebidas = [...s.received].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, RECEBIDAS_NA_COPIA);
+  const texto = JSON.stringify({
+    amizades: rawFriends, contacts: s.contacts, groups: s.groups, received: recebidas,
+    activity: s.activity, conversationPreviews: s.conversationPreviews,
+  });
+  armazenamento().then((a) => a.setItem(COPIA_DO_SOCIAL(userId), texto)).catch(() => { /* sem espaço: fica a da memória */ });
+}
+
 /** A lista, o perfil e os cabeçalhos das conversas observam as mesmas entidades. */
 export function iniciarSocial(userId: string): () => void {
   const gen = ++generation;
@@ -313,6 +358,16 @@ export function iniciarSocial(userId: string): () => void {
   fixosPedidos = true; fixosLidosEm = 0; presencaLidaEm = 0; ultimaAtualizacaoEm = 0; canalAoVivo = false;
   jaProcurados.clear(); marcasNaConta = {};
   useSocial.setState({ inboxSnapshot:null,inboxError:false,contacts:[],friends: [], groups: [], received: [], activity: {}, conversationPreviews: {}, seen: {}, loading: true, error: null,conversation:null,drafts:{} });
+  // A cópia do aparelho entra já (sem rede é tudo o que há); a rede vem por cima.
+  void lerCopiaDoSocial(userId, gen);
+  // E guarda-se de novo quando a lista muda, com uma folga (a lista muda aos bocados).
+  let paraGuardar: ReturnType<typeof setTimeout> | undefined;
+  const pararCopia = useSocial.subscribe((s, p) => {
+    if (s.friends === p.friends && s.groups === p.groups && s.conversationPreviews === p.conversationPreviews && s.received === p.received) return;
+    if (s.loading) return;
+    clearTimeout(paraGuardar);
+    paraGuardar = setTimeout(() => { if (gen === generation) guardarCopiaDoSocial(userId); }, 3000);
+  });
   let debounce: ReturnType<typeof setTimeout>;
   let dirty=false;
   /** As automáticas não releem os fixos (ver `FIXOS_MS`); `tudo` pede-os. */
@@ -445,6 +500,9 @@ export function iniciarSocial(userId: string): () => void {
   if(Platform.OS==='web')document.addEventListener('visibilitychange',acordar);
   void useSocial.getState().refresh();
   return () => {
+    pararCopia(); clearTimeout(paraGuardar);
+    // Só se para ao trocar de conta (App.tsx): a cópia de quem sai vai com ele.
+    armazenamento().then((a) => a.removeItem(COPIA_DO_SOCIAL(userId))).catch(() => {});
     ++generation; clearTimeout(debounce); pararTick(); pararRecovery(); pararInboxRecovery();
     app.remove();if(Platform.OS==='web')document.removeEventListener('visibilitychange',acordar);
     accountId='';refreshInbox=async()=>{};clearProfileMediaCache(true);

@@ -9,6 +9,7 @@ import { DestinosProvider } from './destinos';
 import { registarToque } from '../lib/ultimoToque';
 import {useReducedMotion} from '../hooks/useReducedMotion';
 import { OfflineNotice,withInternet } from '../components/OfflineNotice';
+import { FaixaSemRede } from '../components/FaixaSemRede';
 import { useConnectivity } from '../state/connectivity';
 import { useSocial } from '../state/social';
 import { naoLidasPorAmigo } from '../lib/social';
@@ -81,10 +82,9 @@ const OnlineListeningStats=withInternet(ListeningStatsScreen,'ListeningStats');
 const OnlineRetrospetiva=withInternet(RetrospetivaScreen,'Retrospetiva');
 const OnlineLibraryGroup=withInternet(LibraryGroupScreen,'LibraryGroup');
 const OnlinePrateleira=withInternet(PrateleiraScreen,'Prateleira');
-const OnlineProfile=withInternet(ProfileScreen,'Profile');
-const OnlineSearch=withInternet(SearchScreen,'Search');
-const OnlineSocial=withInternet(SocialScreen,'Social');
-const OnlineFriendProfile=withInternet(FriendProfileScreen,'Profile');
+// A Home, o perfil e o Social já não se escondem sem rede (10/11): ficam com o que
+// tinham, com a faixa "No internet connection" (FaixaSemRede). Escondê-los apagava
+// o que se estava a ver, e era isso que o utilizador do comboio contava.
 const OnlineVocesOsDois=withInternet(VocesOsDoisScreen,'Profile');
 
 /**
@@ -206,7 +206,7 @@ function ecrasDaPilha() {
       <Stack.Screen name="PlaylistDetail" component={PlaylistDetailScreen} />
       <Stack.Screen name="LibraryGroup" component={OnlineLibraryGroup} />
       <Stack.Screen name="Prateleira" component={OnlinePrateleira} />
-      <Stack.Screen name="FriendProfile" component={OnlineFriendProfile} />
+      <Stack.Screen name="FriendProfile" component={FriendProfileScreen} />
       <Stack.Screen name="VocesOsDois" component={OnlineVocesOsDois} />
       <Stack.Screen name="ListeningStats" component={OnlineListeningStats} />
       <Stack.Screen name="Retrospetiva" component={OnlineRetrospetiva} />
@@ -238,12 +238,12 @@ function pilhaDoSeparador(raiz: RaizDaPilha, componente: React.ComponentType<any
   return Pilha;
 }
 
-const PilhaDaHome = pilhaDoSeparador('Search', OnlineSearch);
+const PilhaDaHome = pilhaDoSeparador('Search', SearchScreen);
 const PilhaDasSongs = pilhaDoSeparador('Songs', SongsScreen);
 const PilhaDosArtists = pilhaDoSeparador('Artists', OnlineArtists);
 const PilhaDasPlaylists = pilhaDoSeparador('Playlists', PlaylistsScreen);
-const PilhaDoPerfil = pilhaDoSeparador('Profile', OnlineProfile);
-const PilhaDoSocial = pilhaDoSeparador('Social', OnlineSocial);
+const PilhaDoPerfil = pilhaDoSeparador('Profile', ProfileScreen);
+const PilhaDoSocial = pilhaDoSeparador('Social', SocialScreen);
 
 /** O dedo só muda de separador com a pilha na raiz: dentro de um detalhe, o
  *  arrasto lateral é o "voltar" da página. */
@@ -528,6 +528,7 @@ export function RootNavigator() {
             <AvisoDaReproducao />
             {/* As playlists a entrar por link, em segundo plano (26/9). */}
             <ProgressoDaImportacao />
+            <FaixaSemRede />
             {/* O questionário da primeira vez (26/9): uma vez por conta. */}
             <BoasVindas />
             {/* REATIVADO (ago 2026). A condição que este comentário previa

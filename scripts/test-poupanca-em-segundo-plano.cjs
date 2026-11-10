@@ -188,6 +188,7 @@ async function main() {
       '../lib/recuperacaoDaInbox': a.carregar('src/lib/recuperacaoDaInbox.ts'),
       '../lib/socialActivity': a.carregar('src/lib/socialActivity.ts'),
       '../api/conversationPreviews': { getConversationPreviews: async () => ({ activity: {}, previews: {}, complete: true }) },
+      './connectivity': { useConnectivity: { getState: () => ({ offline: false }) } },
     });
     const parar = social.iniciarSocial('me'); await flush(); assert.equal(inboxCalls, 1);
     handlers.get('shared_items')({ eventType: 'INSERT' }); await flush();
