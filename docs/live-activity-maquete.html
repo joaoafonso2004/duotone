@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Duotone · Live Activity no iPhone (maquete)</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--texto:#E9EAEE;--medio:#9DA0AA;--fraco:#84868F;--linha:rgba(233,234,238,.10)}
+body{background:#0b0b0e;color:var(--texto);font-family:-apple-system,'SF Pro Text','Segoe UI',system-ui,sans-serif;padding:28px 32px 64px;max-width:1100px}
+h1{font-size:26px;font-weight:700;letter-spacing:-.3px}
+.intro{color:var(--medio);font-size:14px;line-height:1.55;margin-top:8px;max-width:820px}
+.intro b{color:var(--texto)}
+.radio{position:absolute;opacity:0;pointer-events:none}
+.opcoes{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0 18px}
+.opcoes label{font:600 13px system-ui,sans-serif;color:var(--medio);border:1px solid var(--linha);border-radius:999px;padding:9px 16px;cursor:pointer}
+.opcoes label em{font-style:normal;font-weight:400;opacity:.7;margin-left:4px}
+#o-a:checked ~ .opcoes label[for=o-a],#o-b:checked ~ .opcoes label[for=o-b]{color:#111117;background:var(--texto);border-color:var(--texto)}
+.v{display:none!important}
+#o-a:checked ~ .palco .v-a,#o-b:checked ~ .palco .v-b{display:flex!important}
+#o-a:checked ~ .notas .v-a,#o-b:checked ~ .notas .v-b{display:block!important}
+.palco{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start}
+.telefone{width:300px;height:620px;border-radius:46px;background:#000;padding:10px;box-shadow:0 0 0 2px #2a2a30,0 24px 70px rgba(0,0,0,.6);flex-shrink:0}
+.ecra{width:100%;height:100%;border-radius:38px;overflow:hidden;position:relative;background:radial-gradient(120% 70% at 30% 0%,#3a2a4a,#141018 55%,#08080b);display:flex;flex-direction:column;align-items:center}
+.ilha{position:absolute;top:10px;left:50%;transform:translateX(-50%);height:30px;border-radius:20px;background:#000;display:flex;align-items:center;justify-content:space-between;padding:0 8px}
+.hora{margin-top:58px;font-size:64px;font-weight:600;letter-spacing:-1px;color:rgba(255,255,255,.92)}
+.data{font-size:14px;color:rgba(255,255,255,.75);margin-top:-2px}
+.cartoes{position:absolute;left:10px;right:10px;bottom:70px;display:flex;flex-direction:column;gap:8px}
+.cartao{border-radius:20px;padding:12px;background:rgba(40,40,46,.72);display:flex;flex-direction:column;gap:9px}
+.sistema .topo{display:flex;align-items:center;gap:10px}
+.capa{width:44px;height:44px;border-radius:8px;flex-shrink:0}
+.sistema b{display:block;font-size:13px}
+.sistema small{font-size:12px;color:rgba(255,255,255,.65)}
+.calha{height:4px;border-radius:2px;background:rgba(255,255,255,.25);position:relative}
+.calha::before{content:'';position:absolute;left:0;top:0;bottom:0;width:38%;border-radius:2px;background:#fff}
+.ctrl{display:flex;justify-content:center;gap:34px;font-size:18px;color:#fff}
+.etiqueta{position:absolute;font:600 10px system-ui;letter-spacing:.6px;color:#C6A44E;text-transform:uppercase}
+.duo{background:linear-gradient(180deg,rgba(12,12,16,.94),rgba(6,6,8,.94));border:1px solid rgba(233,234,238,.10)}
+.duo .linha1{display:flex;align-items:center;gap:12px}
+.eclipse{position:relative;width:62px;height:44px;flex-shrink:0}
+.eclipse span{position:absolute;top:0;width:44px;height:44px;border-radius:50%}
+.eclipse span:first-child{left:0;z-index:2;box-shadow:0 0 0 2px #060608}
+.eclipse span:last-child{left:18px;opacity:.55}
+.micro{font:600 9px ui-monospace,Consolas,monospace;letter-spacing:1.4px;color:var(--fraco);text-transform:uppercase}
+.duo b{display:block;font-size:13px}
+.duo small{font-size:12px;color:var(--medio)}
+.caras{display:flex}
+.caras i{width:22px;height:22px;border-radius:50%;border:2px solid #0c0c10;margin-left:-6px;display:block}
+.caras i:first-child{margin-left:0}
+.conta{font:600 20px ui-monospace,Consolas,monospace;letter-spacing:-.5px}
+.ilhas{display:flex;flex-direction:column;gap:18px;width:320px}
+.ilhas h3{font-size:13px;color:var(--medio);font-weight:600}
+.ilha-grande{background:#000;border-radius:28px;padding:14px;display:flex;flex-direction:column;gap:10px;box-shadow:0 0 0 1px #222}
+.ilha-peq{background:#000;border-radius:22px;height:36px;width:250px;display:flex;align-items:center;justify-content:space-between;padding:0 8px;box-shadow:0 0 0 1px #222}
+.disco{width:22px;height:22px;border-radius:50%}
+.notas{margin-top:22px;max-width:860px}
+.notas .nota{display:none}
+.notas ul{list-style:none;display:flex;flex-direction:column;gap:8px}
+.notas li{font-size:14px;line-height:1.55;color:var(--medio);padding-left:16px;position:relative}
+.notas li::before{content:'';position:absolute;left:0;top:9px;width:5px;height:5px;border-radius:50%;background:var(--fraco)}
+.notas li b{color:var(--texto)}
+.c1{background:linear-gradient(140deg,#6b4a8f,#2c2350)}.c2{background:linear-gradient(140deg,#4c8a7a,#1c332c)}
+.p1{background:linear-gradient(140deg,#c98b5a,#5a3420)}.p2{background:linear-gradient(140deg,#5a7ac9,#20305a)}.p3{background:linear-gradient(140deg,#7ac95a,#305a20)}
+</style>
+</head>
+<body>
+<h1>Live Activity no iPhone</h1>
+<p class="intro">Uma correção primeiro: <b>o cartão do sistema no ecrã bloqueado não se pode trocar.</b> O iOS mostra-o sempre que há música, igual para todas as apps. A Live Activity é um <b>segundo cartão</b>, do Duotone, por baixo dele, e uma presença na Ilha Dinâmica (nos iPhone que a têm). A pergunta é o que vai nesse segundo cartão e quando aparece.</p>
+
+<input class="radio" type="radio" name="o" id="o-a">
+<input class="radio" type="radio" name="o" id="o-b" checked>
+<div class="opcoes">
+  <label for="o-a">A · Sempre que toca música</label>
+  <label for="o-b">B · Só quando há algo do Duotone <em>a minha escolha</em></label>
+</div>
+
+<div class="palco">
+  <!-- A: sempre -->
+  <div class="telefone v v-a"><div class="ecra">
+    <div class="ilha" style="width:150px"><span class="disco c1"></span><span class="disco c2" style="margin-left:-8px;opacity:.6;width:16px;height:16px"></span></div>
+    <div class="hora">9:41</div><div class="data">Tuesday, 10 November</div>
+    <div class="cartoes">
+      <div class="cartao sistema">
+        <div class="topo"><span class="capa c1"></span><div><b>dancingwiththestars</b><small>GUNNR</small></div></div>
+        <div class="calha"></div><div class="ctrl"><span>⏮</span><span>⏸</span><span>⏭</span></div>
+      </div>
+      <div class="cartao duo">
+        <div class="linha1"><div class="eclipse"><span class="c1"></span><span class="c2"></span></div>
+          <div style="min-width:0"><div class="micro">Up next</div><b>Interestelar</b><small>Plutonio</small></div></div>
+      </div>
+    </div>
+  </div></div>
+  <!-- B: Jam, temporizador, AutoMix -->
+  <div class="telefone v v-b"><div class="ecra">
+    <div class="ilha" style="width:160px"><span class="caras" style="transform:scale(.8)"><i class="p1"></i><i class="p2"></i></span><span style="font:600 11px ui-monospace,monospace;color:#fff">23:41</span></div>
+    <div class="hora">9:41</div><div class="data">Tuesday, 10 November</div>
+    <div class="cartoes">
+      <div class="cartao sistema">
+        <div class="topo"><span class="capa c1"></span><div><b>dancingwiththestars</b><small>GUNNR</small></div></div>
+        <div class="calha"></div><div class="ctrl"><span>⏮</span><span>⏸</span><span>⏭</span></div>
+      </div>
+      <div class="cartao duo">
+        <div class="linha1">
+          <div class="caras"><i class="p1"></i><i class="p2"></i><i class="p3"></i></div>
+          <div style="min-width:0;flex:1"><div class="micro">Jam · 3 listening</div><small>Ana added this song</small></div>
+        </div>
+        <div class="linha1" style="justify-content:space-between">
+          <div><div class="micro">Sleep timer</div><small>Stops at 10:05</small></div>
+          <span class="conta">23:41</span>
+        </div>
+      </div>
+    </div>
+  </div></div>
+
+  <div class="ilhas">
+    <h3>Na Ilha Dinâmica</h3>
+    <div class="ilha-peq v v-a"><span style="display:flex"><span class="disco c1"></span><span class="disco c2" style="margin-left:-8px;opacity:.6"></span></span><span class="micro" style="color:#fff">Up next</span></div>
+    <div class="ilha-grande v v-a" style="flex-direction:column">
+      <div style="display:flex;align-items:center;gap:12px"><div class="eclipse"><span class="c1"></span><span class="c2"></span></div><div><div class="micro">Up next</div><b style="font-size:13px">Interestelar</b><br><small style="color:var(--medio);font-size:12px">Plutonio</small></div></div>
+    </div>
+    <div class="ilha-peq v v-b"><span class="caras" style="transform:scale(.85)"><i class="p1"></i><i class="p2"></i></span><span style="font:600 12px ui-monospace,monospace;color:#fff">23:41</span></div>
+    <div class="ilha-grande v v-b" style="flex-direction:column">
+      <div style="display:flex;align-items:center;gap:10px"><div class="caras"><i class="p1"></i><i class="p2"></i><i class="p3"></i></div><div><div class="micro">Jam · 3 listening</div><small style="color:var(--medio);font-size:12px">Ana added this song</small></div></div>
+      <div style="display:flex;justify-content:space-between;align-items:center"><span class="micro">Mixing into Interestelar · 124 → 128</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="notas">
+  <div class="nota v v-a"><ul>
+    <li><b>Aparece sempre que há música</b>, por baixo do cartão do sistema: a que vem a seguir, com as duas capas em eclipse (a que toca e a seguinte), e a Jam, o temporizador e o AutoMix quando os houver.</li>
+    <li>Contra: o título que toca já está no cartão do sistema, por isso o ecrã bloqueado fica com dois cartões quase sempre. E na Ilha o cartão do Duotone disputa o lugar com o do próprio sistema, que já mostra a música.</li>
+  </ul></div>
+  <div class="nota v v-b"><ul>
+    <li><b>Só aparece quando há algo que o sistema não sabe mostrar:</b> uma Jam (quem está a ouvir e quem juntou a música que toca), o temporizador (a contagem é desenhada pelo próprio iOS, sem gastar bateria) e a passagem do AutoMix.</li>
+    <li>Sem nada disso, o ecrã bloqueado fica como está hoje, só com o cartão do sistema. Começa ao entrar na Jam ou ao ligar o temporizador, e sai quando acabam.</li>
+    <li>Atualiza-se só nos acontecimentos (troca de música, alguém entra ou sai), sem pedidos ao Supabase e sem a conta paga da Apple.</li>
+  </ul></div>
+</div>
+</body>
+</html>
