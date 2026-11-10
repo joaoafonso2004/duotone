@@ -100,19 +100,98 @@ export function marcasDeVersao(titulo: string): string {
   return VERSAO.filter(([, padrao]) => padrao.test(titulo)).map(([nome]) => nome).join('+');
 }
 
-/** Reduz um título a palavras comparáveis, sem ruído editorial. */
+/**
+ * Reduz um título a palavras comparáveis, sem ruído editorial.
+ *
+ * Os acentos saem e as letras ficam (10/11). Antes só sobrava a-z: "Plutónio"
+ * dava "plut nio", que já não batia com o canal "Plutonio", e um título em
+ * japonês ou em cirílico ficava vazio e nunca ganhava os pontos do título. Era
+ * uma boa parte do "Not found" de músicas que existiam (o mesmo que o spotDL
+ * faz com o `slugify`).
+ */
 function normalise(value: string | null | undefined): string {
   return (value ?? '')
+    .normalize('NFKD')
+    .replace(/\p{M}/gu, '')
     .toLowerCase()
     .replace(/\(.*?\)|\[.*?\]/g, ' ')
+    .replace(/&/g, ' and ')
     .replace(/\b(official|video|audio|music|hd|4k|mv)\b/g, ' ')
     // O apóstrofo cola, não parte: "Don't" e "Dont" são a mesma palavra, e a
     // separar dava "don t" contra "dont" -- duas coisas diferentes para uma
     // comparação por texto, e lá se ia o bónus de o título bater certo.
-    .replace(/['\u2019\u02bc\u0060]/g, '')
-    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/['’ʼ`]/g, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/** Sem espaços: "KendrickLamarVEVO" e "Kendrick Lamar" passam a comparar-se. */
+const compacto = (value: string | null | undefined) => normalise(value).replace(/\s/g, '');
+
+/**
+ * Os artistas de uma faixa, compactos: o inteiro e cada um à parte. O Spotify
+ * junta-os ("Skepta, Playboi Carti"), e o canal costuma ser de um só.
+ */
+function artistasDe(artist: string): { inteiro: string; partes: string[] } {
+  const inteiro = compacto(artist);
+  const partes = artist
+    .split(/\s*(?:,|&|\/|\bfeat\.?|\bft\.?|\bwith\b|\bx\b)\s*/i)
+    .map(compacto)
+    .filter((p) => p.length >= 2);
+  return { inteiro, partes };
+}
+
+/** O canal sem o que se cola ao nome: " - Topic", "VEVO", "Official", "Music", "TV". */
+function nomeDoCanal(channel: string): string {
+  let c = compacto(channel.replace(/\s[-–]\sTopic$/i, ''));
+  for (let antes = ''; antes !== c;) {
+    antes = c;
+    c = c.replace(/(?:vevo|officialchannel|official|oficial|music|tv)$/, '');
+  }
+  return c;
+}
+
+/**
+ * O canal é do artista? Igual a um dos artistas, ou com o nome todo dentro
+ * ("Ayase / YOASOBI"), ou um dos artistas de uma faixa com vários. Um pedaço
+ * não chega: "Tyler, The Creator" não é o canal "Tyler Childers".
+ */
+export function canalDoArtista(channel: string, artist: string): boolean {
+  const c = nomeDoCanal(channel);
+  const { inteiro, partes } = artistasDe(artist);
+  if (!c || !inteiro) return false;
+  if (c === inteiro || partes.includes(c)) return true;
+  return inteiro.length >= 3 && c.includes(inteiro);
+}
+
+/** O nome de um dos artistas aparece no título do vídeo. */
+function artistaNoTitulo(title: string, artist: string): boolean {
+  const t = compacto(title);
+  const { inteiro, partes } = artistasDe(artist);
+  return (inteiro.length >= 3 && t.includes(inteiro)) || partes.some((p) => p.length >= 3 && t.includes(p));
+}
+
+/**
+ * Os convidados saem do título PROCURADO: "Song - feat. X" ou "Song feat. X"
+ * do Spotify contra "Song ft. X" do YouTube. Entre parênteses já saem no
+ * `normalise`.
+ */
+const semConvidados = (titulo: string) => titulo.replace(/\s(?:[-–]\s)?(?:feat|ft|featuring|with)\.?\s.*$/i, '').trim() || titulo;
+
+/** O título procurado, pronto a comparar: o núcleo, sem convidados. */
+const nomeProcurado = (target: MatchTarget) => normalise(semConvidados(nucleoDoTitulo(target.title)));
+
+/**
+ * O título do vídeo traz o procurado: com espaços, ou sem eles (uma escrita
+ * sem espaços, como o japonês, ou "Lean4Real").
+ */
+export function tituloBate(candidateTitle: string, target: MatchTarget): boolean {
+  const nome = nomeProcurado(target);
+  if (!nome) return false;
+  if (normalise(candidateTitle).includes(nome)) return true;
+  const c = nome.replace(/\s/g, '');
+  return c.length >= 2 && compacto(candidateTitle).includes(c);
 }
 
 /**
@@ -133,6 +212,12 @@ const REEDICAO =
   /\s[-\u2013]\s(?:\d{4}\s)?(?:digital\s|album\s)?(?:remaster(?:ed)?|remasterizad[oa])(?:\s\d{4})?$|\s[-\u2013]\s(?:bonus\stracks?|original\smix|single\sversion|album\sversion)$/i;
 
 /**
+ * "- From The Motion Picture "Barbie"", "- From "Arcane League of Legends"":
+ * o Spotify diz de onde vem a m\u00fasica, o YouTube n\u00e3o (10/11). A mesma grava\u00e7\u00e3o.
+ */
+const DE_ONDE_VEM = /\s[-\u2013]\s(?:taken\s)?from\s.+$/i;
+
+/**
  * O título sem o sufixo do Spotify. Devolve-o intacto se não houver nenhum.
  *
  * Serve só para COMPARAR títulos, e é seguro tirar aqui também as marcas de
@@ -146,7 +231,7 @@ const REEDICAO =
  * sério, e só sai o que se reconhece.
  */
 export function nucleoDoTitulo(titulo: string): string {
-  let limpo = titulo.replace(REEDICAO, '').trim();
+  let limpo = titulo.replace(DE_ONDE_VEM, '').replace(REEDICAO, '').trim();
 
   // Sufixo de versão: "Song - Live at Wembley", "Song - Acoustic".
   const corte = limpo.search(/\s[-\u2013]\s[^-\u2013]*$/);
@@ -164,20 +249,20 @@ export function nucleoDoTitulo(titulo: string): string {
 export function scoreCandidate(candidate: MatchCandidate, target: MatchTarget): number {
   let score = 0;
   const { title, channel } = candidate;
-  const nTitle = normalise(title);
-  const nChannel = normalise(channel);
-  const nArtist = normalise(target.artist);
-  const nName = normalise(nucleoDoTitulo(target.title));
+  const temArtista = !!compacto(target.artist);
+  const doArtista = temArtista && canalDoArtista(channel, target.artist);
 
   // Canal " - Topic": upload automático da editora, alinhado com o catálogo
-  // do Spotify. É o sinal mais fiável que existe.
-  if (/- Topic$/.test(channel)) score += 55;
-  else if (nChannel && nArtist && (nChannel.includes(nArtist) || nArtist.includes(nChannel)))
-    score += 40;
-  if (/vevo/i.test(channel)) score += 20;
+  // do Spotify. É o sinal mais fiável que existe -- quando é do artista. O
+  // Topic de OUTRO artista é outra gravação da mesma música (uma versão), e
+  // antes ganhava os mesmos 55 pontos: o "Creep" dos Postmodern Jukebox
+  // entrava sozinho no lugar do dos Radiohead (10/11).
+  if (/\s[-–]\sTopic$/i.test(channel)) score += !temArtista ? 40 : doArtista ? 55 : -20;
+  else if (doArtista) score += 40;
+  if (doArtista && /vevo/i.test(channel)) score += 20;
 
-  if (nName && nTitle.includes(nName)) score += 30;
-  if (nArtist && nTitle.includes(nArtist)) score += 12;
+  if (tituloBate(title, target)) score += 30;
+  if (temArtista && artistaNoTitulo(title, target.artist)) score += 12;
 
   // A duração é o desempate. Sozinha engana — há re-uploads com a duração
   // exacta — mas combinada com o canal resolve quase tudo.
@@ -251,9 +336,40 @@ function sameRecording(a: ScoredCandidate, b: ScoredCandidate, target: MatchTarg
   if (a.durationSec == null || b.durationSec == null) return false;
   if (Math.abs(a.durationSec - b.durationSec) > 2) return false;
   if (noisePenalty(a.title) !== noisePenalty(b.title)) return false;
-  const name = normalise(nucleoDoTitulo(target.title));
-  if (!name) return false;
-  return normalise(a.title).includes(name) && normalise(b.title).includes(name);
+  return tituloBate(a.title, target) && tituloBate(b.title, target);
+}
+
+/** Há prova de que é do artista: o canal é dele, ou o nome dele está no título. */
+const doArtistaPedido = (c: MatchCandidate, target: MatchTarget) =>
+  canalDoArtista(c.channel, target.artist) || artistaNoTitulo(c.title, target.artist);
+
+/**
+ * A MESMA música noutro upload (10/11): o título procurado nos dois, a mesma
+ * versão, e os dois do artista pedido. O áudio oficial três segundos mais
+ * longo do que o Topic não é ambiguidade -- qualquer dos dois está certo --,
+ * mas como a duração não batia ao segundo contava como rival e a margem não
+ * chegava. Um "Creep" de OUTRO artista continua a ser rival.
+ */
+function mesmaMusica(a: ScoredCandidate, b: ScoredCandidate, target: MatchTarget): boolean {
+  return tituloBate(a.title, target) && tituloBate(b.title, target)
+    && marcasDeVersao(a.title) === marcasDeVersao(b.title)
+    && doArtistaPedido(a, target) && doArtistaPedido(b, target);
+}
+
+/** Até onde um vídeo do próprio artista pode ser mais comprido (intro, fim) e continuar a ser a música. */
+const FOLGA_DO_VIDEO_SEC = 30;
+
+/**
+ * Identidade: o canal é do artista, o título é o procurado, e não há ruído
+ * pior do que um vídeo de letra (10/11). Um videoclipe oficial com 15 s de
+ * intro ficava abaixo dos 70 pela duração e ia para "Not found" -- é o caso
+ * em que a pesquisa à mão o encontrava logo à primeira.
+ */
+function identidade(c: ScoredCandidate, target: MatchTarget): boolean {
+  if (!canalDoArtista(c.channel, target.artist) || !tituloBate(c.title, target)) return false;
+  if (noisePenalty(c.title) < -18) return false;
+  if (c.durationSec == null || target.durationSec == null) return true;
+  return Math.abs(c.durationSec - target.durationSec) <= FOLGA_DO_VIDEO_SEC;
 }
 
 export function pickBest(candidates: MatchCandidate[], target: MatchTarget): MatchResult {
@@ -263,7 +379,9 @@ export function pickBest(candidates: MatchCandidate[], target: MatchTarget): Mat
 
   const best = ranked[0] ?? null;
   // A margem mede-se contra o primeiro concorrente que seja mesmo outra coisa.
-  const rival = best ? ranked.slice(1).find((c) => !sameRecording(best, c, target)) : undefined;
+  const rival = best
+    ? ranked.slice(1).find((c) => !sameRecording(best, c, target) && !mesmaMusica(best, c, target))
+    : undefined;
 
   /**
    * A versão encontrada tem de ser a versão procurada.
@@ -275,13 +393,12 @@ export function pickBest(candidates: MatchCandidate[], target: MatchTarget): Mat
    */
   const outraVersao = !!best && marcasDeVersao(best.title) !== marcasDeVersao(target.title);
 
+  const pelosPontos = !!best && best.score >= CONFIDENT_SCORE && (!rival || best.score - rival.score >= CONFIDENT_MARGIN);
+  const pelaIdentidade = !!best && identidade(best, target) && (!rival || best.score > rival.score);
+
   return {
     best,
     ranked,
-    confident:
-      !!best &&
-      best.score >= CONFIDENT_SCORE &&
-      !outraVersao &&
-      (!rival || best.score - rival.score >= CONFIDENT_MARGIN),
+    confident: !!best && !outraVersao && (pelosPontos || pelaIdentidade),
   };
 }

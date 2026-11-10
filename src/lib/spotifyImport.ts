@@ -55,6 +55,14 @@ export interface SearchHit {
 export interface ImportOptions {
   rows: SpotifyCsvRow[];
   search: (query: string) => Promise<SearchHit[]>;
+  /**
+   * As CANÇÕES do YouTube Music, procuradas antes dos vídeos (10/11, como o
+   * spotDL). Vêm com o artista, o álbum e a duração do catálogo, e quase
+   * sempre do canal "- Topic": a correspondência sai certa à primeira, e a
+   * pesquisa de vídeos só corre quando aqui não houver uma segura. `null` é
+   * uma falha (não "não há"). Opcional: sem ela, é como era.
+   */
+  searchSongs?: (query: string) => Promise<SearchHit[] | null>;
   onProgress?: (progress: ImportProgress) => void;
   /** Para cancelar a meio sem deixar pedidos pendentes. */
   signal?: AbortSignal;
@@ -90,6 +98,18 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  */
 const MAX_FALHAS_SEGUIDAS = CONCURRENCY * 3;
 
+/**
+ * Falhas seguidas da pesquisa de canções a partir das quais se deixa de a
+ * usar nesta importação. Com o YouTube Music em baixo, cada faixa gastava um
+ * pedido perdido antes da pesquisa de sempre.
+ */
+const MAX_FALHAS_DAS_CANCOES = CONCURRENCY * 2;
+
+/** O que se lembra entre faixas de uma importação. */
+interface Ritmo {
+  falhasDasCancoes: number;
+}
+
 /** O resultado de uma faixa, mais se a pesquisa chegou sequer a responder. */
 interface Resolvido {
   resultado: ImportedTrack;
@@ -97,8 +117,47 @@ interface Resolvido {
   falhou: boolean;
 }
 
-async function resolveOne(row: SpotifyCsvRow, search: ImportOptions['search']): Promise<Resolvido> {
+/** Os resultados como candidatos do comparador. */
+const comoCandidatos = (hits: SearchHit[]): MatchCandidate[] => hits.map((hit) => ({
+  id: hit.track.sourceId,
+  title: hit.track.title,
+  channel: hit.channel,
+  durationSec: hit.track.durationSeconds,
+}));
+
+/** A escolha e as alternativas de uma lista de resultados. */
+function escolher(row: SpotifyCsvRow, hits: SearchHit[], target: MatchTarget): ImportedTrack {
+  const { best, ranked, confident } = pickBest(comoCandidatos(hits), target);
+  const byId = new Map(hits.map((hit) => [hit.track.sourceId, hit.track]));
+  const chosen = best ? (byId.get(best.id) ?? null) : null;
+  const alternatives = ranked
+    .filter((c) => c.id !== best?.id)
+    .map((c) => byId.get(c.id))
+    .filter((t): t is Track => !!t)
+    .slice(0, MAX_ALTERNATIVES);
+  return { row, track: chosen, confident: confident && !!chosen, alternatives };
+}
+
+async function resolveOne(row: SpotifyCsvRow, search: ImportOptions['search'], searchSongs: ImportOptions['searchSongs'], ritmo: Ritmo): Promise<Resolvido> {
   const target: MatchTarget = { ...toMatchTarget(row), album: row.album };
+
+  // Primeiro as canções do YouTube Music. Uma correspondência segura aqui
+  // poupa a pesquisa de vídeos: o mesmo número de pedidos de antes.
+  let cancoes: SearchHit[] = [];
+  if (searchSongs && ritmo.falhasDasCancoes < MAX_FALHAS_DAS_CANCOES) {
+    let lidas: SearchHit[] | null = null;
+    try {
+      lidas = await searchSongs(`${row.artist} ${row.title}`);
+    } catch {
+      lidas = null;
+    }
+    ritmo.falhasDasCancoes = lidas ? 0 : ritmo.falhasDasCancoes + 1;
+    cancoes = lidas ?? [];
+    if (cancoes.length) {
+      const so = escolher(row, cancoes, target);
+      if (so.confident) return { resultado: so, falhou: false };
+    }
+  }
 
   let hits: SearchHit[] = [];
   let falhou = false;
@@ -118,30 +177,17 @@ async function resolveOne(row: SpotifyCsvRow, search: ImportOptions['search']): 
     if (hits.length) break;
   }
 
-  if (!hits.length) return { resultado: { row, track: null, confident: false, alternatives: [] }, falhou };
+  // As canções entram também na escolha final: as duas listas juntas, sem repetir vídeos.
+  const vistos = new Set(cancoes.map((h) => h.track.sourceId));
+  const todos = [...cancoes, ...hits.filter((h) => !vistos.has(h.track.sourceId))];
+  if (!todos.length) return { resultado: { row, track: null, confident: false, alternatives: [] }, falhou: falhou && !cancoes.length };
 
-  const candidates: MatchCandidate[] = hits.map((hit) => ({
-    id: hit.track.sourceId,
-    title: hit.track.title,
-    channel: hit.channel,
-    durationSec: hit.track.durationSeconds,
-  }));
-
-  const { best, ranked, confident } = pickBest(candidates, target);
-  const byId = new Map(hits.map((hit) => [hit.track.sourceId, hit.track]));
-  const chosen = best ? (byId.get(best.id) ?? null) : null;
-
-  const alternatives = ranked
-    .filter((c) => c.id !== best?.id)
-    .map((c) => byId.get(c.id))
-    .filter((t): t is Track => !!t)
-    .slice(0, MAX_ALTERNATIVES);
-
-  return { resultado: { row, track: chosen, confident: confident && !!chosen, alternatives }, falhou: false };
+  return { resultado: escolher(row, todos, target), falhou: false };
 }
 
 export async function importSpotifyCsv(options: ImportOptions): Promise<ImportedTrack[]> {
-  const { rows, search, onProgress, signal, resumeFrom } = options;
+  const { rows, search, searchSongs, onProgress, signal, resumeFrom } = options;
+  const ritmo: Ritmo = { falhasDasCancoes: 0 };
   const results: ImportedTrack[] = [];
   let confident = 0;
   let uncertain = 0;
@@ -161,7 +207,7 @@ export async function importSpotifyCsv(options: ImportOptions): Promise<Imported
     const settled = await Promise.all(
       batch.map(async (row): Promise<Resolvido> => {
         const cached = row.uri ? resumeFrom?.get(row.uri) : undefined;
-        return cached ? { resultado: cached, falhou: false } : resolveOne(row, search);
+        return cached ? { resultado: cached, falhou: false } : resolveOne(row, search, searchSongs, ritmo);
       })
     );
 

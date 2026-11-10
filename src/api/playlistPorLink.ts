@@ -1,6 +1,7 @@
 import { fetchYouTubePlaylistById } from './youtube';
 import { semCleanNosResultados } from '../state/versoesClean';
 import { searchYouTubeFreeWithChannel } from './ytSearchFree';
+import { cancoesParaImportar } from './ytMusic';
 import { addTracksToPlaylist, createPlaylist } from './playlists';
 import { guardarMuitasNasGostadas } from './library';
 import { importSpotifyCsv } from '../lib/spotifyImport';
@@ -103,6 +104,8 @@ export const dependenciasReais: Dependencias = {
       rows: linhas,
       // As clean conhecidas trocam-se pela explicita antes de o comparador escolher (sem pedidos).
       search: async (q) => semCleanNosResultados(await searchYouTubeFreeWithChannel(q, sinal)),
+      // Primeiro as canções do YouTube Music (10/11): o catálogo, com o artista e a duração certos.
+      searchSongs: (q) => cancoesParaImportar(q, sinal),
       signal: sinal,
       onProgress: (p) => aoAvancar(p.done),
     });

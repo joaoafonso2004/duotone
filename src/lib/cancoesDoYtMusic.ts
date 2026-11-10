@@ -89,3 +89,32 @@ export function lerCancoes(resposta: unknown): CancaoDoYtMusic[] {
   }
   return fora;
 }
+
+/** O que a importação recebe de uma pesquisa: a faixa e o canal (o mesmo `SearchHit` de `lib/spotifyImport.ts`). */
+export type ResultadoDaCancao = {
+  track: { source: 'youtube'; sourceId: string; title: string; artist: string | null; album: string | null; artworkUrl: string; durationSeconds: number | null };
+  channel: string;
+};
+
+/**
+ * As canções como resultados da importação (10/11), para o comparador ler
+ * como lê os vídeos. Estas faixas são dos canais "- Topic"; o canal dado é o
+ * do PRIMEIRO artista, porque o YouTube Music junta-os ("Drake & Lil Durk") e
+ * o comparador procura um artista no nome do canal.
+ *
+ * As explícitas vêm primeiro: num empate com a clean (o mesmo título, a mesma
+ * duração), o comparador fica com a primeira.
+ */
+export function resultadosDasCancoes(cancoes: readonly CancaoDoYtMusic[]): ResultadoDaCancao[] {
+  const ordenadas = [...cancoes.filter((c) => c.explicita), ...cancoes.filter((c) => !c.explicita)];
+  return ordenadas.map((c) => {
+    const primeiro = c.artista.split(/\s*(?:,|&|\bfeat\.?|\bx\b)\s*/i)[0]?.trim() || c.artista;
+    return {
+      track: {
+        source: 'youtube', sourceId: c.videoId, title: c.titulo, artist: c.artista || null, album: c.album,
+        artworkUrl: `https://i.ytimg.com/vi/${c.videoId}/hqdefault.jpg`, durationSeconds: c.duracaoSec,
+      },
+      channel: primeiro ? `${primeiro} - Topic` : '',
+    };
+  });
+}

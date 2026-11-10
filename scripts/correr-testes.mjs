@@ -83,6 +83,8 @@ const TESTES = [
   `${RESOLVER} scripts/test-cor-da-capa.ts`,
   `${RESOLVER} scripts/test-spotify-import.ts`,
   `${TS} scripts/test-track-match.ts`,
+  `${TS} scripts/test-correspondencia-da-importacao.ts`,
+  `${RESOLVER} scripts/test-cancoes-primeiro.ts`,
   `${TS} scripts/test-capa.ts`,
   `${TS} scripts/test-capa-grande.ts`,
   `${TS} scripts/test-sessao-partida.ts`,

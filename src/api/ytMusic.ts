@@ -1,4 +1,6 @@
-import { corpoDaPesquisa, lerCancoes, VERSAO_DO_CLIENTE, type CancaoDoYtMusic } from '../lib/cancoesDoYtMusic';
+import {
+  corpoDaPesquisa, lerCancoes, resultadosDasCancoes, VERSAO_DO_CLIENTE, type CancaoDoYtMusic, type ResultadoDaCancao,
+} from '../lib/cancoesDoYtMusic';
 import {
   FORMA_DA_CONTINUACAO, FORMA_DA_LISTA, FORMA_DO_CANAL, lerPaginaDaPlaylist, lerRadioDoYtMusic, type MixDoArtista,
 } from '../lib/albunsDoArtista';
@@ -33,6 +35,16 @@ const PRAZO_MS = 10_000;
 export async function procurarCancoes(pergunta: string, sinal?: AbortSignal): Promise<CancaoDoYtMusic[]> {
   const resposta = await pesquisarCancoesCru(pergunta, sinal);
   return resposta ? lerCancoes(resposta) : [];
+}
+
+/**
+ * As canções de uma pesquisa, como resultados da importação (10/11, o
+ * `searchSongs` de `lib/spotifyImport.ts`). `null` quando a pesquisa falhou:
+ * a importação conta as falhas seguidas e deixa de perguntar.
+ */
+export async function cancoesParaImportar(pergunta: string, sinal?: AbortSignal): Promise<ResultadoDaCancao[] | null> {
+  const resposta = await pesquisarCancoesCru(pergunta, sinal);
+  return resposta ? resultadosDasCancoes(lerCancoes(resposta)) : null;
 }
 
 /** A resposta inteira da pesquisa de canções, ou `null` se falhou. */

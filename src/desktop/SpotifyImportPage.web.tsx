@@ -4,6 +4,7 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { addTracksToPlaylist, createPlaylist, deletePlaylist } from '../api/playlists';
 import { usePlaylists } from '../state/playlists';
 import { searchYouTubeFreeWithChannel } from '../api/ytSearchFree';
+import { cancoesParaImportar } from '../api/ytMusic';
 import { parseSpotifyCsv, type SpotifyCsvRow } from '../lib/spotifyCsv';
 import {
   confidentTracks,
@@ -198,6 +199,8 @@ export function SpotifyImportPage({ back, notify }: { back: () => void; notify: 
         signal: abort.current.signal,
         resumeFrom: resolved.current,
         search: searchYouTubeFreeWithChannel,
+        // Primeiro as canções do YouTube Music (10/11), como na fila de importações.
+        searchSongs: (q) => cancoesParaImportar(q),
         onProgress: setProgress,
       });
     } catch (e: any) {
