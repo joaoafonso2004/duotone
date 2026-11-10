@@ -141,6 +141,8 @@ const TESTES = [
   `${TS} scripts/test-aquecer-ao-tocar.ts`,
   `${TS} scripts/test-atalhos-do-icone.ts`,
   `${TS} scripts/test-biblioteca-do-spotify.ts`,
+  `${RESOLVER} scripts/test-leitor-web-do-spotify.ts`,
+  'scripts/test-conta-do-spotify.cjs',
   `${TS} scripts/test-origem-da-fila.ts`,
   `${TS} scripts/test-loudness.ts`,
   `${TS} scripts/test-listening-stats.ts`,

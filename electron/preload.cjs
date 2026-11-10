@@ -80,6 +80,13 @@ contextBridge.exposeInMainWorld('duotoneDesktop', Object.freeze({
   /** A pagina de embed de uma playlist publica do Spotify, pelo processo
    * principal (sem CORS). Leva so o id; o endereco vive do outro lado. */
   lerEmbedDoSpotify: (id) => ipcRenderer.invoke('spotify:embed', id),
+  /** A conta do Spotify pelo leitor web (10/11, electron/contaDoSpotify.cjs).
+   * O login e o token vivem no processo principal; daqui so se pede se ha
+   * conta, entrar, sair, e uma consulta da lista de la. */
+  spotifyLigado: () => ipcRenderer.invoke('spotify:conta:ligada'),
+  entrarNoSpotify: () => ipcRenderer.invoke('spotify:conta:entrar'),
+  sairDoSpotify: () => ipcRenderer.invoke('spotify:conta:sair'),
+  consultarOSpotify: (nome, variaveis) => ipcRenderer.invoke('spotify:conta:consultar', nome, variaveis),
   /** A pagina publica de uma playlist do Apple Music (5/11). Leva o link da
    * partilha, que o processo principal confere antes de o pedir. */
   lerPlaylistDaApple: (url) => ipcRenderer.invoke('apple:playlist', url),

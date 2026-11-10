@@ -15,6 +15,7 @@ import {
 } from '../lib/spotifyImport';
 import type { Playlist, Track } from '../types';
 import { SpotifyReview } from './SpotifyReview.web';
+import { ContaDoSpotifyPc } from './ContaDoSpotifyPc.web';
 import { BotaoVoltar, Button, ContentScroll, Field, Page } from './ui.web';
 import { COR, RAIO } from './tokens.web';
 
@@ -32,6 +33,9 @@ import { mensagemDeErro } from '../lib/mensagemDeErro';
  * faixas demoram minutos de pesquisa — o sítio para isso é o computador,
  * não o telemóvel a gastar bateria. A biblioteca vive no Supabase, portanto
  * o resultado aparece no iPhone sozinho.
+ *
+ * Por cima, desde 10/11, a conta do Spotify (`ContaDoSpotifyPc`): entrar no
+ * Spotify e trazer as Liked Songs e as playlists sem passar pelo Exportify.
  */
 
 type Phase = 'idle' | 'parsed' | 'running' | 'done';
@@ -260,12 +264,13 @@ export function SpotifyImportPage({ back, notify }: { back: () => void; notify: 
   return (
     <Page
       title="Import from Spotify"
-      subtitle="Export your playlists with Exportify and bring them into Duotone."
+      subtitle="Connect your account, or bring an Exportify CSV."
       action={
         <BotaoVoltar onPress={back} />
       }
     >
       <ContentScroll>
+        <ContaDoSpotifyPc aoComecar={back} />
         <View style={s.panel}>
           {/* Como obter o ficheiro */}
           <View style={s.hint}>

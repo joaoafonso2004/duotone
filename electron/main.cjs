@@ -6,6 +6,7 @@ const {
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { criarSaude } = require('./saude.cjs');
+const contaDoSpotify = require('./contaDoSpotify.cjs');
 
 // Os crashes nativos ficam no disco (Crashpad) e não vão para servidor
 // nenhum: `electron/saude.cjs` só conta os novos, e o renderer manda a
@@ -1553,6 +1554,33 @@ ipcMain.handle('deezer:link', async (event, url) => {
  * e o Spotify nao manda `Access-Control-Allow-Origin`. Do renderer vem so o id
  * da playlist (22 caracteres), e o endereco e fixo deste lado: nunca um proxy.
  */
+/**
+ * A conta do Spotify pelo leitor web (10/11, `electron/contaDoSpotify.cjs`):
+ * entrar numa janela do Spotify e ler a biblioteca, sem o teto de cinco contas
+ * da app em modo de desenvolvimento. O `sp_dc` e o token ficam deste lado; a
+ * janela da app so recebe as respostas das consultas.
+ */
+ipcMain.handle('spotify:conta:ligada', async (event) => {
+  if (!daJanelaPrincipal(event)) throw new Error('Pedido invalido.');
+  return contaDoSpotify.ligada();
+});
+ipcMain.handle('spotify:conta:entrar', async (event) => {
+  if (!daJanelaPrincipal(event)) throw new Error('Pedido invalido.');
+  return contaDoSpotify.entrar(mainWindow);
+});
+ipcMain.handle('spotify:conta:sair', async (event) => {
+  if (!daJanelaPrincipal(event)) throw new Error('Pedido invalido.');
+  await contaDoSpotify.sair();
+});
+ipcMain.handle('spotify:conta:consultar', async (event, nome, variaveis) => {
+  if (!daJanelaPrincipal(event)) throw new Error('Pedido invalido.');
+  if (typeof nome !== 'string' || !variaveis || typeof variaveis !== 'object' || Array.isArray(variaveis)
+    || JSON.stringify(variaveis).length > 4000) {
+    return { ok: false, falha: 'recusado' };
+  }
+  return contaDoSpotify.consultar(nome, variaveis);
+});
+
 ipcMain.handle('spotify:embed', async (event, id) => {
   if (!daJanelaPrincipal(event)) throw new Error('Pedido invalido.');
   if (typeof id !== 'string' || !/^[A-Za-z0-9]{22}$/.test(id)) throw new Error('Playlist invalida.');
@@ -1928,6 +1956,7 @@ app.whenReady().then(async () => {
   }
   configurarCaptura(session.defaultSession);
   imagensSemReferer(session.defaultSession);
+  contaDoSpotify.configurar();
 
   createWindow();
   createTray();

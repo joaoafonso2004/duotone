@@ -88,6 +88,13 @@ declare global {
        * principal, sem o OPTIONS do CORS (17/10, `lib/fetchDoSupabase.ts`). */
       pedirAoSupabase?: (pedido: import('../lib/fetchDoSupabase').PedidoPelaPonte) => Promise<import('../lib/fetchDoSupabase').RespostaPelaPonte>;
       lerEmbedDoSpotify?: (id: string) => Promise<string | null>;
+      /** A conta do Spotify pelo leitor web (10/11, `lib/leitorWebDoSpotify.ts`). */
+      spotifyLigado?: () => Promise<boolean>;
+      /** Abre o login do Spotify; `true` quando entrou, `false` se a janela fechou antes. */
+      entrarNoSpotify?: () => Promise<boolean>;
+      sairDoSpotify?: () => Promise<void>;
+      consultarOSpotify?: (nome: import('../lib/leitorWebDoSpotify').ConsultaDoLeitor, variaveis: Record<string, unknown>) =>
+        Promise<import('../lib/leitorWebDoSpotify').RespostaDoLeitor>;
       /** A página pública de uma playlist do Apple Music (5/11), pelo processo principal. */
       lerPlaylistDaApple?: (url: string) => Promise<string | null>;
       /** O link curto da partilha do Deezer, seguido até ao fim: o endereço final e o princípio da página. */

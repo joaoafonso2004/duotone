@@ -73,11 +73,16 @@ const contexto = vm.createContext({
   // O `main.cjs` corre aqui dentro com um `require` de mentira, e um caminho
   // RELATIVO nao resolve a partir deste script. O modulo do Discord entra como
   // duplo: esta verificacao e sobre a casca do Electron, e nao sobre o socket
-  // do Discord, que tem os seus proprios testes.
+  // do Discord, que tem os seus proprios testes. A conta do Spotify tambem
+  // (scripts/test-conta-do-spotify.cjs): aqui so se confere que se liga.
   // Os módulos da atualização, dos atalhos, do mini leitor, do arranque com o
   // Windows e do menu do texto são puros (sem
   // `electron`): entram os verdadeiros.
-  require: (id) => id === './messageBadge.cjs' ? require('../electron/messageBadge.cjs') : id === './saude.cjs' ? { criarSaude: (o) => { captura.saude = o; return saudeDupla; } } : id === './atualizacao.cjs' ? require('../electron/atualizacao.cjs') : id === './atalhos.cjs' ? require('../electron/atalhos.cjs') : id === './miniLeitor.cjs' ? require('../electron/miniLeitor.cjs') : id === './barraDeTarefas.cjs' ? require('../electron/barraDeTarefas.cjs') : id === './arranqueComWindows.cjs' ? require('../electron/arranqueComWindows.cjs') : id === './menuDoTexto.cjs' ? require('../electron/menuDoTexto.cjs') : id === './discord.cjs' ? {
+  require: (id) => id === './messageBadge.cjs' ? require('../electron/messageBadge.cjs') : id === './saude.cjs' ? { criarSaude: (o) => { captura.saude = o; return saudeDupla; } } : id === './atualizacao.cjs' ? require('../electron/atualizacao.cjs') : id === './atalhos.cjs' ? require('../electron/atalhos.cjs') : id === './miniLeitor.cjs' ? require('../electron/miniLeitor.cjs') : id === './barraDeTarefas.cjs' ? require('../electron/barraDeTarefas.cjs') : id === './arranqueComWindows.cjs' ? require('../electron/arranqueComWindows.cjs') : id === './menuDoTexto.cjs' ? require('../electron/menuDoTexto.cjs') : id === './contaDoSpotify.cjs' ? {
+    configurar() { captura.spotifyConfigurado = true; },
+    ligada: async () => false, entrar: async () => false, sair: async () => {},
+    consultar: async (nome) => { captura.consultaDoSpotify = nome; return { ok: true, dados: {} }; },
+  } : id === './discord.cjs' ? {
     DISCORD_APP_ID: '1547625164328538133',
     definirPresenca: () => Promise.resolve(false),
     prepararDiscord: () => { preparacoesDiscord++; return Promise.resolve(true); },
@@ -170,6 +175,28 @@ assert.throws(() => handlers.get('saude:ler')({ sender: janela.webContents, send
 assert.equal(handlers.get('sistema:segundos-sem-interacao')(evento()), 42, 'a presença lê a inatividade do sistema');
 assert.throws(() => handlers.get('sistema:segundos-sem-interacao')({ sender: janela.webContents, senderFrame: { url: 'https://www.youtube-nocookie.com' } }),
   'o iframe do YouTube não lê a inatividade');
+// A conta do Spotify pelo leitor web (10/11): só da janela principal, e só
+// variáveis que sejam um objeto pequeno.
+{
+  const iframe = { sender: janela.webContents, senderFrame: { url: 'https://www.youtube-nocookie.com' } };
+  // O `whenReady` daqui nunca corre: o arranque confere-se no código, como a captura.
+  assert.match(fs.readFileSync(new URL('../electron/main.cjs', import.meta.url), 'utf8'),
+    /imagensSemReferer\(session\.defaultSession\);\r?\n\s+contaDoSpotify\.configurar\(\);/, 'a partição do Spotify configura-se no arranque');
+  for (const canal of ['spotify:conta:ligada', 'spotify:conta:entrar', 'spotify:conta:sair', 'spotify:conta:consultar']) {
+    await assert.rejects(handlers.get(canal)(iframe, 'libraryV3', {}), /invalido/, `o iframe do YouTube não usa o ${canal}`);
+  }
+  const consultar = handlers.get('spotify:conta:consultar');
+  // As respostas vêm do contexto do vm: compara-se o JSON, não os protótipos.
+  const json = async (p) => JSON.parse(JSON.stringify(await p));
+  assert.deepEqual(await json(consultar(evento(), 'libraryV3', null)), { ok: false, falha: 'recusado' });
+  assert.deepEqual(await json(consultar(evento(), 'libraryV3', [1])), { ok: false, falha: 'recusado' });
+  assert.deepEqual(await json(consultar(evento(), 'libraryV3', { x: 'a'.repeat(5000) })), { ok: false, falha: 'recusado' });
+  assert.deepEqual(await json(consultar(evento(), 7, {})), { ok: false, falha: 'recusado' });
+  assert.equal(captura.consultaDoSpotify, undefined, 'nenhuma destas chegou ao módulo');
+  assert.deepEqual(await json(consultar(evento(), 'libraryV3', { offset: 0 })), { ok: true, dados: {} });
+  assert.equal(captura.consultaDoSpotify, 'libraryV3');
+  assert.equal(await handlers.get('spotify:conta:ligada')(evento()), false);
+}
 // Os pedidos ao Supabase pelo processo principal (17/10): sem o OPTIONS do CORS.
 {
   const pedir = handlers.get('supabase:pedir');
