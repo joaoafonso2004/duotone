@@ -316,7 +316,30 @@ export interface TopArtist {
   externo?: boolean;
 }
 
+/**
+ * Os artistas mais ouvidos mudam devagar, e a Home, as misturas, a descoberta e
+ * os Artists pediam-nos cada um por si, a cada abertura: era um dos caminhos
+ * mais pedidos ao Supabase com a app pública (251 numa hora, 10/11). Ficam 10
+ * minutos em memória, por conta e por tamanho, e pedidos iguais em simultâneo
+ * partilham o mesmo. Sem conta lida, não se guarda nada.
+ */
+const TOP_VALE_MS = 10 * 60 * 1000;
+const topEmMemoria = new Map<string, { em: number; pedido: Promise<TopArtist[]> }>();
+
 export async function getTopArtists(limit = 8): Promise<TopArtist[]> {
+  const conta = await idDaConta().catch(() => null);
+  if (!conta) return lerTopArtists(limit);
+  const chave = `${conta}:${limit}`;
+  const guardado = topEmMemoria.get(chave);
+  if (guardado && Date.now() - guardado.em < TOP_VALE_MS) return guardado.pedido;
+  const pedido = lerTopArtists(limit);
+  topEmMemoria.set(chave, { em: Date.now(), pedido });
+  // Uma leitura falhada devolve [] e não fica: a seguinte tenta outra vez.
+  void pedido.then((lista) => { if (!lista.length && topEmMemoria.get(chave)?.pedido === pedido) topEmMemoria.delete(chave); });
+  return pedido;
+}
+
+async function lerTopArtists(limit: number): Promise<TopArtist[]> {
   try {
     const { data, error } = await supabase.rpc('get_top_artists', { limit_val: limit });
     if (error) throw error;

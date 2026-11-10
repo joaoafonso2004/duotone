@@ -86,7 +86,21 @@ export function iniciarArtistasFavoritos(userId: string): () => void {
   // o `user_prefs` estiver publicado (os ficheiros de supabase/ não o publicam).
   const app = AppState.addEventListener('change', state => { if (state === 'active') refresh(); });
   const channel = supabase.channel(`artist-favorites:${userId}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'user_prefs', filter: `user_id=eq.${userId}` }, () => reler(true))
+    // Só relê se os FAVORITOS mudaram (10/11): o aviso chega a cada escrita no
+    // `user_prefs` -- o EQ, o shuffle, o próprio envio deste aparelho -- e cada um
+    // fazia ler a linha inteira outra vez. O aviso já traz a linha nova; sem ela
+    // (um aviso de DELETE, ou sem os dados), relê-se como antes.
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'user_prefs', filter: `user_id=eq.${userId}` }, (aviso: any) => {
+      const novas = aviso?.new?.prefs;
+      if (novas && typeof novas === 'object' && REMOTE_KEY in novas) {
+        const remotos = readFavorites(novas[REMOTE_KEY]);
+        const aqui = useArtistasFavoritos.getState();
+        const iguais = aqui.estado === 'saved'
+          && Object.keys(remotos).filter((k) => remotos[k]).sort().join('|') === [...aqui.chaves].sort().join('|');
+        if (iguais) return;
+      }
+      reler(true);
+    })
     .subscribe(status => { if (status === 'SUBSCRIBED') refresh(); });
   if (Platform.OS === 'web') { window.addEventListener('online', refresh); window.addEventListener('focus', refresh); }
   refresh();

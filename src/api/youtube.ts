@@ -234,10 +234,10 @@ export async function searchYouTubePlaylists(
 export async function fetchYouTubePlaylistById(id: string): Promise<YtPlaylistImport> {
   const editorial = id.startsWith('RDCLAK5uy_');
   const key = `playlist:ytm:v1:${id}`;
-  const cached = await cacheGet<YtPlaylistImport>(key, PLAYLIST_TTL, { memoria: true })
-    // A leitura antiga (Data API) continua a servir enquanto não caduca; a das
-    // editoriais não, porque vinha repetida e às voltas (ver abaixo).
-    ?? (editorial ? null : await cacheGet<YtPlaylistImport>(`playlist:v2:${id}`, PLAYLIST_TTL, { memoria: true }));
+  // Só a chave de agora (10/11): a antiga (`playlist:v2:`, da Data API) deixou de
+  // se escrever a 30/9 e vale um dia, por isso pedi-la era sempre um pedido sem
+  // resposta, um por cada playlist ou álbum aberto.
+  const cached = await cacheGet<YtPlaylistImport>(key, PLAYLIST_TTL, { memoria: true });
   if (cached) return cached;
 
   // Pelo YouTube Music primeiro (30/9): grátis, e sem gastar a chave da Data

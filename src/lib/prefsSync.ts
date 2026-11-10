@@ -27,6 +27,8 @@ import { chavesAEscrever, DE_FORA, PREFIXO } from './prefsFusao';
 let utilizador: string | null = null;
 let ultimoEnviado = '';
 let desligarAppState: (() => void) | null = null;
+/** O envio que está a correr: um segundo pedido no mesmo instante espera por ele. */
+let aEnviar: Promise<void> | null = null;
 
 async function lerLocais(): Promise<Record<string, string>> {
   try {
@@ -42,7 +44,17 @@ async function lerLocais(): Promise<Record<string, string>> {
   }
 }
 
-async function enviar(): Promise<void> {
+/**
+ * Um envio de cada vez (10/11). Bloquear o iPhone passa a app por `inactive` e
+ * logo a seguir por `background`: eram dois envios em paralelo, os dois a ler a
+ * conta antes de o primeiro gravar, e um terceiro pedido para resolver o conflito.
+ */
+function enviar(): Promise<void> {
+  aEnviar ??= enviarAgora().finally(() => { aEnviar = null; });
+  return aEnviar;
+}
+
+async function enviarAgora(): Promise<void> {
   if (!utilizador) return;
   const userId = utilizador;
   const saco = await lerLocais();
