@@ -1,5 +1,5 @@
 import React from 'react';
-import {ActivityIndicator,Image,Platform,Pressable,ScrollView,StyleSheet,Text,TextInput,View} from 'react-native';
+import {ActivityIndicator,Platform,Pressable,ScrollView,StyleSheet,Text,TextInput,View} from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import {LinearGradient} from 'expo-linear-gradient';
 import type {ChatGroup,Reaction,SharedItem} from '../api/social';
@@ -12,6 +12,10 @@ import {colors,radii} from './socialTokens';
 import {SocialButton,SocialIconButton,socialStyles as s} from './socialUI';
 import {SharedPlaylistCard} from './SharedPlaylistCard';
 import {MessageBubble,ReactionRow} from './ReactionRow';
+import {CapaDaFaixaPartilhada} from './CapaDaFaixaPartilhada';
+import {capasDaFaixaPartilhada} from '../lib/capaDoEcraBloqueado';
+
+const estiloDaCapa={width:48,height:48,borderRadius:8};
 
 /** A identidade do grupo vem dos seus membros, incluindo os avatares de emoji. */
 export function GroupAvatar({group,size=44}:{group:ChatGroup;size?:number}) {
@@ -105,8 +109,9 @@ export function GroupMessage({message:m,own,showSender=true,playlist,reactions=[
       {!!m.message&&<Text selectable style={[s.text,{lineHeight:22}]}>{m.message}</Text>}
       {m.trackData&&<Pressable accessibilityRole="button" accessibilityLabel={`Open ${m.trackData.title}`}
         onPress={()=>onTrack(m.trackData!)} style={({pressed})=>[s.row,{padding:10,gap:10,minWidth:190,borderRadius:12,backgroundColor:colors.bg,opacity:pressed?0.7:1}]}>
-        {m.trackData.artworkUrl?<Image source={{uri:m.trackData.artworkUrl}} style={{width:48,height:48,borderRadius:8}}/>:
-          <View style={{width:48,height:48,borderRadius:8,backgroundColor:colors.surfaceHigh,alignItems:'center',justifyContent:'center'}}><Ionicons name="musical-notes-outline" size={22} color={colors.textSecondary}/></View>}
+        {/* A mesma capa da conversa a dois (11/11): a guardada, e a do vídeo quando falta ou não carrega. */}
+        <CapaDaFaixaPartilhada faixa={m.trackData} capas={capasDaFaixaPartilhada(m.trackData)} estilo={estiloDaCapa}
+          estiloVazio={[estiloDaCapa,{backgroundColor:colors.surfaceHigh,alignItems:'center',justifyContent:'center'}]}/>
         <View style={{flex:1,minWidth:0,gap:3}}><Text numberOfLines={2} style={[s.text,{fontWeight:'600'}]}>{tituloDaFaixa(m.trackData)}</Text><Text numberOfLines={1} style={s.muted}>{displayArtist(m.trackData)}</Text></View>
         {/* Guardar sem sair da conversa -- o mesmo coração da conversa a dois. */}
         <BotaoGuardar track={m.trackData}/>

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { urlsDaCapa, urlsDaCapaQuadrada, capaParaLista } from '../src/lib/capaDoEcraBloqueado.ts';
+import { urlsDaCapa, urlsDaCapaQuadrada, capaParaLista, capasDaFaixaPartilhada } from '../src/lib/capaDoEcraBloqueado.ts';
 
 // Thumbnail do YouTube: sobe de resolução e mantém o original como rede.
 const hq = 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg';
@@ -67,3 +67,21 @@ assert.deepEqual(urlsDaCapaQuadrada(hq), [
 assert.deepEqual(urlsDaCapaQuadrada(outra), [outra]);
 assert.deepEqual(urlsDaCapaQuadrada(null), []);
 console.log('Capa do modo carro: fontes grandes e fallback sem moldura passaram.');
+
+// A música partilhada numa conversa (11/11): a capa "não aparece" no iPhone.
+// A guardada primeiro, e a do vídeo como reserva -- para quando falta e para
+// quando a guardada não carrega.
+const doVideo = 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg';
+assert.deepEqual(capasDaFaixaPartilhada({ source: 'youtube', sourceId: 'dQw4w9WgXcQ', artworkUrl: null }), [doVideo],
+  'sem capa na mensagem, a do vídeo');
+assert.deepEqual(capasDaFaixaPartilhada({ source: 'youtube', sourceId: 'dQw4w9WgXcQ', artworkUrl: outra }), [outra, doVideo],
+  'a guardada primeiro, a do vídeo de reserva');
+assert.deepEqual(capasDaFaixaPartilhada({ source: 'youtube', sourceId: 'dQw4w9WgXcQ', artworkUrl: hq }), [doVideo],
+  'a guardada já é a do vídeo: não se pede duas vezes');
+assert.deepEqual(capasDaFaixaPartilhada({ source: 'youtube', sourceId: 'outro_video', artworkUrl: hq }),
+  [doVideo, 'https://i.ytimg.com/vi/outro_video/mqdefault.jpg'], 'a clean trocada traz a capa da outra: as duas servem');
+assert.deepEqual(capasDaFaixaPartilhada({ source: 'spotify', sourceId: '4uLU6hMCjMI75M1A2tKUQC', artworkUrl: null }), [],
+  'do Spotify sem capa: a nota musical');
+assert.deepEqual(capasDaFaixaPartilhada({ source: 'youtube', sourceId: 'x/../y', artworkUrl: null }), [],
+  'um id estranho não vira endereço');
+console.log('Capa da música na conversa: a guardada, e a do vídeo de reserva.');

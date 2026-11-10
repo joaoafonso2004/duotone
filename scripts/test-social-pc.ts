@@ -31,14 +31,17 @@ caso('a lista do iPhone não foi tocada: nem cartões do PC nem as marcas do PC'
   assert.ok(!/desktop\/|marcar\(|CapaDuotone|Listen along/.test(LISTA_IOS), 'a lista do iPhone importa coisas do PC');
 });
 caso('o iPhone desenha a capa e a nota musical de sempre, e não tem etiqueta', () => {
-  assert.match(CAPA_IOS, /<Image source=\{\{ uri: capa \}\} style=\{estilo\} contentFit="cover" \/>/);
+  // Desde 11/11 com reserva: quando uma capa não carrega, passa à seguinte.
+  assert.match(CAPA_IOS, /<Image\s+key=\{capa\}\s+source=\{\{ uri: capa \}\}\s+style=\{estilo\}\s+contentFit="cover"\s+onError=\{\(\) => setFalhas\(\{ chave, n: n \+ 1 \}\)\}/);
+  assert.match(CAPA_IOS, /const capa = capas\[n\];/);
   assert.match(CAPA_IOS, /<Ionicons name="musical-notes" size=\{15\} color=\{colors\.textTertiary\} \/>/);
   assert.match(CAPA_IOS, /export function EtiquetaDaFaixaPartilhada\(_props: \{ faixa: Track \}\): React\.ReactElement \| null \{\n  return null;/);
   assert.ok(!/desktop\//.test(CAPA_IOS), 'o iPhone não pode importar ficheiros do PC');
 });
 caso('a conversa partilhada só troca a capa e a etiqueta por um par de plataformas; o resto é igual', () => {
   assert.match(CHAT, /import \{ CapaDaFaixaPartilhada, EtiquetaDaFaixaPartilhada \} from '\.\/CapaDaFaixaPartilhada';/);
-  assert.match(CHAT, /<CapaDaFaixaPartilhada faixa=\{faixa\} capa=\{capa\} estilo=\{styles\.capa\} estiloVazio=\{\[styles\.capa, styles\.semCapa\]\} \/>/);
+  assert.match(CHAT, /<CapaDaFaixaPartilhada faixa=\{faixa\} capas=\{capas\} estilo=\{styles\.capa\} estiloVazio=\{\[styles\.capa, styles\.semCapa\]\} \/>/);
+  assert.match(CHAT, /const capas = capasDaFaixaPartilhada\(faixa\);/, 'a guardada e a do vídeo de reserva (11/11)');
   assert.match(CHAT, /<EtiquetaDaFaixaPartilhada faixa=\{faixa\} \/>/);
   assert.match(CHAT, /<BotaoGuardar track=\{faixa\} tamanho=\{17\} \/>/, 'o guardar continua no cartão');
 });

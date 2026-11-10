@@ -43,6 +43,28 @@ export function capaParaLista(artworkUrl: string | null | undefined): string | n
 }
 
 /**
+ * As capas a tentar para uma música partilhada numa conversa, pela ordem
+ * (11/11). O João: a capa de uma música no chat do iPhone "não aparece",
+ * nunca. A conversa só usava o `artworkUrl` que veio na mensagem: sem ele, a
+ * nota musical; com um endereço que não carrega, o quadrado vazio. O PC já
+ * tirava a capa do id do vídeo quando faltava (`capaDaFaixa`, ui.web.tsx).
+ *
+ * Aqui: a guardada na mensagem (em `mqdefault`, sem barras), e depois a
+ * miniatura do próprio vídeo do YouTube, que existe sempre. Quem desenha passa
+ * à seguinte quando uma falha (`CapaDaFaixaPartilhada.tsx`).
+ */
+export function capasDaFaixaPartilhada(t: { source: string; sourceId: string; artworkUrl?: string | null }): string[] {
+  const lista: string[] = [];
+  const guardada = capaParaLista(t.artworkUrl);
+  if (guardada) lista.push(guardada);
+  if (t.source === 'youtube' && /^[A-Za-z0-9_-]{6,}$/.test(t.sourceId)) {
+    const doVideo = `https://i.ytimg.com/vi/${t.sourceId}/mqdefault.jpg`;
+    if (!lista.includes(doVideo)) lista.push(doVideo);
+  }
+  return lista;
+}
+
+/**
  * Fontes para uma capa QUADRADA grande, sem a moldura preta do `hqdefault`.
  *
  * O modo carro precisa de mais resolução do que uma linha de lista, portanto

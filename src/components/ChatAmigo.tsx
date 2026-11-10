@@ -9,7 +9,7 @@ import { FriendAvatar } from './FriendAvatar';
 import { SocialIconButton } from './socialUI';
 import { Toque } from './Toque';
 import { ESCALA } from '../lib/movimento';
-import { capaParaLista } from '../lib/capaDoEcraBloqueado';
+import { capasDaFaixaPartilhada } from '../lib/capaDoEcraBloqueado';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { colors, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
@@ -128,7 +128,8 @@ export function FaixaPartilhada({
   /** O ▶ toca a música sem sair da conversa (9/10); sem isto, é só um ícone. */
   onTocar?: () => void;
 }) {
-  const capa = faixa.artworkUrl ? capaParaLista(faixa.artworkUrl) : null;
+  // A guardada na mensagem, e a do vídeo para quando falta ou não carrega (11/11).
+  const capas = capasDaFaixaPartilhada(faixa);
   return (
     <Toque
       escala={ESCALA.cartao}
@@ -137,7 +138,7 @@ export function FaixaPartilhada({
       style={[styles.faixa, minha && styles.faixaMinha]}
     >
       {/* A capa e a etiqueta têm uma variante do PC (a dois tons, 30/10); no iPhone é a de sempre. */}
-      <CapaDaFaixaPartilhada faixa={faixa} capa={capa} estilo={styles.capa} estiloVazio={[styles.capa, styles.semCapa]} />
+      <CapaDaFaixaPartilhada faixa={faixa} capas={capas} estilo={styles.capa} estiloVazio={[styles.capa, styles.semCapa]} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <EtiquetaDaFaixaPartilhada faixa={faixa} />
         <Text numberOfLines={1} style={styles.faixaTitulo}>{tituloDaFaixa(faixa)}</Text>

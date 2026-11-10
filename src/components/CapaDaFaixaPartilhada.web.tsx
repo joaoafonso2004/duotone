@@ -15,8 +15,10 @@ import type { Track } from '../types';
  */
 const guardada = (faixa: Track) => (s: { keys: Set<string> }) => s.keys.has(`${faixa.source}:${faixa.sourceId}`);
 
-export function CapaDaFaixaPartilhada({ faixa, capa, estilo, estiloVazio }: { faixa: Track; capa: string | null; estilo: any; estiloVazio: any }) {
+export function CapaDaFaixaPartilhada({ faixa, capas, estilo, estiloVazio }: { faixa: Track; capas: string[]; estilo: any; estiloVazio: any }) {
   const minha = useSaved(guardada(faixa));
+  // A primeira da lista (`capasDaFaixaPartilhada`): a guardada, ou a do vídeo quando falta.
+  const capa = capas[0] ?? null;
   if (!capa) {
     return <View style={estiloVazio}><Ionicons name="musical-notes" size={15} color={colors.textTertiary} /></View>;
   }
