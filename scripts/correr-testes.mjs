@@ -78,6 +78,7 @@ const TESTES = [
   `${TS} scripts/test-auth-storage.ts`,
   `${RESOLVER} scripts/test-pesquisa-paginada.ts`,
   `${TS} scripts/test-artist-name.ts`,
+  `${TS} scripts/test-titulo-que-e-a-musica.ts`,
   `${TS} scripts/test-titulo-que-rola.ts`,
   `${TS} scripts/test-spotify-csv.ts`,
   `${RESOLVER} scripts/test-cor-da-capa.ts`,

@@ -507,6 +507,29 @@ export function extractArtist(
   return canonizar(bruto, vocabulario) ?? bruto;
 }
 
+/**
+ * O artista conhecido que se achou no título é, afinal, o NOME DA MÚSICA
+ * (11/11, o João: "diz Bones como o título mas é dos Imagine Dragons"). O
+ * rapper BONES estava no vocabulário, e a música "Bones" do canal "Imagine
+ * Dragons" ficava com ele. O canal ganha em dois casos:
+ *
+ * - o título é só esse nome ("Bones", "Bones (Official Audio)"): é a música,
+ *   e quem diz de quem é, é o canal;
+ * - o canal é ele próprio um artista conhecido, e o título não o nomeia.
+ *
+ * Fora disso a regra do título fica como estava: um "Juice Wrld-Backspinn"
+ * num canal de uploads continua a ser do Juice WRLD.
+ */
+function eAMusicaDoCanal(encontrado: string, titulo: string, channel: string | null, vocabulario: Vocabulario): boolean {
+  if (!channel || nomeDeFonteFiavel(channel)) return false;
+  const canal = artistaPrincipal(clean(channel.replace(/\s*[-–—|]?\s*(?:official|oficial)\s*$/i, '')));
+  const chaveDoCanal = chaveDeArtista(canal);
+  const chaveAchada = chaveDeArtista(encontrado);
+  if (!chaveDoCanal || chaveDoCanal === chaveAchada) return false;
+  if (chaveDeArtista(semSufixoDeVersao(clean(titulo))) === chaveAchada) return true;
+  return conhecidoComSeguranca(canal, vocabulario) && !` ${chaveDeArtista(titulo)} `.includes(` ${chaveDoCanal} `);
+}
+
 function extrairBruto(
   title: string | null,
   channel: string | null,
@@ -572,8 +595,9 @@ function extrairBruto(
   // consultam aqui os canais aprendidos como fallback: foi isso que deixava
   // `Xan-Wrld999` ganhar por ser um nome mais comprido.
   if (limpo) {
-    const encontrado = procurarNoTexto(limpo.replace(FEAT_ENTRE_PARENTESES_RE, '').replace(FEAT_RE, ''), vocabulario);
-    if (encontrado) return encontrado;
+    const semConvidados = limpo.replace(FEAT_ENTRE_PARENTESES_RE, '').replace(FEAT_RE, '');
+    const encontrado = procurarNoTexto(semConvidados, vocabulario);
+    if (encontrado && !eAMusicaDoCanal(encontrado, semConvidados, channel, vocabulario)) return encontrado;
   }
 
   // 4) Variante comum sem espaços em volta do traço: `Artista-Música`.
