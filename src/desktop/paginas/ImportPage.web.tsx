@@ -6,7 +6,11 @@
  * app percebe o que é (`lib/entradaDaImportacao.ts`). Um link lê-se logo, para
  * o cartão dizer o nome e quantas; o botão manda tudo para a fila de
  * importações (`state/importacoes.ts`), que corre em segundo plano com a barra
- * na lateral. A conta do Spotify continua, numa linha discreta por baixo.
+ * na lateral.
+ *
+ * A conta do Spotify em cima (11/11, o João: "não aparece logo o botão de
+ * login com o Spotify"): o cartão de `ContaDoSpotifyPc`, o mesmo da página do
+ * Spotify. O CSV do Exportify fica numa linha por baixo.
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useRef, useState } from 'react';
@@ -18,6 +22,7 @@ import { useImportacoes } from '../../state/importacoes';
 import { avisarInfo } from '../../lib/avisoDeRemocao';
 import type { NavegarFn } from '../rotas';
 import { BotaoVoltar, Button, Chips, ContentScroll, Page } from '../ui.web';
+import { ContaDoSpotifyPc } from '../ContaDoSpotifyPc.web';
 import { COR, ESP, ESTADO, FONT, RAIO, TIPO } from '../tokens.web';
 
 const musicas = (n: number) => `${n} ${n === 1 ? 'song' : 'songs'}`;
@@ -112,9 +117,11 @@ export function ImportPage({ back, navigate }: { back: () => void; notify: (s: s
   }
 
   return (
-    <Page title="Import music" subtitle="Bring a playlist from anywhere." action={<BotaoVoltar onPress={back} />}>
+    <Page title="Import music" subtitle="Bring your music from Spotify, YouTube, Deezer or Apple Music." action={<BotaoVoltar onPress={back} />}>
       <ContentScroll scrollKey="import">
         <View style={{ maxWidth: 720, paddingBottom: ESP.xxxl }}>
+          <ContaDoSpotifyPc aoComecar={back} />
+          <Text style={estilo.seccao}>A link, a list of songs or a file</Text>
           {ficheiro ? (
             <View style={[estilo.caixa, { minHeight: 0, flexDirection: 'row', alignItems: 'center', gap: ESP.md }]}>
               <Ionicons name="document-text-outline" size={18} color={COR.textoMedio} />
@@ -147,8 +154,8 @@ export function ImportPage({ back, navigate }: { back: () => void; notify: (s: s
           {cartao}
           <Pressable accessibilityRole="link" onPress={() => navigate({ name: 'spotify-import' })}
             style={({ hovered }: any) => [{ alignSelf: 'flex-start', marginTop: ESP.xxl, flexDirection: 'row', alignItems: 'center', gap: ESP.sm, paddingVertical: 6, paddingHorizontal: 8, marginLeft: -8, borderRadius: RAIO.ctrl }, hovered && { backgroundColor: ESTADO.hover }]}>
-            <Ionicons name="person-circle-outline" size={16} color={COR.textoMedio} />
-            <Text style={{ ...TIPO.legenda, color: COR.textoMedio }}>Import from your Spotify account or a Spotify export instead</Text>
+            <Ionicons name="document-text-outline" size={16} color={COR.textoMedio} />
+            <Text style={{ ...TIPO.legenda, color: COR.textoMedio }}>Have an Exportify CSV? Import it with a review of each song</Text>
           </Pressable>
         </View>
       </ContentScroll>
@@ -163,6 +170,7 @@ function Cartao({ children }: { children: React.ReactNode }) {
 const estilo = {
   caixa: { minHeight: 112, paddingVertical: 13, paddingHorizontal: 14, borderRadius: RAIO.cartao, borderWidth: 1, borderColor: COR.linha, backgroundColor: COR.elevado, color: COR.texto, fontFamily: FONT.body, fontSize: 14, lineHeight: 21, textAlignVertical: 'top' },
   dica: { ...TIPO.legenda, color: COR.textoFraco, marginTop: ESP.sm, marginBottom: ESP.md },
+  seccao: { ...TIPO.micro, color: COR.textoFraco, marginBottom: ESP.sm },
   cartao: { marginTop: ESP.lg, padding: ESP.lg, borderRadius: RAIO.superficie, borderWidth: 1, borderColor: COR.linha, backgroundColor: 'rgba(233,234,238,0.03)' },
   capa: { width: 52, height: 52, borderRadius: RAIO.ctrl, backgroundColor: COR.elevado },
   micro: { ...TIPO.micro, color: COR.textoFraco },

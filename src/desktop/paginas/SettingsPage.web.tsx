@@ -66,7 +66,7 @@ import { useConnectivity } from '../../state/connectivity';
 import type { NavegarFn } from '../rotas';
 import { lerDescarga, rotuloDaProcuraDeAtualizacoes, type DescargaDaAtualizacao } from '../../lib/rotuloDaAtualizacao';
 
-import { avisarErro, avisarInfo } from '../../lib/avisoDeRemocao';
+import { avisarErro, avisarFeito, avisarInfo } from '../../lib/avisoDeRemocao';
 import { mensagemDeErro } from '../../lib/mensagemDeErro';
 export function SettingsPage({ notify, navigate }: { notify: (s: string) => void; navigate: NavegarFn }) {
   // O painel de saúde (7/10): a entrada só aparece na conta de quem gere a app.
@@ -556,6 +556,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                 </View>
                 <ToggleLine label={ROTULOS.atualizarImportadas} description="Playlists you imported from a link pick up the songs added there since, once a day when you open them."
                   value={atualizarImportadas} onChange={(v) => { setAtualizarImportadasEstado(v); void setAtualizarImportadas(v); }} />
+                <LinhaDaContaDoSpotify navigate={navigate} />
               </SettingsCard>}
 
               {aberta === 'sobre' && <SettingsCard title="About">
@@ -632,3 +633,56 @@ export function Efeito({ texto }: { texto?: string | null }) { if (!texto) retur
 export function ToggleLine({ label, description, value, onChange, efeito }: { label: string; description: string; value: boolean; onChange: (v: boolean) => void; efeito?: string | null }) { return <View style={styles.settingLine}><View style={{ flex: 1 }}><Text style={styles.settingLabel}>{label}</Text><Text style={styles.settingDescription}>{description}</Text><Efeito texto={efeito} /></View><Switch accessibilityLabel={label} value={value} onValueChange={onChange} trackColor={{ false: COR.elevado, true: COR.metalClaro }} thumbColor={COR.fundo} /></View>; }
 
 export function ChoiceLine({ label, description, value, choices, onChange, efeito }: { label: string; description?: string; value: string; choices: [string, string][]; onChange: (v: string) => void; efeito?: string | null }) { return <View style={[styles.settingLine, { alignItems: 'flex-start' }]}><View style={{ flex: 1, marginTop: 8, paddingRight: ESP.md }}><Text style={styles.settingLabel}>{label}</Text>{description ? <Text style={styles.settingDescription}>{description}</Text> : null}<Efeito texto={efeito} /></View><View style={styles.smallSegment}>{choices.map(([id, text]) => <Pressable key={id} onPress={() => onChange(id)} style={[styles.smallSegmentItem, value === id && styles.smallSegmentActive]}><Text style={[styles.smallSegmentText, value === id && { color: COR.texto }]}>{text}</Text></Pressable>)}</View></View>; }
+
+/**
+ * A conta do Spotify nas Definições (11/11, pedido do João). O login e a
+ * leitura vivem no processo principal (`electron/contaDoSpotify.cjs`); daqui
+ * liga-se, vai-se escolher o que importar, ou desliga-se. Fora do Electron não
+ * aparece.
+ */
+function LinhaDaContaDoSpotify({ navigate }: { navigate: NavegarFn }) {
+  const ponte = typeof window !== 'undefined' ? window.duotoneDesktop : undefined;
+  const [ligada, setLigada] = useState<boolean | null>(null);
+  const [aEntrar, setAEntrar] = useState(false);
+  useEffect(() => {
+    let vivo = true;
+    void ponte?.spotifyLigado?.().then((l) => { if (vivo) setLigada(l); }, () => { if (vivo) setLigada(false); });
+    return () => { vivo = false; };
+  }, [ponte]);
+  if (!ponte?.spotifyLigado) return null;
+  const entrar = async () => {
+    setAEntrar(true);
+    try {
+      if (await ponte.entrarNoSpotify?.()) { setLigada(true); navigate({ name: 'import' }); }
+    } catch {
+      avisarErro("Couldn't open the Spotify login.");
+    } finally {
+      setAEntrar(false);
+    }
+  };
+  const sair = async () => {
+    await ponte.sairDoSpotify?.().catch(() => {});
+    setLigada(false);
+    avisarFeito('Spotify disconnected', 'Duotone no longer keeps your Spotify login.');
+  };
+  return (
+    <View style={styles.settingLine}>
+      <View style={{ flex: 1, paddingRight: ESP.lg }}>
+        <Text style={styles.settingLabel}>{ROTULOS.contaDoSpotify}</Text>
+        <Text style={styles.settingDescription}>
+          {ligada ? 'Connected. Bring your Liked Songs and playlists, or disconnect.' : 'Log in to bring your Liked Songs and playlists, private ones too.'}
+        </Text>
+      </View>
+      <View style={{ flexDirection: 'row', gap: ESP.sm }}>
+        {ligada ? (
+          <>
+            <Button secondary onPress={() => navigate({ name: 'import' })}>Import</Button>
+            <Button secondary onPress={() => void sair()}>Disconnect</Button>
+          </>
+        ) : (
+          <Button secondary ocupado={aEntrar} disabled={ligada === null} onPress={() => void entrar()}>{aEntrar ? 'Waiting…' : 'Connect'}</Button>
+        )}
+      </View>
+    </View>
+  );
+}

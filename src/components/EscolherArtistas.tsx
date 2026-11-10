@@ -1,10 +1,11 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { procurarArtistas } from '../api/catalogo';
-import { ErroDoSpotify, importarGostoDoSpotify, spotifyDisponivel } from '../api/spotifyConta';
-import { mensagemDoSpotify } from '../lib/gostoDoSpotify';
+import { guardarGostoDaBiblioteca } from '../api/gostoDaBiblioteca';
+import { useContaDoSpotify } from '../hooks/useContaDoSpotify';
+import { ErroDoLeitor, mensagemDoLeitor } from '../lib/leitorWebDoSpotify';
 import { jaChegam, SEMENTES_PEDIDAS } from '../lib/artistasSemente';
 import { hapticSelection } from '../lib/haptics';
 import { getArtistasSemente, setArtistasSemente } from '../lib/prefs';
@@ -92,20 +93,27 @@ export function EscolherArtistas({
 
   // O atalho de quem chega do Spotify: em vez de escolher três artistas, lê os
   // que já ouve lá. Chega por si -- não obriga a escolher mais nenhum.
-  const [aLerSpotify, setALerSpotify] = useState(false);
-  const importarDoSpotify = async () => {
-    setALerSpotify(true);
-    try {
-      await importarGostoDoSpotify();
-      aoGuardar();
-      aoFechar();
-    } catch (e) {
-      const texto = mensagemDoSpotify(e instanceof ErroDoSpotify ? e.tipo : 'rede');
-      if (texto) avisarErro(texto);
-    } finally {
-      setALerSpotify(false);
-    }
-  };
+  // Desde 11/11 pelo leitor web (useContaDoSpotify), e não pelo login oficial,
+  // que só aceitava as cinco contas do painel: os artistas das Liked Songs, ou
+  // das primeiras playlists quando não há Liked Songs.
+  const conta = useContaDoSpotify((b) => {
+    void (async () => {
+      try {
+        const gostadas = b.listas.find((l) => l.id === 'gostadas');
+        const ler = gostadas ? [gostadas] : b.listas.slice(0, 3);
+        const linhas = [];
+        for (const l of ler) linhas.push(...(await b.ler(l)).linhas);
+        await guardarGostoDaBiblioteca(linhas);
+        conta.parar();
+        aoGuardar();
+        aoFechar();
+      } catch (e) {
+        conta.parar();
+        avisarErro(mensagemDoLeitor(e instanceof ErroDoLeitor ? e.tipo : 'rede'));
+      }
+    })();
+  });
+  const aLerSpotify = conta.fase !== 'parado';
 
   const faltam = Math.max(0, SEMENTES_PEDIDAS - escolhidos.length);
 
@@ -119,14 +127,15 @@ export function EscolherArtistas({
             : `${escolhidos.length} picked. You can always add more later.`}
         </Text>
 
-        {spotifyDisponivel() && (
+        {Platform.OS === 'ios' && (
           <PillButton
             label={aLerSpotify ? 'Reading Spotify…' : 'Use my Spotify instead'}
             loading={aLerSpotify}
             disabled={aLerSpotify}
-            onPress={() => void importarDoSpotify()}
+            onPress={conta.ligar}
           />
         )}
+        {conta.pecas}
 
         <Input
           icon="search"

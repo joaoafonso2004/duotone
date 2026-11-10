@@ -1,49 +1,43 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { abrirBibliotecaDoSpotify, ErroDoSpotify, spotifyDisponivel, type BibliotecaDoSpotify } from '../api/spotifyConta';
-import { mensagemDoSpotify } from '../lib/gostoDoSpotify';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { guardarGostoDaBiblioteca } from '../api/gostoDaBiblioteca';
 import { MAXIMO_DA_CONTA } from '../lib/bibliotecaDoSpotify';
+import { ErroDoLeitor, mensagemDoLeitor, type BibliotecaLida } from '../lib/leitorWebDoSpotify';
 import { avisarErro, avisarFeito } from '../lib/avisoDeRemocao';
 import { useImportacoes } from '../state/importacoes';
 import { useTheme } from '../state/theme';
 import { BottomSheet, BottomSheetScrollView } from './BottomSheet';
+import { useContaDoSpotify } from '../hooks/useContaDoSpotify';
 import { PillButton } from './PillButton';
 import { colors, radii, spacing, type } from '../theme';
 
 /**
- * Importar do Spotify pela CONTA (7/10, iPhone): as Liked Songs e as
- * playlists, inteiras (até `MAXIMO_DA_CONTA` cada). O link dava só as
- * primeiras 100 de uma playlist pública, e as Liked Songs não têm link.
+ * Importar do Spotify pela CONTA (iPhone): as Liked Songs e as playlists,
+ * inteiras (até `MAXIMO_DA_CONTA` cada), para a fila de importações em segundo
+ * plano (state/importacoes.ts, com a barra no topo). As Liked Songs vão para
+ * as Liked Songs; cada playlist, para uma playlist nova com o mesmo nome.
  *
- * Liga-se ao Spotify (o login de sempre, sem guardar nada), escolhe-se o que
- * vem, e as listas lidas vão para a fila de importações em segundo plano
- * (state/importacoes.ts, com a barra no topo). As Liked Songs vão para as
- * Liked Songs; cada playlist, para uma playlist nova com o mesmo nome.
+ * Desde 11/11 pelo leitor web do Spotify (`LeitorDoSpotify.tsx`), como o PC, e
+ * não pelo login oficial: esse só aceitava as cinco contas acrescentadas à mão
+ * no painel, e as outras liam "your account may need to be added to the app".
+ * Com a sessão já aberta, entra-se sem login; sem ela, abre-se o do Spotify.
+ * O que se importa também dá o gosto às recomendações (`guardarGostoDaBiblioteca`).
  */
+
 export function ImportarDaContaDoSpotify({ aoComecar }: { aoComecar: () => void }) {
   const theme = useTheme((s) => s.theme);
-  const [aLigar, setALigar] = useState(false);
-  const [biblioteca, setBiblioteca] = useState<BibliotecaDoSpotify | null>(null);
+  const [biblioteca, setBiblioteca] = useState<BibliotecaLida | null>(null);
   const [escolhidas, setEscolhidas] = useState<Set<string>>(new Set());
   const [aLer, setALer] = useState<string | null>(null);
-  if (!spotifyDisponivel()) return null;
-
-  const ligar = async () => {
-    setALigar(true);
-    try {
-      const b = await abrirBibliotecaDoSpotify();
-      setBiblioteca(b);
-      setEscolhidas(new Set(b.listas.filter((l) => l.id === 'gostadas').map((l) => l.id)));
-    } catch (e) {
-      const tipo = e instanceof ErroDoSpotify ? e.tipo : 'rede';
-      const m = tipo === 'vazio' ? 'No playlists or Liked Songs on this Spotify account.' : mensagemDoSpotify(tipo);
-      if (m) avisarErro(m);
-    } finally {
-      setALigar(false);
-    }
-  };
+  const conta = useContaDoSpotify((b) => {
+    setBiblioteca(b);
+    setEscolhidas(new Set(b.listas.filter((l) => l.id === 'gostadas').map((l) => l.id)));
+  });
+  if (Platform.OS !== 'ios') return null;
+  const fase = conta.fase;
+  const parar = () => { setBiblioteca(null); conta.parar(); };
 
   const alternar = (id: string) => {
     const nova = new Set(escolhidas);
@@ -56,20 +50,24 @@ export function ImportarDaContaDoSpotify({ aoComecar }: { aoComecar: () => void 
     const listas = biblioteca.listas.filter((l) => escolhidas.has(l.id));
     const lidas: Parameters<ReturnType<typeof useImportacoes.getState>['importarDaConta']>[0] = [];
     let falhou = 0;
+    let desligou = false;
     for (let i = 0; i < listas.length; i++) {
       setALer(`Reading ${i + 1} of ${listas.length}…`);
       try {
         const { linhas, cortada } = await biblioteca.ler(listas[i]);
         if (linhas.length) lidas.push({ nome: listas[i].nome, linhas, cortada, destino: listas[i].id === 'gostadas' ? 'gostadas' : 'playlist' });
-      } catch {
-        // Uma lista que não se lê (uma do próprio Spotify, fechada a apps novas) não trava as outras.
+      } catch (e) {
+        // Uma lista que não se lê não trava as outras; um login caducado trava todas.
+        if (e instanceof ErroDoLeitor && e.tipo === 'desligado') { desligou = true; break; }
         falhou++;
       }
     }
     setALer(null);
-    setBiblioteca(null);
+    parar();
+    if (desligou) { avisarErro(mensagemDoLeitor('desligado')); return; }
     if (!lidas.length) { avisarErro("Couldn't read those lists from Spotify."); return; }
     useImportacoes.getState().importarDaConta(lidas);
+    void guardarGostoDaBiblioteca(lidas.flatMap((l) => l.linhas)).catch(() => {});
     avisarFeito('Importing from Spotify',
       `${lidas.length} ${lidas.length === 1 ? 'list' : 'lists'} in the background${falhou ? ` · ${falhou} couldn't be read` : ''}`);
     aoComecar();
@@ -84,11 +82,18 @@ export function ImportarDaContaDoSpotify({ aoComecar }: { aoComecar: () => void 
         <Text style={[type.headline, { flex: 1 }]}>Your Spotify account</Text>
       </View>
       <Text style={[type.caption, { marginBottom: spacing.md }]}>
-        {`Your Liked Songs and playlists, all of them (up to ${MAXIMO_DA_CONTA} songs each).`}
+        {`Your Liked Songs and playlists, all of them (up to ${MAXIMO_DA_CONTA} songs each). Private playlists too.`}
       </Text>
-      <PillButton label="Connect Spotify" small onPress={() => void ligar()} loading={aLigar} />
+      <PillButton label={fase === 'a-ligar' ? 'Connecting…' : 'Connect Spotify'} small onPress={conta.ligar}
+        loading={fase === 'a-ligar' || fase === 'login'} disabled={fase !== 'parado'} />
+      <Text style={[type.caption, { marginTop: spacing.md, color: colors.textTertiary }]}>
+        Signed up with Google? Type your Gmail address in the Spotify login and log in with the code Spotify emails you.
+      </Text>
 
-      <BottomSheet visible={!!biblioteca} onClose={() => { if (!aLer) setBiblioteca(null); }} titulo="Choose what to import">
+      {/* O leitor só existe enquanto se liga ou se lê; a folha do login, só quando falta a sessão. */}
+      {conta.pecas}
+
+      <BottomSheet visible={fase === 'pronta' && !!biblioteca} onClose={() => { if (!aLer) parar(); }} titulo="Choose what to import">
         <Pressable accessibilityRole="button" onPress={() => setEscolhidas(todas ? new Set() : new Set(listas.map((l) => l.id)))}
           hitSlop={8} style={{ alignSelf: 'flex-end', marginBottom: spacing.sm }}>
           <Text style={[type.caption, { color: theme.color, fontWeight: '700' }]}>{todas ? 'Deselect all' : 'Select all'}</Text>

@@ -204,3 +204,25 @@ export async function abrirPeloLeitor(consultar: Consultar): Promise<BibliotecaL
   };
   return { listas, ler };
 }
+
+/**
+ * Os artistas que mais aparecem nas listas lidas, do mais frequente para o
+ * menos (11/11): o gosto para as recomendações sai da biblioteca da pessoa, e
+ * não do login oficial, que só aceita as cinco contas do painel. Conta o
+ * primeiro artista de cada música; num empate fica o que apareceu primeiro.
+ */
+export function artistasPorFrequencia(linhas: readonly LinhaDaPlaylist[], quantos = 50): string[] {
+  const contagem = new Map<string, { nome: string; vezes: number; ordem: number }>();
+  for (const l of linhas) {
+    const nome = (l.artist ?? '').split(', ')[0]?.trim();
+    if (!nome) continue;
+    const k = nome.toLowerCase();
+    const antes = contagem.get(k);
+    if (antes) antes.vezes++;
+    else contagem.set(k, { nome, vezes: 1, ordem: contagem.size });
+  }
+  return [...contagem.values()]
+    .sort((a, b) => b.vezes - a.vezes || a.ordem - b.ordem)
+    .slice(0, quantos)
+    .map((a) => a.nome);
+}

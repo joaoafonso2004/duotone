@@ -171,3 +171,15 @@ const conta: Conta = {
 }
 
 console.log('leitor web do Spotify: ok');
+
+// ---- o gosto a partir da biblioteca (11/11) ------------------------------------
+{
+  const { artistasPorFrequencia } = await import('../src/lib/leitorWebDoSpotify.ts');
+  const l = (artist: string) => ({ title: 'x', artist, album: null, durationMs: null, uri: null });
+  assert.deepEqual(
+    artistasPorFrequencia([l('Drake, Lil Durk'), l('Kendrick Lamar'), l('drake'), l('SZA'), l('Kendrick Lamar'), l('Drake'), l('')]),
+    ['Drake', 'Kendrick Lamar', 'SZA'], 'o primeiro artista de cada música, sem maiúsculas, do mais frequente para o menos');
+  assert.deepEqual(artistasPorFrequencia([l('A'), l('B'), l('C')], 2), ['A', 'B'], 'num empate, quem apareceu primeiro; e corta no pedido');
+  assert.deepEqual(artistasPorFrequencia([]), []);
+  console.log('gosto a partir da biblioteca: ok');
+}

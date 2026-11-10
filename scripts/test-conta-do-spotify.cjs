@@ -64,9 +64,11 @@ class BrowserWindow {
   focus() {}
 }
 let cancelouImagem = false;
+const avisos = [];
 const electronFalso = {
   app: { getName: () => 'duotone', getPath: () => require('node:os').tmpdir() },
   BrowserWindow,
+  dialog: { showMessageBox: async (_janela, opcoes) => { avisos.push(opcoes); return { response: 0 }; } },
   session: { fromPartition: () => sessao },
 };
 const carregar = Module._load;
@@ -156,7 +158,21 @@ const conta = require('../electron/contaDoSpotify.cjs');
     assert.equal(janela.opcoes.webPreferences.session, sessao, 'na partição do Spotify');
     assert.equal(conta.entrar(null), feito, 'carregar outra vez traz a mesma janela para a frente');
     assert.deepEqual(janela.webContents.abrir({ url: 'javascript:alert(1)' }), { action: 'deny' });
-    assert.equal(janela.webContents.abrir({ url: 'https://accounts.google.com/x' }).action, 'allow', 'o Continuar com o Google abre a sua janela');
+    assert.equal(janela.webContents.abrir({ url: 'https://www.facebook.com/login' }).action, 'allow', 'o Continuar com o Facebook abre a sua janela');
+    // O Google recusa entrar dentro de apps (11/11): não se abre, e diz-se o que fazer.
+    assert.deepEqual(janela.webContents.abrir({ url: 'https://accounts.google.com/o/oauth2/auth?x=1' }), { action: 'deny' });
+    assert.equal(avisos.length, 1, 'avisa');
+    assert.match(avisos[0].detail, /code/, 'o aviso explica o login com código');
+    let travou = false;
+    janela.webContents.eventos['will-navigate']({ preventDefault: () => { travou = true; } }, 'https://accounts.google.com/signin');
+    assert.equal(travou, true, 'navegar para o Google na mesma janela também se trava');
+    travou = false;
+    janela.webContents.eventos['will-redirect']({ preventDefault: () => { travou = true; } }, 'https://accounts.google.co.uk/x');
+    assert.equal(travou, true, 'e um redirecionamento para lá');
+    travou = false;
+    janela.webContents.eventos['will-navigate']({ preventDefault: () => { travou = true; } }, 'https://accounts.spotify.com/login/password');
+    assert.equal(travou, false, 'o login do próprio Spotify segue');
+    assert.equal(avisos.length, 3);
     sessao.cookies.ouvinte(null, { name: 'sp_t', value: 'x' }, 'explicit', false);
     assert.equal(janela.destruida, false, 'outro cookie não chega');
     sessao.cookies.ouvinte(null, cookie('abc'), 'explicit', false);

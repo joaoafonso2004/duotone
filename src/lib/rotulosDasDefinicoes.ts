@@ -25,6 +25,8 @@ export const ROTULOS = {
   identificar: 'Identify library',
   libraryCheck: 'Library check',
   atualizarImportadas: 'Update imported playlists',
+  /** A conta do Spotify (11/11): ligar, importar, desligar. */
+  contaDoSpotify: 'Spotify account',
   email: 'Email',
   reporPassword: 'Reset password',
   sair: 'Sign out',

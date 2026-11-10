@@ -1,4 +1,4 @@
-const { app, BrowserWindow, session } = require('electron');
+const { app, BrowserWindow, dialog, session } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -73,6 +73,25 @@ async function ligada() {
   return (await sessao().cookies.get({ url: ABERTO, name: 'sp_dc' })).some((c) => !!c.value);
 }
 
+/**
+ * O "Continuar com o Google" (11/11). O Google recusa entrar dentro de apps
+ * ("Este navegador ou esta aplicação podem não ser seguros") -- o João deu com
+ * isso logo no primeiro ensaio. Não se contorna: diz-se o que fazer. Uma conta
+ * do Spotify criada com o Google tem esse email, e o login do Spotify manda um
+ * código para ele, sem palavra-passe.
+ */
+const doGoogle = (url) => /^https:\/\/accounts\.google\.[a-z.]+\//i.test(String(url ?? ''));
+function avisarDoGoogle(janela) {
+  if (janela.isDestroyed()) return;
+  void dialog.showMessageBox(janela, {
+    type: 'info',
+    title: 'Log in to Spotify',
+    message: "Google doesn't allow signing in inside apps",
+    detail: 'Type the email of your Google account in the Spotify login and choose to log in with a code. Spotify emails you a code, and no password is needed.',
+    buttons: ['OK'],
+  }).catch(() => undefined);
+}
+
 let login = null;
 /** Abre o login do Spotify; `true` quando entrou, `false` se a janela fechou antes. */
 function entrar(pai) {
@@ -87,12 +106,20 @@ function entrar(pai) {
   });
   const janela = new BrowserWindow(opcoes(480, 760));
   janela.webContents.setUserAgent(agenteDoChrome(janela.webContents.getUserAgent()));
-  // "Continuar com o Google/Apple/Facebook" abrem a sua janela; partilham a
-  // sessão do login e fecham com ele.
+  // "Continuar com o Apple/Facebook" abrem a sua janela; partilham a sessão do
+  // login e fecham com ele. O do Google não chega a abrir (`avisarDoGoogle`).
   const popups = new Set();
-  janela.webContents.setWindowOpenHandler(({ url }) => (/^https:\/\//.test(url)
-    ? { action: 'allow', overrideBrowserWindowOptions: opcoes(480, 700) }
-    : { action: 'deny' }));
+  janela.webContents.setWindowOpenHandler(({ url }) => {
+    if (doGoogle(url)) { avisarDoGoogle(janela); return { action: 'deny' }; }
+    return /^https:\/\//.test(url) ? { action: 'allow', overrideBrowserWindowOptions: opcoes(480, 700) } : { action: 'deny' };
+  });
+  const travarOGoogle = (e, url) => {
+    if (!doGoogle(url)) return;
+    e.preventDefault();
+    avisarDoGoogle(janela);
+  };
+  janela.webContents.on('will-navigate', travarOGoogle);
+  janela.webContents.on('will-redirect', travarOGoogle);
   janela.webContents.on('did-create-window', (popup) => {
     popup.webContents.setUserAgent(agenteDoChrome(popup.webContents.getUserAgent()));
     popups.add(popup);

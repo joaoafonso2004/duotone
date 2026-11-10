@@ -5,6 +5,7 @@ import { MAXIMO_DA_CONTA, type ListaDoSpotify } from '../lib/bibliotecaDoSpotify
 import { abrirPeloLeitor, ErroDoLeitor, mensagemDoLeitor, type BibliotecaLida, type Consultar } from '../lib/leitorWebDoSpotify';
 import { avisarErro, avisarFeito } from '../lib/avisoDeRemocao';
 import { useImportacoes } from '../state/importacoes';
+import { guardarGostoDaBiblioteca } from '../api/gostoDaBiblioteca';
 import { Button, Dialog } from './ui.web';
 import { COR, ESP, ESTADO, FONT, RAIO, TIPO } from './tokens.web';
 
@@ -104,6 +105,8 @@ export function ContaDoSpotifyPc({ aoComecar }: { aoComecar: () => void }) {
     if (desligou) { setLigada(false); avisarErro(mensagemDoLeitor('desligado')); return; }
     if (!lidas.length) { avisarErro("Couldn't read those lists from Spotify."); return; }
     useImportacoes.getState().importarDaConta(lidas);
+    // O que se importa também dá o gosto às recomendações (11/11), como no iPhone.
+    void guardarGostoDaBiblioteca(lidas.flatMap((l) => l.linhas)).catch(() => {});
     avisarFeito('Importing from Spotify',
       `${lidas.length} ${lidas.length === 1 ? 'list' : 'lists'} in the background${falhou ? ` · ${falhou} couldn't be read` : ''}`);
     aoComecar();
@@ -133,6 +136,12 @@ export function ContaDoSpotifyPc({ aoComecar }: { aoComecar: () => void }) {
           <Button icon="log-in-outline" ocupado={aAbrir} disabled={ligada === null} onPress={() => void ligar()}>{aAbrir ? 'Waiting for Spotify…' : 'Connect Spotify'}</Button>
         )}
       </View>
+      {/* O Google recusa entrar dentro de apps (11/11): diz-se antes, e não só quando falha. */}
+      {!ligada ? (
+        <Text style={[estilo.nota, { color: COR.textoFraco, marginTop: ESP.md }]}>
+          Signed up with Google? Google doesn't allow signing in inside apps, so type your Gmail address and log in with the code Spotify emails you.
+        </Text>
+      ) : null}
 
       {/* Pelo portal, como o "Save queue" da fila: dentro do scroll da página o
           diálogo ficava preso ao cartão e cortado. Só existe aberto. */}

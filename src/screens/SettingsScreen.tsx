@@ -29,10 +29,8 @@ import {
 import { temAutomixNativo } from '../../modules/duotone-audio';
 import { estadoDeEnergia } from '../../modules/duotone-diagnostico';
 import { quantoPoupar } from '../lib/adiantarFaixas';
-import { ErroDoSpotify, importarGostoDoSpotify, spotifyDisponivel } from '../api/spotifyConta';
-import { mensagemDoSpotify, type GostoDoSpotify } from '../lib/gostoDoSpotify';
+import type { GostoDoSpotify } from '../lib/gostoDoSpotify';
 import { getGostoDoSpotify } from '../lib/prefs';
-import { useRecomendacoes } from '../state/recomendacoes';
 import { getLoudnessDb } from '../lib/loudnessCache';
 import { limparTodosOsDownloads } from '../lib/descarregarFaixa';
 import { idsPedidos } from '../lib/downloadsFixados';
@@ -119,31 +117,15 @@ export function SettingsScreen({ navigation }: Props) {
   const [presetsOpen, setPresetsOpen] = useState(false);
   const memoriaDosPresets = usePresets((s) => s.memoria);
   const presetsNaFila = useMemo(() => presetsVisiveis(memoriaDosPresets), [memoriaDosPresets]);
-  // O gosto lido do Spotify (api/spotifyConta.ts). Só no iPhone, e só com o
-  // Client ID na build -- sem ele a linha nem aparece.
+  // O gosto do Spotify, para a frase por baixo da Library. Desde 11/11 sai da
+  // biblioteca importada pela conta (api/gostoDaBiblioteca.ts), e não do login
+  // oficial, que só aceitava as cinco contas registadas no painel do Spotify.
   const [gostoDoSpotify, setGostoDoSpotifyNoEcra] = useState<GostoDoSpotify | null>(null);
-  const [aLerSpotify, setALerSpotify] = useState(false);
   useEffect(() => {
     let vivo = true;
     void getGostoDoSpotify().then((g) => { if (vivo) setGostoDoSpotifyNoEcra(g); }).catch(() => {});
     return () => { vivo = false; };
   }, []);
-  const importarDoSpotify = async () => {
-    setALerSpotify(true);
-    try {
-      const lido = await importarGostoDoSpotify();
-      setGostoDoSpotifyNoEcra(lido);
-      hapticNotification();
-      // Refaz as prateleiras JÁ: a descoberta da semana estava calculada sem
-      // este gosto, e sem forçar ficava assim até à semana seguinte.
-      void useRecomendacoes.getState().carregar(true);
-    } catch (e) {
-      const texto = mensagemDoSpotify(e instanceof ErroDoSpotify ? e.tipo : 'rede');
-      if (texto) avisarErro(texto);
-    } finally {
-      setALerSpotify(false);
-    }
-  };
   const insets = useSafeAreaInsets();
   const session = useAuth((s) => s.session);
   const signOut = useAuth((s) => s.signOut);
@@ -592,18 +574,13 @@ export function SettingsScreen({ navigation }: Props) {
           titulo="Library"
           rodape={offline
             ? 'Connect to the internet to change your recommendations.'
-            : spotifyDisponivel() ? efeitos.spotify : 'Songs you hid and artists you want to hear less often.'}
+            : Platform.OS === 'ios' ? efeitos.spotify : 'Songs you hid and artists you want to hear less often.'}
         >
           <Linha icone="heart" rotulo={ROTULOS.recomendacoes} chevron desativada={offline} aoTocar={() => setRecommendationsOpen(true)} />
-          {spotifyDisponivel() && (
-            <Linha
-              icone="musical-notes"
-              rotulo={aLerSpotify ? 'Reading Spotify…' : gostoDoSpotify ? 'Update from Spotify' : 'Import from Spotify'}
-              acao
-              aCarregar={aLerSpotify}
-              desativada={offline || aLerSpotify}
-              aoTocar={() => void importarDoSpotify()}
-            />
+          {/* A conta do Spotify (11/11): o cartão está no ecrã de importar, com o login do próprio Spotify. */}
+          {Platform.OS === 'ios' && (
+            <Linha icone="musical-notes" rotulo={ROTULOS.contaDoSpotify} chevron desativada={offline}
+              aoTocar={() => navigation.navigate('ImportYouTube')} />
           )}
         </Grupo>
         <Grupo rodape={resumoDoCatalogo ?? 'Fix artist names, titles and covers with a music catalogue, or find duplicates and songs that no longer play.'}>
