@@ -4,6 +4,13 @@ App de música pessoal para iOS: pesquisa, guarda e organiza faixas do
 **YouTube** e do **Spotify** numa biblioteca e playlists próprias, com conta
 de utilizador e sincronização via **Supabase**.
 
+## Privacy
+
+Duotone is free, with no ads or trackers, and your data is never sold. Your
+account, library, listening history and chats are kept in Supabase, and
+**Settings › Delete account** removes them. Details:
+[Privacy & Terms](https://joaoafonso.vercel.app/duotone/privacy).
+
 ## Regra de arquitetura (inegociável)
 
 - Faixas do **YouTube** tocam no **player oficial do YouTube** dentro de um
