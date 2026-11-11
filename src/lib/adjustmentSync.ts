@@ -51,6 +51,20 @@ export class AdjustmentSync<V extends {visto:number}=AjusteDaFaixa> {
    * linha é o `visto` de quem a escreveu, por isso comparar é exato.
    */
   jaSabe(key:string,visto:number):boolean{return Number.isFinite(visto)&&(this.values[key]?.visto??0)>=visto;}
+  /**
+   * Linhas que chegaram sem se pedir (11/11): o aviso do Realtime já traz a
+   * linha nova, e lê-la outra vez era um pedido por cada edição de outro aparelho.
+   * A mesma regra da leitura: o mais recente ganha.
+   */
+  receber(remoto:Record<string,V>){
+    if(this.stopped)return;
+    void this.ready.then(()=>{
+      if(this.stopped)return;
+      this.values=this.fundir(this.values,remoto);
+      for(const [key,edit] of Object.entries(this.pending))if((remoto[key]?.visto??0)>edit.visto)delete this.pending[key];
+      this.publish();return this.persist();
+    }).catch(()=>{if(!this.stopped)this.deps.status('error');});
+  }
   edit(key:string,value:V){
     if(this.stopped)return;
     // Relógio monotónico local, inclusive ao arrastar várias vezes no mesmo ms.
@@ -103,4 +117,23 @@ export class AdjustmentSync<V extends {visto:number}=AjusteDaFaixa> {
  */
 export function precisaDeRecuperar(aoVivo:boolean,ultimaLeitura:number,agora:number,janelaMs:number):boolean{
   return !aoVivo||agora-ultimaLeitura>=janelaMs;
+}
+
+/** A tabela inteira relê-se ao arrancar e passado isto; entre elas, só o que mudou. */
+export const LEITURA_INTEIRA_MS=6*60*60_000;
+/**
+ * O que mudou pede-se desde a leitura anterior MENOS isto: o `seen_at` é o
+ * relógio de quem editou, e um aparelho com o relógio atrasado, ou que gravou
+ * sem rede e só enviou depois, escreve uma hora mais antiga. Uma edição mais
+ * atrasada do que a folga chega na leitura inteira seguinte.
+ */
+export const FOLGA_DA_LEITURA_MS=60*60_000;
+
+/**
+ * Desde quando ler (11/11, egress). `null` é a tabela inteira: a primeira
+ * leitura, e a primeira passadas `LEITURA_INTEIRA_MS` desde a última inteira.
+ */
+export function desdeQuandoLer(ultimaInteira:number,ultimaLeitura:number,agora:number):number|null{
+  if(!(ultimaInteira>0)||!(ultimaLeitura>0)||agora-ultimaInteira>=LEITURA_INTEIRA_MS||ultimaInteira>agora)return null;
+  return Math.min(ultimaLeitura,agora)-FOLGA_DA_LEITURA_MS;
 }

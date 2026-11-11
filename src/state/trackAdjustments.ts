@@ -2,9 +2,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {AppState,Platform} from 'react-native';
 import {create} from 'zustand';
 import {supabase} from '../lib/supabase';
-import {AdjustmentSync,precisaDeRecuperar,type AdjustmentSnapshot,type AdjustmentStatus} from '../lib/adjustmentSync';
+import {AdjustmentSync,desdeQuandoLer,precisaDeRecuperar,type AdjustmentSnapshot,type AdjustmentStatus} from '../lib/adjustmentSync';
 import {daPersistencia,type AjusteDaFaixa,type MemoriaDeAjustes} from '../lib/equalizer';
-import {lerAjustesRemotos,guardarAjusteRemoto} from '../api/ajustes';
+import {lerAjustesRemotos,guardarAjusteRemoto,linhaDoAjuste} from '../api/ajustes';
 import {useConnectivity} from './connectivity';
 import {useAuth} from './auth';
 import {appEstaVisivel,intervaloComAppVisivel} from '../lib/appVisibility';
@@ -22,7 +22,7 @@ export function startTrackAdjustmentSync(userId:string,apply:(values:MemoriaDeAj
   useAdjustmentSync.setState({status:'loading'});
   let stopped=false,timer:ReturnType<typeof setTimeout>|undefined;
   /** O canal está `SUBSCRIBED`, e quando foi a última leitura inteira. */
-  let aoVivo=false,jaLigou=false,ultimaLeitura=0;
+  let aoVivo=false,jaLigou=false,ultimaLeitura=0,ultimaInteira=0;
   const key=`track-adjustments:v2:${userId}`;
   const online=()=>!stopped&&!useConnectivity.getState().offline
     &&useAuth.getState().session?.user.id===userId&&appEstaVisivel();
@@ -40,7 +40,14 @@ export function startTrackAdjustmentSync(userId:string,apply:(values:MemoriaDeAj
       return {values,pending:{...values}};
     },
     writeLocal:async(snapshot:AdjustmentSnapshot)=>{await AsyncStorage.setItem(key,JSON.stringify(snapshot));},
-    readRemote:async()=>{const lidos=await lerAjustesRemotos(userId);ultimaLeitura=Date.now();return lidos;},
+    // A tabela inteira ao arrancar e de seis em seis horas; entre elas, só as
+    // linhas editadas desde a leitura anterior (11/11, egress -- ver `desdeQuandoLer`).
+    readRemote:async()=>{
+      const agora=Date.now(),desde=desdeQuandoLer(ultimaInteira,ultimaLeitura,agora);
+      const lidos=await lerAjustesRemotos(userId,desde);
+      if(desde===null)ultimaInteira=agora;
+      ultimaLeitura=agora;return lidos;
+    },
     writeRemote:(k,v)=>guardarAjusteRemoto(userId,k,v),
     apply,status:status=>{if(!stopped)useAdjustmentSync.setState({status});},
   });
@@ -53,9 +60,16 @@ export function startTrackAdjustmentSync(userId:string,apply:(values:MemoriaDeAj
   active={userId,engine,flush};
   for(const [k,v] of Object.entries(early.get(userId)??{}))engine.edit(k,v);early.delete(userId);
   const reconnect=useConnectivity.subscribe(s=>{if(!s.offline)flush();});
-  // No iPhone, voltar à app relê: em segundo plano o Realtime pode ter caído
-  // sem avisar, e isto acontece poucas vezes. No PC o foco muda a toda a hora.
-  const focus=AppState.addEventListener('change',state=>{if(state==='active'){if(Platform.OS==='web')aoFocar();else flush();}});
+  // Voltar à app relê com a mesma regra nos dois (11/11): no iPhone relia
+  // SEMPRE, e o Centro de Controlo ou uma notificação também são sair e voltar.
+  // Se o Realtime caiu em segundo plano, o `aoVivo` já está a false e relê-se;
+  // se não caiu, espera pela janela dos cinco minutos. Uma edição por enviar
+  // (ou um envio que falhou) sincroniza logo, como antes.
+  const focus=AppState.addEventListener('change',state=>{
+    if(state!=='active')return;
+    const s=useAdjustmentSync.getState().status;
+    if(s==='pending'||s==='error')flush();else aoFocar();
+  });
   // Há Realtime e cada edição já agenda um flush. Este intervalo é apenas uma
   // recuperação; 15 s repetia leituras sem alterações e mantinha a app/janela
   // escondida ocupada sem benefício.
@@ -63,10 +77,10 @@ export function startTrackAdjustmentSync(userId:string,apply:(values:MemoriaDeAj
   const pararIntervalo=intervaloComAppVisivel(()=>recuperar(10*60_000),120000);
   const channel=supabase.channel(`track-adjustments:${userId}`).on('postgres_changes',
     {event:'*',schema:'public',table:'user_track_adjustments',filter:`user_id=eq.${userId}`},(payload)=>{
-      // O eco da própria escrita não relê nada; o que veio de outro aparelho, sim.
-      const linha=payload.new as {source?:string;source_id?:string;seen_at?:string}|null;
-      if(payload.eventType!=='DELETE'&&linha?.source&&linha.source_id
-        &&engine.jaSabe(`${linha.source}:${linha.source_id}`,Date.parse(linha.seen_at??'')))return;
+      // O eco da própria escrita não relê nada; o que veio de outro aparelho
+      // junta-se como chegou (11/11): o aviso já traz a linha inteira.
+      const linha=payload.eventType==='DELETE'?null:linhaDoAjuste(payload.new as any);
+      if(linha){if(!engine.jaSabe(linha[0],linha[1].visto))engine.receber({[linha[0]]:linha[1]});return;}
       flush();
     }).subscribe((estado)=>{
       const antes=aoVivo;aoVivo=estado==='SUBSCRIBED';
