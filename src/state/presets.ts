@@ -2,7 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, Platform } from 'react-native';
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
-import { AdjustmentSync, precisaDeRecuperar, type AdjustmentSnapshot } from '../lib/adjustmentSync';
+import { AdjustmentSync, precisaDeRecuperar, type AdjustmentSnapshot, type AdjustmentStatus } from '../lib/adjustmentSync';
+import { verificarMudancas } from '../lib/oQueMudou';
 import {
   daPersistenciaDePresets, fundirPresets, type LinhaDosPresets, type MemoriaDePresets,
 } from '../lib/presetsDoEqualizador';
@@ -59,6 +60,8 @@ export function iniciarPresets(userId: string): () => void {
   let aoVivo = false;
   let jaLigou = false;
   let ultimaLeitura = 0;
+  /** O estado do motor: com uma edição por enviar, voltar à app sincroniza logo. */
+  let estado: AdjustmentStatus = 'loading';
   const chave = `eq-presets:v1:${userId}`;
   const online = () => !parado && !tabelaEmFalta && !useConnectivity.getState().offline
     && useAuth.getState().session?.user.id === userId && appEstaVisivel();
@@ -86,7 +89,7 @@ export function iniciarPresets(userId: string): () => void {
     },
     writeRemote: (k, v) => guardarPresetRemoto(userId, k, v),
     apply: (values) => { if (!parado) usePresets.setState({ memoria: values }); },
-    status: () => {},
+    status: (s) => { estado = s; },
     fundir: fundirPresets,
   });
 
@@ -105,9 +108,19 @@ export function iniciarPresets(userId: string): () => void {
   };
   const aoFocar = () => recuperar(5 * 60_000);
   const aoVoltarARede = useConnectivity.subscribe((s) => { if (!s.offline) flush(); });
-  const aoAbrir = AppState.addEventListener('change', (estado) => {
-    if (estado !== 'active') return;
-    if (Platform.OS === 'web') aoFocar(); else flush();
+  // Voltar à app (11/11): no iPhone relia sempre. Agora, com algo por enviar
+  // sincroniza logo; senão, passada a janela, pergunta ao pedido único "o que
+  // mudou?" (`lib/oQueMudou.ts`) e só relê se outro aparelho mexeu nos presets.
+  const aoVoltar = () => {
+    if (!precisaDeRecuperar(aoVivo, ultimaLeitura, Date.now(), 5 * 60_000)) return;
+    void verificarMudancas(['presets']).then((g) => {
+      if (parado || !g.mudou || !online()) return;
+      void engine.sync().then(() => { if (!parado && estado === 'saved') g.confirmar(); });
+    });
+  };
+  const aoAbrir = AppState.addEventListener('change', (e) => {
+    if (e !== 'active') return;
+    if (estado === 'pending' || estado === 'error') flush(); else aoVoltar();
   });
   // Rede de segurança; quem avisa na hora é o Realtime. Só com a app à vista
   // (6/10): no tabuleiro do PC relia de dez em dez minutos o dia todo, e ao

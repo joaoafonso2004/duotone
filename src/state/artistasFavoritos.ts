@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { getArtistasFavoritos } from '../lib/prefs';
 import { updateAccountPrefs } from '../lib/accountPrefs';
 import { ArtistFavoritesSync, applyFavoriteEdits, readFavorites, type FavoritesSnapshot } from '../lib/artistFavoritesSync';
+import { verificarMudancas } from '../lib/oQueMudou';
 
 const REMOTE_KEY = 'artist_favorites_v1';
 /**
@@ -81,10 +82,29 @@ export function iniciarArtistasFavoritos(userId: string): () => void {
     void instance.sync();
   };
   const refresh = () => reler(false);
+  /**
+   * Voltar à app, ou o canal a religar (11/11): antes de ler a linha inteira do
+   * `user_prefs`, o pedido único "o que mudou?" (`lib/oQueMudou.ts`). Se nenhum
+   * outro aparelho mexeu nas preferências, não há nada de novo para ler. Com
+   * uma edição por enviar, sincroniza logo, como antes.
+   */
+  const verSeMudou = () => {
+    if (!alive) return;
+    if (useArtistasFavoritos.getState().estado !== 'saved') { refresh(); return; }
+    if (Date.now() - ultimaLeitura < RELER_NO_MAXIMO_MS) return;
+    void verificarMudancas(['prefs']).then((g) => {
+      if (!alive || !g.mudou) return;
+      ultimaLeitura = Date.now();
+      void Promise.resolve(instance.sync()).then(() => {
+        if (alive && useArtistasFavoritos.getState().estado === 'saved') g.confirmar();
+      });
+    });
+  };
+  let jaLigou = false;
   // Sem polling: ao abrir, ao voltar à frente, ao voltar a rede, no foco da
   // janela do PC -- no máximo de dois em dois minutos -- e com o Realtime, se
   // o `user_prefs` estiver publicado (os ficheiros de supabase/ não o publicam).
-  const app = AppState.addEventListener('change', state => { if (state === 'active') refresh(); });
+  const app = AppState.addEventListener('change', state => { if (state === 'active') verSeMudou(); });
   const channel = supabase.channel(`artist-favorites:${userId}`)
     // Só relê se os FAVORITOS mudaram (10/11): o aviso chega a cada escrita no
     // `user_prefs` -- o EQ, o shuffle, o próprio envio deste aparelho -- e cada um
@@ -101,7 +121,11 @@ export function iniciarArtistasFavoritos(userId: string): () => void {
       }
       reler(true);
     })
-    .subscribe(status => { if (status === 'SUBSCRIBED') refresh(); });
+    .subscribe(status => {
+      if (status !== 'SUBSCRIBED') return;
+      if (jaLigou) verSeMudou(); else refresh();
+      jaLigou = true;
+    });
   if (Platform.OS === 'web') { window.addEventListener('online', refresh); window.addEventListener('focus', refresh); }
   refresh();
   return () => {

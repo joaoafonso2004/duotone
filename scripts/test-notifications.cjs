@@ -132,7 +132,7 @@ async function main() {
     hook.setState(fn(hook.setState,hook.getState));return hook;
   };
   const socialModule=load('src/state/social.ts',{
-    zustand:{create},'react-native':{AppState:{addEventListener:()=>({remove(){}})},Platform:{OS:'ios'}},
+    zustand:{create},'../lib/oQueMudou':{verificarMudancas:async()=>({mudou:true,confirmar(){}})},'react-native':{AppState:{addEventListener:()=>({remove(){}})},Platform:{OS:'ios'}},
     '../api/social':{
       getInboxItems:(desde)=>{desdes.push(desde??null);inboxCalls++;if(failInbox)return Promise.reject(Error('network'));
         if(inboxCalls===1)return new Promise(r=>{resolveFirst=r;});

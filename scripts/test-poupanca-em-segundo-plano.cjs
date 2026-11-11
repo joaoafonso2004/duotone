@@ -178,6 +178,8 @@ async function main() {
     const channel = { on(_, filtro, fn) { handlers.set(filtro.table, fn); return this; }, subscribe() { return this; } };
     const social = a.carregar('src/state/social.ts', {
       zustand: require('zustand'), 'react-native': a.rn,
+      // O "o que mudou?" (11/11) responde sempre "mudou": o comportamento de antes.
+      '../lib/oQueMudou': { verificarMudancas: async () => ({ mudou: true, confirmar() {} }) },
       '../api/social': { getFriendships: async () => [], getGrupos: async () => [],
         getInboxItems: async () => { inboxCalls++; return []; }, lerConversasVistas: async () => ({}), marcarConversaVista: async () => {} },
       '../lib/prefs': { getChatsVistos: async () => ({}), marcarChatVisto: async () => ({}) },

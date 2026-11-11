@@ -5,8 +5,13 @@ if (Platform.OS !== 'web') {
 import { authStorage } from './authStorage';
 import { createClient } from '@supabase/supabase-js';
 import { ENV } from './env';
-import { criarFetchDoSupabase } from './fetchDoSupabase';
+import { criarFetchDoSupabase, definirAparelhoDosPedidos } from './fetchDoSupabase';
 import { definirEstadoDoRealtime, registarQuedaDoRealtime } from './pedidosAoSupabase';
+import { getDeviceId } from './deviceIdentity';
+
+// O aparelho vai nos pedidos à API (11/11): as marcas de `o_que_mudou` sabem
+// quem escreveu. No PC só pela ponte (ver `definirAparelhoDosPedidos`).
+void getDeviceId().then((id) => definirAparelhoDosPedidos(id, Platform.OS === 'web')).catch(() => {});
 
 // Conta cada pedido e, no PC, manda-o pelo processo principal (sem o OPTIONS
 // do CORS). Ver `lib/fetchDoSupabase.ts`.

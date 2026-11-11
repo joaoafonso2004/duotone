@@ -12,6 +12,7 @@ import { serialRefresh, type InboxSnapshot } from '../lib/inAppNotifications';
 import { deveRelerAInbox, TIQUE_DA_INBOX_MS } from '../lib/recuperacaoDaInbox';
 import { getConversationPreviews } from '../api/conversationPreviews';
 import { useConnectivity } from './connectivity';
+import { verificarMudancas } from '../lib/oQueMudou';
 import { musicActivity, mergePreviews, previewOf, receivedPreviews, type MusicActivity, type ConversationPreview } from '../lib/socialActivity';
 
 export type SocialFriend = Friendship & { musicActivity?: MusicActivity | null };
@@ -134,6 +135,7 @@ export async function relerPresencas(): Promise<void> {
   const presence = await supabase.rpc('get_social_presence');
   if (gen !== generation || presence.error || !presence.data) return;
   available = true;
+  presencaLidaEm = Date.now();
   clockOffset = Date.parse(presence.data.serverTime) - Date.now();
   for (const p of presence.data.items as SocialPresence[]) guardarPresenca(p);
   const now = agoraNoServidor();
@@ -391,6 +393,37 @@ export function iniciarSocial(userId: string): () => void {
       void inboxRefresh();
     }
   };
+  /**
+   * Antes de reler ao voltar (11/11): o pedido único "o que mudou?"
+   * (`lib/oQueMudou.ts`), partilhado com as outras partes da app. Se nenhuma
+   * mensagem, reação, leitura, grupo ou amizade mudou noutro aparelho ou
+   * noutra pessoa desde a última leitura, relê-se só a presença dos amigos
+   * (sem o canal, ou passados 5 min) -- eram uns seis pedidos a cada
+   * desbloqueio do iPhone. Os grupos e contactos continuam de 30 em 30 min.
+   * Sem a migração, ou sem rede, relê-se como antes. Uma de cada vez: a
+   * segunda espera pela primeira e já vê a marca confirmada.
+   */
+  let jaLigouOCanal = false;
+  let verificacaoEmCurso: Promise<void> = Promise.resolve();
+  const verificarELer = async (fresco: boolean, comoAntes?: () => void): Promise<void> => {
+    const g = await verificarMudancas(['mensagens', 'amizades'], { fresco });
+    if (gen !== generation) return;
+    if (!appEstaVisivel()) { if (g.mudou) dirty = true; return; }
+    const fixosVelhos = fixosPedidos || Date.now() - fixosLidosEm >= FIXOS_MS;
+    if (!g.mudou && !dirty && !fixosVelhos) {
+      if (!canalAoVivo || Date.now() - presencaLidaEm >= PRESENCA_MS) void relerPresencas();
+      return;
+    }
+    // O canal a religar: com alguma coisa nova faz o que fazia (só a inbox, se
+    // acabou de haver uma atualização), e a marca confirma-se no regresso seguinte.
+    if (comoAntes) { comoAntes(); return; }
+    dirty = false;
+    clearTimeout(debounce);
+    await useSocial.getState().refresh(false);
+    if (gen === generation && !useSocial.getState().inboxError) g.confirmar();
+  };
+  const lerSeMudou = (fresco: boolean, comoAntes?: () => void): Promise<void> =>
+    (verificacaoEmCurso = verificacaoEmCurso.then(() => verificarELer(fresco, comoAntes)).catch(() => {}));
   /** O canal está `SUBSCRIBED`: as mensagens novas chegam por ele. */
   let aoVivo = false;
   const marcarAoVivo = (ligado: boolean) => { aoVivo = ligado; canalAoVivo = ligado; };
@@ -431,10 +464,18 @@ export function iniciarSocial(userId: string): () => void {
       if (gen !== generation) return;
       marcarAoVivo(status === 'SUBSCRIBED');
       if (!aoVivo) return;
+      // O canal a religar depois do arranque (11/11): o regresso à app no
+      // iPhone, ou uma quebra de rede. O pedido único "o que mudou?" diz se
+      // chegou alguma coisa entre a última leitura e o canal.
       // Ligou logo a seguir a uma atualização (o arranque, o regresso à app):
       // só falta o que chegou entre ela e o canal. Eram duas inteiras seguidas.
-      if (Date.now() - ultimaAtualizacaoEm < LIGOU_LOGO_A_SEGUIR_MS) { if (canReadInbox()) void inboxRefresh(); }
-      else refreshMessages();
+      const comoAntes = () => {
+        if (Date.now() - ultimaAtualizacaoEm < LIGOU_LOGO_A_SEGUIR_MS) { if (canReadInbox()) void inboxRefresh(); }
+        else refreshMessages();
+      };
+      if (jaLigouOCanal && appEstaVisivel()) { void lerSeMudou(true, comoAntes); return; }
+      jaLigouOCanal = true;
+      comoAntes();
     });
   channel = ligarCanal();
   // A saída do canal ainda a meio: o `supabase.channel` devolve o canal que
@@ -494,7 +535,7 @@ export function iniciarSocial(userId: string): () => void {
     useSocial.setState({now,friends:friendsNow(now)});
     if (aoVivo && !dirty && Date.now() - releuAoVoltarEm < RELER_AO_VOLTAR_MS) return;
     releuAoVoltarEm = Date.now();
-    if(dirty)refresh(); else void useSocial.getState().refresh(false);
+    void lerSeMudou(false);
   };
   const app=AppState.addEventListener('change',acordar);
   if(Platform.OS==='web')document.addEventListener('visibilitychange',acordar);

@@ -8,6 +8,7 @@ import {lerAjustesRemotos,guardarAjusteRemoto,linhaDoAjuste} from '../api/ajuste
 import {useConnectivity} from './connectivity';
 import {useAuth} from './auth';
 import {appEstaVisivel,intervaloComAppVisivel} from '../lib/appVisibility';
+import {verificarMudancas} from '../lib/oQueMudou';
 
 export const useAdjustmentSync=create<{status:AdjustmentStatus}>(()=>({status:'loading'}));
 let active:{userId:string;engine:AdjustmentSync;flush:()=>void}|null=null;
@@ -65,10 +66,19 @@ export function startTrackAdjustmentSync(userId:string,apply:(values:MemoriaDeAj
   // Se o Realtime caiu em segundo plano, o `aoVivo` já está a false e relê-se;
   // se não caiu, espera pela janela dos cinco minutos. Uma edição por enviar
   // (ou um envio que falhou) sincroniza logo, como antes.
+  // E antes de reler, o pedido único "o que mudou?" (11/11, `lib/oQueMudou.ts`):
+  // se nenhum outro aparelho mexeu nos ajustes, não há nada para ler.
+  const aoVoltar=()=>{
+    if(!precisaDeRecuperar(aoVivo,ultimaLeitura,Date.now(),5*60_000))return;
+    void verificarMudancas(['ajustes']).then(g=>{
+      if(stopped||!g.mudou||!online())return;
+      void engine.sync().then(()=>{if(!stopped&&useAdjustmentSync.getState().status==='saved')g.confirmar();});
+    });
+  };
   const focus=AppState.addEventListener('change',state=>{
     if(state!=='active')return;
     const s=useAdjustmentSync.getState().status;
-    if(s==='pending'||s==='error')flush();else aoFocar();
+    if(s==='pending'||s==='error')flush();else aoVoltar();
   });
   // Há Realtime e cada edição já agenda um flush. Este intervalo é apenas uma
   // recuperação; 15 s repetia leituras sem alterações e mantinha a app/janela

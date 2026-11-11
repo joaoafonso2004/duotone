@@ -302,8 +302,8 @@ console.log('\nos ajustes por faixa');
     assert.match(fonte, /desde=desdeQuandoLer\(ultimaInteira,ultimaLeitura,agora\);/);
     assert.match(fonte, /const lidos=await lerAjustesRemotos\(userId,desde\);/);
     assert.match(fonte, /engine\.receber\(\{\[linha\[0\]\]:linha\[1\]\}\)/);
-    assert.match(fonte, /if\(s==='pending'\|\|s==='error'\)flush\(\);else aoFocar\(\);/,
-      'ao voltar: com algo por enviar sincroniza logo; senão, a janela dos cinco minutos');
+    assert.match(fonte, /if\(s==='pending'\|\|s==='error'\)flush\(\);else aoVoltar\(\);/,
+      'ao voltar: com algo por enviar sincroniza logo; senão, a janela dos cinco minutos e o "o que mudou?"');
     assert.doesNotMatch(fonte, /if\(Platform\.OS==='web'\)aoFocar\(\);else flush\(\);/, 'o iPhone já não relê a cada regresso');
   });
 }

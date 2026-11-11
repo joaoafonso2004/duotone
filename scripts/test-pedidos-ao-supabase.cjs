@@ -41,7 +41,7 @@ const msg = (id, extra = {}) => ({ id, createdAt: new Date(Date.now()).toISOStri
   sender: { id: 'ana', name: 'Ana', username: 'ana' }, itemType: 'track', trackData: null, message: 'Olá', groupId: null, ...extra });
 
 /** Uma store do Social com tudo o que vai à rede contado. */
-function social(plataforma) {
+function social(plataforma, oQueMudou) {
   const c = { inbox: 0, amizades: 0, grupos: 0, presenca: 0, conversas: 0, previews: 0, vistas: 0, marcas: 0, removidos: 0 };
   const ambiente = { visivel: true, proximaInbox: [], estado: 'active', canais: [], aoMudarApp: null, aoMudarJanela: null,
     presencas: [], falharPresenca: false, esperarPresenca: null };
@@ -56,6 +56,9 @@ function social(plataforma) {
   };
   const modulo = load('src/state/social.ts', {
     zustand: { create },
+    // O "o que mudou?" (11/11): por omissão responde sempre "mudou", o
+    // comportamento de antes (e o de quem ainda não correu a migração).
+    '../lib/oQueMudou': oQueMudou ?? { verificarMudancas: async () => ({ mudou: true, confirmar() {} }) },
     'react-native': {
       AppState: { get currentState() { return ambiente.estado; }, addEventListener: (_n, fn) => { ambiente.aoMudarApp = fn; return { remove() {} }; } },
       Platform: { OS: plataforma },
@@ -171,6 +174,66 @@ async function main() {
     assert.equal(c.marcas, 1, 'a mesma marca não se reenvia a cada carga da conversa');
     await modulo.useSocial.getState().markRead('ana', t2);
     assert.equal(c.marcas, 2, 'uma marca mais nova vai');
+    parar();
+  }
+
+  // --- iPhone com o "o que mudou?" (11/11): voltar sem nada de novo -----------
+  // O porteiro verdadeiro (lib/porteiroDasMudancas.ts), com as marcas da conta
+  // falsas e o pedido contado.
+  {
+    const marcas = { mensagens: '2026-11-11T10:00:00Z' };
+    let perguntas = 0;
+    // O relógio do porteiro anda um minuto por regresso: a resposta partilha-se
+    // 5 s entre as partes da app, e aqui tudo corre em milissegundos.
+    let relogio = 0;
+    const { criarPorteiro } = load('src/lib/porteiroDasMudancas.ts');
+    const porteiro = criarPorteiro({
+      conta: async () => 'me', agora: () => relogio,
+      pedir: async () => { perguntas++; return { ...marcas }; },
+    });
+    const { modulo, c, ambiente } = social('ios', { verificarMudancas: (p, o) => porteiro.verificar(p, o) });
+    const parar = modulo.iniciarSocial('me');
+    await esperar(5);
+    ambiente.canais[0].aoEstado('SUBSCRIBED');
+    await esperar(5);
+    const voltar = async (n) => {
+      relogio += 60_000;
+      ambiente.visivel = false; ambiente.estado = 'background'; ambiente.aoMudarApp('background');
+      await esperar(5);
+      ambiente.visivel = true; ambiente.estado = 'active'; ambiente.aoMudarApp('active');
+      await esperar(5);
+      ambiente.canais[n].aoEstado('SUBSCRIBED');
+      await esperar(5);
+    };
+    const difDe = (antes) => ({ inbox: c.inbox - antes.inbox, vistas: c.vistas - antes.vistas, previews: c.previews - antes.previews,
+      presenca: c.presenca - antes.presenca, grupos: c.grupos - antes.grupos, perguntas: perguntas - antes.perguntas });
+
+    // O primeiro regresso ainda não tem marca confirmada: lê como antes, e confirma.
+    let antes = { ...c, perguntas };
+    await voltar(1);
+    assert.deepEqual(difDe(antes), { inbox: 1, vistas: 1, previews: 1, presenca: 1, grupos: 0, perguntas: 2 },
+      'o primeiro regresso lê (e o canal a ligar já não relê a inbox: a marca não mudou)');
+
+    // Sem nada de novo: só a presença (o canal saiu em segundo plano) e as duas perguntas.
+    antes = { ...c, perguntas };
+    await voltar(2);
+    assert.deepEqual(difDe(antes), { inbox: 0, vistas: 0, previews: 0, presenca: 1, grupos: 0, perguntas: 2 },
+      'voltar sem nada de novo: eram duas inboxes (com as marcas de leitura), as conversas e a presença');
+
+    // Uma mensagem nova noutro lado muda a marca: lê.
+    marcas.mensagens = '2026-11-11T10:05:00Z';
+    ambiente.proximaInbox = [msg('m9')];
+    antes = { ...c, perguntas };
+    await voltar(3);
+    assert.equal(c.inbox - antes.inbox, 1, 'uma marca nova relê a inbox');
+    assert.equal(c.previews - antes.previews, 1);
+    assert.ok(modulo.useSocial.getState().received.some((m) => m.id === 'm9'), 'e a mensagem aparece');
+
+    // Uma amizade mudada também.
+    marcas.amizades = '2026-11-11T10:06:00Z';
+    antes = { ...c, perguntas };
+    await voltar(4);
+    assert.equal(c.inbox - antes.inbox, 1, 'uma amizade mudada relê');
     parar();
   }
 

@@ -57,6 +57,29 @@ function comSinal<T>(promessa: Promise<T>, sinal: AbortSignal | null | undefined
   });
 }
 
+/**
+ * O aparelho que faz os pedidos (11/11, `supabase/o-que-mudou.sql`). Vai no
+ * cabeçalho `x-duotone-aparelho` dos pedidos à API REST, para as marcas de
+ * mudança saberem quem escreveu: um aparelho não relê o que ele mesmo mudou.
+ * No PC só pela ponte do processo principal: pela janela, um cabeçalho novo
+ * podia esbarrar no CORS.
+ */
+export const CABECALHO_DO_APARELHO = 'x-duotone-aparelho';
+const API_REST = /^https:\/\/[a-z0-9]{20}\.supabase\.co\/rest\/v1\//;
+let aparelhoDosPedidos: { id: string; soPelaPonte: boolean } | null = null;
+
+export function definirAparelhoDosPedidos(id: string | null, soPelaPonte = false): void {
+  aparelhoDosPedidos = id && /^[A-Za-z0-9_-]{4,64}$/.test(id) ? { id, soPelaPonte } : null;
+}
+
+function comAparelho(init: RequestInit | undefined, url: string | null, pelaPonte: boolean): RequestInit | undefined {
+  const a = aparelhoDosPedidos;
+  if (!a || !url || !API_REST.test(url) || (a.soPelaPonte && !pelaPonte)) return init;
+  const headers = new Headers(init?.headers);
+  headers.set(CABECALHO_DO_APARELHO, a.id);
+  return { ...init, headers };
+}
+
 export function criarFetchDoSupabase(ponte: Ponte | undefined, base: typeof fetch = (entrada, init) => fetch(entrada, init)): typeof fetch {
   return async (entrada: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = enderecoDe(entrada);
@@ -64,7 +87,7 @@ export function criarFetchDoSupabase(ponte: Ponte | undefined, base: typeof fetc
     registarPedidoAoSupabase(url ?? (entrada as Request).url, metodo);
     const corpo = init?.body;
     if (!ponte || !url || !PELA_PONTE.test(url) || (corpo != null && typeof corpo !== 'string')) {
-      return base(entrada, init);
+      return base(entrada, comAparelho(init, url, false));
     }
     if (init?.signal?.aborted) throw abortado();
     let resposta: RespostaPelaPonte;
@@ -72,7 +95,7 @@ export function criarFetchDoSupabase(ponte: Ponte | undefined, base: typeof fetc
       resposta = await comSinal(ponte({
         url,
         method: metodo,
-        headers: [...new Headers(init?.headers).entries()],
+        headers: [...new Headers(comAparelho(init, url, true)?.headers).entries()],
         body: corpo ?? null,
       }), init?.signal);
     } catch (e) {
