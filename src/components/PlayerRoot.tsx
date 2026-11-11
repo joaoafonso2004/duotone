@@ -916,7 +916,16 @@ export function PlayerRoot() {
         const t=tracks.find(t=>t.source===current.source&&t.sourceId===current.sourceId);
         setSaved(!!t);setDbTrackId(t?.id??null);
       });
-    }else checkIsSaved(current.source,current.sourceId).then(res=>{if(active){setSaved(res.saved);setDbTrackId(res.trackId);}});
+    }else{
+      // Do conjunto local (11/11): é o mesmo que pinta os corações das listas.
+      // Perguntar ao servidor a cada música eram até 88 pedidos por hora numa
+      // conta (os logs do Supabase com a app pública). O id da BD só faz falta
+      // para tirar, e aí pede-se (`saveCurrentToLibrary`). Só se pergunta ao
+      // servidor enquanto o conjunto ainda não chegou.
+      const guardadas=useSaved.getState();
+      if(guardadas.loaded){setSaved(guardadas.keys.has(savedKey(current)));setDbTrackId(null);}
+      else checkIsSaved(current.source,current.sourceId).then(res=>{if(active){setSaved(res.saved);setDbTrackId(res.trackId);}});
+    }
     return()=>{active=false;};
   },[current?.source,current?.sourceId,offline,offlineId]);
   // O coração segue também o que se guarda nos OUTROS menus. Os menus

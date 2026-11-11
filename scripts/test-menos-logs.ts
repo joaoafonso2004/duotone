@@ -92,6 +92,13 @@ await caso('o que não se vê espera pelo acerto de 5 min; um engasgo não tira 
   // O comportamento em si está no test-escuta-ao-vivo.cjs (relógio virtual).
 });
 
+console.log('\no coração do leitor do iPhone');
+await caso('vem do conjunto local; o servidor só enquanto ele não chegou, e o id só ao tirar (11/11)', () => {
+  const p = ler('src/components/PlayerRoot.tsx');
+  assert.match(p, /if\(guardadas\.loaded\)\{setSaved\(guardadas\.keys\.has\(savedKey\(current\)\)\);setDbTrackId\(null\);\}\n\s+else checkIsSaved\(/);
+  assert.match(p, /if \(!idToRemove\) \{\n\s+const res = await checkIsSaved\(current\.source, current\.sourceId\);/, 'tirar pede o id quando falta');
+});
+
 console.log('\nos eventos');
 await caso('só saem os eventos que o servidor guarda, e a mesma lista do SQL (11/11)', () => {
   const ev = ler('src/lib/eventos.ts');
