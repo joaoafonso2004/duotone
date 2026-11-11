@@ -19,7 +19,8 @@ import {
 import { useDownloadsFixados } from '../lib/downloadsFixados';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
 import { readLikedSongsCache } from '../lib/likedSongsCache';
-import { formatCacheSize, listarDescarregados, MAX_CACHE_BYTES, useAudioCache } from '../lib/youtubeCache';
+import { formatCacheSize, limiteDoAudioGuardado, listarDescarregados, useAudioCache } from '../lib/youtubeCache';
+import { rotuloDoLimite } from '../lib/limiteDoAudio';
 import { useAuth } from '../state/auth';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { usePlayer } from '../state/player';
@@ -42,7 +43,7 @@ interface Linha {
  * Mostrava os FICHEIROS em disco -- incluindo cada música que só tinha tocado
  * -- e para um download não ser apagado era preciso fixá-lo com o cadeado. Agora
  * a lista são os downloads que alguém pediu (lib/downloadsExplicitos.ts).
- * Downloads e cache partilham o teto de 300 MB: os mais antigos saem
+ * Downloads e cache partilham o teto das Definições (300 MB de origem): os mais antigos saem
  * automaticamente e deixam de aparecer como descarregados.
  *
  * Os títulos vêm da cópia guardada com o pedido, por isso a lista mostra-se sem
@@ -320,8 +321,10 @@ export function DownloadsScreen({ navigation }: Props) {
                   em vez de misteriosa. */}
               <Text style={styles.notaDoFundo}>
                 Cache: {formatCacheSize(cache.bytes)} from {cache.faixas} played {cache.faixas === 1 ? 'song' : 'songs'}.
-                {' '}Audio saved on this phone is limited to {formatCacheSize(MAX_CACHE_BYTES)}.
-                {' '}Older cached songs and downloads are removed automatically. The song playing now is kept.
+                {/* O teto das Definições (11/11); a revisão da cache sobe quando ele muda. */}
+                {Number.isFinite(limiteDoAudioGuardado())
+                  ? ` Audio saved on this phone is limited to ${rotuloDoLimite(limiteDoAudioGuardado())} (Settings › Storage). Older cached songs and downloads are removed automatically. The song playing now is kept.`
+                  : ' There is no limit on audio saved on this phone (Settings › Storage). Songs stay until you remove them.'}
               </Text>
             </View>
 

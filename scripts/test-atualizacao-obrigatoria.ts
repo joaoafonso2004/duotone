@@ -32,8 +32,8 @@ async function caso(nome: string, fn: () => void | Promise<void>): Promise<void>
 }
 
 /** O `lib/updates.ts` verdadeiro, com a versão instalada, o `versions.json` e o disco dados. */
-function updates(instalada: string, ios: { version: string; notes: string } | null, disco = new Map<string, string>()) {
-  const versions = { apps: { duotone: { ios: ios && { ...ios, tag: `ios-v${ios.version}`, asset: { name: 'Duotone.ipa', size: 1, url: 'x' }, install: 'x' } } } };
+function updates(instalada: string, ios: { version: string; notes: string; install?: string; asset?: object } | null, disco = new Map<string, string>()) {
+  const versions = { apps: { duotone: { ios: ios && { tag: `ios-v${ios.version}`, asset: { name: 'Duotone.ipa', size: 1, url: 'x' }, install: 'x', ...ios } } } };
   const stubs: Record<string, unknown> = {
     'react-native': { Platform: { OS: 'ios' } },
     './buildInfo': { APP_VERSION: instalada },
@@ -102,6 +102,23 @@ await caso('volta a ver ao regressar à frente, no máximo de seis em seis horas
   const folha = ler('src/components/UpdateSheet.tsx');
   assert.match(folha, /const VER_OUTRA_VEZ_MS = 6 \* 60 \* 60_000;/);
   assert.match(folha, /if \(estado !== 'active' \|\| Date\.now\(\) - verificadoEm < VER_OUTRA_VEZ_MS\) return;/);
+});
+
+console.log('\no IPA no iPhone (11/11)');
+await caso('o link do IPA é o do portfólio, e sem "install" vale o do ficheiro', async () => {
+  const ipa = 'https://github.com/joaoafonso2004/duotone/releases/download/ios-v5.9.3/Duotone.ipa';
+  const com = await updates('5.9.2', { version: '5.9.3', notes: '', install: ipa }).m.checkForUpdate();
+  assert.equal(com?.install, ipa);
+  const sem = await updates('5.9.2', { version: '5.9.3', notes: '', install: '', asset: { name: 'Duotone.ipa', size: 1, url: ipa } }).m.checkForUpdate();
+  assert.equal(sem?.install, ipa);
+});
+await caso('o aviso do iPhone descarrega o IPA, e o Sideloadly fica ao lado', () => {
+  const folha = ler('src/components/UpdateSheet.tsx');
+  assert.match(folha, /void Linking\.openURL\(update\.install\)\.catch\(\(\) => \{\}\);/);
+  assert.match(folha, /update\.platform === 'ios' && !!update\.install \? \(/, 'só no iPhone, e só com link');
+  assert.match(folha, /<PillButton label="Download IPA" variant="primary" onPress=\{descarregarIpa\} \/>/);
+  assert.match(folha, /<PillButton label="Open Sideloadly" variant="ghost" onPress=\{open\} \/>/);
+  assert.match(folha, /SideStore or AltStore/, 'os passos dizem onde abrir o ficheiro');
 });
 
 console.log('\na versão nos pedidos');

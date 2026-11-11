@@ -33,6 +33,7 @@ import {
   getCrossfadeSegundos,
   getIntensidadeDoSmartShuffle,
   getVolumeNormalization,
+  getLimiteDoAudio,
   loadPrefsCache,
 } from './src/lib/prefs';
 import { activateKeepAwakeAsync } from 'expo-keep-awake';
@@ -48,6 +49,7 @@ import {
   limparParciaisEsquecidos,
   listarDescarregados,
   definirDescarregadorNativo,
+  definirLimiteDoAudioGuardado,
 } from './src/lib/youtubeCache';
 import { retireBackgroundInboxCheck } from './src/lib/backgroundInbox';
 import { registarAntesDeSair, useAuth } from './src/state/auth';
@@ -309,8 +311,12 @@ export default function App() {
       // precisa de espaço — era por isso que os downloads desapareciam.
       // Passaram para Documents; isto muda de sítio o que já estava lá.
       .then(() => migrateAudioCacheToDocuments())
+      // O teto escolhido nas Definições (11/11) tem de estar lido antes da
+      // primeira limpeza: com os 300 MB de origem, quem escolheu 2 GB perdia
+      // músicas ao abrir a app.
+      .then(() => getLimiteDoAudio().then(definirLimiteDoAudioGuardado))
       // Lê os pedidos antes da limpeza, para retirar do registo os ficheiros
-      // antigos que saírem com o limite de 300 MB.
+      // antigos que saírem com o teto.
       .then(() => carregarFixados(() => listarDescarregados().map((f) => f.id)))
       .then(() => {
       if (saiu) return;

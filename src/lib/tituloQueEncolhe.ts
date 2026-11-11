@@ -79,3 +79,30 @@ export function faixaDaBarraDoNome(fimDoNome: number, alturaDaBarra: number, tra
   const fim = Math.max(transicao, fimDoNome - alturaDaBarra);
   return [fim - transicao, fim];
 }
+
+/**
+ * Onde cabe o nome na barra do perfil do iPhone (11/11). Estava centrado com
+ * 60% da largura, mas os botões de vidro ficam na mesma linha: no perfil
+ * próprio são três à direita (conversas, Definições, estatísticas), e qualquer
+ * nome com mais de ~40 pt passava por cima das conversas.
+ *
+ * Com o voltar, o nome fica ao centro, com a mesma margem dos dois lados (a do
+ * lado mais cheio), como numa barra do iOS. Sem ele -- o perfil próprio, que é
+ * uma aba -- não há lugar para o centrar: fica à esquerda, onde estaria o
+ * voltar, até aos botões. O que não couber acaba em reticências.
+ */
+export function ladosDoNomeNaBarra(o: {
+  voltar: boolean;
+  /** Quantos botões há à direita. */
+  aDireita: number;
+  margem: number;
+  botao: number;
+  espaco: number;
+}): { esquerda: number; direita: number; centrado: boolean } {
+  const direita = o.aDireita > 0 ? o.aDireita * o.botao + o.aDireita * o.espaco : 0;
+  if (o.voltar) {
+    const lado = o.margem + Math.max(o.botao + o.espaco, direita);
+    return { esquerda: lado, direita: lado, centrado: true };
+  }
+  return { esquerda: o.margem, direita: o.margem + direita, centrado: false };
+}

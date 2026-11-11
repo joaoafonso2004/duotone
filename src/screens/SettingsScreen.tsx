@@ -64,9 +64,14 @@ import {
   setAtualizarImportadas,
   getCapaDoEcraBloqueadoADoisTons,
   setCapaDoEcraBloqueadoADoisTons,
+  setLimiteDoAudio,
 } from '../lib/prefs';
 import { definirEstiloDaCapaDoEcraBloqueado } from '../../modules/duotone-remote-commands';
-import { formatCacheSize, getAudioCacheBytes, isAudioCached, MAX_CACHE_BYTES } from '../lib/youtubeCache';
+import {
+  definirLimiteDoAudioGuardado, formatCacheSize, getAudioCacheBytes, isAudioCached, limiteDoAudioGuardado, useAudioCache,
+} from '../lib/youtubeCache';
+import { rotuloDoLimite } from '../lib/limiteDoAudio';
+import { BarraDoLimite } from '../components/BarraDoLimite';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useAuth } from '../state/auth';
 import { BarraVelocidade } from '../components/BarraVelocidade';
@@ -191,6 +196,11 @@ export function SettingsScreen({ navigation }: Props) {
   const [keepAwakeOn, setKeepAwakeOn] = useState(false);
   const [notificationsOn, setNotificationsOn] = useState(true);
   const [cacheBytes, setCacheBytes] = useState(0);
+  // O teto do áudio guardado (11/11): vive no youtubeCache, e cada mudança dele
+  // (ou uma limpeza, ou um download novo) sobe a revisão.
+  const revisaoDaCache = useAudioCache((s) => s.revision);
+  const limiteDoAudio = limiteDoAudioGuardado();
+  const [limitePorConfirmar, setLimitePorConfirmar] = useState<number | null>(null);
   // Identificação da biblioteca contra um catálogo a sério. Só corre quando
   // se pede: são uma ou duas chamadas de rede por faixa.
   const [aIdentificar, setAIdentificar] = useState(false);
@@ -216,10 +226,22 @@ export function SettingsScreen({ navigation }: Props) {
     // Só reflete o estado — quem o aplica no arranque é o App.tsx.
     getKeepAwake().then(setKeepAwakeOn);
     getNotificationsEnabled().then(setNotificationsOn);
-    // Quanto espaco o "Clear YouTube cache" vai libertar. Le o filesystem;
-    // uma vez ao abrir o ecra e outra depois de limpar.
-    setCacheBytes(getAudioCacheBytes());
   }, []);
+
+  // Quanto espaço o "Clear cache" vai libertar. Lê o filesystem: ao abrir o
+  // ecrã e de cada vez que a cache muda (baixar o teto apaga músicas).
+  useEffect(() => { setCacheBytes(getAudioCacheBytes()); }, [revisaoDaCache]);
+
+  const aplicarLimite = (bytes: number) => {
+    definirLimiteDoAudioGuardado(bytes);
+    void setLimiteDoAudio(bytes).catch(() => {});
+  };
+  // Um teto abaixo do que já está guardado apaga músicas, downloads incluídos:
+  // pergunta antes. Acima, ou sem limite, aplica logo.
+  const mudarLimite = (bytes: number) => {
+    if (bytes < getAudioCacheBytes()) { setLimitePorConfirmar(bytes); return; }
+    aplicarLimite(bytes);
+  };
 
   const changeAudioQuality = async (i: number) => {
     const v: AudioQuality = i === 1 ? 'saver' : 'high';
@@ -602,8 +624,15 @@ export function SettingsScreen({ navigation }: Props) {
 
         {/* O "Clear cache" apaga TODO o áudio guardado, os downloads feitos de
             propósito incluídos -- e o rodapé di-lo antes de se carregar. */}
-        <Grupo titulo="Storage" rodape={[efeitos.cache, 'Songs are kept on the phone so they play with the screen locked.', `${formatCacheSize(MAX_CACHE_BYTES)} storage limit. Older cached songs and downloads are removed automatically.`]}>
+        <Grupo titulo="Storage" rodape={[efeitos.cache, 'Songs are kept on the phone so they play with the screen locked.',
+          Number.isFinite(limiteDoAudio)
+            ? 'Above the limit, the oldest cached songs and downloads are removed automatically.'
+            : 'With no limit, songs stay on the phone until you clear the cache.']}>
           <Linha icone="arrow-down-circle" rotulo="Downloads" valor={formatCacheSize(cacheBytes)} chevron aoTocar={() => navigation.navigate('Downloads')} />
+          {/* O teto (11/11): era 300 MB fixos. */}
+          <LinhaAlta icone="server" rotulo="Storage limit">
+            <BarraDoLimite valor={limitePorConfirmar ?? limiteDoAudio} aoMudar={mudarLimite} />
+          </LinhaAlta>
           <Linha icone="trash" rotulo="Clear cache" acao aoTocar={() => void doClearCache()} />
         </Grupo>
 
@@ -646,6 +675,20 @@ export function SettingsScreen({ navigation }: Props) {
           setSignOutOpen(false);
           // O signOut fecha o leitor (state/auth.ts).
           signOut();
+        }}
+      />
+
+      <ConfirmSheet
+        visible={limitePorConfirmar !== null}
+        title="Lower the storage limit?"
+        message={limitePorConfirmar === null ? undefined
+          : `Duotone is using ${formatCacheSize(cacheBytes)}. The oldest songs, downloads included, will be removed until it fits in ${rotuloDoLimite(limitePorConfirmar)}.`}
+        confirmLabel="Lower limit"
+        destructive
+        onClose={() => setLimitePorConfirmar(null)}
+        onConfirm={() => {
+          if (limitePorConfirmar !== null) aplicarLimite(limitePorConfirmar);
+          setLimitePorConfirmar(null);
         }}
       />
 

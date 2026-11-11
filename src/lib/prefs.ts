@@ -3,6 +3,7 @@ import type { GostoDoSpotify } from './gostoDoSpotify';
 import { DURACOES_DO_CROSSFADE, type DuracaoDoCrossfade } from './crossfade';
 import { lerDisposicaoEscolhida, lerFundoDoLeitor, type DisposicaoEscolhida, type FundoDoLeitor } from './leitorDoPc';
 import { arredondar as arredondarRate, daPreferenciaAntiga } from './playbackRate';
+import { escreverLimite, LIMITE_DE_ORIGEM, lerLimite } from './limiteDoAudio';
 import {
   daPersistencia, ganhosPorOmissao, normalizar as normalizarGanhos,
   type MemoriaDeAjustes,
@@ -759,6 +760,19 @@ export async function getCarroMantemEcra(): Promise<boolean> {
 }
 export async function setCarroMantemEcra(v: boolean): Promise<void> {
   await AsyncStorage.setItem('pref:carroMantemEcra', v ? '1' : '0');
+}
+
+/**
+ * O teto do áudio guardado no iPhone (11/11, `lib/limiteDoAudio.ts`). Nunca
+ * atira: o arranque espera por isto antes da primeira limpeza, e uma falha a
+ * ler fica nos 300 MB de sempre em vez de parar a cadeia.
+ */
+export async function getLimiteDoAudio(): Promise<number> {
+  try { return lerLimite(await AsyncStorage.getItem('pref:limiteDoAudio')); }
+  catch { return LIMITE_DE_ORIGEM; }
+}
+export async function setLimiteDoAudio(bytes: number): Promise<void> {
+  await AsyncStorage.setItem('pref:limiteDoAudio', escreverLimite(bytes));
 }
 
 /**

@@ -5,7 +5,7 @@
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { ALTURA_DA_BARRA, TITULO_COMPACTO, faixaDaBarraDoNome, geometriaDoTitulo } from '../src/lib/tituloQueEncolhe.ts';
+import { ALTURA_DA_BARRA, TITULO_COMPACTO, faixaDaBarraDoNome, geometriaDoTitulo, ladosDoNomeNaBarra } from '../src/lib/tituloQueEncolhe.ts';
 
 let falhas = 0;
 function caso(nome: string, fn: () => void): void {
@@ -102,6 +102,41 @@ caso('as páginas com capa grande mostram o nome pequeno quando o grande sai', (
   assert.match(readFileSync('src/screens/PlaylistDetailScreen.tsx', 'utf8'), /tituloCompacto=\{!editMode/);
   assert.match(readFileSync('src/screens/LibraryGroupScreen.tsx', 'utf8'), /aoMedirNome=\{setFimDoNome\}/);
   assert.match(readFileSync('src/components/CabecalhoDaPlaylist.tsx', 'utf8'), /aoMedirNome\(/);
+});
+
+console.log('\no nome na barra do perfil (11/11)');
+// Os botões de vidro do perfil: 44 pt, 10 entre eles, a 24 da borda.
+const botoes = { margem: 24, botao: 44, espaco: 10 };
+const ocupaDe = (largura: number, aDireita: number) => largura - botoes.margem - (aDireita * botoes.botao + (aDireita - 1) * botoes.espaco);
+caso('no perfil próprio o nome acaba antes das conversas, mesmo o mais comprido', () => {
+  for (const largura of [375, 393, 430]) {
+    const l = ladosDoNomeNaBarra({ voltar: false, aDireita: 3, ...botoes });
+    assert.equal(l.centrado, false, 'centrado, os três botões não lhe deixavam lugar');
+    assert.equal(l.esquerda, botoes.margem, 'começa onde estaria o voltar');
+    const fimDoNome = largura - l.direita;
+    assert.ok(fimDoNome <= ocupaDe(largura, 3) - botoes.espaco, `a ${largura} pt o nome passava por cima das conversas`);
+    assert.ok(fimDoNome - l.esquerda >= 140, `a ${largura} pt sobra pouco para o nome`);
+  }
+});
+caso('no perfil de um amigo fica ao centro, com a margem do lado mais cheio', () => {
+  const l = ladosDoNomeNaBarra({ voltar: true, aDireita: 1, ...botoes });
+  assert.equal(l.centrado, true);
+  assert.equal(l.esquerda, l.direita);
+  assert.ok(393 - l.direita <= ocupaDe(393, 1) - botoes.espaco, 'passava por cima das estatísticas');
+  assert.ok(l.esquerda >= botoes.margem + botoes.botao + botoes.espaco, 'passava por cima do voltar');
+  const sem = ladosDoNomeNaBarra({ voltar: true, aDireita: 0, ...botoes });
+  assert.equal(sem.esquerda, sem.direita, 'só com o voltar continua ao centro');
+});
+caso('a barra conta os mesmos botões que se mostram', () => {
+  const cima = readFileSync('src/components/CimaDoPerfil.tsx', 'utf8');
+  assert.match(cima, /aDireita: \[own && onSocial, own && onSettings, onStats\]\.filter\(Boolean\)\.length,/);
+  assert.doesNotMatch(cima, /maxWidth: '60%'/, 'o nome voltou a ser só centrado');
+  const heroi = readFileSync('src/components/ProfileHero.tsx', 'utf8');
+  assert.match(heroi, /\{own&&onSocial&&<BotaoDeVidro/);
+  assert.match(heroi, /\{own&&onSettings&&<BotaoDeVidro/);
+  assert.match(heroi, /\{onStats&&<BotaoDasEstatisticas/);
+  assert.match(heroi, /width:BOTAO_DE_VIDRO,height:BOTAO_DE_VIDRO/);
+  assert.match(heroi, /gap:ESPACO_ENTRE_BOTOES,position:'absolute',top:safe\.top\+8,left:SOCIAL_GUTTER/);
 });
 
 if (falhas) { console.error(`\n  ${falhas} caso(s) falharam.\n`); process.exit(1); }

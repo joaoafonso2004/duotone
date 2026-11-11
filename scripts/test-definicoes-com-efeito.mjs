@@ -72,6 +72,9 @@ const TABELA = [
     leitores: [['src/api/potProvider.ts', /getPoTokenServerUrl\(/]] },
   { opcao: 'Car mode keeps the screen on', escreve: ['setCarroMantemEcra'],
     leitores: [['src/components/ModoCarro.tsx', /getCarroMantemEcra\(/]] },
+  // 11/11: o teto do áudio guardado; o arranque lê-o antes da primeira limpeza.
+  { opcao: 'Storage limit', escreve: ['setLimiteDoAudio'],
+    leitores: [['App.tsx', /getLimiteDoAudio\(\)\.then\(definirLimiteDoAudioGuardado\)/]] },
   { opcao: 'Discord Rich Presence', escreve: ['setDiscordRichPresence'],
     leitores: [['src/navigation/RootNavigator.web.tsx', /usePresencaDoDiscord\(discordOn/]] },
   { opcao: 'Effect mode', escreve: ['setGlitchMode'],

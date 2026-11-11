@@ -154,7 +154,8 @@ export async function checkForUpdate(
       current: APP_VERSION,
       latest: release.version,
       notes: notasSemMinima(release.notes),
-      install: release.install,
+      // O link do ficheiro (o IPA ou o instalador), tal como o portfólio o dá.
+      install: release.install || release.asset.url,
       obrigatoria,
     };
   } catch (erro) {

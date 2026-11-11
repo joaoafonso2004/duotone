@@ -738,6 +738,28 @@ await check('áudio em uso e a transição ficam protegidos até os motores larg
   assert.equal(h.time.pending(), 0, 'não deixa um relógio a acordar permanentemente');
 });
 
+await check('o teto das Definições: baixá-lo limpa logo, e sem limite nada sai (11/11)', async () => {
+  const h = harness(() => response());
+  for (const [id, dia] of [['nova', 4], ['velha', 1], ['recente', 3], ['antiga', 2]]) audioEmDisco(h, id, 150, dia);
+  h.cache.loadCachedAudioIndex();
+  const removidas = [];
+  h.cache.definirLimiteDoAudioGuardado(Infinity);
+  const parar = h.cache.iniciarLimpezaAutomaticaDoAudio({ protegidos: () => [], aoRemover: ids => removidas.push(...ids) });
+  await h.time.advance(0);
+  assert.equal(h.cache.getAudioCacheBytes(), 600 * MB, 'sem limite, os 600 MB ficam');
+  assert.deepEqual([...h.cache.pruneAudioCacheLRU()], [], 'nem uma limpeza pedida apaga');
+  h.cache.definirLimiteDoAudioGuardado(450 * MB);
+  await h.time.advance(0);
+  assert.deepEqual(removidas, ['velha'], 'baixar aplica-se sem esperar por um download');
+  assert.equal(h.cache.getAudioCacheBytes(), 450 * MB);
+  h.cache.definirLimiteDoAudioGuardado(2048 * MB);
+  await h.time.advance(0);
+  assert.equal(h.cache.getAudioCacheBytes(), 450 * MB, 'subir não apaga nada');
+  for (const mau of [0, -1, NaN]) h.cache.definirLimiteDoAudioGuardado(mau);
+  assert.equal(h.cache.limiteDoAudioGuardado(), 2048 * MB, 'um valor estragado nunca passa a ser o teto');
+  parar();
+});
+
 await check('um novo download volta a aplicar o teto sem reiniciar a app', async () => {
   const h = harness(() => response());
   h.disk.set('file:///document/yt-audio-antiga.m4a', { length: 300 * MB - 8, modificadoEm: -1 });

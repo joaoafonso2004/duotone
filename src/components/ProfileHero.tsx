@@ -93,10 +93,14 @@ function CorDaCapaDoPerfil({cover,alturaDaCapa}:{cover:string|null;alturaDaCapa:
     style={{position:'absolute',left:0,right:0,top:0,height:alturaDaCapa+EXTENSAO_DO_AMBIENTE}}/>;
 }
 
+/** O lado de um botão de vidro e o espaço entre eles: a barra do nome do iPhone (`CimaDoPerfil`) reserva-lhes o lugar. */
+export const BOTAO_DE_VIDRO=44;
+export const ESPACO_ENTRE_BOTOES=10;
+
 /** Um botão redondo de vidro (as conversas, as definições, voltar). */
 export function BotaoDeVidro({label,icon,onPress,badge=0}:{label:string;icon:keyof typeof Ionicons.glyphMap;onPress:()=>void;badge?:number}) {
   return <Pressable accessibilityRole="button" accessibilityLabel={badge?`${label}, ${badge} unread`:label} onPress={onPress} hitSlop={6}
-    style={({pressed,hovered,focused}:any)=>({width:44,height:44,borderRadius:22,alignItems:'center',justifyContent:'center',
+    style={({pressed,hovered,focused}:any)=>({width:BOTAO_DE_VIDRO,height:BOTAO_DE_VIDRO,borderRadius:BOTAO_DE_VIDRO/2,alignItems:'center',justifyContent:'center',
       backgroundColor:pressed||hovered||focused?colors.surfacePressed:'rgba(6,6,8,0.5)',borderWidth:StyleSheet.hairlineWidth,borderColor:'rgba(255,255,255,0.16)'})}>
     <Ionicons name={icon} size={19} color={colors.text}/>
     {badge>0&&<View style={{position:'absolute',right:-3,top:-3,minWidth:18,height:18,borderRadius:9,paddingHorizontal:4,backgroundColor:colors.danger,justifyContent:'center',borderWidth:2,borderColor:colors.bg}}>
@@ -198,7 +202,7 @@ export function ProfileHero({profile,own,cover,unread,status,recorte,botoesFora,
 /** Os botões de cima, para quem os põe fora do scroll (o iPhone). */
 export function BotoesDoPerfil({own,unread,onBack,onSocial,onSettings,onStats}:{own:boolean;unread:number;onBack?:()=>void;onSocial?:()=>void;onSettings?:()=>void;onStats?:()=>void}) {
   const safe=useSafeAreaInsets();
-  return <View pointerEvents="box-none" style={[s.row,{gap:10,position:'absolute',top:safe.top+8,left:SOCIAL_GUTTER,right:SOCIAL_GUTTER,zIndex:5}]}>
+  return <View pointerEvents="box-none" style={[s.row,{gap:ESPACO_ENTRE_BOTOES,position:'absolute',top:safe.top+8,left:SOCIAL_GUTTER,right:SOCIAL_GUTTER,zIndex:5}]}>
     {onBack&&<BotaoDeVidro label="Back" icon="chevron-back" onPress={onBack}/>}
     <View style={{flex:1}} pointerEvents="none"/>
     {own&&onSocial&&<BotaoDeVidro label="Friends and chats" icon="chatbubbles-outline" onPress={onSocial} badge={unread}/>}

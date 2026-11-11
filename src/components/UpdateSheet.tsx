@@ -23,13 +23,14 @@ import { PillButton } from './PillButton';
  * Como se instala a nova versão, que não é a mesma coisa nos dois sistemas.
  *
  * No Windows instalado há o "Update now" (electron/atualizacao.cjs). Numa build
- * sem a ponte (o browser), fica o site. No iOS a app não vem de loja nenhuma: o
- * Sideloadly corre no computador e instala o IPA no iPhone.
+ * sem a ponte (o browser), fica o site. No iOS a app não vem de loja nenhuma:
+ * quem tem o SideStore ou o AltStore no telemóvel descarrega aqui o IPA e abre-o
+ * lá (11/11); quem instala do computador continua a ter o Sideloadly.
  */
 const COMO_ATUALIZAR: Record<'ios' | 'windows' | 'windows-na-app', string[]> = {
   ios: [
-    'Open Sideloadly on your Mac or PC.',
-    'Download the new Duotone IPA and install it on your iPhone.',
+    'Press Download IPA, then open the file in SideStore or AltStore.',
+    'Or install it from your Mac or PC with Sideloadly.',
   ],
   windows: [
     'Open the site and download Duotone.',
@@ -122,6 +123,15 @@ export function UpdateSheet() {
 
   const open = () => {
     void Linking.openURL(update.platform === 'ios' ? SIDELOADLY_URL : PORTFOLIO_URL);
+    close();
+  };
+
+  // O IPA da release, com o link que o portfólio dá no versions.json (11/11).
+  // O Safari descarrega-o para os Ficheiros, e dali abre-se no SideStore ou no
+  // AltStore. Uma obrigatória fica aberta: quem a vê ainda não atualizou.
+  const descarregarIpa = () => {
+    if (!update.install) return;
+    void Linking.openURL(update.install).catch(() => {});
     close();
   };
 
@@ -231,7 +241,14 @@ export function UpdateSheet() {
           </>
         ) : (
           <>
-            <PillButton label={update.platform === 'ios' ? 'Open Sideloadly' : 'Open the site'} variant="primary" onPress={open} />
+            {update.platform === 'ios' && !!update.install ? (
+              <>
+                <PillButton label="Download IPA" variant="primary" onPress={descarregarIpa} />
+                <PillButton label="Open Sideloadly" variant="ghost" onPress={open} />
+              </>
+            ) : (
+              <PillButton label={update.platform === 'ios' ? 'Open Sideloadly' : 'Open the site'} variant="primary" onPress={open} />
+            )}
             {!update.obrigatoria && <PillButton label="Not now" variant="ghost" onPress={later} />}
           </>
         )}

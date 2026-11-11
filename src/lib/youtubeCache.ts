@@ -344,8 +344,24 @@ export function clearDownloadedAudioCache(): void {
   cachedIdsIndex = new Set();changed();
 }
 
-/** Teto do áudio guardado neste aparelho, incluindo os downloads pedidos. */
+/** O teto de origem do áudio guardado neste aparelho, incluindo os downloads pedidos. */
 export const MAX_CACHE_BYTES = 300 * 1024 * 1024;
+/**
+ * O teto em vigor: o das Definições (11/11, `lib/limiteDoAudio.ts`), que o
+ * App.tsx lê ANTES de ligar a limpeza. `Infinity` é sem limite.
+ */
+let limiteDoAudio = MAX_CACHE_BYTES;
+export function limiteDoAudioGuardado(): number {
+  return limiteDoAudio;
+}
+/** Muda o teto; um mais baixo aplica-se logo, sem esperar pelo próximo download. */
+export function definirLimiteDoAudioGuardado(bytes: number): void {
+  if (!(bytes > 0) || bytes === limiteDoAudio) return;
+  const desceu = bytes < limiteDoAudio;
+  limiteDoAudio = bytes;
+  changed();
+  if (desceu) pedirLimpezaDoAudio(0);
+}
 /** Dá tempo aos motores nativos para largarem a fonte depois de uma troca. */
 const LIBERTAR_AUDIO_MS = 30_000;
 const audioEmUso = new Map<string, { usos: number; ate: number }>();
@@ -428,7 +444,7 @@ export function iniciarLimpezaAutomaticaDoAudio(config: LimpezaAutomatica): () =
 }
 
 /** Remove as faixas mais antigas; nunca apaga áudio em uso ou em descarga. */
-export function pruneAudioCacheLRU(protectedIds: string[] = [], limiteBytes = MAX_CACHE_BYTES): string[] {
+export function pruneAudioCacheLRU(protectedIds: string[] = [], limiteBytes = limiteDoAudio): string[] {
   if (Platform.OS === 'web') return [];
   const removidas: string[] = [];
   let mudou = false;
