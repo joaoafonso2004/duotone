@@ -194,6 +194,7 @@ assert.equal((main.match(/vigiarInstalacao\(\);/g) ?? []).length >= 2, true, 'um
 assert.match(main, /const reaberta = lerMarcaDeReabrir\(\);\n\s*if \(reaberta === 'escondida'\) return;\n\s*if \(reaberta === 'minimizada'\) \{ win\.minimize\(\); return; \}/,
   'reaberta pelo instalador, a janela não volta como estava');
 assert.match(main, /if \(vigiaDaInstalacao\) \{ clearTimeout\(vigiaDaInstalacao\);/, 'sair não desliga a vigia');
+assert.match(main, /if \(r === 'espera' && !isQuitting\) vigiarInstalacao\(\);\n\s*\}\);\n\s*\}, 10 \* 60_000\);/, 'a vigia é de dez em dez minutos');
 const aviso = fs.readFileSync(new URL('../src/components/UpdateSheet.tsx', import.meta.url), 'utf8');
 assert.match(aviso, /atualizacaoAutomatica/, 'o aviso de versão não sabe que no Windows a atualização é automática');
 

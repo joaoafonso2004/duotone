@@ -1900,8 +1900,9 @@ async function instalarProntaSePuder() {
     return 'nada';
   }
 }
-// Com uma versão pronta, de minuto a minuto vê se já é altura. Só lê memória
-// e o tempo sem uso do Windows: nenhum pedido à rede, nem ao Supabase.
+// Com uma versão pronta, de dez em dez minutos vê se já é altura (as regras
+// também contam dez minutos: instala entre 10 e 20 minutos depois de parar).
+// Só lê memória e o tempo sem uso do Windows: nenhum pedido à rede, nem ao Supabase.
 let vigiaDaInstalacao = null;
 function vigiarInstalacao() {
   if (vigiaDaInstalacao || !app.isPackaged || process.platform !== 'win32') return;
@@ -1910,7 +1911,7 @@ function vigiarInstalacao() {
       vigiaDaInstalacao = null;
       if (r === 'espera' && !isQuitting) vigiarInstalacao();
     });
-  }, 60_000);
+  }, 10 * 60_000);
   vigiaDaInstalacao.unref?.();
 }
 
