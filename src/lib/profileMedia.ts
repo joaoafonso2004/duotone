@@ -9,9 +9,10 @@ export const mediaBucket = (kind:ProfileMediaKind) => kind==='avatar' ? 'profile
  * vista pedia outro de 4 em 4 -- também em segundo plano, e no PC o dia todo. E
  * como o link mudava, a imagem descarregava-se outra vez de cada vez: pedidos
  * ao Storage, linhas de log e egress, por cada amigo com foto. O balde continua
- * privado; o link é que dura uma tarde (`LINK_VALE_S`).
+ * privado; o link é que dura uma semana (`LINK_VALE_S`; era uma tarde até
+ * 11/11 -- cada renovação era um pedido ao Storage por amigo com foto).
  */
-const LINK_VALE_S = 6 * 60 * 60;
+const LINK_VALE_S = 7 * 24 * 60 * 60;
 /** Renova-se com esta folga antes de caducar. */
 const RENOVAR_ANTES_MS = 10 * 60 * 1000;
 const cache = new Map<string,{url:string;until:number}>();

@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { idDaConta } from '../lib/idDaConta';
 import { upsertTrack, upsertTracks } from './library';
+import { esquecerId, guardarId, idGuardado } from '../lib/idsNoCatalogo';
 import type { Track } from '../types';
 
 import { artistasParaRecomendar, HISTORICO_QUE_CHEGA } from '../lib/artistasSemente';
@@ -37,7 +38,14 @@ function idNoCatalogo(track: Track): Promise<string> {
   const chave = `${track.source}:${track.sourceId}`;
   let id = idsNoCatalogo.get(chave);
   if (!id) {
-    id = upsertTrack(track);
+    // Primeiro o disco (11/11, `lib/idsNoCatalogo.ts`): o id nunca muda.
+    id = (async () => {
+      const guardado = await idGuardado(chave);
+      if (guardado) return guardado;
+      const novo = await upsertTrack(track);
+      void guardarId(chave, novo);
+      return novo;
+    })();
     idsNoCatalogo.set(chave, id);
     // Uma falha não fica guardada: a próxima tentativa volta a pedir.
     id.catch(() => { if (idsNoCatalogo.get(chave) === id) idsNoCatalogo.delete(chave); });
@@ -57,7 +65,13 @@ export async function recordPlayInSupabase(track: Track): Promise<boolean> {
     const { error } = await supabase
       .from('plays')
       .insert({ user_id: userId, track_id: trackId });
-    if (error) console.error('Error recording play in Supabase:', error);
+    if (error) {
+      console.error('Error recording play in Supabase:', error);
+      // Um id guardado que já não serve: a próxima volta a pedi-lo.
+      const chave = `${track.source}:${track.sourceId}`;
+      idsNoCatalogo.delete(chave);
+      void esquecerId(chave);
+    }
     return !error;
   } catch (err) {
     console.error('Error recording play in Supabase:', err);

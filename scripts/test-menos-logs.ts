@@ -92,6 +92,20 @@ await caso('o que não se vê espera pelo acerto de 5 min; um engasgo não tira 
   // O comportamento em si está no test-escuta-ao-vivo.cjs (relógio virtual).
 });
 
+console.log('\nos ids das faixas no catálogo');
+await caso('o id de cada faixa fica no aparelho, e um recusado esquece-se (11/11)', async () => {
+  const { guardarId, idGuardado, esquecerId } = await import('../src/lib/idsNoCatalogo.ts');
+  assert.equal(await idGuardado('youtube:x'), null);
+  await guardarId('youtube:x', 'id-1');
+  assert.equal(await idGuardado('youtube:x'), 'id-1');
+  await esquecerId('youtube:x');
+  assert.equal(await idGuardado('youtube:x'), null);
+  const plays = ler('src/api/plays.ts');
+  assert.match(plays, /const guardado = await idGuardado\(chave\);\n\s+if \(guardado\) return guardado;\n\s+const novo = await upsertTrack\(track\);/);
+  assert.match(plays, /idsNoCatalogo\.delete\(chave\);\n\s+void esquecerId\(chave\);/, 'um insert falhado esquece o id');
+  assert.match(ler('src/lib/profileMedia.ts'), /const LINK_VALE_S = 7 \* 24 \* 60 \* 60;/, 'as fotos de perfil assinadas valem uma semana');
+});
+
 console.log('\no coração do leitor do iPhone');
 await caso('vem do conjunto local; o servidor só enquanto ele não chegou, e o id só ao tirar (11/11)', () => {
   const p = ler('src/components/PlayerRoot.tsx');

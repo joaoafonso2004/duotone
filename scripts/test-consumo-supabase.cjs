@@ -113,7 +113,7 @@ async function main() {
   assert.equal(assinaturas, 2, 'a segunda conta pede autorização própria');
   media.clearProfileMediaCache(true);
   assert.equal(storage.has('duotone:profile-links:v1:bea'), false, 'revogação/logout apagam os links guardados');
-  conta = 'ana'; agora += 7 * HORA;
+  conta = 'ana'; agora += 8 * 24 * HORA; // o link vale uma semana (11/11)
   await media.signedProfileMedia('cover', 'a/cover/x'); assert.equal(assinaturas, 3, 'links expirados são renovados');
   let soltar; esperar = new Promise(r => { soltar = r; });
   const antigo = media.signedProfileMedia('cover', 'a/cover/late');

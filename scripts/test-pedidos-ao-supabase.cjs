@@ -298,6 +298,7 @@ async function main() {
         upsert: async (linhas) => { pedidos.push([tabela, linhas.length]); return { error: null }; },
       }) } },
       '../lib/idDaConta': { idDaConta: async () => conta },
+      '../lib/idsNoCatalogo': { idGuardado: async () => null, guardarId: async () => {}, esquecerId: async () => {} },
       './library': { upsertTrack: async () => { throw Error('um a um, não'); },
         upsertTracks: async (faixas) => { pedidos.push(['upsert_catalog_tracks', faixas.length]);
           return new Map(faixas.map((f) => [`${f.source}:${f.sourceId}`, `id-${f.sourceId}`])); } },
