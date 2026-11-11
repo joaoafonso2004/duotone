@@ -98,7 +98,10 @@ export async function enviarEscutasAtrasadas(
     });
     if (!linhas.length) return false;
     const { error } = await supabase.from('plays').insert(linhas);
-    if (error) console.error('Error sending delayed plays:', error);
+    if (error) {
+      console.error('Error sending delayed plays:', error);
+      esquecerIdsSeRecusados(error, escutas.map((e) => `${e.faixa.source}:${e.faixa.sourceId}`));
+    }
     return !error;
   } catch {
     return false;
@@ -111,10 +114,14 @@ let avisouDoInicio = false;
  * Os inícios esperam e vão JUNTOS (6/10): eram dois pedidos por música
  * começada (o catálogo e o `faixas_comecadas`), e cada skip é uma música
  * começada -- 641 num dia, nos logs do Supabase. Só o Rare Finds os lê, e não
- * tem pressa. Saem ao fim de 5 min ou com 20 à espera, num pedido ao catálogo
+ * tem pressa. Saem ao fim de 10 min ou com 20 à espera, num pedido ao catálogo
  * (o que ainda lá não está) e outro ao `faixas_comecadas`.
+ *
+ * 11/11: eram 5 min, e cada lote é uma pergunta ao catálogo. Agora esperam o
+ * mesmo que as escutas, e o envio das escutas (`state/escutasPorEnviar.ts`)
+ * leva-os primeiro: os ids ficam na memória e as escutas já não perguntam.
  */
-export const INICIOS_ESPERAM_MS = 5 * 60_000;
+export const INICIOS_ESPERAM_MS = 10 * 60_000;
 export const INICIOS_POR_LOTE = 20;
 type Inicio = { track: Track; conta: string; em: string };
 const iniciosPorEnviar = new Map<string, Inicio>();
@@ -157,6 +164,7 @@ export async function enviarInicios(): Promise<void> {
     });
     if (!linhas.length) return;
     const { error } = await supabase.from('faixas_comecadas').upsert(linhas, { onConflict: 'user_id,track_id' });
+    esquecerIdsSeRecusados(error, desta.map((i) => `${i.track.source}:${i.track.sourceId}`));
     // Sem a migração corrida a tabela não existe. Diz-se uma vez e não a cada
     // lote: o Rare Finds fica só com as ouvidas, que era o que tinha.
     if (error && !avisouDoInicio) {
@@ -175,23 +183,51 @@ export async function enviarInicios(): Promise<void> {
 }
 
 /** O `id` no catálogo de várias faixas: as que já se sabem e um pedido para as outras. */
+/**
+ * Os ids de um lote: memória, depois o disco, e só o que falta ao catálogo.
+ *
+ * 11/11: os lotes (as escutas e as começadas) são o caminho de todos os dias,
+ * e só olhavam para a memória -- depois de cada arranque perguntavam outra vez
+ * ao `upsert_catalog_tracks` pelas músicas de sempre. Eram os 18 pedidos por
+ * hora de uma conta (12 lotes de começadas e 6 de escutas).
+ */
 async function idsNoCatalogoEmLote(tracks: readonly Track[]): Promise<Map<string, string>> {
   const ids = new Map<string, string>();
   const faltam: Track[] = [];
+  const lembrar = (chave: string, id: string) => {
+    idsNoCatalogo.set(chave, Promise.resolve(id));
+    if (idsNoCatalogo.size > 200) idsNoCatalogo.delete(idsNoCatalogo.keys().next().value!);
+  };
   for (const t of tracks) {
     const chave = `${t.source}:${t.sourceId}`;
+    if (ids.has(chave)) continue;
     const sabido = idsNoCatalogo.get(chave);
-    if (sabido) ids.set(chave, await sabido);
+    if (sabido) { ids.set(chave, await sabido); continue; }
+    const guardado = await idGuardado(chave);
+    if (guardado) { ids.set(chave, guardado); lembrar(chave, guardado); }
     else faltam.push(t);
   }
   if (faltam.length) {
     for (const [chave, id] of await upsertTracks(faltam)) {
       ids.set(chave, id);
-      idsNoCatalogo.set(chave, Promise.resolve(id));
-      if (idsNoCatalogo.size > 200) idsNoCatalogo.delete(idsNoCatalogo.keys().next().value!);
+      lembrar(chave, id);
+      void guardarId(chave, id);
     }
   }
   return ids;
+}
+
+/**
+ * Um lote recusado por um id que já não existe no catálogo (chave estrangeira,
+ * 23503): esses ids esquecem-se, e o próximo envio volta a pedi-los. Outros
+ * erros (rede, versão, conta) não dizem nada dos ids.
+ */
+function esquecerIdsSeRecusados(error: { code?: string } | null, chaves: readonly string[]): void {
+  if (error?.code !== '23503') return;
+  for (const chave of chaves) {
+    idsNoCatalogo.delete(chave);
+    void esquecerId(chave);
+  }
 }
 
 /** As faixas começadas há menos tempo, da mais recente para a mais antiga. */

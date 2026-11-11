@@ -765,7 +765,9 @@ console.log('Perfil: biblioteca anterior à migração, falhas independentes e e
   assert.equal(remote.get('youtube:one').play_count,1,'repetir a mesma operação não volta a somar');
   const antesDosIncrementos = pulls;
   for (let i=0;i<10;i++) await counts.incrementPlayCount(track);
-  assert.equal(remote.get('youtube:one').play_count,11,'os incrementos continuam a chegar imediatamente');
+  assert.equal(remote.get('youtube:one').play_count,1,'os incrementos esperam pelo lote, e não um pedido por música (11/11)');
+  await counts.enviarContagensPendentes();
+  assert.equal(remote.get('youtube:one').play_count,11,'o lote leva os dez, e a operação repetida não volta a somar');
   assert.equal(pulls,antesDosIncrementos,'ouvir dez músicas não relê o histórico inteiro dez vezes');
   assert.equal((await counts.getMostPlayed())[0].count,11,'a cache local inclui os novos incrementos');
   for(let i=0;i<1004;i++)remote.set(`youtube:bulk-${String(i).padStart(4,'0')}`,{

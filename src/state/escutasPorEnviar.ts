@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
-import { enviarEscutasAtrasadas } from '../api/plays';
+import { enviarEscutasAtrasadas, enviarInicios } from '../api/plays';
+import { enviarContagensPendentes } from '../lib/playCounts';
 import {
   acrescentarPendente, depoisDoEnvio, lerPendentes, novaEscutaPendente, proximoLote, type EscutaPendente,
 } from '../lib/escutasPendentes';
@@ -62,21 +63,34 @@ export function guardarEscutaPorEnviar(faixa: Track, em: Date, comecouEm: Date):
 
 let aEnviar = false;
 
-/** Manda o que ficou, em lotes, se houver rede e sessão. Um lote que falha para o envio. */
+/**
+ * Manda o que ficou, em lotes, se houver rede e sessão. Um lote que falha para o envio.
+ *
+ * 11/11 (logs): leva tudo o que é da escuta na mesma volta, por esta ordem --
+ * as músicas começadas (`enviarInicios`), que deixam os ids do catálogo na
+ * memória, depois as escutas, que já não perguntam ao catálogo, e no fim os
+ * incrementos das contagens (`enviarContagensPendentes`), que eram um pedido
+ * por música. Sem nada à espera, nenhum destes faz pedidos.
+ */
 export async function enviarEscutasPorEnviar(): Promise<void> {
   const uid = useAuth.getState().session?.user.id;
   if (!uid || aEnviar || useConnectivity.getState().offline) return;
   if (relogioDoEnvio) { clearTimeout(relogioDoEnvio); relogioDoEnvio = null; }
   aEnviar = true;
   try {
+    await enviarInicios().catch(() => {});
+    let correu = true;
     for (;;) {
       const lote = proximoLote(await emFila(() => ler(uid)));
-      if (!lote.length) return;
-      const correu = await enviarEscutasAtrasadas(lote);
+      if (!lote.length) break;
+      correu = await enviarEscutasAtrasadas(lote);
       // A conta pode ter mudado durante o envio: grava-se na da escuta.
       await emFila(async () => gravar(uid, depoisDoEnvio(await ler(uid), lote, correu)));
-      if (!correu) return;
+      if (!correu) break;
     }
+    // Uma escuta que falhou diz que a rede ou o servidor não estão lá: as
+    // contagens esperam pela próxima volta em vez de gastar outro pedido.
+    if (correu) await enviarContagensPendentes().catch(() => {});
   } finally {
     aEnviar = false;
   }

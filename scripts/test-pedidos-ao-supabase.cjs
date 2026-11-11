@@ -11,7 +11,9 @@
  *  - no PC, a presença de um amigo com a janela escondida não obriga a ler ao voltar;
  *  - a mesma marca de leitura não vai duas vezes ao `chat_reads`;
  *  - o Jam lê as sessões abertas numa consulta, e não uma por cada Jam antigo;
- *  - as músicas começadas vão em lote.
+ *  - as músicas começadas vão em lote;
+ *  - os lotes usam os ids do aparelho, e as começadas, as escutas e as
+ *    contagens saem na mesma volta (11/11).
  */
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -326,6 +328,87 @@ async function main() {
     assert.deepEqual(pedidos, [], 'um início não muda de conta');
   }
 
+  // --- Os lotes usam os ids do aparelho, e um id recusado esquece-se (11/11) --
+  {
+    const pedidos = [], esquecidos = [], guardados = [];
+    const noDisco = new Map([['youtube:a', 'id-a'], ['youtube:b', 'id-b']]);
+    let erro = null;
+    const plays = load('src/api/plays.ts', {
+      '../lib/supabase': { supabase: { from: (tabela) => ({
+        upsert: async (linhas) => { pedidos.push([tabela, linhas.length]); return { error: erro }; },
+        insert: async (linhas) => { pedidos.push([tabela, linhas.length]); return { error: erro }; },
+      }) } },
+      '../lib/idDaConta': { idDaConta: async () => 'eu' },
+      '../lib/idsNoCatalogo': {
+        idGuardado: async (c) => noDisco.get(c) ?? null,
+        guardarId: async (c, id) => { guardados.push(c); noDisco.set(c, id); },
+        esquecerId: async (c) => { esquecidos.push(c); noDisco.delete(c); },
+      },
+      './library': { upsertTrack: async () => { throw Error('um a um, não'); },
+        upsertTracks: async (faixas) => { pedidos.push(['upsert_catalog_tracks', faixas.length]);
+          return new Map(faixas.map((f) => [`${f.source}:${f.sourceId}`, `id-${f.sourceId}`])); } },
+      '../lib/artistasSemente': {}, '../lib/gostoDoSpotify': {}, '../lib/prefs': {}, '../lib/artistName': {},
+    }, { setTimeout: () => 1, clearTimeout() {}, console: { ...console, error() {}, warn() {} } });
+    const faixa = (id) => ({ source: 'youtube', sourceId: id, title: id, artist: 'A' });
+    assert.equal(plays.INICIOS_ESPERAM_MS, 10 * 60_000, 'as começadas esperam o mesmo que as escutas');
+    await plays.registarInicioDaFaixa(faixa('a'));
+    await plays.registarInicioDaFaixa(faixa('b'));
+    await plays.enviarInicios();
+    assert.deepEqual(pedidos, [['faixas_comecadas', 2]], 'músicas com o id no disco não perguntam ao catálogo');
+    pedidos.length = 0;
+    await plays.registarInicioDaFaixa(faixa('a'));
+    await plays.registarInicioDaFaixa(faixa('c'));
+    await plays.enviarInicios();
+    assert.deepEqual(pedidos, [['upsert_catalog_tracks', 1], ['faixas_comecadas', 2]], 'só a nova vai ao catálogo');
+    assert.deepEqual(guardados, ['youtube:c'], 'e o id dela fica no disco');
+    pedidos.length = 0;
+    const em = new Date(0).toISOString();
+    assert.equal(await plays.enviarEscutasAtrasadas([{ faixa: faixa('a'), em }, { faixa: faixa('c'), em }]), true);
+    assert.deepEqual(pedidos, [['plays', 2]], 'as escutas a seguir às começadas já não perguntam ao catálogo');
+    erro = { code: '42501', message: 'rls' };
+    assert.equal(await plays.enviarEscutasAtrasadas([{ faixa: faixa('a'), em }]), false);
+    assert.deepEqual(esquecidos, [], 'um erro que não é do id não o esquece');
+    erro = { code: '23503', message: 'fk' };
+    await plays.enviarEscutasAtrasadas([{ faixa: faixa('a'), em }]);
+    assert.deepEqual(esquecidos, ['youtube:a'], 'um id que já não existe no catálogo esquece-se');
+    erro = null; pedidos.length = 0;
+    await plays.enviarEscutasAtrasadas([{ faixa: faixa('a'), em }]);
+    assert.deepEqual(pedidos, [['upsert_catalog_tracks', 1], ['plays', 1]], 'e volta a ser pedido');
+  }
+
+  // --- Uma volta leva as começadas, as escutas e as contagens (11/11) --------
+  {
+    const ordem = [];
+    let falhar = false;
+    const disco = new Map();
+    const armazenamento = { getItem: async (k) => disco.get(k) ?? null,
+      setItem: async (k, v) => { disco.set(k, v); }, removeItem: async (k) => { disco.delete(k); } };
+    const fila = load('src/state/escutasPorEnviar.ts', {
+      '@react-native-async-storage/async-storage': { default: armazenamento, ...armazenamento },
+      'react-native': { AppState: { addEventListener: () => ({ remove() {} }) } },
+      '../api/plays': {
+        enviarInicios: async () => { ordem.push('começadas'); },
+        enviarEscutasAtrasadas: async (lote) => { ordem.push(`escutas:${lote.length}`); return !falhar; },
+      },
+      '../lib/playCounts': { enviarContagensPendentes: async () => { ordem.push('contagens'); } },
+      '../lib/escutasPendentes': load('src/lib/escutasPendentes.ts'),
+      './auth': { useAuth: { getState: () => ({ session: { user: { id: 'eu' } } }), subscribe: () => () => {} } },
+      './connectivity': { useConnectivity: { getState: () => ({ offline: false }), subscribe: () => () => {} } },
+    }, { setTimeout: () => 1, clearTimeout() {} });
+    const faixa = { source: 'youtube', sourceId: 'a', title: 'a', artist: 'A' };
+    fila.guardarEscutaPorEnviar(faixa, new Date(), new Date());
+    await esperar(5);
+    await fila.enviarEscutasPorEnviar();
+    assert.deepEqual(ordem, ['começadas', 'escutas:1', 'contagens'],
+      'as começadas primeiro (deixam os ids na memória), depois as escutas e as contagens');
+    ordem.length = 0;
+    falhar = true;
+    fila.guardarEscutaPorEnviar(faixa, new Date(), new Date());
+    await esperar(5);
+    await fila.enviarEscutasPorEnviar();
+    assert.deepEqual(ordem, ['começadas', 'escutas:1'], 'uma escuta que falhou não gasta outro pedido nas contagens');
+  }
+
   // --- A conversa aberta (lida no código: é um efeito de um componente) --------
   {
     const hub = fs.readFileSync(path.join(__dirname, '../src/components/SocialHub.tsx'), 'utf8');
@@ -344,6 +427,6 @@ async function main() {
     assert.doesNotMatch(s, /setInterval\(\s*\(\)\s*=>\s*recuperar/, `${f}: sem setInterval a correr no tabuleiro`);
   }
 
-  console.log('Pedidos ao Supabase: Social, chat, Jam e músicas começadas passaram.');
+  console.log('Pedidos ao Supabase: Social, chat, Jam, músicas começadas e o lote da escuta passaram.');
 }
 main().catch((e) => { console.error(e); process.exitCode = 1; });

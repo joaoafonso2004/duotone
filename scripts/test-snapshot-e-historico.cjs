@@ -3,7 +3,7 @@ const root=path.resolve(__dirname,'..');
 let now=Date.now(),uid='one',revision=1,changes=[{playlist_id:'a',deleted:false},{playlist_id:'b',deleted:false}];
 class Clock extends Date {static now(){return now;}}
 const disk=new Map([['playCounts:migrated:v2:one','1'],['playCounts:lastUser:v2','one']]);
-let failCheckpoint=false,reads=0,rpcReads=0,historyReads=0;
+let failCheckpoint=false,reads=0,rpcReads=0,historyReads=0,deltaWrites=0;
 const storage={getItem:async k=>disk.get(k)??null,removeItem:async k=>disk.delete(k),
   setItem:async(k,v)=>{if(failCheckpoint&&k.startsWith('playCounts:snapshot:'))throw Error('disk');disk.set(k,v);},
   multiSet:async pairs=>{for(const [k,v]of pairs)disk.set(k,v);}};
@@ -19,7 +19,7 @@ const supabase={auth:{getSession:async()=>({data:{session:uid?{user:{id:uid}}:nu
       historyReads++;const all=[...historyChanges.values()].filter(x=>x.revision>args.p_after).sort((a,b)=>a.revision-b.revision);
       const page=all.slice(0,args.p_limit);return {data:{changes:page,revision:page.at(-1)?.revision??countRevision,more:all.length>page.length},error:null};
     }
-    if(name==='apply_play_count_deltas'){
+    if(name==='apply_play_count_deltas'){deltaWrites++;
       for(const e of args.entries){if((operations.get(e.operationDevice)??0)>=e.operationSequence)continue;
         operations.set(e.operationDevice,e.operationSequence);const old=remote.get(e.source+':'+e.sourceId);
         change({source:e.source,source_id:e.sourceId,title:e.title,artist:e.artist,artwork_url:e.artworkUrl,duration_seconds:e.durationSeconds,
@@ -69,8 +69,12 @@ async function main(){
   load=runtime();let counts=load('src/lib/playCounts.ts');
   assert.equal((await counts.getMostPlayed(2000)).length,1105);assert.equal(historyReads,3,'histórico inicial paginado por revisões');
   const t={source:'youtube',sourceId:'current',title:'Current',artist:'Artist'};
-  const before=historyReads;for(let n=0;n<10;n++)await counts.incrementPlayCount(t);
-  assert.equal(remote.get('youtube:current').play_count,10);assert.equal(historyReads,before,'dez incrementos não fazem dez leituras');
+  const before=historyReads,writesBefore=deltaWrites;for(let n=0;n<10;n++)await counts.incrementPlayCount(t);
+  assert.equal(deltaWrites,writesBefore,'ouvir não envia logo: os incrementos esperam pelo lote (11/11)');
+  await counts.enviarContagensPendentes();
+  assert.equal(remote.get('youtube:current').play_count,10);assert.equal(deltaWrites,writesBefore+1,'dez incrementos num só pedido');
+  assert.equal(historyReads,before,'dez incrementos não fazem dez leituras');
+  await counts.enviarContagensPendentes();assert.equal(deltaWrites,writesBefore+1,'sem nada pendente, nenhum pedido');
   assert.equal((await counts.getMostPlayed())[0].count,10);
   change({...remote.get('youtube:h1'),play_count:40});change(remote.get('youtube:h2'),true);
   await counts.synchronizePlayCounts();let local=await counts.getMostPlayed(2000);

@@ -251,13 +251,14 @@ async function syncUnsafe(forcarLeitura = false, semLeitura = false): Promise<Pl
   } else {
     if (!await flushPending(uid)) return local;
   }
+  // Foi tudo: o envio agendado já não tem o que mandar.
+  pararEnvioDasContagens();
 
-  // O incremento é enviado imediatamente; não precisa de descarregar as
-  // centenas/milhares de contagens antigas a cada música. A cache local já
-  // inclui o delta. Uma sincronização explícita continua a ler o servidor.
-  // O incremento de uma escuta envia e não relê (16/10, logs): relia o
-  // histórico a cada música, porque elas distam mais do que o intervalo. Quem
-  // mostra as contagens (os ecrãs, `syncedEntries`) é que relê.
+  // O envio dos incrementos não precisa de descarregar as centenas/milhares
+  // de contagens antigas. A cache local já inclui o delta. Uma sincronização
+  // explícita continua a ler o servidor. O envio do lote não relê (16/10,
+  // logs): relia o histórico a cada música, porque elas distam mais do que o
+  // intervalo. Quem mostra as contagens (os ecrãs, `syncedEntries`) é que relê.
   if (semLeitura) return local;
   if (!forcarLeitura && ultimaLeitura?.uid === uid && Date.now() - ultimaLeitura.em < (changesAvailable ? INTERVALO_DE_LEITURA_MS : INTERVALO_LEGACY_MS)) return local;
   const remote = await pullRemote(uid);
@@ -298,10 +299,38 @@ export async function incrementPlayCount(track: Track): Promise<void> {
       const pending = await readPending(uid);
       pending.push(await operation(uid,{...local[key],count:1,lastPlayed:now}));
       await AsyncStorage.setItem(pendingKey,JSON.stringify(pending));
+      agendarEnvioDasContagens();
     }
-
-    await syncUnsafe(false, true);
   });
+}
+
+/**
+ * 11/11 (logs): o incremento já não vai logo ao servidor -- era um
+ * `apply_play_count_deltas` por cada música ouvida, fora de todos os lotes.
+ * Fica na fila do disco (a mesma de quando não há rede) e sai com as escutas
+ * (`state/escutasPorEnviar.ts` chama `enviarContagensPendentes`), ou ao fim
+ * deste prazo se nada as mandar antes. Quem lê as contagens envia primeiro o
+ * que está pendente (`syncUnsafe`), por isso este aparelho vê-as já; os outros
+ * veem-nas com o lote.
+ */
+export const CONTAGENS_ESPERAM_MS = 10 * 60_000;
+let envioDasContagens: ReturnType<typeof setTimeout> | null = null;
+
+function agendarEnvioDasContagens(): void {
+  envioDasContagens ??= setTimeout(() => { envioDasContagens = null; void enviarContagensPendentes(); }, CONTAGENS_ESPERAM_MS);
+}
+
+function pararEnvioDasContagens(): void {
+  if (envioDasContagens) { clearTimeout(envioDasContagens); envioDasContagens = null; }
+}
+
+/**
+ * Manda os incrementos que estão à espera, sem reler o histórico. Sem nada
+ * pendente, não faz pedidos. Se falhar (sem rede), ficam no disco para o
+ * próximo envio das escutas ou a próxima leitura.
+ */
+export async function enviarContagensPendentes(): Promise<void> {
+  await serialized(() => syncUnsafe(false, true));
 }
 
 async function syncedEntries(): Promise<PlayCountEntry[]> {
