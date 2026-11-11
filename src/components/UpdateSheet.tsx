@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Linking, Platform, Pressable, Text, View } from 'react-native';
+import { AppState, Linking, Platform, Pressable, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import {
   checkForUpdate,
@@ -41,6 +41,9 @@ const COMO_ATUALIZAR: Record<'ios' | 'windows' | 'windows-na-app', string[]> = {
   ],
 };
 
+/** Voltar à frente só volta a perguntar ao portfólio passado isto. */
+const VER_OUTRA_VEZ_MS = 6 * 60 * 60_000;
+
 /**
  * Aviso de nova versão disponível.
  *
@@ -63,11 +66,26 @@ export function UpdateSheet() {
 
   useEffect(() => {
     let cancelled = false;
-    checkForUpdate().then((info) => {
-      if (!cancelled) setUpdate(info);
+    let verificadoEm = Date.now();
+    const mostrar = (info: UpdateInfo | null) => {
+      if (cancelled) return;
+      // Uma obrigatória abre logo com os passos à vista.
+      if (info?.obrigatoria) setAjuda(true);
+      setUpdate(info);
+    };
+    void checkForUpdate().then(mostrar);
+    // No iPhone uma app de música fica dias aberta sem se fechar: ao voltar à
+    // frente, de seis em seis horas no máximo, volta a ver (11/11). É ao
+    // portfólio, não ao Supabase. Uma atualização obrigatória chega assim a quem
+    // nunca fecha a app.
+    const sub = AppState.addEventListener('change', (estado) => {
+      if (estado !== 'active' || Date.now() - verificadoEm < VER_OUTRA_VEZ_MS) return;
+      verificadoEm = Date.now();
+      void checkForUpdate().then((info) => { if (info) mostrar(info); });
     });
     return () => {
       cancelled = true;
+      sub.remove();
     };
   }, []);
 
@@ -91,7 +109,8 @@ export function UpdateSheet() {
   if (!update || tapado) return null;
 
   // A descarregar ou a instalar não se fecha: a app vai fechar-se sozinha.
-  const close = () => { if (!ocupada) setUpdate(null); };
+  // Obrigatória também não: esta versão já não é para usar.
+  const close = () => { if (!ocupada && !update.obrigatoria) setUpdate(null); };
 
   const later = () => {
     if (ocupada) return;
@@ -128,15 +147,20 @@ export function UpdateSheet() {
   const passos = COMO_ATUALIZAR[update.platform === 'ios' ? 'ios' : instalaNaApp ? 'windows-na-app' : 'windows'];
 
   return (
-    <BottomSheet visible onClose={close}>
+    <BottomSheet visible onClose={close} gestureBlocked={update.obrigatoria}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={type.micro}>
             {update.platform === 'ios' ? 'iOS' : 'Windows'} · {update.current} → {update.latest}
           </Text>
           <Text style={[type.title, { marginTop: spacing.sm, marginBottom: 6 }]}>
-            New version available
+            {update.obrigatoria ? 'Update required' : 'New version available'}
           </Text>
+          {update.obrigatoria && (
+            <Text style={[type.caption, { marginBottom: 6 }]}>
+              This version of Duotone no longer works. Update to keep listening.
+            </Text>
+          )}
         </View>
         <Pressable
           accessibilityRole="button"
@@ -202,12 +226,12 @@ export function UpdateSheet() {
             {!!erro && <Text style={[type.caption, { color: colors.danger }]}>{erro}</Text>}
             <PillButton label={rotuloDaAtualizacao(fase, progresso)} variant="primary" onPress={() => void instalar()} />
             {fase === 'falhou' && <PillButton label="Open the site" variant="ghost" onPress={open} />}
-            {!ocupada && <PillButton label="Not now" variant="ghost" onPress={later} />}
+            {!ocupada && !update.obrigatoria && <PillButton label="Not now" variant="ghost" onPress={later} />}
           </>
         ) : (
           <>
             <PillButton label={update.platform === 'ios' ? 'Open Sideloadly' : 'Open the site'} variant="primary" onPress={open} />
-            <PillButton label="Not now" variant="ghost" onPress={later} />
+            {!update.obrigatoria && <PillButton label="Not now" variant="ghost" onPress={later} />}
           </>
         )}
       </View>

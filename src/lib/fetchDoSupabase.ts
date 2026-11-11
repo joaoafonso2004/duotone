@@ -65,18 +65,33 @@ function comSinal<T>(promessa: Promise<T>, sinal: AbortSignal | null | undefined
  * podia esbarrar no CORS.
  */
 export const CABECALHO_DO_APARELHO = 'x-duotone-aparelho';
+/**
+ * A versão da app (11/11), pelas mesmas regras. As versões até à 5.8.6 não a
+ * mandam: se um dia for preciso deixar de as servir, o Supabase reconhece-as
+ * por isso (uma função "pre-request" da API de dados).
+ */
+export const CABECALHO_DA_VERSAO = 'x-duotone-versao';
 const API_REST = /^https:\/\/[a-z0-9]{20}\.supabase\.co\/rest\/v1\//;
 let aparelhoDosPedidos: { id: string; soPelaPonte: boolean } | null = null;
+let versaoDosPedidos: { versao: string; soPelaPonte: boolean } | null = null;
 
 export function definirAparelhoDosPedidos(id: string | null, soPelaPonte = false): void {
   aparelhoDosPedidos = id && /^[A-Za-z0-9_-]{4,64}$/.test(id) ? { id, soPelaPonte } : null;
 }
 
+export function definirVersaoDosPedidos(versao: string | null, soPelaPonte = false): void {
+  versaoDosPedidos = versao && /^[0-9A-Za-z.+_-]{1,32}$/.test(versao) ? { versao, soPelaPonte } : null;
+}
+
 function comAparelho(init: RequestInit | undefined, url: string | null, pelaPonte: boolean): RequestInit | undefined {
-  const a = aparelhoDosPedidos;
-  if (!a || !url || !API_REST.test(url) || (a.soPelaPonte && !pelaPonte)) return init;
+  if (!url || !API_REST.test(url)) return init;
+  const a = aparelhoDosPedidos, v = versaoDosPedidos;
+  const aparelho = a && (!a.soPelaPonte || pelaPonte) ? a.id : null;
+  const versao = v && (!v.soPelaPonte || pelaPonte) ? v.versao : null;
+  if (!aparelho && !versao) return init;
   const headers = new Headers(init?.headers);
-  headers.set(CABECALHO_DO_APARELHO, a.id);
+  if (aparelho) headers.set(CABECALHO_DO_APARELHO, aparelho);
+  if (versao) headers.set(CABECALHO_DA_VERSAO, versao);
   return { ...init, headers };
 }
 

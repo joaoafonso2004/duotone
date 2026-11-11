@@ -5,12 +5,15 @@ if (Platform.OS !== 'web') {
 import { authStorage } from './authStorage';
 import { createClient } from '@supabase/supabase-js';
 import { ENV } from './env';
-import { criarFetchDoSupabase, definirAparelhoDosPedidos } from './fetchDoSupabase';
+import { criarFetchDoSupabase, definirAparelhoDosPedidos, definirVersaoDosPedidos } from './fetchDoSupabase';
 import { definirEstadoDoRealtime, registarQuedaDoRealtime } from './pedidosAoSupabase';
 import { getDeviceId } from './deviceIdentity';
+import { APP_VERSION } from './buildInfo';
 
-// O aparelho vai nos pedidos à API (11/11): as marcas de `o_que_mudou` sabem
-// quem escreveu. No PC só pela ponte (ver `definirAparelhoDosPedidos`).
+// O aparelho e a versão vão nos pedidos à API (11/11): as marcas de
+// `o_que_mudou` sabem quem escreveu, e um dia o Supabase pode deixar de servir
+// as versões que não dizem qual são. No PC só pela ponte (ver `fetchDoSupabase`).
+definirVersaoDosPedidos(APP_VERSION, Platform.OS === 'web');
 void getDeviceId().then((id) => definirAparelhoDosPedidos(id, Platform.OS === 'web')).catch(() => {});
 
 // Conta cada pedido e, no PC, manda-o pelo processo principal (sem o OPTIONS
