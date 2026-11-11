@@ -178,19 +178,8 @@ contextBridge.exposeInMainWorld('duotoneDesktop', Object.freeze({
     return () => ipcRenderer.removeListener('mini:comando', handler);
   },
   miniLeitorNoModoLimpo: (ligado) => ipcRenderer.send('mini:modo-limpo', ligado),
-  onMediaKeyPlayPause: (listener) => {
-    const handler = () => listener();
-    ipcRenderer.on('media:play-pause', handler);
-    return () => ipcRenderer.removeListener('media:play-pause', handler);
-  },
-  onMediaKeyNext: (listener) => {
-    const handler = () => listener();
-    ipcRenderer.on('media:next', handler);
-    return () => ipcRenderer.removeListener('media:next', handler);
-  },
-  onMediaKeyPrev: (listener) => {
-    const handler = () => listener();
-    ipcRenderer.on('media:prev', handler);
-    return () => ipcRenderer.removeListener('media:prev', handler);
-  },
+  /** A sessão de média da música que toca (issue #10): o main.cjs põe-na dentro
+   * do frame do YouTube, que é de onde o Windows a lê. As teclas de média deixaram
+   * de vir por aqui (`media:play-pause`, ...): chegam pela sessão. */
+  definirSessaoDeMedia: (sessao) => ipcRenderer.invoke('media:sessao', sessao),
 }));

@@ -146,6 +146,7 @@ const TESTES = [
   `${TS} scripts/test-biblioteca-do-spotify.ts`,
   `${RESOLVER} scripts/test-leitor-web-do-spotify.ts`,
   'scripts/test-conta-do-spotify.cjs',
+  `${TS} scripts/test-sessao-de-media.ts`,
   `${TS} scripts/test-script-do-leitor-do-spotify.ts`,
   `${TS} scripts/test-origem-da-fila.ts`,
   `${TS} scripts/test-loudness.ts`,

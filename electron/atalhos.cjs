@@ -3,8 +3,10 @@
  * Os atalhos globais do PC (entrega 2a do docs/PLANO-OFFLINE-SOCIAL-DESCOBERTA-PC.md).
  *
  * NENHUM vem posto: cada um cria-se nas Definições (decisão do João a 24/9). As
- * teclas multimédia (play/pausa, seguinte, anterior do teclado) continuam à
- * parte, no main.cjs: são do teclado, não são atalhos escolhidos por alguém.
+ * teclas multimédia (play/pausa, seguinte, anterior do teclado) não são atalhos:
+ * o Windows entrega-as pela sessão de média (electron/sessaoDeMedia.cjs). E não
+ * podem passar a sê-lo: pedir uma ao globalShortcut tira a Duotone dos
+ * controlos do Windows (issue #10).
  *
  * Aqui só se decide -- validar, normalizar, converter a tecla, conflitos, o
  * aviso do AltGr --, sem Electron. O main.cjs regista; o ficheiro é

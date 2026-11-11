@@ -7,6 +7,7 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { criarSaude } = require('./saude.cjs');
 const contaDoSpotify = require('./contaDoSpotify.cjs');
+const sessaoDeMediaJs = require('./sessaoDeMedia.cjs');
 
 // Os crashes nativos ficam no disco (Crashpad) e não vão para servidor
 // nenhum: `electron/saude.cjs` só conta os novos, e o renderer manda a
@@ -591,7 +592,8 @@ function sendWindowState(win) {
 // Atalhos globais (electron/atalhos.cjs). NENHUM vem posto: cada um cria-se nas
 // Definições. Este processo é o dono -- guarda em atalhos.json, regista, e da
 // página só aceita o id da ação e a tecla, validados do lado de cá. As teclas
-// multimédia ficam onde estavam (registadas no arranque, à parte).
+// multimédia não passam por aqui: chegam pela sessão de média do Windows
+// (electron/sessaoDeMedia.cjs, issue #10).
 // ---------------------------------------------------------------------------
 const ficheiroDosAtalhos = () => path.join(app.getPath('userData'), 'atalhos.json');
 function lerFicheiroDosAtalhos() {
@@ -1123,6 +1125,9 @@ function createWindow() {
 
   if (isDev) win.loadURL(process.env.DUOTONE_DEV_URL || 'http://localhost:8081');
   else win.loadURL(`http://localhost:${SERVER_PORT}/index.html`);
+  // Um frame do YouTube novo (o arranque, o leitor que prepara a seguinte)
+  // recebe já a sessão da música que toca (electron/sessaoDeMedia.cjs).
+  win.webContents.on('did-frame-finish-load', (_e, principal) => { if (!principal) void aplicarSessaoDeMedia(win); });
   mainWindow = win;
 }
 
@@ -1560,6 +1565,31 @@ ipcMain.handle('deezer:link', async (event, url) => {
  * da app em modo de desenvolvimento. O `sp_dc` e o token ficam deste lado; a
  * janela da app so recebe as respostas das consultas.
  */
+/**
+ * A sessão de média da música que toca, para os controlos do Windows (issue
+ * #10, electron/sessaoDeMedia.cjs): vai para DENTRO dos frames do YouTube,
+ * que é de onde o Windows a lê. A página manda-a a cada música, pausa e salto.
+ */
+let sessaoDeMedia = null;
+async function aplicarSessaoDeMedia(win) {
+  if (!sessaoDeMedia || !win || win.isDestroyed()) return;
+  let origem = null;
+  try { origem = new URL(win.webContents.getURL()).origin; } catch {}
+  if (!origem || origem === 'null') return;
+  const script = sessaoDeMediaJs.scriptDaSessao(sessaoDeMedia, origem);
+  for (const frame of framesDoYouTube(win.webContents.mainFrame)) {
+    try { await frame.executeJavaScript(script); } catch {}
+  }
+}
+ipcMain.handle('media:sessao', async (event, pedido) => {
+  if (!daJanelaPrincipal(event)) throw new Error('Pedido invalido.');
+  const sessao = sessaoDeMediaJs.validarSessao(pedido);
+  if (!sessao) return false;
+  sessaoDeMedia = sessao;
+  await aplicarSessaoDeMedia(mainWindow);
+  return true;
+});
+
 ipcMain.handle('spotify:conta:ligada', async (event) => {
   if (!daJanelaPrincipal(event)) throw new Error('Pedido invalido.');
   return contaDoSpotify.ligada();
@@ -1963,19 +1993,11 @@ app.whenReady().then(async () => {
   porListaDeSaltos();
   if (veioDoDiscord(process.argv)) void prepararDiscord(DISCORD_APP_ID);
 
-  try {
-    globalShortcut.register('MediaPlayPause', () => {
-      if (mainWindow) mainWindow.webContents.send('media:play-pause');
-    });
-    globalShortcut.register('MediaNextTrack', () => {
-      if (mainWindow) mainWindow.webContents.send('media:next');
-    });
-    globalShortcut.register('MediaPreviousTrack', () => {
-      if (mainWindow) mainWindow.webContents.send('media:prev');
-    });
-  } catch (e) {
-    console.error('Could not register global shortcuts:', e);
-  }
+  // As teclas de média NÃO se registam aqui (issue #10, 11/11): pedi-las ao
+  // globalShortcut desliga o tratamento interno do Chromium, e com ele a
+  // Duotone some dos controlos do Windows (o Win+A, o ecrã bloqueado, os
+  // auscultadores). O Windows entrega-as pela sessão de média, que a página e
+  // o frame do YouTube já definem (electron/sessaoDeMedia.cjs).
   // Os que a pessoa criou nas Definições (nenhum por omissão).
   registarAtalhos();
 

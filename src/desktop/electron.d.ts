@@ -170,6 +170,8 @@ declare global {
       publicarNoMiniLeitor?: (resumo: ResumoDoMiniLeitor) => void;
       onComandoDoMiniLeitor?: (listener: (comando: ComandoDoMiniLeitor) => void) => () => void;
       miniLeitorNoModoLimpo?: (ligado: boolean) => void;
+      /** A sessão de média para os controlos do Windows (issue #10, `lib/sessaoDeMedia.ts`). */
+      definirSessaoDeMedia?: (sessao: import('../lib/sessaoDeMedia').PedidoDaSessao) => Promise<boolean>;
       showContextMenu(items: { id: string; label: string; enabled?: boolean }[]): void;
       onContextMenuSelection(listener: (id: string) => void): () => void;
     };

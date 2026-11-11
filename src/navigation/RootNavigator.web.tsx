@@ -15,6 +15,8 @@ import { RecommendationPreferences } from '../components/RecommendationPreferenc
 import React, { ReactNode, useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
+import { acaoDaMensagem, foiUmSalto, pedidoDaSessao, type AcaoDeMedia } from '../lib/sessaoDeMedia';
+import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { removeTrackFromPlaylist } from '../api/playlists';
 import { EscolherPlaylist } from '../desktop/EscolherPlaylist.web';
 import { criarEPor, porNaPlaylist } from '../desktop/porNaPlaylist.web';
@@ -519,66 +521,68 @@ function DesktopShell() {
     },
   });
 
-  // Media Session Keyboard API sync + Electron hardware keys integration
+  // A sessão de média (issue #10): o Windows (Win+A, ecrã bloqueado,
+  // auscultadores, teclas de média) lê a sessão do frame do YouTube, que é quem
+  // toca. O processo principal põe lá a da Duotone (electron/sessaoDeMedia.cjs)
+  // e as ações voltam por postMessage. A da página fica para quando o som é
+  // dela. As teclas de média já não vêm pelo globalShortcut: tiravam a Duotone
+  // dos controlos do Windows.
   useEffect(() => {
+    const fazer = (acao: AcaoDeMedia, segundos: number | null) => {
+      const p = usePlayer.getState();
+      if (acao === 'play') { if (!p.isPlaying) void p.togglePlay(); }
+      else if (acao === 'pause' || acao === 'stop') { if (p.isPlaying) void p.togglePlay(); }
+      else if (acao === 'nexttrack') void p.next();
+      else if (acao === 'previoustrack') void p.prev();
+      else if (acao === 'seekto' && segundos !== null) void p.seekTo(segundos * 1000);
+    };
     if ('mediaSession' in navigator) {
-      navigator.mediaSession.setActionHandler('play', () => {
-        usePlayer.getState()._setIsPlaying(true);
-        usePlayer.getState()._yt?.play();
-      });
-      navigator.mediaSession.setActionHandler('pause', () => {
-        usePlayer.getState()._setIsPlaying(false);
-        usePlayer.getState()._yt?.pause();
-      });
-      navigator.mediaSession.setActionHandler('previoustrack', () => {
-        usePlayer.getState().prev();
-      });
-      navigator.mediaSession.setActionHandler('nexttrack', () => {
-        usePlayer.getState().next();
-      });
+      for (const acao of ['play', 'pause', 'previoustrack', 'nexttrack', 'stop'] as const) {
+        try { navigator.mediaSession.setActionHandler(acao, () => fazer(acao, null)); } catch {}
+      }
+      try { navigator.mediaSession.setActionHandler('seekto', (d) => fazer('seekto', typeof d.seekTime === 'number' ? d.seekTime : null)); } catch {}
     }
-
-    // Electron hardware key listeners
-    const desktop = (window as any).duotoneDesktop;
-    if (desktop) {
-      const unsubPlayPause = desktop.onMediaKeyPlayPause(() => {
-        usePlayer.getState().togglePlay();
-      });
-      const unsubNext = desktop.onMediaKeyNext(() => {
-        usePlayer.getState().next();
-      });
-      const unsubPrev = desktop.onMediaKeyPrev(() => {
-        usePlayer.getState().prev();
-      });
-
-      return () => {
-        unsubPlayPause();
-        unsubNext();
-        unsubPrev();
-      };
-    }
+    const aoReceber = (e: MessageEvent) => {
+      const m = acaoDaMensagem(e.origin, e.data);
+      if (m) fazer(m.acao, m.segundos);
+    };
+    window.addEventListener('message', aoReceber);
+    return () => window.removeEventListener('message', aoReceber);
   }, []);
 
   useEffect(() => {
-    if ('mediaSession' in navigator) {
-      if (currentTrack) {
-        navigator.mediaSession.metadata = new MediaMetadata({
-          title: currentTrack.title,
-          artist: displayArtist(currentTrack),
-          album: currentTrack.album || 'Duotone',
-          artwork: currentTrack.artworkUrl ? [{ src: currentTrack.artworkUrl }] : []
-        });
-      } else {
-        navigator.mediaSession.metadata = null;
+    const ponte = window.duotoneDesktop?.definirSessaoDeMedia;
+    const enviar = () => {
+      const p = usePlayer.getState();
+      const t = p.current;
+      const pedido = pedidoDaSessao({
+        titulo: t ? tituloDaFaixa(t) : null, artista: t ? displayArtist(t) : null, album: t?.album ?? null,
+        capa: t ? capaParaLista(t.artworkUrl) : null, aTocar: p.isPlaying, posicaoMs: p.positionMs, duracaoMs: p.durationMs,
+      });
+      if ('mediaSession' in navigator) {
+        try {
+          navigator.mediaSession.metadata = pedido.titulo
+            ? new MediaMetadata({ title: pedido.titulo, artist: pedido.artista, album: pedido.album, artwork: pedido.capa ? [{ src: pedido.capa }] : [] })
+            : null;
+          navigator.mediaSession.playbackState = pedido.estado;
+          if (pedido.duracao) navigator.mediaSession.setPositionState({ duration: pedido.duracao, position: pedido.posicao ?? 0, playbackRate: 1 });
+        } catch {}
       }
-    }
-  }, [currentTrack]);
-
-  useEffect(() => {
-    if ('mediaSession' in navigator) {
-      navigator.mediaSession.playbackState = isPlayingState ? 'playing' : 'paused';
-    }
-  }, [isPlayingState]);
+      void ponte?.(pedido).catch(() => {});
+    };
+    enviar();
+    // A cada música, pausa e salto; o andar normal da barra o Windows conta sozinho.
+    let antes = usePlayer.getState();
+    let quando = Date.now();
+    return usePlayer.subscribe((p) => {
+      const agora = Date.now();
+      const mudou = p.current !== antes.current || p.isPlaying !== antes.isPlaying || p.durationMs !== antes.durationMs
+        || foiUmSalto(antes.positionMs, p.positionMs, agora - quando, antes.isPlaying);
+      antes = p;
+      quando = agora;
+      if (mudou) enviar();
+    });
+  }, []);
 
   // **As recomendacoes comecam com a app, e nao com a pagina.** Preparar a
   // descoberta demora -- fala com um catalogo e com o YouTube faixa a faixa --

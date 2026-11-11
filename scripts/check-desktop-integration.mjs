@@ -78,7 +78,7 @@ const contexto = vm.createContext({
   // Os módulos da atualização, dos atalhos, do mini leitor, do arranque com o
   // Windows e do menu do texto são puros (sem
   // `electron`): entram os verdadeiros.
-  require: (id) => id === './messageBadge.cjs' ? require('../electron/messageBadge.cjs') : id === './saude.cjs' ? { criarSaude: (o) => { captura.saude = o; return saudeDupla; } } : id === './atualizacao.cjs' ? require('../electron/atualizacao.cjs') : id === './atalhos.cjs' ? require('../electron/atalhos.cjs') : id === './miniLeitor.cjs' ? require('../electron/miniLeitor.cjs') : id === './barraDeTarefas.cjs' ? require('../electron/barraDeTarefas.cjs') : id === './arranqueComWindows.cjs' ? require('../electron/arranqueComWindows.cjs') : id === './menuDoTexto.cjs' ? require('../electron/menuDoTexto.cjs') : id === './contaDoSpotify.cjs' ? {
+  require: (id) => id === './messageBadge.cjs' ? require('../electron/messageBadge.cjs') : id === './saude.cjs' ? { criarSaude: (o) => { captura.saude = o; return saudeDupla; } } : id === './atualizacao.cjs' ? require('../electron/atualizacao.cjs') : id === './atalhos.cjs' ? require('../electron/atalhos.cjs') : id === './miniLeitor.cjs' ? require('../electron/miniLeitor.cjs') : id === './barraDeTarefas.cjs' ? require('../electron/barraDeTarefas.cjs') : id === './arranqueComWindows.cjs' ? require('../electron/arranqueComWindows.cjs') : id === './menuDoTexto.cjs' ? require('../electron/menuDoTexto.cjs') : id === './sessaoDeMedia.cjs' ? require('../electron/sessaoDeMedia.cjs'): id === './contaDoSpotify.cjs' ? {
     configurar() { captura.spotifyConfigurado = true; },
     ligada: async () => false, entrar: async () => false, sair: async () => {},
     consultar: async (nome) => { captura.consultaDoSpotify = nome; return { ok: true, dados: {} }; },
@@ -196,6 +196,15 @@ assert.throws(() => handlers.get('sistema:segundos-sem-interacao')({ sender: jan
   assert.deepEqual(await json(consultar(evento(), 'libraryV3', { offset: 0 })), { ok: true, dados: {} });
   assert.equal(captura.consultaDoSpotify, 'libraryV3');
   assert.equal(await handlers.get('spotify:conta:ligada')(evento()), false);
+}
+// A sessão de média para os controlos do Windows (issue #10): só da janela
+// principal, e um pedido que não serve fica de fora.
+{
+  const sessao = handlers.get('media:sessao');
+  await assert.rejects(sessao({ sender: janela.webContents, senderFrame: { url: 'https://www.youtube-nocookie.com' } }, { titulo: 'x', estado: 'playing' }), /invalido/, 'o iframe do YouTube não define a sessão');
+  assert.equal(await sessao(evento(), null), false);
+  assert.equal(await sessao(evento(), { titulo: '', estado: 'playing' }), false, 'a tocar sem título não serve');
+  assert.equal(await sessao(evento(), { titulo: 'Bones', artista: 'Imagine Dragons', estado: 'playing' }), true);
 }
 // Os pedidos ao Supabase pelo processo principal (17/10): sem o OPTIONS do CORS.
 {
