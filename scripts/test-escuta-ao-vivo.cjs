@@ -126,7 +126,9 @@ async function main() {
   {
     const a = ambiente(), publicados = [], player = loja({ current: faixa('a'), isPlaying: true,
       playbackConfirmed: false, buffering: true, error: null, playbackRate: 1, positionMs: 0, positionAt: a.agora(),
-      durationMs: 180000, queue: [], shuffleOrder: [], eqGanhos: Array(10).fill(0), upcomingQueue: () => [] });
+      durationMs: 180000, queue: [], shuffleOrder: [], eqGanhos: Array(10).fill(0),
+      // As próximas seguem a fila: a presença só publica quando elas mudam (11/11).
+      upcomingQueue: () => player.getState().queue.map(i => ({ track: { source: 'youtube', sourceId: `q${i}` } })) });
     const privacidade = loja({ privada: false, carregada: true });
     let lerDirecto, ajustes = 0, parado = false, abortado = false, pendurar = true;
     const { iniciarPresenca } = a.carregar('src/lib/presenceSync.ts', {

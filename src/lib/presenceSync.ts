@@ -87,6 +87,18 @@ export function iniciarPresenca(userId: string): () => void {
   /** De quanto em quanto tempo se bate: 75 s até se saber que o servidor dá 300 s de validade. */
   let batimentoMs=PRESENCE_PUBLISH_MS;
   let ultimoEnviado: { chave: string; em: number } | null = null;
+  /**
+   * As próximas que os amigos viram na última publicação (11/11). A fila muda
+   * muitas vezes sem eles verem diferença (o Radio e o Smart Shuffle a encher
+   * lá ao fundo), e cada mudança era um pedido à API: com a app pública, a
+   * presença era o segundo caminho mais pedido. Só publica se as próximas mudam.
+   */
+  let filaPublicada: string | null = null;
+  const assinaturaDaFila = (faixas: readonly { source: string; sourceId: string }[]) =>
+    faixas.map((t) => `${t.source}:${t.sourceId}`).join('|');
+  const filaQueOsAmigosVeem = () => assinaturaDaFila(proximasParaAPresenca(useOuvirJuntos.getState().sessao
+    ? useOuvirJuntos.getState().fila.map(i => i.track)
+    : usePlayer.getState().upcomingQueue().map(e => e.track)));
   /** Quantas publicações seguidas falharam (para as novas tentativas). */
   let falhasSeguidas = 0;
   const sessao = Crypto.randomUUID();
@@ -202,6 +214,7 @@ export function iniciarPresenca(userId: string): () => void {
       } else {
         falhasSeguidas = 0;
         ultimoEnviado = { chave, em: agora };
+        filaPublicada = assinaturaDaFila(aSeguir);
       }
     });
     return fila;
@@ -223,7 +236,7 @@ export function iniciarPresenca(userId: string): () => void {
     if (estadoMudou) changed(!!s.current && s.isPlaying && s.playbackConfirmed && !s.buffering && !s.error
       && (!p.playbackConfirmed || !p.isPlaying || p.buffering || !!p.error || s.current?.sourceId !== p.current?.sourceId));
     // A fila mudou (quem te segue vê as próximas): publica com o mesmo atraso.
-    else if (s.isPlaying && filaMudou) changed();
+    else if (s.isPlaying && filaMudou && filaQueOsAmigosVeem() !== filaPublicada) changed();
     // O avanço vem do timeUpdate nativo, que também serve o sleep timer com
     // o ecrã bloqueado. Não depender só de setInterval para o batimento iOS.
     // Uma ida na barra ou outra velocidade publicam já: sem isso o progresso

@@ -71,8 +71,20 @@ async function lerDoServidor<T>(key: string, maxAgeMs: number, guardar: boolean)
   }
 }
 
+/**
+ * Os metadados públicos do Deezer vivem só no aparelho (11/11): na memória e no
+ * disco (`cacheExternaLocal`), nunca no `yt_cache`. Com a app pública eram o
+ * caminho mais pedido da API (~1 000 linhas de log numa hora): cada música
+ * tocada lia e escrevia a vizinhança, o nome e o género de um artista.
+ * Partilhá-los entre pessoas poupava pouco, porque o Deezer responde a cada
+ * aparelho, e custava uma linha de log por leitura e outra por escrita.
+ */
+export function soNoAparelho(key: string): boolean {
+  return key.startsWith('deezer:');
+}
+
 export async function cacheGet<T>(key: string, maxAgeMs: number, opcoes?: { memoria?: boolean }): Promise<T | null> {
-  if (!opcoes?.memoria) return lerDoServidor<T>(key, maxAgeMs, false);
+  if (!opcoes?.memoria && !soNoAparelho(key)) return lerDoServidor<T>(key, maxAgeMs, false);
   const m = memoria.get(key);
   if (m) {
     if (m.payload === FALTA) {
@@ -88,6 +100,7 @@ export async function cacheGet<T>(key: string, maxAgeMs: number, opcoes?: { memo
   const pedido = (async () => {
     const local = await lerCacheExternaLocal(key, maxAgeMs);
     if (local) { contarCache('disco'); lembrar(key, local); return local.payload as T; }
+    if (soNoAparelho(key)) return null;
     return lerDoServidor<T>(key, maxAgeMs, true);
   })().finally(() => { if (aCaminho.get(key) === pedido) aCaminho.delete(key); });
   aCaminho.set(key, pedido);
@@ -96,8 +109,9 @@ export async function cacheGet<T>(key: string, maxAgeMs: number, opcoes?: { memo
 
 export async function cacheSet(key: string, payload: unknown): Promise<void> {
   // Quem leu com memória passa a ter o valor novo sem voltar ao servidor.
-  if (memoria.has(key)) lembrar(key, { payload, em: Date.now() });
+  if (memoria.has(key) || soNoAparelho(key)) lembrar(key, { payload, em: Date.now() });
   void guardarCacheExternaLocal(key, { payload, em: Date.now() });
+  if (soNoAparelho(key)) return;
   try {
     await supabase.from('yt_cache').upsert({
       cache_key: key,

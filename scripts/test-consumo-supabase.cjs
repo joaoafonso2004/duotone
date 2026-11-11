@@ -46,15 +46,17 @@ async function main() {
   const mocks = mockFile('src/lib/supabase.ts', { supabase });
   let rt = runtime(mocks), cache = rt.load('src/api/cache.ts');
   const HORA = 3600_000;
-  for (let i = 0; i < 900; i++) linhas.set('deezer:teste:' + i, { payload: { nao: true }, fetched_at: new Date(agora).toISOString() });
+  // Os metadados do Deezer vivem só no aparelho (11/11): nem leem nem escrevem o `yt_cache`.
+  for (let i = 0; i < 900; i++) await cache.cacheSet('deezer:teste:' + i, { nao: true });
+  assert.equal(linhas.size, 0, 'o Deezer não escreve no Supabase');
   for (let i = 0; i < 900; i++) await cache.cacheGet('deezer:teste:' + i, HORA, { memoria: true });
-  assert.equal(leituras, 900);
+  assert.equal(leituras, 0);
   for (let i = 0; i < 900; i++) await cache.cacheGet('deezer:teste:' + i, HORA, { memoria: true });
-  assert.equal(leituras, 900, 'a segunda passagem por 900 nomes não lê o Supabase apesar da LRU de 600');
+  assert.equal(leituras, 0, 'a segunda passagem por 900 nomes não lê o Supabase apesar da LRU de 600');
   await rt.flush();
   rt = runtime(mocks); cache = rt.load('src/api/cache.ts');
-  for (let i = 0; i < 900; i++) await cache.cacheGet('deezer:teste:' + i, HORA, { memoria: true });
-  assert.equal(leituras, 900, 'reiniciar o processo mantém a poupança');
+  for (let i = 0; i < 900; i++) assert.equal(JSON.stringify(await cache.cacheGet('deezer:teste:' + i, HORA, { memoria: true })), '{"nao":true}');
+  assert.equal(leituras, 0, 'reiniciar o processo lê do disco, sem o Supabase');
   linhas.set('conta:preferencias', { payload: 1, fetched_at: new Date(agora).toISOString() });
   await cache.cacheGet('conta:preferencias', HORA);
   linhas.set('conta:preferencias', { payload: 2, fetched_at: new Date(agora).toISOString() });

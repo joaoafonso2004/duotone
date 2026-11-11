@@ -86,6 +86,16 @@ async function caso(nome, f) {
     assert.deepEqual([await um, await dois], [7, 7]);
     assert.equal(leituras, 1);
   });
+  await caso('os metadados do Deezer nunca vão ao Supabase (11/11)', async () => {
+    linhas.set('deezer:vizinhanca:v2:x', { payload: { velho: true }, fetched_at: new Date().toISOString() });
+    assert.equal(await cache.cacheGet('deezer:vizinhanca:v2:x', HORA, { memoria: true }), null, 'nem lê o que lá está');
+    await cache.cacheSet('deezer:vizinhanca:v2:x', { novo: true });
+    assert.deepEqual(await cache.cacheGet('deezer:vizinhanca:v2:x', HORA, { memoria: true }), { novo: true }, 'fica na memória');
+    assert.equal(await cache.cacheGet('deezer:album:v1:1', HORA), null, 'nem sem memória');
+    assert.equal(leituras, 0);
+    assert.equal(escritas, 0);
+    assert.equal(cache.soNoAparelho('search:v2:x'), false, 'a pesquisa da Data API continua partilhada');
+  });
   await caso('o catálogo e o YouTube leem com memória', async () => {
     for (const f of ['src/api/catalogo.ts', 'src/api/youtube.ts']) {
       const fonte = fs.readFileSync(path.join(root, f), 'utf8');

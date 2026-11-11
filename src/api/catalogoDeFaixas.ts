@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { guardarRespostaNoAparelho, lembrarNoAparelho, lerDoAparelho } from '../lib/catalogoNoAparelho';
 import type { FaixaResolvida } from './catalogo';
 
 /**
@@ -20,9 +21,18 @@ export async function lerCatalogoDeFaixas(
   chaves: readonly ChaveDeFaixa[],
 ): Promise<Map<string, FaixaResolvida>> {
   const mapa = new Map<string, FaixaResolvida>();
+  // Primeiro o aparelho (11/11, `lib/catalogoNoAparelho.ts`): o que a tabela já
+  // respondeu não se volta a perguntar. Só o resto vai ao servidor.
+  const pedidas = chaves.filter((c) => c.sourceId);
+  const { sabidas, porPerguntar } = await lerDoAparelho(pedidas.map((c) => chaveDoCatalogo(c.source, c.sourceId)));
+  for (const [k, f] of sabidas) mapa.set(k, f);
+  const aPerguntar = new Set(porPerguntar);
+  /** As chaves de lotes que a tabela respondeu (uma falha de rede não conta como "não tem"). */
+  const respondidas: string[] = [];
+  const doServidor = new Map<string, FaixaResolvida>();
   const porFonte = new Map<string, string[]>();
-  for (const c of chaves) {
-    if (!c.sourceId) continue;
+  for (const c of pedidas) {
+    if (!aPerguntar.has(chaveDoCatalogo(c.source, c.sourceId))) continue;
     const lista = porFonte.get(c.source) ?? [];
     lista.push(c.sourceId);
     porFonte.set(c.source, lista);
@@ -46,12 +56,13 @@ export async function lerCatalogoDeFaixas(
           continue;
         }
         if (error || !data) continue;
+        for (const id of unicos.slice(i, i + LOTE)) respondidas.push(chaveDoCatalogo(source, id));
         for (const linha of data as any[]) {
           // Uma linha VAZIA e uma resposta: quer dizer "o Deezer nao conhece
           // isto". Sem esta excepcao ela era deitada fora aqui e a coluna do
           // `sem_edicao` nunca chegava a lado nenhum.
           if (!linha.artist && !linha.title && !linha.sem_edicao) continue;
-          mapa.set(chaveDoCatalogo(linha.source, linha.source_id), {
+          doServidor.set(chaveDoCatalogo(linha.source, linha.source_id), {
             artista: linha.artist ?? '',
             titulo: linha.title ?? '',
             album: linha.album ?? null,
@@ -69,6 +80,8 @@ export async function lerCatalogoDeFaixas(
       }
     }
   }
+  for (const [k, f] of doServidor) mapa.set(k, f);
+  if (respondidas.length) void guardarRespostaNoAparelho(doServidor, respondidas);
   return mapa;
 }
 
@@ -86,12 +99,60 @@ export async function lerCatalogoDeFaixas(
  */
 let temGeneroEAno = true;
 
+/**
+ * As escritas saem em LOTE (11/11): uma faixa resolvida era um pedido à API, e
+ * o catálogo resolve doze de cada vez, mais as que o Deezer não conhece. Com a
+ * app pública o `track_catalog` ia nas ~270 linhas de log por hora. Agora
+ * juntam-se durante uns segundos e saem num só `upsert`. Perder um lote (a app
+ * fechada a meio) só faz o próximo aparelho resolver outra vez.
+ */
+type LinhaDoCatalogo = {
+  source: string; source_id: string; artist: string; title: string; album: string | null;
+  artwork_url: string | null; prova: 'duracao' | 'artista';
+  genero?: string | null; ano?: number | null; sem_edicao?: boolean;
+};
+const ESPERA_DO_LOTE_MS = 5_000;
+const MAXIMO_POR_LOTE = 100;
+const porEscrever = new Map<string, LinhaDoCatalogo>();
+let relogioDoLote: ReturnType<typeof setTimeout> | null = null;
+
+function porNoLote(linha: LinhaDoCatalogo): void {
+  const k = chaveDoCatalogo(linha.source, linha.source_id);
+  // A primeira fica, como na tabela: uma resposta não apaga outra.
+  if (!porEscrever.has(k)) porEscrever.set(k, linha);
+  if (porEscrever.size >= MAXIMO_POR_LOTE) { void escreverLote(); return; }
+  if (!relogioDoLote) relogioDoLote = setTimeout(() => { void escreverLote(); }, ESPERA_DO_LOTE_MS);
+}
+
+/** Escreve o que está à espera. Exportada para os testes. */
+export async function escreverLote(): Promise<void> {
+  if (relogioDoLote) { clearTimeout(relogioDoLote); relogioDoLote = null; }
+  if (!porEscrever.size) return;
+  const linhas = [...porEscrever.values()];
+  porEscrever.clear();
+  const opcoes = { onConflict: 'source,source_id', ignoreDuplicates: true } as const;
+  try {
+    if (temGeneroEAno) {
+      const { error } = await supabase.from('track_catalog').upsert(linhas, opcoes);
+      if (!error || !semColuna(error)) return;
+      temGeneroEAno = false;
+    }
+    // Sem as colunas novas: só as faixas resolvidas, sem o género, o ano e as vazias.
+    const base = linhas.filter((l) => !l.sem_edicao || l.artist || l.title)
+      .map(({ genero: _g, ano: _a, sem_edicao: _s, ...resto }) => resto);
+    if (base.length) await supabase.from('track_catalog').upsert(base, opcoes);
+  } catch {
+    // Perder a partilha só faz o próximo dispositivo resolver outra vez.
+  }
+}
+
 /** Acrescenta ao catálogo. A tabela não aceita update: a primeira fica. */
 export async function guardarNoCatalogo(
   chave: ChaveDeFaixa,
   faixa: FaixaResolvida,
 ): Promise<void> {
-  const base = {
+  void lembrarNoAparelho(chaveDoCatalogo(chave.source, chave.sourceId), faixa);
+  porNoLote({
     source: chave.source,
     source_id: chave.sourceId,
     artist: faixa.artista,
@@ -99,20 +160,10 @@ export async function guardarNoCatalogo(
     album: faixa.album,
     artwork_url: faixa.capa,
     prova: faixa.prova,
-  };
-  const opcoes = { onConflict: 'source,source_id', ignoreDuplicates: true } as const;
-  try {
-    if (temGeneroEAno) {
-      const { error } = await supabase.from('track_catalog')
-        .upsert({ ...base, genero: faixa.genero, ano: faixa.ano, sem_edicao: faixa.semEdicao }, opcoes);
-      if (!error) return;
-      if (!semColuna(error)) return;
-      temGeneroEAno = false;
-    }
-    await supabase.from('track_catalog').upsert(base, opcoes);
-  } catch {
-    // Perder a partilha só faz o próximo dispositivo resolver outra vez.
-  }
+    genero: faixa.genero,
+    ano: faixa.ano,
+    sem_edicao: faixa.semEdicao,
+  });
 }
 
 /**
@@ -129,16 +180,15 @@ export async function guardarNoCatalogo(
  */
 export async function marcarSemEdicao(chave: ChaveDeFaixa): Promise<void> {
   if (!temGeneroEAno) return;
-  try {
-    const { error } = await supabase.from('track_catalog').upsert({
-      source: chave.source, source_id: chave.sourceId,
-      artist: '', title: '', album: null, artwork_url: null,
-      prova: 'artista', sem_edicao: true,
-    }, { onConflict: 'source,source_id', ignoreDuplicates: true });
-    if (error && semColuna(error)) temGeneroEAno = false;
-  } catch {
-    // Nao saber e o estado anterior: ninguem perde nada.
-  }
+  void lembrarNoAparelho(chaveDoCatalogo(chave.source, chave.sourceId), {
+    artista: '', titulo: '', album: null, genero: null, ano: null, capa: null, semEdicao: true, prova: 'artista',
+  });
+  // Vai no mesmo lote das resolvidas (ver `escreverLote`).
+  porNoLote({
+    source: chave.source, source_id: chave.sourceId,
+    artist: '', title: '', album: null, artwork_url: null,
+    prova: 'artista', genero: null, ano: null, sem_edicao: true,
+  });
 }
 
 /**
