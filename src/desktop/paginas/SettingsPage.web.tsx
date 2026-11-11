@@ -1,7 +1,7 @@
 import { PainelDeSaude } from '../../components/PainelDeSaude';
 import { souAdministrador } from '../../api/painelDeSaude';
 import { RecommendationPreferences } from '../../components/RecommendationPreferences';
-import { ROTULOS } from '../../lib/rotulosDasDefinicoes';
+import { ENDERECO_DA_PRIVACIDADE, ROTULOS } from '../../lib/rotulosDasDefinicoes';
 import { removeOwnProfileMedia } from '../../lib/profileMedia';
 /**
  * Definições do desktop, e as linhas de que é feita.
@@ -563,11 +563,12 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
               {aberta === 'sobre' && <SettingsCard title="About">
                 {/* Vem do buildInfo.ts, que a CI reescreve a cada build (build-windows.yml). */}
                 <SettingLine label={ROTULOS.versao} value={APP_VERSION} />
-                {window.duotoneDesktop?.atualizacaoAutomatica ? <Text style={[styles.settingDescription, { paddingHorizontal: 17, paddingBottom: 10, marginTop: 0 }]}>Updates download by themselves and install the next time Duotone opens.</Text> : null}
+                {window.duotoneDesktop?.atualizacaoAutomatica ? <Text style={[styles.settingDescription, { paddingHorizontal: 17, paddingBottom: 10, marginTop: 0 }]}>Updates download by themselves and install while Duotone is in the tray and nothing is playing, or the next time it opens.</Text> : null}
                 <SettingAction
                   label={rotuloDaProcuraDeAtualizacoes({ descarga, versaoNova: update?.version ?? null, instalaNaApp, aProcurar: checkingUpdate })}
                   onPress={() => { if (!checkingUpdate) void checkForUpdates(); }}
                 />
+                <SettingAction label={ROTULOS.privacidade} description="What Duotone stores, who can see it, and how to delete it." onPress={() => { window.open(ENDERECO_DA_PRIVACIDADE, '_blank', 'noopener,noreferrer'); }} />
                 <SettingAction label="Save playback report" description="If a song won't play, or Duotone feels heavy, send this so it can be fixed." onPress={() => { avisarInfo('Preparing the report…'); void exportarRelatorio(); }} />
                 {/* Só na conta do João (7/10, supabase/painel-de-saude.sql). */}
                 {administrador ? <SettingAction label="App health" description="Who is on which version, failed songs, crashes and time to first sound, from everyone's app." onPress={() => setPainelAberto(true)} /> : null}

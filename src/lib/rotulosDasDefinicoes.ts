@@ -32,4 +32,12 @@ export const ROTULOS = {
   sair: 'Sign out',
   apagarConta: 'Delete account',
   versao: 'Version',
+  /** A página de privacidade e termos (11/11), no About das duas e ao entrar. */
+  privacidade: 'Privacy & terms',
 } as const;
+
+/**
+ * Onde vive a página de privacidade e termos (11/11): no portfólio, de onde
+ * também vêm os downloads (`public/duotone/privacy.html` no repositório dele).
+ */
+export const ENDERECO_DA_PRIVACIDADE = 'https://joaoafonso.vercel.app/duotone/privacy';

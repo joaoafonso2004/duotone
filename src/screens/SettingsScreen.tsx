@@ -2,7 +2,7 @@ import { PainelDeSaude } from '../components/PainelDeSaude';
 import { souAdministrador } from '../api/painelDeSaude';
 import { loadCapaIOS, useCapaIOS } from '../state/capaIOS';
 import { ESTILOS_DA_CAPA } from '../lib/aparencia';
-import { ROTULOS } from '../lib/rotulosDasDefinicoes';
+import { ENDERECO_DA_PRIVACIDADE, ROTULOS } from '../lib/rotulosDasDefinicoes';
 import { getCarroMantemEcra, setCarroMantemEcra } from '../lib/prefs';
 import { useNotifications } from '../state/notifications';
 import { RecommendationPreferences } from '../components/RecommendationPreferences';
@@ -11,7 +11,7 @@ import { removeOwnProfileMedia } from '../lib/profileMedia';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, {useEffect, useMemo, useState, useRef } from 'react';
 import { lerMarcaDoRefrao, ligarMarcaDoRefrao, useMarcaDoRefrao } from '../state/refrao';
-import { Alert, Animated, StyleSheet, Text, View, Platform } from 'react-native';
+import { Alert, Animated, Linking, StyleSheet, Text, View, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -621,6 +621,7 @@ export function SettingsScreen({ navigation }: Props) {
             vai mandar a alguém. */}
         <Grupo titulo="About" rodape="If a song won't play, send this so it can be fixed.">
           <Linha icone="information-circle" rotulo={ROTULOS.versao} valor={APP_VERSION} />
+          <Linha icone="shield-checkmark" rotulo={ROTULOS.privacidade} chevron aoTocar={() => { void Linking.openURL(ENDERECO_DA_PRIVACIDADE).catch(() => {}); }} />
           <Linha
             icone="paper-plane"
             rotulo="Send playback report"

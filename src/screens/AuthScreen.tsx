@@ -14,7 +14,9 @@ import {
   View,
   useWindowDimensions,
   Keyboard,
+  Linking,
 } from 'react-native';
+import { ENDERECO_DA_PRIVACIDADE, ROTULOS } from '../lib/rotulosDasDefinicoes';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Input } from '../components/Input';
 import { useAuth } from '../state/auth';
@@ -293,6 +295,19 @@ export function AuthScreen() {
                 </Text>
               )}
             </Pressable>
+
+            {/* O que a app guarda e as regras (11/11), antes de criar a conta. */}
+            <Text style={styles.legalText}>
+              By continuing, you agree to the{' '}
+              <Text
+                accessibilityRole="link"
+                style={styles.legalLink}
+                onPress={() => { void Linking.openURL(ENDERECO_DA_PRIVACIDADE).catch(() => {}); }}
+              >
+                {ROTULOS.privacidade}
+              </Text>
+              .
+            </Text>
           </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -402,6 +417,17 @@ const styles = StyleSheet.create({
     color: colors.spotify,
     marginTop: spacing.md,
     textAlign: 'center',
+  },
+  legalText: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.textTertiary,
+    marginTop: spacing.md,
+    textAlign: 'center',
+  },
+  legalLink: {
+    color: colors.textSecondary,
+    textDecorationLine: 'underline',
   },
   submitBtn: {
     backgroundColor: colors.text,
