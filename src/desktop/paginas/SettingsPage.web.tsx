@@ -1,7 +1,7 @@
 import { PainelDeSaude } from '../../components/PainelDeSaude';
 import { souAdministrador } from '../../api/painelDeSaude';
 import { RecommendationPreferences } from '../../components/RecommendationPreferences';
-import { ENDERECO_DA_PRIVACIDADE, ROTULOS } from '../../lib/rotulosDasDefinicoes';
+import { ENDERECO_DA_PRIVACIDADE, ENDERECO_DO_APOIO, ROTULOS } from '../../lib/rotulosDasDefinicoes';
 import { removeOwnProfileMedia } from '../../lib/profileMedia';
 /**
  * Definições do desktop, e as linhas de que é feita.
@@ -568,6 +568,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                   label={rotuloDaProcuraDeAtualizacoes({ descarga, versaoNova: update?.version ?? null, instalaNaApp, aProcurar: checkingUpdate })}
                   onPress={() => { if (!checkingUpdate) void checkForUpdates(); }}
                 />
+                <SettingAction label={ROTULOS.apoiar} description="Duotone is free. Donations keep its server running." onPress={() => { window.open(ENDERECO_DO_APOIO, '_blank', 'noopener,noreferrer'); }} />
                 <SettingAction label={ROTULOS.privacidade} description="What Duotone stores, who can see it, and how to delete it." onPress={() => { window.open(ENDERECO_DA_PRIVACIDADE, '_blank', 'noopener,noreferrer'); }} />
                 <SettingAction label="Save playback report" description="If a song won't play, or Duotone feels heavy, send this so it can be fixed." onPress={() => { avisarInfo('Preparing the report…'); void exportarRelatorio(); }} />
                 {/* Só na conta do João (7/10, supabase/painel-de-saude.sql). */}

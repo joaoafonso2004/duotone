@@ -34,7 +34,12 @@ export const ROTULOS = {
   versao: 'Version',
   /** A página de privacidade e termos (11/11), no About das duas e ao entrar. */
   privacidade: 'Privacy & terms',
+  /** As doações (11/11): o Ko-fi do João, para pagar o servidor. */
+  apoiar: 'Support Duotone',
 } as const;
+
+/** A página de doações (11/11): o que entra paga o plano do Supabase. */
+export const ENDERECO_DO_APOIO = 'https://ko-fi.com/zjoaoafonso';
 
 /**
  * Onde vive a página de privacidade e termos (11/11): no portfólio, de onde

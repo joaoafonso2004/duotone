@@ -2,7 +2,7 @@ import { PainelDeSaude } from '../components/PainelDeSaude';
 import { souAdministrador } from '../api/painelDeSaude';
 import { loadCapaIOS, useCapaIOS } from '../state/capaIOS';
 import { ESTILOS_DA_CAPA } from '../lib/aparencia';
-import { ENDERECO_DA_PRIVACIDADE, ROTULOS } from '../lib/rotulosDasDefinicoes';
+import { ENDERECO_DA_PRIVACIDADE, ENDERECO_DO_APOIO, ROTULOS } from '../lib/rotulosDasDefinicoes';
 import { getCarroMantemEcra, setCarroMantemEcra } from '../lib/prefs';
 import { useNotifications } from '../state/notifications';
 import { RecommendationPreferences } from '../components/RecommendationPreferences';
@@ -621,6 +621,7 @@ export function SettingsScreen({ navigation }: Props) {
             vai mandar a alguém. */}
         <Grupo titulo="About" rodape="If a song won't play, send this so it can be fixed.">
           <Linha icone="information-circle" rotulo={ROTULOS.versao} valor={APP_VERSION} />
+          <Linha icone="cafe" rotulo={ROTULOS.apoiar} chevron aoTocar={() => { void Linking.openURL(ENDERECO_DO_APOIO).catch(() => {}); }} />
           <Linha icone="shield-checkmark" rotulo={ROTULOS.privacidade} chevron aoTocar={() => { void Linking.openURL(ENDERECO_DA_PRIVACIDADE).catch(() => {}); }} />
           <Linha
             icone="paper-plane"
