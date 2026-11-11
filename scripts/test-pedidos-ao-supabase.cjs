@@ -376,37 +376,156 @@ async function main() {
     assert.deepEqual(pedidos, [['upsert_catalog_tracks', 1], ['plays', 1]], 'e volta a ser pedido');
   }
 
-  // --- Uma volta leva as começadas, as escutas e as contagens (11/11) --------
+  // --- O envio da escuta: um pedido por volta, e os pedidos de antes sem o SQL (11/11)
   {
-    const ordem = [];
-    let falhar = false;
+    let ordem = [], lotes = [], resposta = 'feito', falharAntigo = false;
+    const timers = [];
+    let iniciosNaFila = [], contagensNaFila = [], devolvidos = [], avisoDosInicios = null, avisoDasContagens = null;
     const disco = new Map();
     const armazenamento = { getItem: async (k) => disco.get(k) ?? null,
       setItem: async (k, v) => { disco.set(k, v); }, removeItem: async (k) => { disco.delete(k); } };
+    let agora = 1_000_000;
     const fila = load('src/state/escutasPorEnviar.ts', {
       '@react-native-async-storage/async-storage': { default: armazenamento, ...armazenamento },
       'react-native': { AppState: { addEventListener: () => ({ remove() {} }) } },
       '../api/plays': {
         enviarInicios: async () => { ordem.push('começadas'); },
-        enviarEscutasAtrasadas: async (lote) => { ordem.push(`escutas:${lote.length}`); return !falhar; },
+        enviarEscutasAtrasadas: async (lote) => { ordem.push(`escutas:${lote.length}`); return !falharAntigo; },
+        registarLoteDaEscuta: async (lote) => { lotes.push(lote); return resposta; },
+        tirarIniciosPorEnviar: () => { const l = iniciosNaFila; iniciosNaFila = []; return l; },
+        devolverInicios: (_conta, l) => { devolvidos.push(...l); },
+        definirAvisoDosInicios: (f) => { avisoDosInicios = f; },
       },
-      '../lib/playCounts': { enviarContagensPendentes: async () => { ordem.push('contagens'); } },
+      '../lib/playCounts': {
+        enviarContagensPendentes: async () => { ordem.push('contagens'); },
+        contagensPorEnviar: async () => ({ uid: 'eu', contagens: contagensNaFila }),
+        contagensEnviadas: async (_uid, foram) => { contagensNaFila = contagensNaFila.filter((c) => !foram.includes(c)); },
+        definirAvisoDasContagens: (f) => { avisoDasContagens = f; },
+      },
       '../lib/escutasPendentes': load('src/lib/escutasPendentes.ts'),
       './auth': { useAuth: { getState: () => ({ session: { user: { id: 'eu' } } }), subscribe: () => () => {} } },
       './connectivity': { useConnectivity: { getState: () => ({ offline: false }), subscribe: () => () => {} } },
-    }, { setTimeout: () => 1, clearTimeout() {} });
+    }, {
+      setTimeout: (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, clearTimeout() {},
+      Date: class extends Date { static now() { return agora; } },
+    });
     const faixa = { source: 'youtube', sourceId: 'a', title: 'a', artist: 'A' };
-    fila.guardarEscutaPorEnviar(faixa, new Date(), new Date());
+    const naFila = async () => JSON.parse(disco.get('plays:pendentes:v1:eu') ?? '[]');
+    const ouvir = async () => { fila.guardarEscutaPorEnviar(faixa, new Date(agora++), new Date(agora)); await esperar(5); };
+
+    // Um relógio só para as três: as começadas e as contagens avisam o envio.
+    const desligar = fila.instalarEnvioDeEscutas();
     await esperar(5);
+    assert.equal(lotes.length, 0, 'nada à espera: o arranque não faz pedidos');
+    timers.length = 0;
+    avisoDosInicios(false); avisoDasContagens(); avisoDosInicios(false);
+    assert.equal(timers.length, 1, 'as começadas e as contagens armam o mesmo relógio, uma vez');
+    assert.equal(timers[0].ms, fila.ESCUTAS_ESPERAM_MS);
+
+    // Tudo num pedido.
+    iniciosNaFila = [{ track: faixa, em: 'x' }];
+    contagensNaFila = [{ operationDevice: 'd', operationSequence: 1 }];
+    await ouvir();
+    timers[0].fn();
+    await esperar(10);
+    assert.equal(lotes.length, 1, 'um pedido');
+    assert.equal(lotes[0].escutas.length, 1); assert.equal(lotes[0].comecadas.length, 1); assert.equal(lotes[0].contagens.length, 1);
+    assert.deepEqual(ordem, [], 'nenhum dos pedidos de antes');
+    assert.equal((await naFila()).length, 0, 'as escutas saem da fila');
+    assert.equal(contagensNaFila.length, 0, 'e as contagens');
+
+    // Um lote que falha: tudo fica para a próxima, e não se tenta pelos pedidos de antes.
+    lotes = []; resposta = 'falhou';
+    iniciosNaFila = [{ track: faixa, em: 'y' }];
+    contagensNaFila = [{ operationDevice: 'd', operationSequence: 2 }];
+    await ouvir();
     await fila.enviarEscutasPorEnviar();
+    assert.equal(lotes.length, 1);
+    assert.deepEqual(ordem, [], 'uma falha não gasta os pedidos de antes');
+    assert.equal(devolvidos.length, 1, 'as começadas voltam à fila');
+    assert.equal((await naFila())[0].tentativas, 1, 'a escuta fica, com mais uma tentativa');
+    assert.equal(contagensNaFila.length, 1, 'as contagens ficam');
+
+    // Sem a função no servidor: os pedidos de antes, e só se volta a tentar ao fim de 6 h.
+    lotes = []; resposta = 'sem-funcao'; devolvidos = [];
+    iniciosNaFila = [{ track: faixa, em: 'z' }];
+    await fila.enviarEscutasPorEnviar();
+    assert.equal(lotes.length, 1);
+    assert.equal(devolvidos.length, 1, 'as começadas voltam, para irem pelo caminho de antes');
     assert.deepEqual(ordem, ['começadas', 'escutas:1', 'contagens'],
       'as começadas primeiro (deixam os ids na memória), depois as escutas e as contagens');
-    ordem.length = 0;
-    falhar = true;
-    fila.guardarEscutaPorEnviar(faixa, new Date(), new Date());
-    await esperar(5);
+    ordem = []; lotes = [];
+    await ouvir();
+    await fila.enviarEscutasPorEnviar();
+    assert.equal(lotes.length, 0, 'não se pergunta outra vez pela função logo a seguir');
+    assert.deepEqual(ordem, ['começadas', 'escutas:1', 'contagens']);
+    ordem = [];
+    falharAntigo = true;
+    await ouvir();
     await fila.enviarEscutasPorEnviar();
     assert.deepEqual(ordem, ['começadas', 'escutas:1'], 'uma escuta que falhou não gasta outro pedido nas contagens');
+    falharAntigo = false; ordem = [];
+    agora += fila.SEM_FUNCAO_ESPERA_MS + 1; resposta = 'feito';
+    await fila.enviarEscutasPorEnviar();
+    assert.equal(lotes.length, 1, 'ao fim de 6 h volta a experimentar a função');
+    assert.deepEqual(ordem, []);
+    assert.equal((await naFila()).length, 0);
+
+    // Com muitas começadas, vai já.
+    lotes = [];
+    iniciosNaFila = [{ track: faixa, em: 'w' }];
+    avisoDosInicios(true);
+    await esperar(5);
+    assert.equal(lotes.length, 1, 'o teto das começadas manda logo');
+    desligar();
+    assert.equal(avisoDosInicios, null); assert.equal(avisoDasContagens, null);
+  }
+
+  // --- O lote da escuta no plays.ts: o que vai no pedido (11/11) --------------
+  {
+    const chamadas = [];
+    let erro = null;
+    const timers = [];
+    const plays = load('src/api/plays.ts', {
+      '../lib/supabase': { supabase: { rpc: async (nome, args) => { chamadas.push([nome, args]); return { error: erro }; } } },
+      '../lib/idDaConta': { idDaConta: async () => 'eu' },
+      '../lib/idsNoCatalogo': { idGuardado: async () => null, guardarId: async () => {}, esquecerId: async () => {} },
+      './library': {}, '../lib/artistasSemente': {}, '../lib/gostoDoSpotify': {}, '../lib/prefs': {}, '../lib/artistName': {},
+    }, { setTimeout: (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, clearTimeout() {},
+      console: { ...console, error() {} } });
+    const f = (id, extra = {}) => ({ source: 'youtube', sourceId: id, title: ` ${id} `, artist: 'A', durationSeconds: 200.6, ...extra });
+    assert.equal(await plays.registarLoteDaEscuta({
+      escutas: [{ faixa: f('a'), em: 'e1' }, { faixa: f('a'), em: 'e2' }, { faixa: f('mau', { title: '   ' }), em: 'e3' }],
+      comecadas: [{ track: f('b', { artworkUrl: 'x'.repeat(3000), durationSeconds: 99999 }), em: 'c1' }],
+      contagens: [{ operationSequence: 1 }],
+    }), 'feito');
+    assert.equal(chamadas.length, 1);
+    const [nome, { p_lote }] = chamadas[0];
+    assert.equal(nome, 'registar_escutas');
+    assert.deepEqual(p_lote.faixas.map((x) => x.sourceId), ['a', 'b'], 'cada faixa uma vez; a que o catálogo recusava fica de fora');
+    assert.equal(p_lote.faixas[0].title, 'a'); assert.equal(p_lote.faixas[0].durationSeconds, 201);
+    assert.equal(p_lote.faixas[1].artworkUrl, null); assert.equal(p_lote.faixas[1].durationSeconds, null);
+    assert.deepEqual(p_lote.escutas, [{ source: 'youtube', sourceId: 'a', em: 'e1' }, { source: 'youtube', sourceId: 'a', em: 'e2' }]);
+    assert.deepEqual(p_lote.comecadas, [{ source: 'youtube', sourceId: 'b', em: 'c1' }]);
+    assert.deepEqual(p_lote.contagens, [{ operationSequence: 1 }]);
+    erro = { code: 'PGRST202', message: 'not found' };
+    assert.equal(await plays.registarLoteDaEscuta({ escutas: [], comecadas: [], contagens: [] }), 'sem-funcao');
+    erro = { code: '57014', message: 'timeout' };
+    assert.equal(await plays.registarLoteDaEscuta({ escutas: [], comecadas: [], contagens: [] }), 'falhou');
+
+    // Os inícios: com o envio da escuta instalado não têm relógio próprio.
+    const avisos = [];
+    plays.definirAvisoDosInicios((ja) => avisos.push(ja));
+    await plays.registarInicioDaFaixa(f('a'));
+    assert.deepEqual(avisos, [false]); assert.equal(timers.length, 0, 'sem relógio próprio');
+    const tirados = plays.tirarIniciosPorEnviar('eu');
+    assert.equal(tirados.length, 1); assert.equal(plays.tirarIniciosPorEnviar('eu').length, 0, 'saíram da fila');
+    plays.devolverInicios('eu', tirados);
+    assert.equal(plays.tirarIniciosPorEnviar('outra').length, 0, 'os de outra conta não vão');
+    plays.devolverInicios('eu', tirados);
+    for (let i = 0; i < plays.INICIOS_POR_LOTE; i++) await plays.registarInicioDaFaixa(f(`x${i}`));
+    assert.equal(avisos.at(-1), true, 'no teto do lote, avisa que é para ir já');
+    plays.definirAvisoDosInicios(null);
   }
 
   // --- A conversa aberta (lida no código: é um efeito de um componente) --------

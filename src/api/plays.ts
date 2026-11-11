@@ -108,6 +108,59 @@ export async function enviarEscutasAtrasadas(
   }
 }
 
+/**
+ * A escuta inteira num pedido (11/11, `supabase/registar-escutas.sql`): o
+ * catálogo, as escutas, as começadas e as contagens, que eram até quatro
+ * pedidos por lote. Tudo ou nada, e repetir o mesmo lote não duplica.
+ *
+ * `sem-funcao`: o SQL ainda não correu, e quem chama usa os pedidos de antes.
+ */
+export type ResultadoDoLote = 'feito' | 'sem-funcao' | 'falhou';
+
+/** Os limites do catálogo (`upsert_catalog_tracks`): uma faixa fora deles recusava o lote inteiro. */
+function faixaParaOCatalogo(t: Track): Record<string, unknown> | null {
+  const titulo = (t.title ?? '').trim().slice(0, 500);
+  if ((t.source !== 'youtube' && t.source !== 'spotify') || !t.sourceId || t.sourceId.length > 300 || !titulo) return null;
+  const texto = (v: string | null | undefined, max: number) => (typeof v === 'string' && v ? v.slice(0, max) : null);
+  const duracao = typeof t.durationSeconds === 'number' && Number.isFinite(t.durationSeconds) ? Math.round(t.durationSeconds) : null;
+  return {
+    source: t.source, sourceId: t.sourceId, title: titulo,
+    artist: texto(t.artist, 500), album: texto(t.album, 500),
+    artworkUrl: typeof t.artworkUrl === 'string' && t.artworkUrl.length <= 2048 ? t.artworkUrl : null,
+    durationSeconds: duracao !== null && duracao >= 0 && duracao <= 86400 ? duracao : null,
+  };
+}
+
+export async function registarLoteDaEscuta(lote: {
+  escutas: readonly { faixa: Track; em: string }[];
+  comecadas: readonly { track: Track; em: string }[];
+  contagens: readonly object[];
+}): Promise<ResultadoDoLote> {
+  const faixas = new Map<string, Record<string, unknown>>();
+  const referir = (t: Track, em: string) => {
+    const chave = `${t.source}:${t.sourceId}`;
+    if (!faixas.has(chave)) {
+      const entrada = faixaParaOCatalogo(t);
+      if (!entrada) return [];
+      faixas.set(chave, entrada);
+    }
+    return [{ source: t.source, sourceId: t.sourceId, em }];
+  };
+  const escutas = lote.escutas.flatMap((e) => referir(e.faixa, e.em));
+  const comecadas = lote.comecadas.flatMap((c) => referir(c.track, c.em));
+  try {
+    const { error } = await supabase.rpc('registar_escutas', {
+      p_lote: { faixas: [...faixas.values()], escutas, comecadas, contagens: lote.contagens },
+    });
+    if (!error) return 'feito';
+    if (error.code === 'PGRST202' || error.code === '42883') return 'sem-funcao';
+    console.error('Error sending the listening batch:', error.message);
+    return 'falhou';
+  } catch {
+    return 'falhou';
+  }
+}
+
 let avisouDoInicio = false;
 
 /**
@@ -142,8 +195,34 @@ export async function registarInicioDaFaixa(track: Track): Promise<void> {
   const chave = `${track.source}:${track.sourceId}`;
   iniciosPorEnviar.delete(chave);
   iniciosPorEnviar.set(chave, { track, conta, em: new Date().toISOString() });
+  // Com o envio da escuta instalado (state/escutasPorEnviar.ts), é ele que
+  // decide quando: um relógio só para tudo, e um pedido só por volta.
+  if (avisoDosInicios) { avisoDosInicios(iniciosPorEnviar.size >= INICIOS_POR_LOTE); return; }
   if (iniciosPorEnviar.size >= INICIOS_POR_LOTE) return enviarInicios();
   envioDosInicios ??= setTimeout(() => { void enviarInicios(); }, INICIOS_ESPERAM_MS);
+}
+
+let avisoDosInicios: ((ja: boolean) => void) | null = null;
+
+/** Quem envia a escuta passa a ser avisado dos inícios novos (`ja`: chegou ao teto do lote). */
+export function definirAvisoDosInicios(aviso: ((ja: boolean) => void) | null): void {
+  avisoDosInicios = aviso;
+}
+
+/** Tira da fila os inícios desta conta, para irem no lote da escuta. Os de outra conta perdem-se. */
+export function tirarIniciosPorEnviar(conta: string): { track: Track; em: string }[] {
+  if (envioDosInicios) { clearTimeout(envioDosInicios); envioDosInicios = null; }
+  const lote = [...iniciosPorEnviar.values()].filter((i) => i.conta === conta);
+  iniciosPorEnviar.clear();
+  return lote.map(({ track, em }) => ({ track, em }));
+}
+
+/** Um lote que não foi: os inícios voltam (sem tapar um mais novo), até ao teto. */
+export function devolverInicios(conta: string, lote: readonly { track: Track; em: string }[]): void {
+  for (const i of lote) {
+    const chave = `${i.track.source}:${i.track.sourceId}`;
+    if (!iniciosPorEnviar.has(chave) && iniciosPorEnviar.size < 200) iniciosPorEnviar.set(chave, { ...i, conta });
+  }
 }
 
 /** Manda os inícios que estão à espera. Uma falha da rede volta a pô-los na fila. */
@@ -182,7 +261,6 @@ export async function enviarInicios(): Promise<void> {
   }
 }
 
-/** O `id` no catálogo de várias faixas: as que já se sabem e um pedido para as outras. */
 /**
  * Os ids de um lote: memória, depois o disco, e só o que falta ao catálogo.
  *

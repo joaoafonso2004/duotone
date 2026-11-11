@@ -1,7 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
-import { enviarEscutasAtrasadas, enviarInicios } from '../api/plays';
-import { enviarContagensPendentes } from '../lib/playCounts';
+import {
+  definirAvisoDosInicios, devolverInicios, enviarEscutasAtrasadas, enviarInicios, registarLoteDaEscuta,
+  tirarIniciosPorEnviar, type ResultadoDoLote,
+} from '../api/plays';
+import {
+  contagensEnviadas, contagensPorEnviar, definirAvisoDasContagens, enviarContagensPendentes,
+} from '../lib/playCounts';
 import {
   acrescentarPendente, depoisDoEnvio, lerPendentes, novaEscutaPendente, proximoLote, type EscutaPendente,
 } from '../lib/escutasPendentes';
@@ -57,20 +62,72 @@ export function guardarEscutaPorEnviar(faixa: Track, em: Date, comecouEm: Date):
     return lista.length;
   }).then((quantas) => {
     if (quantas >= ESCUTAS_POR_LOTE) { void enviarEscutasPorEnviar(); return; }
-    relogioDoEnvio ??= setTimeout(() => { relogioDoEnvio = null; void enviarEscutasPorEnviar(); }, ESCUTAS_ESPERAM_MS);
+    agendarEnvio();
   }).catch(() => {});
+}
+
+/**
+ * Um relógio só para tudo o que é da escuta (11/11): as escutas, as músicas
+ * começadas e os incrementos das contagens avisam aqui, e saem juntos ao fim
+ * de `ESCUTAS_ESPERAM_MS` -- um pedido por volta com o `registar_escutas`.
+ */
+function agendarEnvio(): void {
+  relogioDoEnvio ??= setTimeout(() => { relogioDoEnvio = null; void enviarEscutasPorEnviar(); }, ESCUTAS_ESPERAM_MS);
 }
 
 let aEnviar = false;
 
 /**
- * Manda o que ficou, em lotes, se houver rede e sessão. Um lote que falha para o envio.
+ * Sem o `registar_escutas` no servidor (o SQL por correr), volta-se a tentar
+ * ao fim deste tempo: o João pode corrê-lo com a app aberta (no PC, o dia todo).
+ */
+export const SEM_FUNCAO_ESPERA_MS = 6 * 60 * 60_000;
+let semFuncaoDesde: number | null = null;
+
+/**
+ * Tudo o que é da escuta num pedido (`registar_escutas`, 11/11): as começadas,
+ * um lote de escutas e os incrementos das contagens. Com mais escutas à espera
+ * (dias sem rede), um pedido por lote. Nada à espera, nenhum pedido.
+ */
+async function enviarNumPedido(uid: string): Promise<ResultadoDoLote> {
+  let comecadas = tirarIniciosPorEnviar(uid);
+  // Um teto de voltas: uma fila que não encolhe não pode prender isto.
+  for (let volta = 0; volta < 50; volta++) {
+    const escutas = proximoLote(await emFila(() => ler(uid)));
+    const pendentes = await contagensPorEnviar();
+    const contagens = pendentes?.uid === uid ? pendentes.contagens : [];
+    if (!escutas.length && !comecadas.length && !contagens.length) {
+      // Uma conta por migrar (a primeira vez neste aparelho) migra como antes.
+      if (!pendentes) await enviarContagensPendentes().catch(() => {});
+      return 'feito';
+    }
+    let r: ResultadoDoLote;
+    try {
+      r = await registarLoteDaEscuta({ escutas, comecadas, contagens });
+    } catch {
+      r = 'falhou';
+    }
+    if (r !== 'feito') {
+      devolverInicios(uid, comecadas);
+      // Sem a função, as escutas não contam como tentativa: vão já pelo caminho de antes.
+      if (r === 'falhou' && escutas.length) await emFila(async () => gravar(uid, depoisDoEnvio(await ler(uid), escutas, false)));
+      return r;
+    }
+    if (escutas.length) await emFila(async () => gravar(uid, depoisDoEnvio(await ler(uid), escutas, true)));
+    await contagensEnviadas(uid, contagens);
+    comecadas = [];
+  }
+  return 'feito';
+}
+
+/**
+ * Manda o que ficou, se houver rede e sessão.
  *
- * 11/11 (logs): leva tudo o que é da escuta na mesma volta, por esta ordem --
- * as músicas começadas (`enviarInicios`), que deixam os ids do catálogo na
- * memória, depois as escutas, que já não perguntam ao catálogo, e no fim os
- * incrementos das contagens (`enviarContagensPendentes`), que eram um pedido
- * por música. Sem nada à espera, nenhum destes faz pedidos.
+ * Primeiro num pedido só (`enviarNumPedido`). Sem a função no servidor, pelos
+ * pedidos de antes, por esta ordem: as músicas começadas (`enviarInicios`),
+ * que deixam os ids do catálogo na memória, depois as escutas, que já não
+ * perguntam ao catálogo, e no fim os incrementos das contagens
+ * (`enviarContagensPendentes`). Um lote de escutas que falha para o envio.
  */
 export async function enviarEscutasPorEnviar(): Promise<void> {
   const uid = useAuth.getState().session?.user.id;
@@ -78,6 +135,11 @@ export async function enviarEscutasPorEnviar(): Promise<void> {
   if (relogioDoEnvio) { clearTimeout(relogioDoEnvio); relogioDoEnvio = null; }
   aEnviar = true;
   try {
+    if (semFuncaoDesde === null || Date.now() - semFuncaoDesde > SEM_FUNCAO_ESPERA_MS) {
+      const r = await enviarNumPedido(uid).catch((): ResultadoDoLote => 'falhou');
+      if (r !== 'sem-funcao') { semFuncaoDesde = null; return; }
+      semFuncaoDesde = Date.now();
+    }
     await enviarInicios().catch(() => {});
     let correu = true;
     for (;;) {
@@ -103,6 +165,13 @@ export function instalarEnvioDeEscutas(): () => void {
   const sessao = useAuth.subscribe((s, antes) => { if (s.session && s.session !== antes.session) enviar(); });
   // A ir para trás também: o iPhone pode suspender a app logo a seguir.
   const frente = AppState.addEventListener('change', (estado) => { if (estado === 'active' || estado === 'background') enviar(); });
+  // As começadas e as contagens deixam de ter relógio próprio: vão com isto.
+  definirAvisoDosInicios((ja) => { if (ja) enviar(); else agendarEnvio(); });
+  definirAvisoDasContagens(agendarEnvio);
   enviar();
-  return () => { rede(); sessao(); frente.remove(); };
+  return () => {
+    rede(); sessao(); frente.remove();
+    definirAvisoDosInicios(null);
+    definirAvisoDasContagens(null);
+  };
 }

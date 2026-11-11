@@ -37,6 +37,7 @@ const TESTES = [
   'scripts/test-o-que-mudou-sql.mjs',
   'scripts/test-versao-minima-sql.mjs',
   'scripts/test-presenca-ao-vivo-sql.mjs',
+  'scripts/test-registar-escutas-sql.mjs',
   'scripts/test-eq-do-jam.cjs',
   `${DUPLOS} scripts/test-eq-pessoal-na-jam.ts`,
   'scripts/test-sincronizacao-economica.mjs',

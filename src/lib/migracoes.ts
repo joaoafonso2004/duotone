@@ -24,6 +24,7 @@ export type Migracao = {
 };
 
 export const MIGRACOES: readonly Migracao[] = [
+  { ficheiro: 'registar-escutas.sql', marca: 'fn:registar_escutas', efeito: 'Listens, started songs and play counts reach the server in one request instead of four' },
   { ficheiro: 'presenca-ao-vivo.sql', marca: 'pol:realtime.messages:presenca: ver', efeito: "Friends' online status and music arrive live, without writing to the database each time" },
   { ficheiro: 'versao-minima.sql', marca: 'fn:recusar_versoes_antigas', efeito: 'Old app versions (5.8.6 and earlier) are refused, so everyone updates' },
   { ficheiro: 'o-que-mudou.sql', marca: 'fn:o_que_mudou', efeito: 'Returning to the app asks once what changed, instead of re-reading everything' },

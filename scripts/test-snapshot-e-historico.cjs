@@ -76,6 +76,16 @@ async function main(){
   assert.equal(historyReads,before,'dez incrementos não fazem dez leituras');
   await counts.enviarContagensPendentes();assert.equal(deltaWrites,writesBefore+1,'sem nada pendente, nenhum pedido');
   assert.equal((await counts.getMostPlayed())[0].count,10);
+  // O lote da escuta (registar_escutas, 11/11) leva os incrementos e tira-os da fila pela operação.
+  const t2=t,writes2=deltaWrites;
+  for(let n=0;n<3;n++)await counts.incrementPlayCount(t2);
+  const pend=await counts.contagensPorEnviar();assert.equal(pend.uid,'one');assert.equal(pend.contagens.length,3,'os incrementos à espera, para o lote da escuta');
+  await counts.incrementPlayCount(t2);await counts.contagensEnviadas('one',pend.contagens);
+  assert.equal((await counts.contagensPorEnviar()).contagens.length,1,'só saem os que foram, e não o que chegou entretanto');
+  await counts.enviarContagensPendentes();assert.equal(deltaWrites,writes2+1);assert.equal(remote.get('youtube:current').play_count,11);
+  let avisos=0;counts.definirAvisoDasContagens(()=>avisos++);await counts.incrementPlayCount(t2);
+  assert.equal(avisos,1,'com o envio da escuta instalado, é ele que é avisado');counts.definirAvisoDasContagens(null);
+  await counts.enviarContagensPendentes();assert.equal(remote.get('youtube:current').play_count,12);
   change({...remote.get('youtube:h1'),play_count:40});change(remote.get('youtube:h2'),true);
   await counts.synchronizePlayCounts();let local=await counts.getMostPlayed(2000);
   assert.equal(local.find(x=>x.sourceId==='h1').count,40);assert.ok(!local.some(x=>x.sourceId==='h2'));assert.equal(historyReads,before+1);

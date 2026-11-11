@@ -317,7 +317,48 @@ export const CONTAGENS_ESPERAM_MS = 10 * 60_000;
 let envioDasContagens: ReturnType<typeof setTimeout> | null = null;
 
 function agendarEnvioDasContagens(): void {
+  // Com o envio da escuta instalado, é ele que manda (um relógio, um pedido).
+  if (avisoDasContagens) { avisoDasContagens(); return; }
   envioDasContagens ??= setTimeout(() => { envioDasContagens = null; void enviarContagensPendentes(); }, CONTAGENS_ESPERAM_MS);
+}
+
+let avisoDasContagens: (() => void) | null = null;
+
+/** Quem envia a escuta (state/escutasPorEnviar.ts) passa a ser avisado dos incrementos novos. */
+export function definirAvisoDasContagens(aviso: (() => void) | null): void {
+  avisoDasContagens = aviso;
+}
+
+/** Um incremento à espera de ir para o servidor, como o `apply_play_count_deltas` o recebe. */
+export type ContagemPendente = PendingDelta;
+
+/**
+ * Os incrementos à espera, para irem no lote da escuta (`registar_escutas`).
+ * Null quando esta conta ainda não migrou o histórico antigo do aparelho: a
+ * migração junta-o à fila, e mandar antes contava duas vezes. Aí é o
+ * `enviarContagensPendentes` que trata, como antes.
+ */
+export async function contagensPorEnviar(maximo = 500): Promise<{ uid: string; contagens: ContagemPendente[] } | null> {
+  return serialized(async () => {
+    const uid = await userId();
+    if (!uid || await AsyncStorage.getItem(`${MIGRATED_PREFIX}${uid}`) !== '1') return null;
+    return { uid, contagens: (await readPending(uid)).slice(0, maximo) };
+  });
+}
+
+/**
+ * Tira da fila os que o servidor recebeu. Pela operação (aparelho e
+ * sequência), não pela posição: entretanto podem ter chegado outros, ou uma
+ * leitura pode tê-los mandado já (o servidor ignora o repetido).
+ */
+export async function contagensEnviadas(uid: string, enviadas: readonly ContagemPendente[]): Promise<void> {
+  if (!enviadas.length) return;
+  await serialized(async () => {
+    const foram = new Set(enviadas.map((e) => `${e.operationDevice}#${e.operationSequence}`));
+    const resto = (await readPending(uid)).filter((e) => !foram.has(`${e.operationDevice}#${e.operationSequence}`));
+    await AsyncStorage.setItem(`${PENDING_PREFIX}${uid}`, JSON.stringify(resto));
+    if (!resto.length) pararEnvioDasContagens();
+  });
 }
 
 function pararEnvioDasContagens(): void {
