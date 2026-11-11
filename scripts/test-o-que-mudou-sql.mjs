@@ -58,9 +58,12 @@ await comoAparelho('pc-de-b', B);
 const g = (await db.query(`insert into public.chat_groups (name, created_by) values ('g', '${B}') returning id`)).rows[0].id;
 await db.exec(`insert into public.chat_group_members (group_id, user_id) values ('${g}', '${B}'), ('${g}', '${C}');`);
 await comoAparelho('pc-de-b', B);
-const antes = (await db.query(`select mudou_em from public.mudancas_da_conta where user_id = '${C}' and dominio = 'mensagens'`)).rows[0]?.mudou_em;
+// Ao microssegundo e em texto de largura fixa: em Date (milissegundos), duas
+// marcas seguidas numa máquina carregada saíam iguais e o teste falhava (11/11).
+const marcaDeC = async () => (await db.query(`select to_char(mudou_em, 'YYYYMMDDHH24MISSUS') as m from public.mudancas_da_conta where user_id = '${C}' and dominio = 'mensagens'`)).rows[0]?.m;
+const antes = await marcaDeC();
 await db.exec(`insert into public.shared_items (sender_id, group_id, message) values ('${B}', '${g}', 'grupo');`);
-const depois = (await db.query(`select mudou_em from public.mudancas_da_conta where user_id = '${C}' and dominio = 'mensagens'`)).rows[0].mudou_em;
+const depois = await marcaDeC();
 assert.ok(!antes || depois > antes, 'C (membro) ficou marcado');
 assert.deepEqual(await mudou(C, 'iphone-de-c'), ['mensagens']);
 console.log('grupo: ok');
