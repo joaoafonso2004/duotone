@@ -273,7 +273,10 @@ function Tabs() {
   return (
     <Tab.Navigator
       screenLayout={envolverEcra}
-      initialRouteName={useConnectivity.getState().offline ? 'Songs' : 'Search'}
+      // Abre sempre na Home (11/11, João). Abria nas Liked Songs sem rede, mas
+      // ao arrancar a ligação ainda não foi vista e o `offline` começa a true:
+      // abria lá quase sempre. Desde 10/11 a Home também serve sem rede.
+      initialRouteName="Search"
       tabBarPosition="bottom"
       tabBar={(props) => <BarraDeSeparadores {...props} />}
       screenOptions={({ route }) => ({
