@@ -80,6 +80,7 @@ function social(plataforma, oQueMudou) {
       channel: canal, removeChannel: async () => { c.removidos++; },
     } },
     '../lib/socialPresence': load('src/lib/socialPresence.ts'),
+    '../lib/presencaAoVivo': { ouvirPresencasAoVivo: () => ({ atualizar() {}, pausar() {}, retomar() {}, parar() {} }), presencaDoEstado: () => null },
     '../lib/social': load('src/lib/social.ts'),
     '../lib/profileMedia': { clearProfileMediaCache() {} },
     '../api/profiles': { getSocialConversations: async () => { c.conversas++; return []; } },

@@ -151,6 +151,7 @@ async function main() {
       '../state/ouvirJuntos': { useOuvirJuntos: loja({ sessao: null }) },
       '../state/seguirAmigo': { ritmoDeQuemSigo: () => null, useSeguirAmigo: loja({ ritmo: null }) },
       './seguirAmigo': { proximasParaAPresenca: x => x, posicaoProjetada: s => s.positionMs },
+      './presencaAoVivo': { declararPresencaAoVivo: () => ({ declarar() {}, aoVivo: () => false, parar: async () => {} }), estadoParaDeclarar: (o) => o },
       './escutaAoVivo': { emitirEscutaAoVivo: (_, __, ler) => { lerDirecto = ler; return { mudou() { ajustes++; }, parar: async () => { parado = true; } }; } },
     });
     const parar = iniciarPresenca('eu'); await flush(); assert.equal(publicados.length, 1);

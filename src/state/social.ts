@@ -4,6 +4,7 @@ import { getFriendships, getGrupos, getInboxItems, lerConversasVistas, marcarCon
 import { getChatsVistos, marcarChatVisto } from '../lib/prefs';
 import { supabase } from '../lib/supabase';
 import { estadoDaPresenca, type SocialPresence } from '../lib/socialPresence';
+import { ouvirPresencasAoVivo, presencaDoEstado } from '../lib/presencaAoVivo';
 import { fundirRecebidas, fundirVistos, marcaDasNovas } from '../lib/social';
 import { clearProfileMediaCache } from '../lib/profileMedia';
 import { esquecerPerfisPublicos, getSocialConversations,type PublicProfile } from '../api/profiles';
@@ -121,8 +122,16 @@ export function ouvirPresencas(fn: OuvinteDaPresenca): () => void {
 export function presencaDe(userId: string): SocialPresence | undefined {
   return presences[userId];
 }
-function guardarPresenca(p: SocialPresence): boolean {
-  if (presences[p.user_id] && Date.parse(p.updated_at) < Date.parse(presences[p.user_id].updated_at)) return false;
+/**
+ * Os canais da presença dos amigos (11/11, `lib/presencaAoVivo.ts`): o que lá
+ * chega é mais fresco do que a tabela e entra por cima dela (`forcar`). Quem
+ * nunca aparece no canal (uma versão antiga) fica pela tabela.
+ */
+let presencasAoVivo: ReturnType<typeof ouvirPresencasAoVivo> | null = null;
+const atualizarCanaisDosAmigos = () =>
+  presencasAoVivo?.atualizar(rawFriends.filter((f) => f.status === 'accepted').map((f) => f.friendId));
+function guardarPresenca(p: SocialPresence, forcar = false): boolean {
+  if (!forcar && presences[p.user_id] && Date.parse(p.updated_at) < Date.parse(presences[p.user_id].updated_at)) return false;
   presences[p.user_id] = p;
   for (const fn of ouvintesDaPresenca) {
     try { fn(p); } catch { /* um ouvinte partido não cala os outros */ }
@@ -294,6 +303,7 @@ function createInboxRefresh(userId: string, gen: number) {
       snapshot.friends = amizades;
       if (rawFriends.some(f => f.status === 'accepted' && !amizades.some(n => n.friendId === f.friendId && n.status === 'accepted'))) clearProfileMediaCache(true);
       rawFriends = amizades;
+      atualizarCanaisDosAmigos();
     }
     const inboxError = inbox.status === 'rejected' || friendships.status === 'rejected';
     // A `activity` também, e não só as pré-visualizações: uma mensagem nova já
@@ -326,7 +336,7 @@ async function lerCopiaDoSocial(userId: string, gen: number): Promise<void> {
     const s = useSocial.getState();
     if (s.friends.length || s.groups.length || Object.keys(s.conversationPreviews).length) return;
     const c = JSON.parse(texto);
-    if (Array.isArray(c.amizades) && !rawFriends.length) rawFriends = c.amizades;
+    if (Array.isArray(c.amizades) && !rawFriends.length) { rawFriends = c.amizades; atualizarCanaisDosAmigos(); }
     useSocial.setState({
       friends: friendsNow(Date.now() + clockOffset),
       contacts: Array.isArray(c.contacts) ? c.contacts : [],
@@ -478,12 +488,24 @@ export function iniciarSocial(userId: string): () => void {
       comoAntes();
     });
   channel = ligarCanal();
+  // A presença dos amigos pelos canais deles (11/11). Por cima da tabela.
+  presencasAoVivo = ouvirPresencasAoVivo((id, estado) => {
+    if (gen !== generation) return;
+    if (!guardarPresenca(presencaDoEstado(id, estado, agoraNoServidor(), presences[id]), true)) return;
+    available = true;
+    if (appEstaVisivel()) { const now = agoraNoServidor(); useSocial.setState({ now, friends: friendsNow(now) }); }
+  });
+  atualizarCanaisDosAmigos();
   // A saída do canal ainda a meio: o `supabase.channel` devolve o canal que
   // ainda lá está com o mesmo nome, e ligá-lo outra vez antes de ele sair dava
   // ouvintes em dobro. Volta-se a ligar só depois.
   let aSair: Promise<unknown> = Promise.resolve();
   const pousarCanal = (estado: string) => {
     if (Platform.OS === 'web' || gen !== generation) return;
+    // Os canais da presença dos amigos seguem a mesma regra: sem ninguém a
+    // seguir, largam-se com o iPhone escondido e voltam ao voltar (11/11).
+    if (estado === 'background' && ouvintesDaPresenca.size === 0) presencasAoVivo?.pausar();
+    else if (estado === 'active') presencasAoVivo?.retomar();
     if (estado === 'background' && channel && ouvintesDaPresenca.size === 0) {
       const largado = channel;
       channel = null;
@@ -549,6 +571,8 @@ export function iniciarSocial(userId: string): () => void {
     accountId='';refreshInbox=async()=>{};clearProfileMediaCache(true);
     if (channel) void supabase.removeChannel(channel);
     channel = null;
+    presencasAoVivo?.parar();
+    presencasAoVivo = null;
     rawFriends = []; presences = {}; available = false; running = null; queued = false; canalAoVivo = false;
     useSocial.setState({ inboxSnapshot:null,inboxError:false,contacts:[],friends: [], groups: [], received: [], activity: {}, conversationPreviews: {}, seen: {}, error: null, loading: true,conversation:null,drafts:{} });
   };

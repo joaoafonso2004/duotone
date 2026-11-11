@@ -143,7 +143,7 @@ async function main() {
     },
     '../lib/prefs':{getChatsVistos:async()=>({}),marcarChatVisto:async()=>({})},
     '../lib/supabase':{supabase:{rpc:async()=>({data:null,error:null}),channel:()=>channel,removeChannel:async()=>{}}},
-    '../lib/socialPresence':{estadoDaPresenca:()=>({})},'../lib/social':load('src/lib/social.ts'),
+    '../lib/socialPresence':{estadoDaPresenca:()=>({})},'../lib/presencaAoVivo': { ouvirPresencasAoVivo: () => ({ atualizar() {}, pausar() {}, retomar() {}, parar() {} }), presencaDoEstado: () => null },'../lib/social':load('src/lib/social.ts'),
     '../lib/profileMedia':{clearProfileMediaCache(){}},'../api/profiles':{getSocialConversations:async()=>[]},
     '../lib/appVisibility':{
       appEstaVisivel:()=>visible,

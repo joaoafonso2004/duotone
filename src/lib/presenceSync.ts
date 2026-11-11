@@ -10,6 +10,7 @@ import { garantirPrivacidade, usePrivacidade } from '../state/privacidade';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { proximasParaAPresenca, posicaoProjetada } from './seguirAmigo';
 import { emitirEscutaAoVivo, type EscutaAoVivo } from './escutaAoVivo';
+import { declararPresencaAoVivo, estadoParaDeclarar } from './presencaAoVivo';
 
 let terminarAtual: (() => Promise<void>) | null = null;
 // O servidor mantém cada publicação válida por 120 s. Setenta e cinco deixa
@@ -113,6 +114,14 @@ export function iniciarPresenca(userId: string): () => void {
   /** Quantas publicações seguidas falharam (para as novas tentativas). */
   let falhasSeguidas = 0;
   const sessao = Crypto.randomUUID();
+  /**
+   * O estado pelo canal do Realtime (11/11, `lib/presencaAoVivo.ts`): os amigos
+   * recebem-no sem a base. Com ele ligado, a tabela só se escreve à entrada, à
+   * saída, quando o batimento é devido, e quando se fica ou deixa de estar
+   * online ou se liga a escuta privada. Sem ele, como antes.
+   */
+  const presencaAoVivo = declararPresencaAoVivo(userId, sessao);
+  let ultimoNaBase: { em: number; ativo: boolean; privada: boolean } | null = null;
   const dispositivo = getDeviceId();
   let lerRitmoSeguido: () => number | null = () => null;
   let pararRitmoSeguido = () => {};
@@ -194,6 +203,29 @@ export function iniciarPresenca(userId: string): () => void {
         faixa?.source, faixa?.sourceId, ritmoAgora(), Math.round(posicaoAgoraParaAPresenca()/1000),
         faixa?.durationSeconds ?? usePlayer.getState().durationMs, aSeguir.map(t => `${t.source}:${t.sourceId}`)]);
       if (!encerrar && ultimoEnviado?.chave === chave && agora - ultimoEnviado.em < 1500) return;
+      // Primeiro pelo canal: quem está a ver recebe já, sem a base.
+      if (!encerrar) {
+        presencaAoVivo.declarar(estadoParaDeclarar({
+          ativo,
+          faixa: privada ? null : faixa,
+          duracaoMs: s.durationMs,
+          positionMs: posicaoAgoraParaAPresenca(),
+          rate: ritmoAgora(),
+          aSeguir,
+          em: agora,
+        }));
+      }
+      // A tabela só quando faz falta: o "visto há X" e a música para quem abre
+      // a app depois (o batimento), estar online ou não, a escuta privada (as
+      // versões antigas leem só a tabela), e sair.
+      const basePodeEsperar = !encerrar && presencaAoVivo.aoVivo() && !!ultimoNaBase
+        && agora - ultimoNaBase.em < batimentoMs - 60_000
+        && ultimoNaBase.ativo === ativo && ultimoNaBase.privada === privada;
+      if (basePodeEsperar) {
+        ultimoEnviado = { chave, essencial, em: agora };
+        filaPublicada = assinaturaDaFila(aSeguir);
+        return;
+      }
       // Um pedido pendurado não prende a fila: ver `ESPERA_DA_PUBLICACAO_MS`.
       const controlador = new AbortController();
       pedidoEmCurso = controlador;
@@ -238,6 +270,7 @@ export function iniciarPresenca(userId: string): () => void {
       } else {
         falhasSeguidas = 0;
         ultimoEnviado = { chave, essencial, em: agora };
+        ultimoNaBase = { em: agora, ativo: ativo && !encerrar, privada };
         filaPublicada = assinaturaDaFila(aSeguir);
       }
     });
@@ -324,8 +357,11 @@ export function iniciarPresenca(userId: string): () => void {
     clearTimeout(timer); clearTimeout(timerDoRitmo); clearInterval(beat); clearInterval(vigiaDoPc); unsubscribe(); pararPrivacidade(); pararRitmoSeguido(); app.remove();
     if (Platform.OS === 'web') { window.removeEventListener('online', voltar); window.removeEventListener('focus', voltar); window.removeEventListener('pagehide', sair); }
     const fecharAoVivo = aoVivo.parar();
+    // Sai do canal da presença: os amigos veem-no offline na hora.
+    const fecharPresenca = presencaAoVivo.parar();
     await publicar(true);
     await fecharAoVivo;
+    await fecharPresenca;
   };
   const sair = () => { void terminar(); };
   if (Platform.OS === 'web') { window.addEventListener('online', voltar); window.addEventListener('focus', voltar); window.addEventListener('pagehide', sair); }
