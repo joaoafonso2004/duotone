@@ -108,6 +108,7 @@ export const MIGRACOES: readonly Migracao[] = [
 
 /** Ficheiros de `supabase/` que não são migrações, e porquê. */
 export const FORA_DA_LISTA: Readonly<Record<string, string>> = {
+  'banir.sql': 'quem está banido; corre-se quando for preciso, com a lista de nomes',
   'diagnostico-social.sql': 'consultas de diagnóstico, não mudam nada',
   'exportar-funcoes.sql': 'consulta para exportar funções para o funcoes-existentes.sql',
   'limpar-aparelhos-fantasma.sql': 'limpeza de uma vez; não deixa marca',

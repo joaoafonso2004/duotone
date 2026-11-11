@@ -28,17 +28,33 @@ create or replace function public.recusar_versoes_antigas()
 returns void
 language plpgsql
 stable
+-- Definer: lê a public.banidos, que não tem políticas para ninguém (11/11).
+security definer
 set search_path = public
 as $$
 declare
   minima constant int[] := array[5, 8, 8];
   cabecalhos json := nullif(current_setting('request.headers', true), '')::json;
-  papel text := nullif(current_setting('request.jwt.claims', true), '')::json ->> 'role';
+  claims json := nullif(current_setting('request.jwt.claims', true), '')::json;
+  papel text := claims ->> 'role';
   partes text[];
 begin
   -- O painel e as funções do servidor (service_role) passam sempre.
   if papel = 'service_role' then
     return;
+  end if;
+  -- Contas e aparelhos banidos (supabase/banir.sql), se a tabela existir: 403.
+  -- Dois `if`: a consulta à tabela só se prepara quando ela existe.
+  if to_regclass('public.banidos') is not null then
+    if exists (
+      select 1 from public.banidos b
+      where (b.tipo = 'conta' and b.valor = claims ->> 'sub')
+         or (b.tipo = 'aparelho' and b.valor = cabecalhos ->> 'x-duotone-aparelho')
+    ) then
+      raise sqlstate 'PGRST' using
+        message = json_build_object('code', 'DUO403', 'message', 'This account can no longer use Duotone.')::text,
+        detail = json_build_object('status', 403, 'headers', json_build_object())::text;
+    end if;
   end if;
   partes := regexp_match(coalesce(cabecalhos ->> 'x-duotone-versao', ''), '^(\d{1,4})\.(\d{1,4})\.(\d{1,4})');
   if partes is not null and array[partes[1]::int, partes[2]::int, partes[3]::int] >= minima then
