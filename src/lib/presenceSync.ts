@@ -37,6 +37,17 @@ const MARCA_DA_VALIDADE_LONGA='txt:publish_social_presence~300 seconds';
  * ir para trás e sair continuam a publicar logo; isto é só o batimento.
  */
 const BATIMENTO_COM_QUINZE_MINUTOS_MS=600_000;
+/**
+ * O que não muda o que os amigos veem espera por um acerto, no máximo de 5 em
+ * 5 minutos (11/11). Medido nos logs com a app pública: uma conta no iPhone
+ * publicava a presença 216 vezes numa hora (uma a cada 17 s) e o PC do João 46
+ * em 40 minutos. Ir à barra, mudar a velocidade (o AutoMix faz isso a cada
+ * passagem), a fila lá ao fundo e a janela do PC a ganhar o foco eram cada um
+ * um pedido. Ficam de fora desta espera só as mudanças que se veem: outra
+ * música, pausa ou play, a escuta privada, ficar ou deixar de estar online, e
+ * sair. Quem te segue em "Listen along" tem a posição ao vivo pelo WebSocket.
+ */
+export const MINIMO_ENTRE_ACERTOS_MS = 300_000;
 const MARCA_DOS_QUINZE_MINUTOS='txt:publish_social_presence~900 seconds';
 /**
  * De quanto em quanto tempo se vê se o batimento já é devido. Ver não custa
@@ -86,7 +97,7 @@ export function iniciarPresenca(userId: string): () => void {
   let lastPublished=0;
   /** De quanto em quanto tempo se bate: 75 s até se saber que o servidor dá 300 s de validade. */
   let batimentoMs=PRESENCE_PUBLISH_MS;
-  let ultimoEnviado: { chave: string; em: number } | null = null;
+  let ultimoEnviado: { chave: string; essencial: string; em: number } | null = null;
   /**
    * As próximas que os amigos viram na última publicação (11/11). A fila muda
    * muitas vezes sem eles verem diferença (o Radio e o Smart Shuffle a encher
@@ -160,9 +171,22 @@ export function iniciarPresenca(userId: string): () => void {
       if (seq < sequencia && !encerrar) return;
       // Ler no envio: uma publicação em espera não pode anunciar a faixa antiga.
       const s = usePlayer.getState();
-      const faixa = s.current && s.isPlaying && s.playbackConfirmed && !s.buffering && !s.error ? s.current : null;
+      // Um engasgo (`buffering`) já não tira a música (11/11): no iPhone cada
+      // um dava duas publicações, "parou" e "voltou", e os amigos viam-na piscar.
+      const faixa = s.current && s.isPlaying && s.playbackConfirmed && !s.error ? s.current : null;
       const privada = usePrivacidade.getState().privada;
       const agora = Date.now();
+      // O que os amigos veem. O resto (posição, velocidade, a fila) vai no
+      // próximo acerto: ver `MINIMO_ENTRE_ACERTOS_MS`.
+      const essencial = JSON.stringify([ativo && !encerrar, encerrar, privada, faixa?.source, faixa?.sourceId]);
+      const desdeOUltimo = ultimoEnviado ? agora - ultimoEnviado.em : Infinity;
+      // Nunca para lá do batimento: sem a validade de 15 min no servidor ele é
+      // de 75 s, e esperar mais apagava a pessoa entre publicações.
+      const janela = Math.min(MINIMO_ENTRE_ACERTOS_MS, batimentoMs);
+      if (!encerrar && ultimoEnviado?.essencial === essencial && desdeOUltimo < janela) {
+        if (!terminado && !timer) timer = setTimeout(() => void publicar(), janela - desdeOUltimo);
+        return;
+      }
       const aSeguir = proximasParaAPresenca(useOuvirJuntos.getState().sessao
         ? useOuvirJuntos.getState().fila.map(i => i.track)
         : usePlayer.getState().upcomingQueue().map(e => e.track));
@@ -213,7 +237,7 @@ export function iniciarPresenca(userId: string): () => void {
         }
       } else {
         falhasSeguidas = 0;
-        ultimoEnviado = { chave, em: agora };
+        ultimoEnviado = { chave, essencial, em: agora };
         filaPublicada = assinaturaDaFila(aSeguir);
       }
     });

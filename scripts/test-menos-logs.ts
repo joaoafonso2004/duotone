@@ -80,7 +80,16 @@ console.log('\na presença');
 await caso('uma mudança na fila só publica se as próximas que os amigos veem mudam', () => {
   const p = ler('src/lib/presenceSync.ts');
   assert.match(p, /else if \(s\.isPlaying && filaMudou && filaQueOsAmigosVeem\(\) !== filaPublicada\) changed\(\);/);
-  assert.match(p, /ultimoEnviado = \{ chave, em: agora \};\n\s+filaPublicada = assinaturaDaFila\(aSeguir\);/);
+  assert.match(p, /ultimoEnviado = \{ chave, essencial, em: agora \};\n\s+filaPublicada = assinaturaDaFila\(aSeguir\);/);
+});
+await caso('o que não se vê espera pelo acerto de 5 min; um engasgo não tira a música (11/11)', () => {
+  const p = ler('src/lib/presenceSync.ts');
+  assert.match(p, /export const MINIMO_ENTRE_ACERTOS_MS = 300_000;/);
+  assert.match(p, /const essencial = JSON\.stringify\(\[ativo && !encerrar, encerrar, privada, faixa\?\.source, faixa\?\.sourceId\]\);/);
+  assert.match(p, /const janela = Math\.min\(MINIMO_ENTRE_ACERTOS_MS, batimentoMs\);/, 'nunca para lá do batimento');
+  assert.match(p, /if \(!encerrar && ultimoEnviado\?\.essencial === essencial && desdeOUltimo < janela\) \{/);
+  assert.match(p, /const faixa = s\.current && s\.isPlaying && s\.playbackConfirmed && !s\.error \? s\.current : null;/);
+  // O comportamento em si está no test-escuta-ao-vivo.cjs (relógio virtual).
 });
 
 if (falhas) { console.error(`\n${falhas} caso(s) falharam.`); process.exit(1); }

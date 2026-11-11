@@ -161,9 +161,12 @@ async function main() {
     assert.equal(a.agora(), 10000);
     assert.equal(lerDirecto().faixa.sourceId, 'a');
     const n = publicados.length;
+    // A fila lá ao fundo não se vê (11/11): espera pelo acerto, e sai uma vez.
     for (let i = 0; i < 20; i++) { player.mudar({ queue: [i] }); await a.avancar(100); }
-    assert.ok(publicados.length > n, 'alterações contínuas não adiam a publicação indefinidamente');
-    assert.ok(publicados.length - n <= 2, 'a fila continua agrupada');
+    assert.equal(publicados.length, n, 'a fila lá ao fundo não publica logo');
+    await a.avancar(300_000);
+    assert.ok(publicados.length > n, 'alterações contínuas não adiam a publicação indefinidamente: sai no acerto');
+    assert.ok(publicados.length - n <= 1, 'a fila continua agrupada');
     await a.avancar(2000);
     const antes = publicados.length;
     for (let i = 0; i < 100; i++) {
@@ -171,14 +174,23 @@ async function main() {
     }
     assert.equal(publicados.length, antes, 'arrastar EQ e speed não faz HTTP por gesto');
     assert.ok(ajustes >= 100);
-    await a.avancar(2000); assert.equal(publicados.length, antes + 1, 'só a velocidade final fica na presença');
+    await a.avancar(2000); assert.equal(publicados.length, antes, 'a velocidade também espera pelo acerto');
+    await a.avancar(300_000);
+    assert.equal(publicados.length, antes + 1, 'só a velocidade final fica na presença, no acerto');
+    assert.equal(publicados.at(-1).p_track.rate, 1.49);
     pendurar = true;
     const antesDaFalha = publicados.length;
-    player.mudar({ buffering: true }); await a.avancar(1500); await a.avancar(15000);
+    // Uma pausa vê-se: publica logo. Pendurada, a falha conserva a nova tentativa.
+    player.mudar({ isPlaying: false }); await a.avancar(1500); await a.avancar(15000);
     await a.avancar(15000);
     assert.equal(publicados.length, antesDaFalha + 2, 'uma falha real por timeout conserva a nova tentativa limitada');
     assert.equal(a.avisos.length, 1, 'só a falha real produz um aviso; gestos e tiques não geram logs');
-    player.mudar({ buffering: false }); await flush();
+    player.mudar({ isPlaying: true }); await flush();
+    // Um engasgo não tira a música nem publica (11/11): eram duas por engasgo.
+    const antesDoEngasgo = publicados.length;
+    player.mudar({ buffering: true }); await a.avancar(2000);
+    player.mudar({ buffering: false }); await a.avancar(2000);
+    assert.equal(publicados.length, antesDoEngasgo, 'um engasgo não publica');
     privacidade.mudar({ privada: true }); await flush();
     assert.equal(lerDirecto(), null); assert.equal(publicados.at(-1).p_track, null);
     parar(); await flush(); assert.equal(parado, true);
