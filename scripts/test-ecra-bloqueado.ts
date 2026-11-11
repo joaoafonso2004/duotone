@@ -74,5 +74,22 @@ caso('o plugin é o mesmo que já compilou no CI (5.0.0), e a app trata os links
   assert.match(ler('src/navigation/RootNavigator.tsx'), /filter: \(url\) => !eLinkDeControlo\(url\),/, 'a navegação não procura um ecrã "controlo"');
 });
 
+console.log('\n3 · tocar no leitor do ecrã bloqueado abre a app');
+caso('o Now Playing declara-se áudio, e não vídeo como o expo-video o escreve', () => {
+  const sw = ler('modules/duotone-remote-commands/ios/DuotoneRemoteCommandsModule.swift');
+  assert.match(sw, /private func marcarComoAudio\(\) \{/);
+  assert.match(sw, /info\[MPNowPlayingInfoPropertyMediaType\] = NSNumber\(value: audio\)/, 'como número, nunca o enum cru');
+  assert.doesNotMatch(sw, /= MPNowPlayingInfoMediaType\.audio\s*$/m);
+  // Nos mesmos momentos em que o expo-video o reescreve (os eventos do player
+  // que o comandosDeFaixa.ts usa), já e outra vez depois da Task dele.
+  const apply = sw.slice(sw.indexOf('private func apply(next: Bool, previous: Bool)'), sw.indexOf('private func marcarComoAudio'));
+  assert.match(apply, /reafirmarAudio\(\)\n\s+\}/);
+  assert.match(sw, /for atraso in \[0\.5, 1\.5, 4\.0\] \{/);
+  // E quem escreve a capa escreve-a já como áudio.
+  const capa = sw.slice(sw.indexOf('private func escreverCapa'), sw.indexOf('private func escreverCapa') + 700);
+  assert.match(capa, /info\[MPNowPlayingInfoPropertyMediaType\] = NSNumber\(value: MPNowPlayingInfoMediaType\.audio\.rawValue\)/);
+  assert.match(ler('src/lib/comandosDeFaixa.ts'), /setRemoteCommandsEnabled\(\.\.\.calcular\(\)\);/, 'quem chama o apply nos eventos do player');
+});
+
 if (falhas) { console.error(`\n${falhas} caso(s) falharam.`); process.exit(1); }
 console.log('\nTodos os casos passaram.');

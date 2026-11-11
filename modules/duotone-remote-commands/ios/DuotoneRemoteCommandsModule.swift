@@ -16,6 +16,7 @@ import UIKit
  *  3. As interrupcoes da sessao de audio — ver `aoInterromper`. O expo-video so
  *     observa o `mediaServicesWereReset`, e sem este aviso uma chamada ou um
  *     video do Instagram calava a musica com a app a mostrar-se a tocar.
+ *  4. O Now Playing como AUDIO — ver `marcarComoAudio`.
  */
 public class DuotoneRemoteCommandsModule: Module {
   private var nextTarget: Any?
@@ -279,6 +280,42 @@ public class DuotoneRemoteCommandsModule: Module {
         return .success
       }
     }
+
+    // Os mesmos momentos em que o expo-video reescreve o Now Playing como vídeo.
+    reafirmarAudio()
+  }
+
+  // MARK: - Áudio, e não vídeo
+
+  /**
+   * O Now Playing como ÁUDIO (11/11). O expo-video escreve-o sempre como vídeo
+   * (`MPNowPlayingInfoMediaType.video`, no `NowPlayingManager`), e tocar no
+   * leitor do ecrã bloqueado ou da Dynamic Island não abria a Duotone. Nos
+   * testes do João o Spotify, que se declara áudio, abre; a Duotone e o app do
+   * YouTube, que se declaram vídeo, não. Fica escrito como número (o `rawValue`):
+   * o enum cru no dicionário é o que o expo-video diz que rebenta.
+   */
+  private func marcarComoAudio() {
+    let centro = MPNowPlayingInfoCenter.default()
+    guard var info = centro.nowPlayingInfo, !info.isEmpty else { return }
+    let audio = MPNowPlayingInfoMediaType.audio.rawValue
+    if (info[MPNowPlayingInfoPropertyMediaType] as? NSNumber)?.uintValue == audio { return }
+    info[MPNowPlayingInfoPropertyMediaType] = NSNumber(value: audio)
+    centro.nowPlayingInfo = info
+  }
+
+  /**
+   * Já e um pouco depois: o expo-video escreve o Now Playing numa `Task` que
+   * espera pelos metadados do ficheiro, e pode chegar depois de nós. Só escreve
+   * quando o tipo está errado, por isso as passagens de mais não custam nada.
+   */
+  private func reafirmarAudio() {
+    marcarComoAudio()
+    for atraso in [0.5, 1.5, 4.0] {
+      DispatchQueue.main.asyncAfter(deadline: .now() + atraso) { [weak self] in
+        self?.marcarComoAudio()
+      }
+    }
   }
 
   // MARK: - Capa
@@ -383,6 +420,10 @@ public class DuotoneRemoteCommandsModule: Module {
       info[MPMediaItemPropertyArtwork] = arte
     } else {
       info.removeValue(forKey: MPMediaItemPropertyArtwork)
+    }
+    // Ver `marcarComoAudio`: quem escreve o Now Playing escreve-o como áudio.
+    if !info.isEmpty {
+      info[MPNowPlayingInfoPropertyMediaType] = NSNumber(value: MPNowPlayingInfoMediaType.audio.rawValue)
     }
     MPNowPlayingInfoCenter.default().nowPlayingInfo = info
   }
