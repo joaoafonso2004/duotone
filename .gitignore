@@ -97,3 +97,12 @@ IMG_*.MOV
 # O gerador do portal importa o da abertura para partilhar a geometria do logo,
 # e o Python deixa aqui o cache do modulo.
 scripts/__pycache__/
+
+# Guias e notas técnicas: ficam neste PC, fora do repositório público (11/11)
+/ARRANCAR.md
+/AUDITORIA-ARQUITETURA.md
+/GUIA-IMPORTAR-SPOTIFY.md
+/GUIA-IPA-GRATIS.md
+/GUIA-POT-TOKEN.md
+/GUIA-SETUP.md
+/ROADMAP.md
