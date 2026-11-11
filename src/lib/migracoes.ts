@@ -24,6 +24,7 @@ export type Migracao = {
 };
 
 export const MIGRACOES: readonly Migracao[] = [
+  { ficheiro: 'versao-minima.sql', marca: 'fn:recusar_versoes_antigas', efeito: 'Old app versions (5.8.6 and earlier) are refused, so everyone updates' },
   { ficheiro: 'o-que-mudou.sql', marca: 'fn:o_que_mudou', efeito: 'Returning to the app asks once what changed, instead of re-reading everything' },
   { ficheiro: 'perfil-limitado.sql', marca: 'fn:definir_estatisticas_publicas', efeito: "Limited stats on the profile of someone who isn't a friend" },
   { ficheiro: 'caber-no-plano-gratis.sql', marca: 'fn:limpar_o_que_envelheceu', efeito: 'Keeps the database inside the free plan (old events and cache cleaned)' },
