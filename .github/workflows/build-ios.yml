@@ -49,6 +49,27 @@ jobs:
             echo "version=$(node -p "require('./app.json').expo.version")" >> "$GITHUB_OUTPUT"
           fi
 
+      # O expo-video puxa uma dependência SPM que exige Swift 6.2. O Xcode 16.4
+      # (default no runner) só traz Swift 6.1, por isso escolhemos o mais recente
+      # instalado (Xcode 26+, Swift 6.2).
+      - name: Selecionar Xcode com Swift 6.2
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Instalar dependências
+        run: npm ci --no-audit --no-fund
+
+      - name: Testar a velocidade nativa e o KVO do Expo
+        run: node scripts/test-velocidade-nativa.mjs
+
+      - name: Validar TypeScript e regressões
+        run: npm run typecheck && npm test
+
       # A versão da tag manda sobre a do app.json, para que o Info.plist, o
       # bundle-version do manifest e o APP_VERSION que a app compara digam
       # todos o mesmo. Divergirem faria a app avisar-se a si própria em ciclo.
@@ -77,27 +98,6 @@ jobs:
           export const APP_VERSION = '${{ steps.vars.outputs.version }}';
           EOF
           echo "Build ${{ steps.vars.outputs.short_sha }} da versão ${{ steps.vars.outputs.version }}"
-
-      # O expo-video puxa uma dependência SPM que exige Swift 6.2. O Xcode 16.4
-      # (default no runner) só traz Swift 6.1, por isso escolhemos o mais recente
-      # instalado (Xcode 26+, Swift 6.2).
-      - name: Selecionar Xcode com Swift 6.2
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: latest-stable
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Instalar dependências
-        run: npm ci --no-audit --no-fund
-
-      - name: Testar a velocidade nativa e o KVO do Expo
-        run: node scripts/test-velocidade-nativa.mjs
-
-      - name: Validar TypeScript e regressões
-        run: npm run typecheck && npm test
 
       # O .env não vai no repositório; vem do secret ENV_FILE
       # (Settings -> Secrets and variables -> Actions)
