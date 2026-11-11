@@ -19,6 +19,9 @@
 -- ligado, só a app instalada fala com a base.
 --
 -- Mudar a versão mínima: mudar `minima` abaixo e correr o ficheiro outra vez.
+-- Era a 5.8.8 (11/11); passou a 5.9.3 com a release dela (os lotes da escuta
+-- e a presença pelo Realtime). Correr SÓ depois de as builds estarem
+-- publicadas: até lá, ninguém tinha para onde atualizar.
 -- Desligar tudo, se algo correr mal:
 --   alter role authenticator reset pgrst.db_pre_request;
 --   notify pgrst, 'reload config';
@@ -33,7 +36,7 @@ security definer
 set search_path = public
 as $$
 declare
-  minima constant int[] := array[5, 8, 8];
+  minima constant int[] := array[5, 9, 3];
   cabecalhos json := nullif(current_setting('request.headers', true), '')::json;
   claims json := nullif(current_setting('request.jwt.claims', true), '')::json;
   papel text := claims ->> 'role';
