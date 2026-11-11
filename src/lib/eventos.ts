@@ -1,6 +1,25 @@
 import { AppState, Platform } from 'react-native';
 import { supabase } from './supabase';
 import { APP_VERSION } from './buildInfo';
+import { souAdministrador } from '../api/painelDeSaude';
+
+/**
+ * Os eventos que o servidor guarda de quem não é administrador
+ * (`supabase/caber-no-plano-gratis.sql`, `filtrar_eventos_de_fora`): a
+ * abertura da app e o que está partido. Os outros deitava-os fora à chegada,
+ * mas cada lote era um pedido à API, e com a app pública uma conta mandava 17
+ * por hora (11/11). Agora nem saem do aparelho. A lista tem de ser a mesma do
+ * SQL (`test-menos-logs.ts` confere-o).
+ */
+export const EVENTOS_QUE_O_SERVIDOR_GUARDA: ReadonlySet<string> = new Set([
+  'app_aberta', 'arranque',
+  'erro_js', 'crash', 'bloqueio',
+  'faixa_falhou', 'desistiu_de_arrancar', 'extracao_bloqueada', 'fim_encravado',
+  'entrega_falhada', 'caiu_no_embed', 'caiu_no_hls', 'opus_recusado',
+  'jam_entrada_falhou',
+]);
+/** Até se saber que a conta é administradora, só saem os que o servidor guarda. */
+let soOsQueOServidorGuarda = true;
 
 /**
  * Eventos, para deixar de adivinhar.
@@ -102,9 +121,13 @@ let desligar: (() => void) | null = null;
 
 async function enviar(): Promise<void> {
   if (!utilizador || aEnviar || !porEnviar.length) return;
-  aEnviar = true;
-  const lote = porEnviar;
+  const lote = soOsQueOServidorGuarda
+    ? porEnviar.filter((e) => EVENTOS_QUE_O_SERVIDOR_GUARDA.has(e.nome))
+    : porEnviar;
   porEnviar = [];
+  // Nada que o servidor guarde: não se faz o pedido.
+  if (!lote.length) return;
+  aEnviar = true;
   try {
     const { error } = await supabase.from('app_events').insert(
       lote.map((e) => ({
@@ -141,6 +164,9 @@ export function registar(nome: NomeDeEvento, dados: Record<string, string | numb
 export function iniciarEventos(userId: string): () => void {
   utilizador = userId;
   jaHouveConta = true;
+  soOsQueOServidorGuarda = true;
+  // O João (administrador) continua a mandar tudo: é o painel de saúde dele.
+  void souAdministrador(userId).then((sim) => { if (utilizador === userId) soOsQueOServidorGuarda = !sim; });
   porEnviar = [...porEnviar, ...antesDaConta];
   antesDaConta = [];
   registar('app_aberta');

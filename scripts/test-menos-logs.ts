@@ -92,5 +92,18 @@ await caso('o que não se vê espera pelo acerto de 5 min; um engasgo não tira 
   // O comportamento em si está no test-escuta-ao-vivo.cjs (relógio virtual).
 });
 
+console.log('\nos eventos');
+await caso('só saem os eventos que o servidor guarda, e a mesma lista do SQL (11/11)', () => {
+  const ev = ler('src/lib/eventos.ts');
+  const sqlTexto = ler('supabase/caber-no-plano-gratis.sql');
+  const doSql = (sqlTexto.match(/if new\.nome = any \(array\[([\s\S]*?)\]\)/)?.[1] ?? '').match(/'([a-z_]+)'/g)?.map((s) => s.slice(1, -1)) ?? [];
+  const doCliente = (ev.match(/EVENTOS_QUE_O_SERVIDOR_GUARDA: ReadonlySet<string> = new Set\(\[([\s\S]*?)\]\);/)?.[1] ?? '').match(/'([a-z_]+)'/g)?.map((s) => s.slice(1, -1)) ?? [];
+  assert.ok(doSql.length > 5, 'leu a lista do SQL');
+  assert.deepEqual([...doCliente].sort(), [...doSql].sort(), 'a app e o servidor guardam os mesmos');
+  assert.match(ev, /\? porEnviar\.filter\(\(e\) => EVENTOS_QUE_O_SERVIDOR_GUARDA\.has\(e\.nome\)\)/);
+  assert.match(ev, /if \(!lote\.length\) return;/, 'um lote vazio não faz pedido');
+  assert.match(ev, /void souAdministrador\(userId\)\.then\(\(sim\) => \{ if \(utilizador === userId\) soOsQueOServidorGuarda = !sim; \}\);/, 'o administrador manda tudo');
+});
+
 if (falhas) { console.error(`\n${falhas} caso(s) falharam.`); process.exit(1); }
 console.log('\nTodos os casos passaram.');
