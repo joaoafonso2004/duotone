@@ -179,6 +179,49 @@ function decidirAoAbrir(pendente, versaoAtual, tamanhoNoDisco) {
 }
 
 /**
+ * Instalar JÁ, sem esperar por uma abertura de raiz? (11/11)
+ *
+ * A versão nova descarregava-se sozinha, mas só se instalava quando a app
+ * abria de raiz. Ela fica no tabuleiro e o PC suspende em vez de desligar, por
+ * isso essa abertura quase nunca chegava: o João tinha de ir ao "Check for
+ * updates" e reabrir à mão. Agora instala-se assim que ninguém dá por isso:
+ *
+ * - nada a tocar há pelo menos dez minutos (uma pausa curta não reinicia a app);
+ * - e a janela escondida no tabuleiro, ou o PC sem uso há dez minutos;
+ * - e só numa instalação por utilizador: a "para todos" pede UAC, e uma janela
+ *   do UAC a aparecer do nada é pior do que esperar pela próxima abertura.
+ */
+const PARADA_MINIMA_MS = 10 * 60_000;
+const SEM_USO_MINIMO_S = 10 * 60;
+function podeInstalarJa({ porUtilizador, aTocar, paradaHaMs, janela, semUsoHaS }) {
+  if (!porUtilizador || aTocar) return false;
+  if (!(paradaHaMs >= PARADA_MINIMA_MS)) return false;
+  return janela === 'escondida' || semUsoHaS >= SEM_USO_MINIMO_S;
+}
+
+/** O instalador por utilizador fica em %LOCALAPPDATA%\Programs; o "para todos", nos Programas. */
+function instalacaoPorUtilizador(exe, localAppData) {
+  if (typeof exe !== 'string' || typeof localAppData !== 'string' || !localAppData) return false;
+  const pasta = localAppData.replace(/[\\/]+$/, '').replace(/\//g, '\\').toLowerCase() + '\\';
+  return exe.replace(/\//g, '\\').toLowerCase().startsWith(pasta);
+}
+
+/**
+ * Como volta a janela depois de uma instalação feita assim (o NSIS reabre a app
+ * sem argumentos, e sem isto ela abria-se à frente de quem não a pediu):
+ * escondida fica no tabuleiro; aberta ou minimizada volta minimizada, porque
+ * ninguém estava a olhar para ela. Uma marca com mais de dez minutos já não é
+ * desta instalação.
+ */
+function comoReabrir(marca, agora) {
+  if (!marca || typeof marca !== 'object') return null;
+  if (!['escondida', 'minimizada', 'visivel'].includes(marca.janela)) return null;
+  const idade = agora - Number(marca.em);
+  if (!(idade >= 0 && idade <= 10 * 60_000)) return null;
+  return marca.janela === 'escondida' ? 'escondida' : 'minimizada';
+}
+
+/**
  * Em segundo plano: vale a pena descarregar `alvo`? Não quando já está
  * descarregado e inteiro, nem quando se desistiu dessa versão.
  */
@@ -248,6 +291,11 @@ module.exports = {
   TENTATIVAS_DE_INSTALACAO,
   decidirAoAbrir,
   precisaDeDescarregar,
+  PARADA_MINIMA_MS,
+  SEM_USO_MINIMO_S,
+  podeInstalarJa,
+  instalacaoPorUtilizador,
+  comoReabrir,
   VERSOES_URL,
   compararVersoes,
   escolherInstalador,

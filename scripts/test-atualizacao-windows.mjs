@@ -151,10 +151,49 @@ assert.equal(a.precisaDeDescarregar(alvo, { versao: '3.9.0', desistiu: true }, -
 assert.equal(a.precisaDeDescarregar({ ...alvo, versao: '3.9.1' }, { versao: '3.9.0', desistiu: true }, -1), true, 'Uma versão mais nova volta a tentar');
 assert.equal(a.precisaDeDescarregar(null, null, -1), false);
 
+// Instalar sem esperar por uma abertura de raiz (11/11): a app vive no
+// tabuleiro, e a versão descarregada ficava dias à espera.
+const MIN = 60_000;
+const quando = (extra = {}) => a.podeInstalarJa({
+  porUtilizador: true, aTocar: false, paradaHaMs: 11 * MIN, janela: 'escondida', semUsoHaS: 0, ...extra,
+});
+assert.equal(quando(), true, 'No tabuleiro e parada há dez minutos: instala já');
+assert.equal(quando({ aTocar: true }), false, 'A tocar nunca');
+assert.equal(quando({ paradaHaMs: 3 * MIN }), false, 'Uma pausa curta não reinicia a app');
+assert.equal(quando({ paradaHaMs: a.PARADA_MINIMA_MS }), true);
+assert.equal(quando({ paradaHaMs: NaN }), false);
+assert.equal(quando({ janela: 'visivel' }), false, 'Com a janela aberta e alguém a usar o PC, espera');
+assert.equal(quando({ janela: 'minimizada', semUsoHaS: 30 }), false);
+assert.equal(quando({ janela: 'visivel', semUsoHaS: a.SEM_USO_MINIMO_S }), true, 'Com o PC sem uso há dez minutos, instala');
+assert.equal(quando({ porUtilizador: false }), false, 'A instalação "para todos" pede UAC: espera pela próxima abertura');
+
+assert.equal(a.instalacaoPorUtilizador('C:\\Users\\Ana\\AppData\\Local\\Programs\\Duotone\\Duotone.exe', 'C:\\Users\\Ana\\AppData\\Local'), true);
+assert.equal(a.instalacaoPorUtilizador('c:/users/ana/appdata/local/Programs/Duotone/Duotone.exe', 'C:\\Users\\Ana\\AppData\\Local\\'), true);
+assert.equal(a.instalacaoPorUtilizador('C:\\Program Files\\Duotone\\Duotone.exe', 'C:\\Users\\Ana\\AppData\\Local'), false);
+assert.equal(a.instalacaoPorUtilizador('C:\\Users\\Ana\\AppData\\LocalOutra\\Duotone.exe', 'C:\\Users\\Ana\\AppData\\Local'), false);
+assert.equal(a.instalacaoPorUtilizador('C:\\x\\Duotone.exe', undefined), false);
+
+assert.equal(a.comoReabrir({ janela: 'escondida', em: 1000 }, 1000 + MIN), 'escondida', 'Escondida volta para o tabuleiro');
+assert.equal(a.comoReabrir({ janela: 'visivel', em: 1000 }, 1000 + MIN), 'minimizada', 'Aberta volta minimizada: não se põe à frente');
+assert.equal(a.comoReabrir({ janela: 'minimizada', em: 1000 }, 1000 + MIN), 'minimizada');
+assert.equal(a.comoReabrir({ janela: 'escondida', em: 1000 }, 1000 + 11 * MIN), null, 'Uma marca velha já não é desta instalação');
+assert.equal(a.comoReabrir({ janela: 'escondida', em: 5000 }, 1000), null);
+assert.equal(a.comoReabrir({ janela: 'outra', em: 1000 }, 1000), null);
+assert.equal(a.comoReabrir(null, 1000), null);
+
 // O processo principal usa as duas regras e já não mostra o aviso no Windows.
-const main = fs.readFileSync(new URL('../electron/main.cjs', import.meta.url), 'utf8');
+// Os finais de linha normalizados: o CI do Windows faz checkout com CRLF.
+const main = fs.readFileSync(new URL('../electron/main.cjs', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 assert.match(main, /decidirAoAbrir\(/, 'o main.cjs não instala o que ficou pendente');
 assert.match(main, /precisaDeDescarregar\(/, 'o main.cjs não descarrega em segundo plano');
+assert.match(main, /podeInstalarJa\(\{/, 'o main.cjs não instala sem uma abertura de raiz');
+assert.match(main, /aTocar: estadoDaBarra\.aTocar,/, 'a regra não sabe se está a tocar');
+assert.match(main, /if \(e\.aTocar\) paradaDesde = null;\n\s*else if \(paradaDesde === null\) paradaDesde = Date\.now\(\);/,
+  'o main.cjs não sabe desde quando nada toca');
+assert.equal((main.match(/vigiarInstalacao\(\);/g) ?? []).length >= 2, true, 'uma versão pronta (nova ou já em disco) não arma a vigia');
+assert.match(main, /const reaberta = lerMarcaDeReabrir\(\);\n\s*if \(reaberta === 'escondida'\) return;\n\s*if \(reaberta === 'minimizada'\) \{ win\.minimize\(\); return; \}/,
+  'reaberta pelo instalador, a janela não volta como estava');
+assert.match(main, /if \(vigiaDaInstalacao\) \{ clearTimeout\(vigiaDaInstalacao\);/, 'sair não desliga a vigia');
 const aviso = fs.readFileSync(new URL('../src/components/UpdateSheet.tsx', import.meta.url), 'utf8');
 assert.match(aviso, /atualizacaoAutomatica/, 'o aviso de versão não sabe que no Windows a atualização é automática');
 

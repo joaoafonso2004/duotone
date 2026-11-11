@@ -348,13 +348,14 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   const instalaNaApp = typeof window !== 'undefined' && !!window.duotoneDesktop?.instalarAtualizacao;
   const checkForUpdates = async () => {
     // A app instalada atualiza-se sozinha (27/9): procurar agora só adianta o
-    // download, e a versão nova entra na próxima vez que o Duotone abrir.
+    // download. A versão nova instala-se quando nada toca há dez minutos e a
+    // janela está no tabuleiro (ou o PC sem uso), ou na próxima abertura (11/11).
     const ponte = window.duotoneDesktop;
     if (ponte?.procurarAtualizacao) {
       setCheckingUpdate(true);
       try {
         const r = await ponte.procurarAtualizacao();
-        if (r?.estado === 'pronta') notify(`Duotone ${r.versao} is ready. It installs the next time you open Duotone.`);
+        if (r?.estado === 'pronta') notify(`Duotone ${r.versao} is ready. It installs by itself when you're not listening.`);
         else if (r?.estado === 'atual') avisarInfo(`Duotone ${APP_VERSION} is up to date.`);
         else avisarErro("Couldn't check for updates. Check your connection and try again.");
       } finally {

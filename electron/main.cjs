@@ -948,6 +948,9 @@ ipcMain.on('mini:modo-limpo', (event, ligado) => {
 // A barra de tarefas (10/10, electron/barraDeTarefas.cjs): anterior, tocar e
 // seguinte na miniatura da janela, e a lista de saltos do ícone.
 let estadoDaBarra = { aTocar: false, temFaixa: false };
+// Desde quando nada toca (null a tocar): a atualização só se instala sozinha
+// passados dez minutos parada (`instalarProntaSePuder`).
+let paradaDesde = Date.now();
 // Aberta pela lista de saltos: a página tira-a quando estiver pronta (com conta).
 let acaoDaBarraPendente = barra.acaoDosArgumentos(process.argv);
 const iconesDaBarra = new Map();
@@ -980,6 +983,8 @@ ipcMain.on('barra:estado', (event, estado) => {
   if (!daJanelaPrincipal(event)) return;
   const e = barra.estadoValido(estado);
   if (!e || (e.aTocar === estadoDaBarra.aTocar && e.temFaixa === estadoDaBarra.temFaixa)) return;
+  if (e.aTocar) paradaDesde = null;
+  else if (paradaDesde === null) paradaDesde = Date.now();
   estadoDaBarra = e;
   porBotoesNaMiniatura();
 });
@@ -1063,6 +1068,11 @@ function createWindow() {
   });
 
   win.once('ready-to-show', () => {
+    // Reaberta pelo instalador de uma atualização feita sozinha (11/11): volta
+    // como estava, sem se pôr à frente de ninguém.
+    const reaberta = lerMarcaDeReabrir();
+    if (reaberta === 'escondida') return;
+    if (reaberta === 'minimizada') { win.minimize(); return; }
     if (!process.argv.includes('--duotone-auto-start') || startupMode() === 'window') win.show();
   });
   // O Windows esquece os botões da miniatura quando a janela se esconde.
@@ -1842,6 +1852,68 @@ async function instalarPendenteAoAbrir() {
   }
 }
 
+/**
+ * Instalar sem esperar por uma abertura de raiz (11/11). A app vive no
+ * tabuleiro e o PC suspende em vez de desligar: a versão descarregada ficava
+ * dias à espera. A regra (nada a tocar há dez minutos, e a janela escondida
+ * ou o PC sem uso) está em `podeInstalarJa`. A janela volta como estava,
+ * por uma marca que o arranque lê (`comoReabrir`).
+ */
+const ficheiroDeReabrir = () => path.join(pastaDaAtualizacao(), 'reabrir.json');
+function lerMarcaDeReabrir() {
+  let marca = null;
+  try { marca = JSON.parse(fs.readFileSync(ficheiroDeReabrir(), 'utf8')); } catch { return null; }
+  try { fs.rmSync(ficheiroDeReabrir(), { force: true }); } catch { /* lê-se uma vez; a idade trava o resto */ }
+  return atualizacao.comoReabrir(marca, Date.now());
+}
+// A janela ('escondida' | 'minimizada' | 'visivel') vem do `estadoDaJanela` das medidas.
+let aInstalarJa = false;
+/** 'instalou' (a app vai fechar), 'espera' (há versão pronta, ainda não é altura) ou 'nada'. */
+async function instalarProntaSePuder() {
+  if (!app.isPackaged || process.platform !== 'win32' || isQuitting || aInstalarJa) return 'nada';
+  const pendente = lerPendente();
+  const tamanho = pendente && pendente.caminho ? tamanhoDe(pendente.caminho) : -1;
+  if (atualizacao.decidirAoAbrir(pendente, app.getVersion(), tamanho) !== 'instalar') return 'nada';
+  let semUsoHaS = 0;
+  try { semUsoHaS = powerMonitor.getSystemIdleTime(); } catch { /* sem a medida, só com a janela escondida */ }
+  const janela = estadoDaJanela();
+  if (!atualizacao.podeInstalarJa({
+    porUtilizador: atualizacao.instalacaoPorUtilizador(process.execPath, process.env.LOCALAPPDATA),
+    aTocar: estadoDaBarra.aTocar,
+    paradaHaMs: paradaDesde === null ? 0 : Date.now() - paradaDesde,
+    janela,
+    semUsoHaS,
+  })) return 'espera';
+  aInstalarJa = true;
+  try {
+    // Conta como uma tentativa, como ao abrir: duas falhas e desiste-se dela.
+    gravarPendente({ ...pendente, tentativas: (Number(pendente.tentativas) || 0) + 1 });
+    fs.writeFileSync(ficheiroDeReabrir(), JSON.stringify({ janela, em: Date.now() }));
+    await atualizacao.lancarInstalador({ spawn, instalador: pendente.caminho });
+    isQuitting = true;
+    app.quit();
+    return 'instalou';
+  } catch (erro) {
+    console.warn('[atualizacao] não foi possível instalar em segundo plano', erro);
+    try { fs.rmSync(ficheiroDeReabrir(), { force: true }); } catch { /* não chegou a existir */ }
+    aInstalarJa = false;
+    return 'nada';
+  }
+}
+// Com uma versão pronta, de minuto a minuto vê se já é altura. Só lê memória
+// e o tempo sem uso do Windows: nenhum pedido à rede, nem ao Supabase.
+let vigiaDaInstalacao = null;
+function vigiarInstalacao() {
+  if (vigiaDaInstalacao || !app.isPackaged || process.platform !== 'win32') return;
+  vigiaDaInstalacao = setTimeout(() => {
+    void instalarProntaSePuder().then((r) => {
+      vigiaDaInstalacao = null;
+      if (r === 'espera' && !isQuitting) vigiarInstalacao();
+    });
+  }, 60_000);
+  vigiaDaInstalacao.unref?.();
+}
+
 let procuraEmCurso = null;
 /**
  * O download em curso, para o About (20/10): { versao, fracao } enquanto
@@ -1875,7 +1947,9 @@ function procurarAtualizacao() {
       const pendente = lerPendente();
       const instalador = path.join(pastaDaAtualizacao(), `Duotone-Setup-${alvo.versao}.exe`);
       if (!atualizacao.precisaDeDescarregar(alvo, pendente, tamanhoDe(instalador))) {
-        return { estado: pendente && pendente.desistiu && pendente.versao === alvo.versao ? 'desistiu' : 'pronta', versao: alvo.versao };
+        const desistiu = !!(pendente && pendente.desistiu && pendente.versao === alvo.versao);
+        if (!desistiu) vigiarInstalacao();
+        return { estado: desistiu ? 'desistiu' : 'pronta', versao: alvo.versao };
       }
       fs.mkdirSync(pastaDaAtualizacao(), { recursive: true });
       estadoDaDescarga = { versao: alvo.versao, fracao: 0 };
@@ -1886,6 +1960,7 @@ function procurarAtualizacao() {
       });
       apagarInstaladores(instalador);
       gravarPendente({ versao: alvo.versao, caminho: instalador, tamanho: alvo.tamanho, tentativas: 0 });
+      vigiarInstalacao();
       return { estado: 'pronta', versao: alvo.versao };
     } catch (erro) {
       console.warn('[atualizacao] procura em segundo plano falhou', erro);
@@ -1939,6 +2014,7 @@ ipcMain.on('context-menu', (event, items) => {
 app.on('before-quit', () => {
   isQuitting = true;
   procuraAutomatica?.parar();
+  if (vigiaDaInstalacao) { clearTimeout(vigiaDaInstalacao); vigiaDaInstalacao = null; }
   powerMonitor.removeListener?.('resume', retomarProcuraDeAtualizacoes);
   app.removeListener?.('browser-window-focus', aoFocarParaAtualizar);
   // Fecha o socket do Discord a sair. Sem isto, a ultima faixa ficava colada

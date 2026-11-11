@@ -95,6 +95,8 @@ await caso('obrigatória não se fecha: sem "Not now", sem arrastar, e os passos
   assert.equal((folha.match(/!update\.obrigatoria && <PillButton label="Not now"/g) ?? []).length, 2, 'nem no PC nem no iPhone');
   assert.match(folha, /if \(info\?\.obrigatoria\) setAjuda\(true\);/);
   assert.match(folha, /\{update\.obrigatoria \? 'Update required' : 'New version available'\}/);
+  // No PC o aviso cala-se (a atualização é automática), menos a obrigatória.
+  assert.match(folha, /if \(ponte\?\.atualizacaoAutomatica && !update\?\.obrigatoria\) return null;/);
 });
 await caso('volta a ver ao regressar à frente, no máximo de seis em seis horas', () => {
   const folha = ler('src/components/UpdateSheet.tsx');

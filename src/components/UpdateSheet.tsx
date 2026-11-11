@@ -104,8 +104,9 @@ export function UpdateSheet() {
 
   // No Windows instalado a atualização é automática (27/9, João: "não quero
   // que avise e peça para instalar"): descarrega em segundo plano e instala
-  // na abertura seguinte (electron/main.cjs). Aqui não há nada a dizer.
-  if (ponte?.atualizacaoAutomatica) return null;
+  // na abertura seguinte (electron/main.cjs). Aqui não há nada a dizer, a não
+  // ser que a versão seja obrigatória (11/11): essa mostra-se, com o "Update now".
+  if (ponte?.atualizacaoAutomatica && !update?.obrigatoria) return null;
   if (!update || tapado) return null;
 
   // A descarregar ou a instalar não se fecha: a app vai fechar-se sozinha.
