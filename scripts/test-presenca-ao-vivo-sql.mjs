@@ -36,11 +36,14 @@ const como = async (n, topic = sala, role = 'authenticated') => {
 const ver = async () => (await db.query('select * from realtime.messages')).rows;
 const declarar = (topic = sala, extension = 'presence') => db.query('insert into realtime.messages(topic,extension) values($1,$2)', [topic, extension]);
 try {
+  // Ver o broadcast do canal é o que o Realtime exige para deixar entrar num
+  // canal privado (12/11): só com 'presence', todos eram recusados.
   await como(1);
-  assert.equal((await ver()).length, 1, 'o dono vê a presença do seu canal (e não a mensagem de broadcast)');
+  assert.deepEqual((await ver()).map((m) => m.extension).sort(), ['broadcast', 'presence'],
+    'o dono pode ler o seu canal, broadcast incluído (sem isso o Realtime não o deixa entrar)');
   await declarar();
   await como(2);
-  assert.equal((await ver()).length, 2, 'o amigo aceite vê a presença');
+  assert.equal((await ver()).length, 3, 'o amigo aceite também');
   await assert.rejects(() => declarar(), (e) => e.code === '42501', 'um amigo não declara no canal de outro');
   for (const n of [3, 4, null]) {
     await como(n);
