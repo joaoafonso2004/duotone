@@ -9,6 +9,7 @@ import { criarFetchDoSupabase, definirAparelhoDosPedidos, definirVersaoDosPedido
 import { definirEstadoDoRealtime, registarQuedaDoRealtime } from './pedidosAoSupabase';
 import { getDeviceId } from './deviceIdentity';
 import { APP_VERSION } from './buildInfo';
+import { criarTokenDoRealtime } from './tokenDoRealtime';
 
 // O aparelho e a versão vão nos pedidos à API (11/11): as marcas de
 // `o_que_mudou` sabem quem escreveu, e um dia o Supabase pode deixar de servir
@@ -19,6 +20,14 @@ void getDeviceId().then((id) => definirAparelhoDosPedidos(id, Platform.OS === 'w
 // Conta cada pedido e, no PC, manda-o pelo processo principal (sem o OPTIONS
 // do CORS). Ver `lib/fetchDoSupabase.ts`.
 const ponte = typeof window !== 'undefined' ? window.duotoneDesktop?.pedirAoSupabase : undefined;
+
+// O Realtime só recebe JWTs (12/11, `lib/tokenDoRealtime.ts`): uma falha a
+// renovar a sessão dava-lhe a chave pública, e o servidor fechava todos os
+// canais. Lê o `supabase` só quando é chamado, já depois de ele existir.
+const tokenDoRealtime = criarTokenDoRealtime(async () => {
+  const { data, error } = await supabase.auth.getSession();
+  return { token: data.session?.access_token, erro: error };
+});
 
 export const supabase = createClient(
   ENV.SUPABASE_URL || 'https://placeholder.supabase.co',
@@ -32,6 +41,8 @@ export const supabase = createClient(
     },
     global: { fetch: criarFetchDoSupabase(ponte) },
     realtime: {
+      // Substitui o do supabase-js (as opções `realtime` entram depois dele).
+      accessToken: tokenDoRealtime,
       // O batimento do Realtime num Web Worker no PC (23/10). Com a janela no
       // tabuleiro e sem música, o Chromium estrangula os temporizadores da
       // página; o batimento atrasava, o servidor fechava o socket, e cada

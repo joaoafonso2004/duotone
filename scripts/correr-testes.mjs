@@ -55,6 +55,7 @@ const TESTES = [
   'scripts/test-notifications.cjs',
   'scripts/test-poupanca-em-segundo-plano.cjs',
   'scripts/test-play-aba-artista.cjs',
+  'scripts/test-canais-do-realtime.cjs',
   'scripts/test-ux-responsiveness.cjs',
   'scripts/test-leitor-alocacoes-ui.cjs',
   'scripts/test-abertura-do-leitor.cjs',

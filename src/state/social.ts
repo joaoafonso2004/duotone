@@ -454,7 +454,54 @@ export function iniciarSocial(userId: string): () => void {
   // ligado enquanto alguém ouve as presenças cruas (seguir um amigo), e no PC
   // sempre: a barra de tarefas avisa das mensagens com a janela escondida.
   let channel: ReturnType<typeof supabase.channel> | null = null;
-  const ligarCanal = () => supabase.channel(`social:${userId}`)
+  // A saída do canal ainda a meio: o `supabase.channel` devolve o canal que
+  // ainda lá está com o mesmo nome, e ligá-lo outra vez antes de ele sair dava
+  // ouvintes em dobro. Volta-se a ligar só depois.
+  let aSair: Promise<unknown> = Promise.resolve();
+  const topico = `social:${userId}`;
+  /**
+   * O canal fechado pelo servidor (12/11). O realtime-js tira-o da ligação e
+   * nunca mais volta a entrar nele; no iPhone o `pousarCanal` recriava-o ao
+   * voltar à frente, mas no PC ficava assim até se fechar a app, com a inbox a
+   * ser lida de minuto a minuto (o relatório do PC do João: `realtime: NOT
+   * connected, 0/0 channels joined`). Volta-se a ligar aqui, com uma espera que
+   * cresce enquanto ele não pega.
+   */
+  const RELIGAR_MS = [5_000, 30_000, 120_000, 300_000];
+  let religar: ReturnType<typeof setTimeout> | null = null;
+  let tentativas = 0;
+  const agendarReligacao = () => {
+    if (religar || gen !== generation) return;
+    const espera = RELIGAR_MS[Math.min(tentativas, RELIGAR_MS.length - 1)];
+    tentativas++;
+    religar = setTimeout(() => {
+      religar = null;
+      if (gen !== generation) return;
+      const velho = channel;
+      channel = null;
+      marcarAoVivo(false);
+      if (velho) aSair = supabase.removeChannel(velho).catch(() => {});
+      // O iPhone escondido fica sem canal; o `pousarCanal` liga-o ao voltar.
+      if (Platform.OS !== 'web' && AppState.currentState !== 'active') return;
+      void aSair.then(() => ligarCanal());
+    }, espera);
+  };
+  /** Liga o canal (e guarda-o em `channel`); não faz nada se já houver um. */
+  const ligarCanal = (): void => {
+    if (gen !== generation || channel) return;
+    // Um canal com o mesmo nome que ainda não saiu (12/11): o `supabase.channel`
+    // devolvia-o, e o `subscribe` de um canal que não está fechado não faz
+    // nada -- o SUBSCRIBED nunca chegava. Primeiro sai, depois liga-se.
+    const restos = (supabase.getChannels?.() ?? []).filter((c) => c.topic === `realtime:${topico}`);
+    if (restos.length) {
+      aSair = Promise.all(restos.map((c) => supabase.removeChannel(c).catch(() => {})));
+      void aSair.then(() => { if (gen === generation && !channel) criarCanal(); });
+      return;
+    }
+    criarCanal();
+  };
+  const criarCanal = (): void => {
+    const este = supabase.channel(topico)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'social_presence' }, (event) => {
       if (gen !== generation) return;
       const p = event.new as SocialPresence;
@@ -469,11 +516,16 @@ export function iniciarSocial(userId: string): () => void {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships' }, aoMudarAmizades)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'shared_items' }, aoMudarMensagens)
     // Um perfil mudou: os nomes e as fotografias guardadas (30 min) esquecem-se antes de reler.
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, ()=>{esquecerPerfisPublicos();useSocial.setState(s=>({profileVersion:s.profileVersion+1}));refresh(true);})
-    .subscribe((status) => {
-      if (gen !== generation) return;
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, ()=>{esquecerPerfisPublicos();useSocial.setState(s=>({profileVersion:s.profileVersion+1}));refresh(true);});
+    // Antes do `subscribe`: um estado que chegue logo já encontra este canal.
+    channel = este;
+    este.subscribe((status) => {
+      // Um canal que já não é o nosso (largado, ou substituído) não muda nada.
+      if (gen !== generation || channel !== este) return;
       marcarAoVivo(status === 'SUBSCRIBED');
+      if (status === 'CLOSED') { agendarReligacao(); return; }
       if (!aoVivo) return;
+      tentativas = 0;
       // O canal a religar depois do arranque (11/11): o regresso à app no
       // iPhone, ou uma quebra de rede. O pedido único "o que mudou?" diz se
       // chegou alguma coisa entre a última leitura e o canal.
@@ -487,7 +539,8 @@ export function iniciarSocial(userId: string): () => void {
       jaLigouOCanal = true;
       comoAntes();
     });
-  channel = ligarCanal();
+  };
+  ligarCanal();
   // A presença dos amigos pelos canais deles (11/11). Por cima da tabela.
   presencasAoVivo = ouvirPresencasAoVivo((id, estado) => {
     if (gen !== generation) return;
@@ -496,10 +549,6 @@ export function iniciarSocial(userId: string): () => void {
     if (appEstaVisivel()) { const now = agoraNoServidor(); useSocial.setState({ now, friends: friendsNow(now) }); }
   });
   atualizarCanaisDosAmigos();
-  // A saída do canal ainda a meio: o `supabase.channel` devolve o canal que
-  // ainda lá está com o mesmo nome, e ligá-lo outra vez antes de ele sair dava
-  // ouvintes em dobro. Volta-se a ligar só depois.
-  let aSair: Promise<unknown> = Promise.resolve();
   const pousarCanal = (estado: string) => {
     if (Platform.OS === 'web' || gen !== generation) return;
     // Os canais da presença dos amigos seguem a mesma regra: sem ninguém a
@@ -513,7 +562,7 @@ export function iniciarSocial(userId: string): () => void {
       aSair = supabase.removeChannel(largado).catch(() => {});
     } else if (estado === 'active' && !channel) {
       void aSair.then(() => {
-        if (gen === generation && !channel && AppState.currentState === 'active') channel = ligarCanal();
+        if (gen === generation && !channel && AppState.currentState === 'active') ligarCanal();
       });
     }
   };
@@ -527,6 +576,13 @@ export function iniciarSocial(userId: string): () => void {
   // o dia todo).
   let voltasAoVivo = 0;
   const pararRecovery = intervaloComAppVisivel(() => {
+    // O canal que desapareceu sem o CLOSED chegar (12/11): fora da ligação, ou
+    // nenhum no PC (no iPhone à frente o `pousarCanal` já o ligou).
+    if (!aoVivo && !religar && Platform.OS === 'web') {
+      const ligados = supabase.getChannels?.();
+      if (!channel) ligarCanal();
+      else if (ligados && !ligados.includes(channel)) agendarReligacao();
+    }
     if (aoVivo && ++voltasAoVivo % 15 !== 0) return;
     refresh();
   }, 120000);
@@ -569,6 +625,8 @@ export function iniciarSocial(userId: string): () => void {
     ++generation; clearTimeout(debounce); pararTick(); pararRecovery(); pararInboxRecovery();
     app.remove();if(Platform.OS==='web')document.removeEventListener('visibilitychange',acordar);
     accountId='';refreshInbox=async()=>{};clearProfileMediaCache(true);
+    if (religar) clearTimeout(religar);
+    religar = null;
     if (channel) void supabase.removeChannel(channel);
     channel = null;
     presencasAoVivo?.parar();
