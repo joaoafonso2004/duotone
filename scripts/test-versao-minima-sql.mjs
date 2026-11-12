@@ -47,8 +47,9 @@ recusado(await pedido({ versao: '5.8.6' }), 'abaixo da mínima');
 recusado(await pedido({ versao: 'lixo' }), 'um cabeçalho que não é uma versão');
 recusado(await pedido({ versao: '' }), 'um cabeçalho vazio');
 recusado(await pedido({ versao: '5.8.8' }), 'a mínima de antes (11/11)');
-recusado(await pedido({ versao: '5.9.2' }), 'a última antes da mínima');
-assert.equal(await pedido({ versao: '5.9.3' }), null, 'a mínima passa');
+recusado(await pedido({ versao: '5.9.2' }), 'uma 5.9 de antes');
+recusado(await pedido({ versao: '5.9.3' }), 'a última antes da mínima (12/11)');
+assert.equal(await pedido({ versao: '5.9.4' }), null, 'a mínima passa');
 assert.equal(await pedido({ versao: '5.9.10' }), null, 'acima passa (compara números)');
 assert.equal(await pedido({ versao: '5.10.0' }), null, 'compara números, não texto');
 assert.equal(await pedido({ versao: '6.0.0' }), null);
@@ -99,9 +100,9 @@ const banido = (e, como) => {
   assert.equal(JSON.parse(e.detail).status, 403, `${como}: 403`);
   assert.match(JSON.parse(e.message).message, /can no longer use Duotone/, `${como}: a mensagem`);
 };
-banido(await pedido({ versao: '5.9.3', conta: A }), 'a conta banida, mesmo numa versão nova');
-banido(await pedido({ versao: '5.9.3', conta: B, aparelho: 'iphone-de-a' }), 'uma conta nova no aparelho de quem foi banido');
-assert.equal(await pedido({ versao: '5.9.3', conta: B, aparelho: 'pc-de-b' }), null, 'os outros passam');
+banido(await pedido({ versao: '5.9.4', conta: A }), 'a conta banida, mesmo numa versão nova');
+banido(await pedido({ versao: '5.9.4', conta: B, aparelho: 'iphone-de-a' }), 'uma conta nova no aparelho de quem foi banido');
+assert.equal(await pedido({ versao: '5.9.4', conta: B, aparelho: 'pc-de-b' }), null, 'os outros passam');
 assert.equal(await pedido({ papel: 'service_role', conta: A }), null, 'o painel passa sempre');
 assert.equal((await db.query(`select has_table_privilege('authenticated', 'public.banidos', 'select') as pode`)).rows[0].pode, false,
   'ninguém lê a lista de fora do painel');

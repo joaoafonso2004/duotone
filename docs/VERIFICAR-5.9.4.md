@@ -2,7 +2,7 @@
 
 Passaram a verificação de tipos e os 352 testes, também numa **cópia dos ficheiros com finais de linha CRLF**. O Swift só o CI compila.
 
-As notas mantêm `Minimum version: 5.9.3`: a 5.9.4 não é obrigatória para quem já tem a 5.9.3.
+**A 5.9.4 é obrigatória** (pedido do João, 12/11). As notas levam `Minimum version: 5.9.4`: quem tem uma versão anterior vê o aviso de atualização sem "Not now", e o PC instala-a sozinho quando está parado. O `versao-minima.sql` sobe a mínima do servidor para 5.9.4 (ver em baixo).
 
 ## Porque existe
 
@@ -13,7 +13,10 @@ O relatório do PC do João (5.9.3, 12/11 às 02h32) dizia `realtime: NOT connec
 1. **Correr outra vez `supabase/presenca-ao-vivo.sql`**, quando quiseres: não depende da versão da app.
    - A presença da 5.9.3 nunca funcionou: o Realtime recusava todos os canais `presenca:<id>`, porque a política só deixava ler `'presence'`. Agora deixa ler `'broadcast'` e `'presence'`, como a da escuta ao vivo.
    - O relatório de migrações não dá pela diferença (só vê se a política existe). Para confirmar: no Logs Explorer, com "Last hour", `realtime_logs` deixa de ter "Unauthorized: You do not have permissions to read from this Channel topic: presenca:…".
-2. **`supabase/versao-minima.sql` continua por correr** (sobe a mínima para a 5.9.3). Tanto faz antes ou depois da 5.9.4.
+2. **`supabase/versao-minima.sql`, só depois de as duas builds estarem publicadas** (o `.ipa` na `ios-v5.9.4`, o instalador na `win-v5.9.4`, e o `versions.json` do portfólio já na 5.9.4).
+   - Sobe a mínima do servidor de 5.8.8 para 5.9.4: daí em diante, as versões abaixo recebem 426.
+   - Correr antes disso deixava quem está na 5.9.3 sem app e sem para onde atualizar.
+   - Depois de correr: a tua 5.9.4 abre e carrega tudo.
 
 ## Windows
 
