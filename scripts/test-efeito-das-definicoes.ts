@@ -8,6 +8,7 @@ import {
   efeitoDaNormalizacao, efeitoDaQualidade, efeitoDeLimparACache, efeitoDeManterOEcra,
   efeitoDoCrossfade, efeitoDoSmartShuffle, efeitoDoDiscord, efeitoDoGostoDoSpotify, efeitoDoPadrao, efeitoDoPoToken,
   efeitoDoAutomix, efeitoDoRadio, efeitoDoRecomendado, efeitoDoTemporizador, tamanho,
+  efeitoDoOutroAparelho, efeitoDasGostadas,
 } from '../src/lib/efeitoDasDefinicoes.ts';
 
 let falhas = 0;
@@ -96,6 +97,24 @@ caso('o rádio diz de onde vêm as músicas, pela ordem da cascata', () => {
 caso('manter o ecrã ligado', () => {
   assert.ok(efeitoDeManterOEcra(true));
   assert.equal(efeitoDeManterOEcra(false), null);
+});
+caso('as Liked Songs no iPhone dizem quantas já cá estão, e à espera de quê (15/11)', () => {
+  const base = { ligada: true, total: 312, descarregadas: 40, aCorrer: true, espera: null } as const;
+  assert.equal(efeitoDasGostadas({ ...base, ligada: false }), null);
+  assert.equal(efeitoDasGostadas(base), 'Downloading 40 of 312 · new likes download too');
+  assert.equal(efeitoDasGostadas({ ...base, espera: 'wifi' }), 'Waiting for Wi-Fi · 40 of 312 on this iPhone');
+  assert.equal(efeitoDasGostadas({ ...base, espera: 'rede' }), 'Waiting for a connection · 40 of 312 on this iPhone');
+  assert.equal(efeitoDasGostadas({ ...base, descarregadas: 312, aCorrer: false }), 'All 312 on this iPhone · new likes download too');
+  assert.equal(efeitoDasGostadas({ ...base, aCorrer: false }), '40 of 312 on this iPhone');
+  assert.match(efeitoDasGostadas({ ...base, total: 0, descarregadas: 0 })!, /will download/);
+  for (const f of [efeitoDasGostadas(base), efeitoDasGostadas({ ...base, espera: 'rede', total: 12345, descarregadas: 12344 })]) {
+    assert.ok(f!.length <= 80, f!);
+  }
+});
+caso('esconder o outro aparelho só vale aqui, e isso diz-se (15/11)', () => {
+  assert.equal(efeitoDoOutroAparelho({ mostrar: true, outro: 'PC' }), null);
+  assert.equal(efeitoDoOutroAparelho({ mostrar: false, outro: 'PC' }), 'Hidden here · your PC still shows what plays on this iPhone');
+  assert.equal(efeitoDoOutroAparelho({ mostrar: false, outro: 'iPhone' }), 'Hidden here · your iPhone still shows what plays on this PC');
 });
 caso('limpar a cache avisa que também leva os downloads', () => {
   assert.equal(efeitoDeLimparACache({ bytes: 412 * 1024 * 1024, downloads: 12 }), 'Frees 412 MB · also removes your 12 downloads');

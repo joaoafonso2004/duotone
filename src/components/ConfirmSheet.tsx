@@ -13,6 +13,12 @@ interface Props {
   loading?: boolean;
   onClose: () => void;
   onConfirm: () => void;
+  /**
+   * O segundo botão, quando não é só "Cancel" (15/11: "Keep them" ao desligar
+   * as Liked Songs no iPhone). Fechar a folha continua a ser o `onClose`.
+   */
+  cancelLabel?: string;
+  onCancel?: () => void;
 }
 
 /** Substituto limpo do Alert de confirmação — ações destrutivas bem sinalizadas. */
@@ -25,6 +31,8 @@ export function ConfirmSheet({
   loading,
   onClose,
   onConfirm,
+  cancelLabel,
+  onCancel,
 }: Props) {
   return (
     <BottomSheet visible={visible} onClose={onClose}>
@@ -42,7 +50,7 @@ export function ConfirmSheet({
           loading={loading}
           onPress={onConfirm}
         />
-        <PillButton label="Cancel" variant="ghost" onPress={onClose} />
+        <PillButton label={cancelLabel ?? 'Cancel'} variant="ghost" onPress={onCancel ?? onClose} />
       </View>
     </BottomSheet>
   );

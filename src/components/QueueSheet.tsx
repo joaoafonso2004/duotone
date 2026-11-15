@@ -9,6 +9,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { usePlayer } from '../state/player';
 import { MARCA_DA_FILA } from '../lib/menuDoRadio';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
+import { comecarRadioDaMusica } from '../state/radioDaFaixa';
 import { useSeguirAmigo } from '../state/seguirAmigo';
 import { colors, spacing, type, radii } from '../theme';
 import { BottomSheet, BottomSheetFlatList } from './BottomSheet';
@@ -222,12 +223,14 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
     temArtista: !!nomeDoArtista && nomeDoArtista !== 'Unknown artist',
     fila: { emJam: emSessao, mudou: !emSessao && !canRemove },
     sugestao: eSugestao(selection.track),
+    emJam: emSessao,
   }) : [];
   const fazer = (id: IdDaAcao) => {
     if (!selection) return;
     const t = selection.track;
     switch (id) {
       case 'tocar-agora': setSelection(null); void playTrack(t, queue); return;
+      case 'radio': setSelection(null); void comecarRadioDaMusica(t); return;
       case 'guardar':
         setSelection(null);
         void alternarGuardada(t).then((ficou) => { if (ficou) hapticNotification(); })

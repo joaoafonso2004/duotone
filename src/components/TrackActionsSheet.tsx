@@ -14,6 +14,8 @@ import { alternarDownload, downloadNoMenuDe, podeDescarregar, tocaSemRede, useRe
 import { alternarGuardada, garantirGuardadas } from '../lib/guardarFaixa';
 import { savedKey, useSaved } from '../state/saved';
 import { usePlayer } from '../state/player';
+import { useOuvirJuntos } from '../state/ouvirJuntos';
+import { comecarRadioDaMusica } from '../state/radioDaFaixa';
 import { irParaNoIphone } from '../navigation/RootNavigator';
 import { MenuFlutuante, type Ancora, type FaixaDoMenu } from './MenuFlutuante';
 import type { PlayerAction } from './PlayerActionsSheet';
@@ -77,6 +79,7 @@ export function TrackActionsSheet({ visible, track, onClose, actions = [], cabec
   const [paraPlaylist, setParaPlaylist] = React.useState<Track | null>(null);
   const lida = useSaved((s) => s.loaded);
   const naLoja = useSaved((s) => (track ? s.keys.has(savedKey(track)) : false));
+  const emJam = useOuvirJuntos((s) => !!s.sessao);
   useRevisaoDosDownloads();
 
   React.useEffect(() => { if (visible && track) garantirGuardadas(); }, [visible, track]);
@@ -93,6 +96,7 @@ export function TrackActionsSheet({ visible, track, onClose, actions = [], cabec
     temArtista: !!nomeDoArtista && nomeDoArtista !== 'Unknown artist',
     playlist: playlist ? { podeEditar: playlist.podeEditar } : null,
     sugestao: !!discoveryContext || eSugestao(track),
+    emJam,
   }) : [];
 
   const fazer = (id: IdDaAcao) => {
@@ -105,6 +109,7 @@ export function TrackActionsSheet({ visible, track, onClose, actions = [], cabec
       // A resposta é a Órbita (C4, 31/10): a capa voa para o mini leitor. Era mudo (A2).
       case 'tocar-a-seguir': player.playNext(t); pedirOrbita({ destino: 'seguinte', capa: capaParaLista(t.artworkUrl), titulo: tituloDaFaixa(t) }); return;
       case 'por-na-fila': player.addToQueue(t); pedirOrbita({ destino: 'fila', capa: capaParaLista(t.artworkUrl), titulo: tituloDaFaixa(t) }); return;
+      case 'radio': void comecarRadioDaMusica(t); return;
       case 'guardar':
         void alternarGuardada(t).then((ficou) => {
           // Tirar já vibra com o aviso do "Undo" (3/10). Guardar voa para o

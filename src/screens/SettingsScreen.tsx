@@ -12,6 +12,14 @@ import { removeOwnProfileMedia } from '../lib/profileMedia';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, {useEffect, useMemo, useState, useRef } from 'react';
 import { lerMarcaDoRefrao, ligarMarcaDoRefrao, useMarcaDoRefrao } from '../state/refrao';
+import { lerMostrarOutroAparelho, mostrarOutroAparelho, useMostrarOutroAparelho } from '../state/outroAparelho';
+import {
+  CHAVE_DAS_GOSTADAS, contarGostadas, faixasGostadas, lerDescarregarGostadas, ligarDescarregarGostadas,
+  tirarDownloadsDasGostadas, useDescarregarGostadas,
+} from '../state/gostadasNoAparelho';
+import { useDownloadDaLista } from '../lib/descarregarFaixa';
+import { bytesEstimados, textoDoTamanho } from '../lib/downloadDaLista';
+import type { Track } from '../types';
 import { Alert, Animated, Linking, StyleSheet, Text, View, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
@@ -25,7 +33,8 @@ import { clearStreamMemo, clearVisitorData, streamEmMemoria } from '../api/ytstr
 import {
   efeitoDaNormalizacao, efeitoDaQualidade, efeitoDeLimparACache, efeitoDeManterOEcra,
   efeitoDoCrossfade, efeitoDoSmartShuffle, efeitoDoGostoDoSpotify, efeitoDoPadrao, efeitoDoRadio,
-  efeitoDoAutomix, efeitoDoRecomendado, efeitoDoTemporizador, efeitoDaMarcaDoRefrao,
+  efeitoDoAutomix, efeitoDoRecomendado, efeitoDoTemporizador, efeitoDaMarcaDoRefrao, efeitoDoOutroAparelho,
+  efeitoDasGostadas,
 } from '../lib/efeitoDasDefinicoes';
 import { temAutomixNativo } from '../../modules/duotone-audio';
 import { estadoDeEnergia } from '../../modules/duotone-diagnostico';
@@ -71,7 +80,7 @@ import { definirEstiloDaCapaDoEcraBloqueado } from '../../modules/duotone-remote
 import {
   definirLimiteDoAudioGuardado, formatCacheSize, getAudioCacheBytes, isAudioCached, limiteDoAudioGuardado, useAudioCache,
 } from '../lib/youtubeCache';
-import { rotuloDoLimite } from '../lib/limiteDoAudio';
+import { limiteParaGuardar, rotuloDoLimite } from '../lib/limiteDoAudio';
 import { BarraDoLimite } from '../components/BarraDoLimite';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useAuth } from '../state/auth';
@@ -235,6 +244,43 @@ export function SettingsScreen({ navigation }: Props) {
   // ecrã e de cada vez que a cache muda (baixar o teto apaga músicas).
   useEffect(() => { setCacheBytes(getAudioCacheBytes()); }, [revisaoDaCache]);
 
+  // "Download Liked Songs" (15/11, state/gostadasNoAparelho.ts). A conta volta a
+  // fazer-se a cada download que acaba (a revisão da cache sobe).
+  const gostadasLigada = useDescarregarGostadas((s) => s.ligada);
+  useEffect(lerDescarregarGostadas, []);
+  const loteDasGostadas = useDownloadDaLista(CHAVE_DAS_GOSTADAS);
+  const [contaDasGostadas, setContaDasGostadas] = useState({ total: 0, descarregadas: 0 });
+  useEffect(() => {
+    if (Platform.OS !== 'ios' || !gostadasLigada) return;
+    let vivo = true;
+    void faixasGostadas().then((f) => { if (vivo) setContaDasGostadas(contarGostadas(f)); }).catch(() => {});
+    return () => { vivo = false; };
+  }, [gostadasLigada, revisaoDaCache, loteDasGostadas.aCorrer]);
+  const [gostadasPorConfirmar, setGostadasPorConfirmar] = useState<
+    | { tipo: 'subir'; quantas: number; tamanho: string; limite: number }
+    | { tipo: 'tirar'; faixas: Track[]; descarregadas: number }
+    | null
+  >(null);
+  const mudarGostadas = async (v: boolean) => {
+    hapticSelection();
+    const faixas = await faixasGostadas().catch(() => [] as Track[]);
+    if (v) {
+      // O limite manda: acima dele saem os mais antigos, downloads incluídos.
+      const duracoes = faixas.map((t) => t.durationSeconds);
+      const limite = limiteParaGuardar(bytesEstimados(duracoes), limiteDoAudioGuardado());
+      // Sem a lista (sem rede e sem cache) não há conta a fazer: liga, e descarrega quando der.
+      if (faixas.length > 0 && limite !== null) {
+        setGostadasPorConfirmar({ tipo: 'subir', quantas: faixas.length, tamanho: textoDoTamanho(duracoes), limite });
+        return;
+      }
+      void ligarDescarregarGostadas(true);
+      return;
+    }
+    const { descarregadas } = contarGostadas(faixas);
+    if (descarregadas > 0) { setGostadasPorConfirmar({ tipo: 'tirar', faixas, descarregadas }); return; }
+    void ligarDescarregarGostadas(false);
+  };
+
   const aplicarLimite = (bytes: number) => {
     definirLimiteDoAudioGuardado(bytes);
     void setLimiteDoAudio(bytes).catch(() => {});
@@ -277,6 +323,9 @@ export function SettingsScreen({ navigation }: Props) {
   // A risca do refrão na barra do Now Playing (25/10, desligada de origem).
   const marcaDoRefrao = useMarcaDoRefrao((s) => s.ligada);
   useEffect(lerMarcaDoRefrao, []);
+  // O PC a tocar (15/11): o aviso, a lingueta e o mini. Ligada de origem.
+  const mostrarOutro = useMostrarOutroAparelho((s) => s.mostrar);
+  useEffect(lerMostrarOutroAparelho, []);
 
   const toggleAutoplayRadio = async (v: boolean) => {
     setAutoplayRadio(v);
@@ -426,6 +475,11 @@ export function SettingsScreen({ navigation }: Props) {
     }),
     radio: efeitoDoRadio({ ligado: autoplayRadio, aTocarRadio: radioActivo }),
     ecra: efeitoDeManterOEcra(keepAwakeOn),
+    outroAparelho: efeitoDoOutroAparelho({ mostrar: mostrarOutro, outro: 'PC' }),
+    gostadas: efeitoDasGostadas({
+      ligada: gostadasLigada, total: contaDasGostadas.total, descarregadas: contaDasGostadas.descarregadas,
+      aCorrer: loteDasGostadas.aCorrer, espera: loteDasGostadas.espera,
+    }),
     cache: efeitoDeLimparACache({ bytes: cacheBytes, downloads: idsPedidos().filter(isAudioCached).length }),
     spotify: efeitoDoGostoDoSpotify({
       artistas: gostoDoSpotify?.artistas.length ?? 0, lidoEm: gostoDoSpotify?.lidoEm ?? null, agora: Date.now(),
@@ -583,8 +637,10 @@ export function SettingsScreen({ navigation }: Props) {
           <LinhaInterruptor icone="play-back" rotulo={ROTULOS.recuo} valor={showRewindButton} aoMudar={toggleShowRewind} />
         </Grupo>
 
-        <Grupo titulo="General" rodape={efeitos.ecra}>
+        <Grupo titulo="General" rodape={[efeitos.outroAparelho, efeitos.ecra]}>
           <LinhaInterruptor icone="notifications" rotulo={ROTULOS.mensagens} valor={notificationsOn} aoMudar={toggleNotifications} />
+          <LinhaInterruptor icone="desktop-outline" rotulo={ROTULOS.outroAparelhoNoIphone} valor={mostrarOutro}
+            aoMudar={(v: boolean) => { hapticSelection(); mostrarOutroAparelho(v); }} />
           <LinhaInterruptor icone="phone-portrait-outline" rotulo="Haptic feedback" valor={hapticsOn} aoMudar={toggleHaptics} />
           <LinhaInterruptor icone="sunny" rotulo="Keep screen awake" valor={keepAwakeOn} aoMudar={toggleKeepAwake} />
           <LinhaInterruptor
@@ -627,10 +683,14 @@ export function SettingsScreen({ navigation }: Props) {
 
         {/* O "Clear cache" apaga TODO o áudio guardado, os downloads feitos de
             propósito incluídos -- e o rodapé di-lo antes de se carregar. */}
-        <Grupo titulo="Storage" rodape={[efeitos.cache, 'Songs are kept on the phone so they play with the screen locked.',
+        <Grupo titulo="Storage" rodape={[efeitos.gostadas, efeitos.cache, 'Songs are kept on the phone so they play with the screen locked.',
           Number.isFinite(limiteDoAudio)
             ? 'Above the limit, the oldest cached songs and downloads are removed automatically.'
             : 'With no limit, songs stay on the phone until you clear the cache.']}>
+          {Platform.OS === 'ios' && (
+            <LinhaInterruptor icone="heart-circle" rotulo={ROTULOS.descarregarGostadas} valor={gostadasLigada}
+              aoMudar={(v: boolean) => { void mudarGostadas(v); }} />
+          )}
           <Linha icone="arrow-down-circle" rotulo="Downloads" valor={formatCacheSize(cacheBytes)} chevron aoTocar={() => navigation.navigate('Downloads')} />
           {/* O teto (11/11): era 300 MB fixos. */}
           <LinhaAlta icone="server" rotulo="Storage limit">
@@ -696,6 +756,44 @@ export function SettingsScreen({ navigation }: Props) {
         onConfirm={() => {
           if (limitePorConfirmar !== null) aplicarLimite(limitePorConfirmar);
           setLimitePorConfirmar(null);
+        }}
+      />
+
+      {/* "Download Liked Songs" (15/11): ligar com o limite curto pede para o subir. */}
+      <ConfirmSheet
+        visible={gostadasPorConfirmar?.tipo === 'subir'}
+        title="Raise the storage limit?"
+        message={gostadasPorConfirmar?.tipo !== 'subir' ? undefined
+          : `Your ${gostadasPorConfirmar.quantas} liked songs need ${gostadasPorConfirmar.tamanho}. Duotone keeps up to ${rotuloDoLimite(limiteDoAudio)} now, and removes the oldest songs above that.`}
+        confirmLabel={gostadasPorConfirmar?.tipo === 'subir' ? `Raise to ${rotuloDoLimite(gostadasPorConfirmar.limite)}` : 'Raise limit'}
+        onClose={() => setGostadasPorConfirmar(null)}
+        onConfirm={() => {
+          if (gostadasPorConfirmar?.tipo === 'subir') {
+            aplicarLimite(gostadasPorConfirmar.limite);
+            void ligarDescarregarGostadas(true);
+          }
+          setGostadasPorConfirmar(null);
+        }}
+      />
+      {/* Desligar com músicas já cá: tirá-las, ou deixá-las e só parar. Fechar não muda nada. */}
+      <ConfirmSheet
+        visible={gostadasPorConfirmar?.tipo === 'tirar'}
+        title="Remove downloaded liked songs?"
+        message={gostadasPorConfirmar?.tipo !== 'tirar' ? undefined
+          : `${gostadasPorConfirmar.descarregadas === 1 ? '1 liked song is' : `${gostadasPorConfirmar.descarregadas} liked songs are`} on this iPhone. Remove them, or keep them and stop downloading new ones.`}
+        confirmLabel="Remove downloads"
+        destructive
+        cancelLabel="Keep them"
+        onCancel={() => { setGostadasPorConfirmar(null); void ligarDescarregarGostadas(false); }}
+        onClose={() => setGostadasPorConfirmar(null)}
+        onConfirm={() => {
+          const pedido = gostadasPorConfirmar;
+          setGostadasPorConfirmar(null);
+          if (pedido?.tipo !== 'tirar') return;
+          void ligarDescarregarGostadas(false)
+            .then(() => tirarDownloadsDasGostadas(pedido.faixas))
+            .then(() => avisarFeito('Removed the downloads of your liked songs'))
+            .catch((e: any) => avisarErro(mensagemDeErro(e, "Couldn't remove the downloads.")));
         }}
       />
 

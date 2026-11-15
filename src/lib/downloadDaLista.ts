@@ -69,9 +69,15 @@ export const TEXTO_DO_LOTE_PARADO = "Some songs couldn't download. Try again lat
  */
 const BYTES_POR_SEGUNDO = 16_000;
 const DURACAO_SEM_DADOS_S = 210;
-export function textoDoTamanho(duracoes: readonly (number | null | undefined)[]): string {
+
+/** Os bytes dessa conta (15/11: as Liked Songs no iPhone comparam-nos com o limite). */
+export function bytesEstimados(duracoes: readonly (number | null | undefined)[]): number {
   const segundos = duracoes.reduce<number>((soma, d) => soma + (d && d > 0 ? d : DURACAO_SEM_DADOS_S), 0);
-  const mb = (segundos * BYTES_POR_SEGUNDO) / 1_000_000;
+  return segundos * BYTES_POR_SEGUNDO;
+}
+
+export function textoDoTamanho(duracoes: readonly (number | null | undefined)[]): string {
+  const mb = bytesEstimados(duracoes) / 1_000_000;
   if (mb >= 1000) return `about ${(mb / 1000).toFixed(1)} GB`;
   return `about ${Math.max(1, Math.round(mb / 10) * 10 || Math.round(mb))} MB`;
 }

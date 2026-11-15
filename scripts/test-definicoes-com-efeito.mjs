@@ -64,6 +64,12 @@ const TABELA = [
     leitores: [['src/components/TrackRow.tsx', /isShowTrackDurationSync\(\)/], ['src/desktop/ui.web.tsx', /isShowTrackDurationSync\(\)/]] },
   { opcao: 'Rewind 15 s', escreve: ['setShowRewindButton'],
     leitores: [['src/components/PlayerRoot.tsx', /showRewindButton/], ['src/desktop/casca.web.tsx', /showRewindButton/]] },
+  // 15/11: escrita pela store (`ligarDescarregarGostadas`); o arranque lê-a e junta as que faltam.
+  { opcao: 'Download Liked Songs', escreve: ['setDescarregarGostadas'],
+    leitores: [['App.tsx', /lerDescarregarGostadas\(\);/], ['src/state/gostadasNoAparelho.ts', /descarregarLista\(CHAVE_DAS_GOSTADAS/]] },
+  // 15/11: escrita pela store (`mostrarOutroAparelho`), lida pela sessão que faz a oferta.
+  { opcao: 'Show what your PC/iPhone is playing', escreve: ['setMostrarOutroAparelho'],
+    leitores: [['src/lib/sessionSync.ts', /const oferta = mostrarOutro && picked/]] },
   { opcao: 'Notifications', escreve: ['setNotificationsEnabled'],
     leitores: [['src/hooks/useInAppNotifications.ts', /getNotificationsEnabled/], ['src/hooks/useDesktopNotifications.ts', /getNotificationsEnabled/]] },
   { opcao: 'Haptic feedback', escreve: ['setHapticsEnabled', 'setHapticsEnabledCache'],

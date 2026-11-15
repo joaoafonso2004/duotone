@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { RemoteSession } from '../lib/handoff';
+import { getMostrarOutroAparelho, setMostrarOutroAparelho } from '../lib/prefs';
 
 /**
  * O outro aparelho a tocar (1/11, `docs/continuar-aqui-maquete.html`).
@@ -34,4 +35,25 @@ export function abrirOutroAparelho(): void {
 
 export function fecharOutroAparelho(): void {
   useOutroAparelho.setState({ aberto: false });
+}
+
+/**
+ * A opção "Show what your PC/iPhone is playing" (15/11, ligada de origem).
+ * Desligada, este aparelho deixa de oferecer o outro: sem aviso, sem botão na
+ * barra, sem lingueta nem mini. Só aqui: o outro continua a ver este.
+ */
+export const useMostrarOutroAparelho = create<{ mostrar: boolean }>(() => ({ mostrar: true }));
+let mostrarLido = false;
+
+/** Lê a opção do disco, uma vez (a sessão e as Definições chamam isto ao montar). */
+export function lerMostrarOutroAparelho(): void {
+  if (mostrarLido) return;
+  mostrarLido = true;
+  void getMostrarOutroAparelho().then((mostrar) => useMostrarOutroAparelho.setState({ mostrar })).catch(() => {});
+}
+
+export function mostrarOutroAparelho(mostrar: boolean): void {
+  mostrarLido = true;
+  useMostrarOutroAparelho.setState({ mostrar });
+  void setMostrarOutroAparelho(mostrar);
 }

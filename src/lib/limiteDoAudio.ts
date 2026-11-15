@@ -64,3 +64,18 @@ export function lerLimite(guardado: string | null | undefined): number {
 export function escreverLimite(bytes: number): string {
   return Number.isFinite(bytes) ? String(Math.round(bytes / MB)) : 'unlimited';
 }
+
+/**
+ * O limite que um conjunto de downloads pede (15/11, "Download Liked Songs"):
+ * o tamanho estimado e mais um quarto (a estimativa é uma ordem de grandeza), e
+ * por cima a cache de sempre (os 300 MB de origem) para o que se vai ouvindo --
+ * os mais antigos saem primeiro, e sem folga a cache de cada dia levava os
+ * downloads. Devolve o degrau a que subir, ou `null` quando o de agora chega.
+ */
+export const FOLGA_DA_CACHE = LIMITE_DE_ORIGEM;
+export function limiteParaGuardar(bytes: number, limiteAtual: number): number | null {
+  const preciso = Math.max(0, bytes) * 1.25 + FOLGA_DA_CACHE;
+  if (limiteAtual >= preciso) return null;
+  for (const mb of DEGRAUS_MB) if (mb * MB >= preciso) return Number.isFinite(mb) ? mb * MB : SEM_LIMITE;
+  return SEM_LIMITE;
+}

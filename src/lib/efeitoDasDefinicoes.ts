@@ -162,6 +162,36 @@ export function efeitoDoRadio(e: { ligado: boolean; aTocarRadio: boolean }): str
 // O resto
 // ---------------------------------------------------------------------------
 
+/**
+ * Mostrar o outro aparelho (15/11). Ligada explica-se sozinha; desligada, o que
+ * se tem de ler é que só vale AQUI: o outro continua a ver este.
+ */
+export function efeitoDoOutroAparelho(e: { mostrar: boolean; outro: 'PC' | 'iPhone' }): string | null {
+  if (e.mostrar) return null;
+  return `Hidden here · your ${e.outro} still shows what plays on this ${e.outro === 'PC' ? 'iPhone' : 'PC'}`;
+}
+
+/**
+ * As Liked Songs no iPhone (15/11): quantas já estão cá, e à espera de quê.
+ * Desligada explica-se sozinha. As novas também descarregam, e isso diz-se.
+ */
+export function efeitoDasGostadas(e: {
+  ligada: boolean;
+  total: number;
+  descarregadas: number;
+  /** O lote a correr, e porque é que parou (sem rede, ou à espera do Wi-Fi). */
+  aCorrer: boolean;
+  espera: 'rede' | 'wifi' | null;
+}): string | null {
+  if (!e.ligada) return null;
+  if (e.total <= 0) return 'Songs you like will download to this iPhone';
+  const quantas = `${Math.min(e.descarregadas, e.total)} of ${e.total}`;
+  if (e.descarregadas >= e.total) return `All ${e.total} on this iPhone · new likes download too`;
+  if (e.espera === 'wifi') return `Waiting for Wi-Fi · ${quantas} on this iPhone`;
+  if (e.espera === 'rede') return `Waiting for a connection · ${quantas} on this iPhone`;
+  return e.aCorrer ? `Downloading ${quantas} · new likes download too` : `${quantas} on this iPhone`;
+}
+
 export function efeitoDeManterOEcra(ligado: boolean): string | null {
   return ligado ? 'The screen stays on while Duotone is open' : null;
 }

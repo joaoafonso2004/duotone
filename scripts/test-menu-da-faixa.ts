@@ -4,7 +4,7 @@
  * Correr: node --experimental-strip-types scripts/test-menu-da-faixa.ts
  */
 import assert from 'node:assert/strict';
-import { menuDaFaixa, MOTIVOS, ORDEM, type ContextoDoMenu, type IdDaAcao } from '../src/lib/menuDaFaixa.ts';
+import { GRUPO, menuDaFaixa, MOTIVOS, ORDEM, type ContextoDoMenu, type IdDaAcao } from '../src/lib/menuDaFaixa.ts';
 
 let falhas = 0;
 function caso(nome: string, fn: () => void): void {
@@ -183,10 +183,32 @@ caso('No leitor, uma sugestão continua com o menu curto mais o Not interested',
 
 caso('Na barra do leitor do PC (24/10): Open Now Playing primeiro, sem tocar nem pôr na fila (já está a tocar)', () => {
   const pc = { plataforma: 'pc' as const, podeDescarregar: false };
-  assert.deepEqual(ids({ ...pc, onde: 'barra' }), ['abrir-leitor', 'guardar', 'por-em-playlist', 'ver-artista', 'partilhar', 'recomendacoes']);
+  assert.deepEqual(ids({ ...pc, onde: 'barra' }), ['abrir-leitor', 'radio', 'guardar', 'por-em-playlist', 'ver-artista', 'partilhar', 'recomendacoes']);
   assert.equal(achar('abrir-leitor', { ...pc, onde: 'barra', semRede: true }).indisponivel, null, 'abrir o leitor não precisa de rede');
   assert.equal(achar('abrir-leitor', { ...pc, onde: 'barra' }).rotulo, 'Open Now Playing');
 });
+// --- "Start Radio" (15/11): o Radio desta música, nas listas, na fila e na barra do PC ---
+caso('Start Radio em todos os menus menos o curto do leitor, logo a seguir ao Add to queue', () => {
+  for (const [sitio, over] of SITIOS) {
+    const tem = ids(over).includes('radio');
+    assert.equal(tem, over.onde !== 'leitor', sitio);
+  }
+  const l = ids();
+  assert.equal(l.indexOf('radio'), l.indexOf('por-na-fila') + 1);
+  const a = achar('radio');
+  assert.equal(a.rotulo, 'Start Radio');
+  assert.equal(a.icone, 'radio-outline');
+  assert.equal(a.indisponivel, null);
+});
+caso('Start Radio sem rede e numa Jam fica à vista e diz porquê', () => {
+  assert.equal(achar('radio', { semRede: true }).indisponivel, MOTIVOS.semRede);
+  assert.equal(achar('radio', { emJam: true }).indisponivel, MOTIVOS.radioNaJam);
+  assert.equal(achar('radio', { plataforma: 'pc', podeDescarregar: false, onde: 'fila', fila: { emJam: true, mudou: false }, emJam: true }).indisponivel, MOTIVOS.radioNaJam);
+});
+caso('Start Radio no grupo de tocar do menu compacto do iPhone', () => {
+  assert.equal(GRUPO.radio, GRUPO['por-na-fila']);
+});
+
 caso('O Open Now Playing só existe na barra', () => {
   for (const [sitio, over] of SITIOS) {
     if (over.onde === 'barra') continue;

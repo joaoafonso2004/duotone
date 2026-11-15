@@ -17,6 +17,10 @@ export const DE_FORA = new Set([
   'pref:artistasFavoritos',
   // É do APARELHO e não da pessoa: um endereço local não serve no outro.
   'pref:potServerUrl',
+  // Do aparelho (15/11): cada um esconde o OUTRO, e no outro a escolha é a inversa.
+  'pref:mostrarOutroAparelho',
+  // Do aparelho (15/11): um iPhone novo na conta não começa a descarregar gigas sozinho.
+  'pref:descarregarGostadas',
 ]);
 
 

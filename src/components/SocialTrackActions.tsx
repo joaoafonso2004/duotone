@@ -4,6 +4,8 @@ import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { Track } from '../types';
 import { usePlayer } from '../state/player';
+import { useOuvirJuntos } from '../state/ouvirJuntos';
+import { comecarRadioDaMusica } from '../state/radioDaFaixa';
 import { savedKey, useSaved } from '../state/saved';
 import { alternarGuardada, garantirGuardadas } from '../lib/guardarFaixa';
 import { menuDaFaixa, type IdDaAcao } from '../lib/menuDaFaixa';
@@ -94,6 +96,7 @@ export function SocialTrackActions({ track, onClose, onArtist, extra }: {
   const lidas = useSaved((st) => st.loaded);
   const naLoja = useSaved((st) => (track ? st.keys.has(savedKey(track)) : false));
   const guardada = track && lidas ? naLoja : null;
+  const emJam = useOuvirJuntos((st) => !!st.sessao);
   useEffect(() => { if (track) garantirGuardadas(); }, [track?.source, track?.sourceId]);
 
   const guardar = async () => {
@@ -123,6 +126,7 @@ export function SocialTrackActions({ track, onClose, onArtist, extra }: {
     podeDescarregar: podeDescarregar(track),
     download: downloadNoMenuDe(track),
     temArtista: !!nomeDoArtista && nomeDoArtista !== 'Unknown artist',
+    emJam,
   }) : [];
   const fazer = (id: IdDaAcao) => {
     if (!track) return;
@@ -132,6 +136,7 @@ export function SocialTrackActions({ track, onClose, onArtist, extra }: {
       case 'tocar-agora': eFechar(() => void player.tocarMusica(track)); return;
       case 'tocar-a-seguir': eFechar(() => player.playNext(track)); return;
       case 'por-na-fila': eFechar(() => player.addToQueue(track)); return;
+      case 'radio': eFechar(() => void comecarRadioDaMusica(track)); return;
       case 'guardar': void guardar(); return;
       case 'por-em-playlist': setPlaylist(true); return;
       case 'ver-artista': eFechar(() => onArtist(nomeDoArtista)); return;

@@ -7,7 +7,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  bytesDoDegrau, DEGRAUS_MB, degrauDoLimite, escreverLimite, LIMITE_DE_ORIGEM, lerLimite, rotuloDoLimite, SEM_LIMITE,
+  bytesDoDegrau, DEGRAUS_MB, degrauDoLimite, escreverLimite, FOLGA_DA_CACHE, LIMITE_DE_ORIGEM, lerLimite, limiteParaGuardar,
+  rotuloDoLimite, SEM_LIMITE,
 } from '../src/lib/limiteDoAudio.ts';
 
 const MB = 1024 * 1024;
@@ -54,6 +55,31 @@ caso('ida e volta, sem limite incluído', () => {
 caso('nada, lixo ou um zero são os 300 MB: um valor estragado nunca apaga tudo', () => {
   for (const mau of [null, undefined, '', 'lixo', '0', '-5', '3', 'NaN', 'Infinity'])
     assert.equal(lerLimite(mau), LIMITE_DE_ORIGEM, String(mau));
+});
+
+console.log('\nas Liked Songs no iPhone pedem limite (15/11)');
+caso('o tamanho, mais um quarto, mais a folga da cache, no degrau acima', () => {
+  // 1 GB de músicas: 1,25 GB + 300 MB = 1,54 GB -> o degrau de 2 GB.
+  assert.equal(limiteParaGuardar(1024 * MB, LIMITE_DE_ORIGEM), 2048 * MB);
+  // 100 MB de músicas: 125 + 300 = 425 MB -> 500 MB.
+  assert.equal(limiteParaGuardar(100 * MB, LIMITE_DE_ORIGEM), 500 * MB);
+  // A folga é a cache de sempre: nada para guardar cabe nos 300 MB de origem.
+  assert.equal(FOLGA_DA_CACHE, LIMITE_DE_ORIGEM);
+  assert.equal(limiteParaGuardar(0, LIMITE_DE_ORIGEM), null);
+  assert.equal(limiteParaGuardar(0, 10 * MB), 300 * MB);
+});
+caso('o limite que já chega não muda, e sem limite chega sempre', () => {
+  assert.equal(limiteParaGuardar(1024 * MB, 2048 * MB), null);
+  assert.equal(limiteParaGuardar(50_000 * MB, SEM_LIMITE), null);
+});
+caso('acima do último degrau com número, sem limite', () => {
+  assert.equal(limiteParaGuardar(20_000 * MB, 2048 * MB), SEM_LIMITE);
+});
+caso('o que devolve é sempre um degrau da barra', () => {
+  for (const bytes of [1, 80 * MB, 333 * MB, 3000 * MB, 9000 * MB]) {
+    const l = limiteParaGuardar(bytes, 10 * MB)!;
+    assert.equal(bytesDoDegrau(degrauDoLimite(l)), l, String(bytes));
+  }
 });
 
 console.log('\nligado');

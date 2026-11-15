@@ -83,6 +83,8 @@ const mocks = {
   './RecommendationPreferences':{RecommendationPreferences:'Recs'},
   './RadioQueueControl':{RadioQueueControl:'RadioQueueControl',ErroDoRadio:'ErroDoRadio'},
   '../lib/menuDoRadio':{MARCA_DA_FILA:{musica:'RADIO',mix:'MIX'}},
+  // O "Start Radio" do menu (15/11): fora deste teste.
+  '../state/radioDaFaixa':{comecarRadioDaMusica:async()=>{}},
   '../lib/descarregarFaixa':{alternarDownload(){},downloadNoMenuDe:()=>null,podeDescarregar:()=>false,tocaSemRede:()=>true,useRevisaoDosDownloads:()=>0},
   '../lib/guardarFaixa':{alternarGuardada:async()=>{},garantirGuardadas(){}},
   '../state/saved':{savedKey:t=>t.source+':'+t.sourceId,useSaved:sel=>sel({loaded:true,keys:new Set()})},

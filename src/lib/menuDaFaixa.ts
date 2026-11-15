@@ -34,6 +34,7 @@ export type IdDaAcao =
   | 'tocar-agora'
   | 'tocar-a-seguir'
   | 'por-na-fila'
+  | 'radio'
   | 'guardar'
   | 'por-em-playlist'
   | 'ver-artista'
@@ -50,6 +51,7 @@ export const ORDEM: readonly IdDaAcao[] = [
   'tocar-agora',
   'tocar-a-seguir',
   'por-na-fila',
+  'radio',
   'guardar',
   'por-em-playlist',
   'ver-artista',
@@ -67,6 +69,7 @@ export type IconeDoMenu =
   | 'play-circle-outline'
   | 'play-forward-outline'
   | 'list-outline'
+  | 'radio-outline'
   | 'heart'
   | 'heart-outline'
   | 'albums-outline'
@@ -88,6 +91,7 @@ export const MOTIVOS = {
   soODono: 'Only the owner can remove songs',
   filaDoJam: 'The Jam queue is shared · change it in the Jam',
   filaMudou: 'The queue changed',
+  radioNaJam: 'The Jam has its own Radio · change it in the Jam',
 } as const;
 
 /**
@@ -120,6 +124,8 @@ export interface ContextoDoMenu {
   playlist?: { podeEditar: boolean } | null;
   /** Presente quando o menu abriu numa linha da fila (que não a que toca). */
   fila?: { emJam: boolean; mudou: boolean } | null;
+  /** Dentro de uma Jam: o Radio é o da sala (o "Start Radio" diz porquê). */
+  emJam?: boolean;
   /**
    * A música foi a app que a sugeriu (Radio, Smart Shuffle, uma prateleira de
    * descoberta): ganha o "Not interested" (7/10), também no leitor.
@@ -152,6 +158,9 @@ function aplicaSe(id: IdDaAcao, c: ContextoDoMenu): boolean {
     case 'tocar-agora': return c.onde === 'lista' || c.onde === 'fila';
     case 'tocar-a-seguir':
     case 'por-na-fila': return c.onde === 'lista';
+    // O "Start Radio" (15/11): o Radio desta música. Não no menu curto do
+    // leitor (12/9): lá o Radio está na pastilha da fila.
+    case 'radio':
     case 'ver-artista':
     case 'recomendacoes': return c.onde !== 'leitor';
     case 'nao-interessa': return !!c.sugestao;
@@ -175,6 +184,7 @@ function descrever(id: IdDaAcao, c: ContextoDoMenu): AcaoDoMenu {
     case 'tocar-agora': return acao('Play now', 'play-circle-outline', tocar);
     case 'tocar-a-seguir': return acao('Play next', 'play-forward-outline', tocar);
     case 'por-na-fila': return acao('Add to queue', 'list-outline', tocar);
+    case 'radio': return acao('Start Radio', 'radio-outline', semRede ?? (c.emJam ? MOTIVOS.radioNaJam : null));
     case 'guardar': return c.guardada
       ? acao('Remove from Liked Songs', 'heart', semRede)
       : acao('Add to Liked Songs', 'heart-outline', semRede ?? (c.guardada === null ? MOTIVOS.aVerificar : null));
@@ -210,7 +220,7 @@ export function menuDaFaixa(c: ContextoDoMenu): AcaoDoMenu[] {
  * uma ação pela posição.
  */
 export const GRUPO: Readonly<Record<IdDaAcao, number>> = {
-  'abrir-leitor': 0, 'tocar-agora': 0, 'tocar-a-seguir': 0, 'por-na-fila': 0,
+  'abrir-leitor': 0, 'tocar-agora': 0, 'tocar-a-seguir': 0, 'por-na-fila': 0, 'radio': 0,
   'guardar': 1, 'por-em-playlist': 1,
   'ver-artista': 2, 'partilhar': 2, 'descarregar': 2,
   'nao-interessa': 3, 'recomendacoes': 3,

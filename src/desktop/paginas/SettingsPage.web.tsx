@@ -50,8 +50,9 @@ import { definirDisposicaoDoLeitor, definirFundoDoLeitor } from '../aparenciaDoL
 import { definirDoisTons } from '../doisTons.web';
 import { definirCapaMetal } from '../CapaMetal3D.web';
 import { DURACOES_DO_CROSSFADE, type DuracaoDoCrossfade } from '../../lib/crossfade';
-import { efeitoDaMarcaDoRefrao, efeitoDoCrossfade, efeitoDoDiscord, efeitoDoPadrao, efeitoDoRadio, efeitoDoRecomendado, efeitoDoSmartShuffle, efeitoDoTemporizador } from '../../lib/efeitoDasDefinicoes';
+import { efeitoDaMarcaDoRefrao, efeitoDoCrossfade, efeitoDoDiscord, efeitoDoOutroAparelho, efeitoDoPadrao, efeitoDoRadio, efeitoDoRecomendado, efeitoDoSmartShuffle, efeitoDoTemporizador } from '../../lib/efeitoDasDefinicoes';
 import { lerMarcaDoRefrao, ligarMarcaDoRefrao, useMarcaDoRefrao } from '../../state/refrao';
+import { lerMostrarOutroAparelho, mostrarOutroAparelho, useMostrarOutroAparelho } from '../../state/outroAparelho';
 import { useEstadoDoDiscord } from '../../hooks/usePresencaDoDiscord';
 import { usePrivacidade } from '../../state/privacidade';
 import { getLibrary } from '../../api/library';
@@ -229,8 +230,12 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   // A risca do refrão na barra do leitor (25/10, desligada de origem).
   const marcaDoRefrao = useMarcaDoRefrao((s) => s.ligada);
   useEffect(lerMarcaDoRefrao, []);
+  // O iPhone a tocar (15/11): o aviso e o botão da barra. Ligada de origem.
+  const mostrarOutro = useMostrarOutroAparelho((s) => s.mostrar);
+  useEffect(lerMostrarOutroAparelho, []);
   const efeitos = {
     refrao: efeitoDaMarcaDoRefrao({ ligada: marcaDoRefrao }),
+    outroAparelho: efeitoDoOutroAparelho({ mostrar: mostrarOutro, outro: 'iPhone' }),
     smart: efeitoDoSmartShuffle({ intensidade: intensidadeSmart, ligado: smartLigado }),
     discord: efeitoDoDiscord({ ligado: discordOn, privada, estado: estadoDoDiscord }),
     radio: efeitoDoRadio({ ligado: autoplayRadio, aTocarRadio: radioActivo }),
@@ -465,6 +470,9 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
               {aberta === 'windows' && <SettingsCard title="Windows">
                 <ToggleLine label={ROTULOS.mensagens} description="Show a Windows notification when a message arrives while you are away."
                   value={notifications} onChange={(v) => { setNotifications(v); void setNotificationsEnabled(v); }} />
+                <ToggleLine label={ROTULOS.outroAparelhoNoPc}
+                  description="A notice and a button in the player bar when your iPhone is playing, to continue here."
+                  value={mostrarOutro} onChange={mostrarOutroAparelho} efeito={efeitos.outroAparelho} />
                 {window.duotoneDesktop?.setCloseToTray && <ToggleLine
                   label="Close to tray"
                   description="Keep playing in the system tray when you close the window."

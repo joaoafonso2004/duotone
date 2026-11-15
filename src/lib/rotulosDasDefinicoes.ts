@@ -21,6 +21,11 @@ export const ROTULOS = {
   duracao: 'Song length in lists',
   recuo: '15-second rewind',
   mensagens: 'Message notifications',
+  /** O outro aparelho a tocar (15/11): cada um nomeia o outro. */
+  outroAparelhoNoIphone: 'Show what your PC is playing',
+  outroAparelhoNoPc: 'Show what your iPhone is playing',
+  /** As Liked Songs no iPhone (15/11), todas e as que vierem. */
+  descarregarGostadas: 'Download Liked Songs',
   recomendacoes: 'Recommendations',
   identificar: 'Identify library',
   libraryCheck: 'Library check',

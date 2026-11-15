@@ -84,6 +84,7 @@ import { useAparencia } from './src/state/aparencia';
 import { carregarArtistasDosVideos } from './src/state/artistasDosVideos';
 import { limparVerificacao } from './src/state/verificacaoDaBiblioteca';
 import { useSaved } from './src/state/saved';
+import { lerDescarregarGostadas } from './src/state/gostadasNoAparelho';
 import { instalarSaudeDaApp } from './src/state/saudeDaApp';
 import { ligarMedicoes } from './src/state/medicoes';
 import { ligarTempoAteAoSom } from './src/state/tempoAteAoSom';
@@ -322,6 +323,9 @@ export default function App() {
       if (saiu) return;
       // Índice em memória dos downloads (badges "offline" nas listas).
       loadCachedAudioIndex();
+      // "Download Liked Songs" (15/11): ligada, junta as que faltam ao lote de
+      // downloads. Depois do registo dos pedidos, que é o que diz quais já estão.
+      lerDescarregarGostadas();
       // Arranque sem rede com a sessão restaurada numa faixa que não está no
       // telemóvel: passa, em pausa, para a primeira da fila que está. Só depois
       // do índice, que é o que diz o que está no disco.

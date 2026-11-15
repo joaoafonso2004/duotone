@@ -24,7 +24,7 @@ import {
 } from './handoff';
 
 import { usePlayer } from '../state/player';
-import { useOutroAparelho, verOAviso } from '../state/outroAparelho';
+import { lerMostrarOutroAparelho, useMostrarOutroAparelho, useOutroAparelho, verOAviso } from '../state/outroAparelho';
 import { appEstaVisivel, intervaloComAppVisivel } from './appVisibility';
 import { supabase } from './supabase';
 
@@ -328,9 +328,12 @@ export function useHandoffSession(): {
   }, [refresh]);
 
   const picked = myDeviceId ? pickHandoffSession(sessions, myDeviceId) : null;
+  // A opção das Definições (15/11): desligada, este aparelho não oferece o outro.
+  const mostrarOutro = useMostrarOutroAparelho((s) => s.mostrar);
+  useEffect(lerMostrarOutroAparelho, []);
   // A oferta (1/11): o que o aviso, o botão da barra, a lingueta e o mini
   // mostram. O X já não a cala: só a marca como vista (`verOAviso`).
-  const oferta = picked && !isDismissed(picked.deviceId) && shouldOfferHandoff(picked, currentTrack, aTocarAqui)
+  const oferta = mostrarOutro && picked && !isDismissed(picked.deviceId) && shouldOfferHandoff(picked, currentTrack, aTocarAqui)
     ? picked
     : null;
   const vistos = useOutroAparelho((s) => s.vistos);

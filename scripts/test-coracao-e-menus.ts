@@ -110,7 +110,7 @@ caso('o resto vai em grupos, com o traço só onde o grupo muda', () => {
   const c = contexto({ sugestao: true });
   const m = menuCompacto(menuDaFaixa(c), c);
   assert.deepEqual(m.linhas.map((a) => [a.id, a.inicioDeGrupo]), [
-    ['tocar-agora', false],
+    ['tocar-agora', false], ['radio', false],
     ['ver-artista', true], ['partilhar', false], ['descarregar', false],
     ['nao-interessa', true], ['recomendacoes', false],
     ['tirar-da-playlist', true],

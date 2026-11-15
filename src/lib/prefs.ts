@@ -49,6 +49,10 @@ const KEY_DISCORD_ON = 'pref:discordRichPresence';
 const KEY_DISCORD_APP = 'pref:discordAppId';
 /** A escuta privada. Ver `getEscutaPrivada`. */
 const KEY_ESCUTA_PRIVADA = 'pref:escutaPrivada';
+/** Mostrar o outro aparelho a tocar. Ver `getMostrarOutroAparelho`. */
+export const KEY_MOSTRAR_OUTRO_APARELHO = 'pref:mostrarOutroAparelho';
+/** As Liked Songs descarregadas no iPhone. Ver `getDescarregarGostadas`. */
+export const KEY_DESCARREGAR_GOSTADAS = 'pref:descarregarGostadas';
 /** Os artistas escolhidos no primeiro dia. Ver `getArtistasSemente`. */
 const KEY_SEMENTES = 'pref:artistasSemente';
 /** Os artistas favoritos, pela chave canonica. Ver `getArtistasFavoritos`. */
@@ -591,6 +595,32 @@ export async function getEscutaPrivada(): Promise<boolean> {
 }
 export async function setEscutaPrivada(v: boolean): Promise<void> {
   await setBool(KEY_ESCUTA_PRIVADA, v);
+}
+
+/**
+ * Mostrar o que o outro aparelho da conta está a tocar (15/11): o aviso de
+ * chegada, o botão da barra do PC, a lingueta e o mini do iPhone. Ligada de
+ * origem. Do aparelho e não da conta (fica de fora do prefsSync): esconder o
+ * iPhone no PC não esconde o PC no iPhone. Quem a lê é o `useHandoffSession`.
+ */
+export async function getMostrarOutroAparelho(): Promise<boolean> {
+  return getBool(KEY_MOSTRAR_OUTRO_APARELHO, true);
+}
+export async function setMostrarOutroAparelho(v: boolean): Promise<void> {
+  await setBool(KEY_MOSTRAR_OUTRO_APARELHO, v);
+}
+
+/**
+ * "Download Liked Songs" no iPhone (15/11): todas as gostadas, e as que vierem,
+ * ficam descarregadas. Desligada de origem. Do aparelho (fica de fora do
+ * prefsSync): um iPhone novo na conta não começa a descarregar gigas sozinho.
+ * Quem a lê é o `state/gostadasNoAparelho.ts`, chamado no arranque (App.tsx).
+ */
+export async function getDescarregarGostadas(): Promise<boolean> {
+  return getBool(KEY_DESCARREGAR_GOSTADAS, false);
+}
+export async function setDescarregarGostadas(v: boolean): Promise<void> {
+  await setBool(KEY_DESCARREGAR_GOSTADAS, v);
 }
 
 /**

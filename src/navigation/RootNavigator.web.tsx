@@ -57,6 +57,7 @@ import { contextoParaAnalytics, type DiscoveryContext } from '../lib/contextoDaD
 import { menuDaFaixa, type IdDaAcao } from '../lib/menuDaFaixa';
 import { useConnectivity } from '../state/connectivity';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
+import { comecarRadioDaMusica } from '../state/radioDaFaixa';
 import { usePrivacidade } from '../state/privacidade';
 import { useTheme } from '../state/theme';
 import type { Track } from '../types';
@@ -664,6 +665,7 @@ function DesktopShell() {
     playlist: trackMenuPlaylist && trackMenuFila === null ? { podeEditar: trackMenuPlaylist.podeEditar } : null,
     fila: trackMenuFila !== null ? { emJam, mudou: filaMudou } : null,
     sugestao: !!trackMenuContext || eSugestao(trackMenu),
+    emJam,
   }) : [];
   const fazerNoMenu = (id: IdDaAcao) => {
     const t = trackMenu;
@@ -680,6 +682,7 @@ function DesktopShell() {
       // movimento, nada à vista), a frase -- a mesma nas duas plataformas.
       case 'tocar-a-seguir': setTrackMenuOpen(false); usePlayer.getState().playNext(t); if (!orbitar('seguinte', t.artworkUrl)) notify(fraseDaOrbita('seguinte', tituloDaFaixa(t))); return;
       case 'por-na-fila': setTrackMenuOpen(false); usePlayer.getState().addToQueue(t); if (!orbitar('fila', t.artworkUrl)) notify(fraseDaOrbita('fila', tituloDaFaixa(t))); return;
+      case 'radio': setTrackMenuOpen(false); void comecarRadioDaMusica(t); return;
       case 'guardar': void toggleSave(); return;
       // 'por-em-playlist' não chega aqui: a linha abre o painel das playlists ao lado.
       // O artista sai do `displayArtist` e nao do campo `artist`, que no

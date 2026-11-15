@@ -8,7 +8,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  contarDaLista, downloadDaLista, faltamDescarregar, textoDoDescarregado, textoDoProgresso, textoDoTamanho,
+  bytesEstimados, contarDaLista, downloadDaLista, faltamDescarregar, textoDoDescarregado, textoDoProgresso, textoDoTamanho,
 } from '../src/lib/downloadDaLista.ts';
 import { criarLotesDeDownload, FALHAS_SEGUIDAS_PARA_PARAR, PAUSA_ENTRE_MUSICAS_MS } from '../src/lib/loteDeDownloads.ts';
 import { menuDaPlaylist } from '../src/lib/menuDaPlaylist.ts';
@@ -49,6 +49,12 @@ await caso('o tamanho aproximado (~128 kbps; 3,5 min sem duração)', () => {
   assert.equal(textoDoTamanho([240]), 'about 4 MB');
   assert.equal(textoDoTamanho(Array(100).fill(210)), 'about 340 MB');
   assert.equal(textoDoTamanho(Array(403).fill(null)), 'about 1.4 GB');
+});
+
+await caso('os bytes são os da mesma conta (15/11, para comparar com o limite)', () => {
+  assert.equal(bytesEstimados([240]), 240 * 16_000);
+  assert.equal(bytesEstimados([null, 0, -3]), 3 * 210 * 16_000, 'sem duração conta 3,5 min');
+  assert.equal(bytesEstimados([]), 0);
 });
 
 // --- O lote, com duplos -----------------------------------------------------
