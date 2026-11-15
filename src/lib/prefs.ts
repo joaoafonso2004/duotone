@@ -261,8 +261,18 @@ export async function getEqGanhos(): Promise<number[]> {
  */
 export async function getEqPadrao(): Promise<number[]> {
   try {
-    // O da plataforma primeiro; sem ele (ainda nao se escolheu aqui) o de antes, que era um so.
-    const guardado = (await AsyncStorage.getItem(chaveDoEqPadrao())) ?? (await AsyncStorage.getItem(KEY_EQ_PADRAO));
+    let guardado = await AsyncStorage.getItem(chaveDoEqPadrao());
+    if (guardado === null) {
+      // O de antes, que era um só (até 31/10), passa a ser desta plataforma UMA vez
+      // e sai (15/11): ler o partilhado sempre era o EQ de uma plataforma a chegar à
+      // outra. Fica de fora do prefsSync (prefsFusao), para não voltar da conta.
+      const antigo = await AsyncStorage.getItem(KEY_EQ_PADRAO);
+      if (antigo !== null) {
+        guardado = antigo;
+        await AsyncStorage.setItem(chaveDoEqPadrao(), antigo);
+        await AsyncStorage.removeItem(KEY_EQ_PADRAO);
+      }
+    }
     if (!guardado) return ganhosPorOmissao();
     const lido = JSON.parse(guardado);
     return Array.isArray(lido) ? normalizarGanhos(lido) : ganhosPorOmissao();

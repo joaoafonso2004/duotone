@@ -101,7 +101,9 @@ await t('uma chave por plataforma, o padrão de antes só como ponto de partida'
   assert.match(PREFS, /const KEY_EQ_PADRAO_IOS = 'pref:eqPadrao:ios';/);
   assert.match(PREFS, /const KEY_EQ_PADRAO_WINDOWS = 'pref:eqPadrao:windows';/);
   assert.match(PREFS, /navigator\.product === 'ReactNative'/);
-  assert.match(PREFS, /\(await AsyncStorage\.getItem\(chaveDoEqPadrao\(\)\)\) \?\? \(await AsyncStorage\.getItem\(KEY_EQ_PADRAO\)\)/);
+  // 15/11: o partilhado de antes passa a ser desta plataforma uma vez, e sai.
+  assert.match(PREFS, /let guardado = await AsyncStorage\.getItem\(chaveDoEqPadrao\(\)\);/);
+  assert.match(PREFS, /await AsyncStorage\.setItem\(chaveDoEqPadrao\(\), antigo\);\n\s+await AsyncStorage\.removeItem\(KEY_EQ_PADRAO\);/);
   assert.match(PREFS, /await AsyncStorage\.setItem\(chaveDoEqPadrao\(\), JSON\.stringify\(normalizarGanhos\(ganhos\)\)\);/);
   assert.ok(!/setItem\(KEY_EQ_PADRAO,/.test(PREFS), 'ninguém volta a escrever a chave partilhada');
 });

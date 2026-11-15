@@ -268,6 +268,8 @@ const TESTES = [
   'scripts/test-definicoes-com-efeito.mjs',
   // A interface em francês (15/11): o motor, o dicionário e as ligações.
   `${TS} scripts/test-idiomas.ts`,
+  // O equalizador de cada plataforma (15/11).
+  `${TS} scripts/test-eq-da-plataforma.ts`,
   'scripts/test-sair-da-conta.mjs',
   `${TS} scripts/test-higiene-da-biblioteca.ts`,
   'scripts/test-higiene-da-biblioteca-sql.mjs',

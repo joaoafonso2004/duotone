@@ -1,11 +1,25 @@
 import {supabase} from '../lib/supabase';
 import {normalizar,type AjusteDaFaixa,type MemoriaDeAjustes} from '../lib/equalizer';
+import {idDaPlataforma,idNoServidor} from '../lib/eqDaPlataforma';
+
+/**
+ * A linha do padrão (`padrao:global`, só a velocidade padrão) é uma para as
+ * duas plataformas; as das faixas são de cada uma (15/11, lib/eqDaPlataforma.ts).
+ */
+const eDoPadrao=(source:unknown)=>source==='padrao';
+
+/** A linha é da outra plataforma: o aviso do Realtime não relê nada por ela. */
+export function eDaOutraPlataforma(row:{source?:unknown;source_id?:unknown}|null|undefined):boolean{
+  return !!row&&typeof row.source_id==='string'&&!eDoPadrao(row.source)&&idDaPlataforma(row.source_id)===null;
+}
 
 /** Uma linha do `user_track_adjustments` (lida, ou trazida por um aviso do Realtime). */
 export function linhaDoAjuste(row:{source?:unknown;source_id?:unknown;rate?:unknown;gains?:unknown;seen_at?:unknown}|null|undefined):[string,AjusteDaFaixa]|null{
   if(!row||typeof row.source!=='string'||typeof row.source_id!=='string'||!row.source||!row.source_id)return null;
+  const id=eDoPadrao(row.source)?row.source_id:idDaPlataforma(row.source_id);
+  if(!id)return null; // da outra plataforma
   const visto=Date.parse(String(row.seen_at??''));if(!Number.isFinite(visto))return null;
-  return [`${row.source}:${row.source_id}`,{rate:typeof row.rate==='number'?row.rate:null,ganhos:row.gains?normalizar(row.gains as any):null,visto}];
+  return [`${row.source}:${id}`,{rate:typeof row.rate==='number'?row.rate:null,ganhos:row.gains?normalizar(row.gains as any):null,visto}];
 }
 
 /**
@@ -42,7 +56,8 @@ const funcaoEmFalta=(e:{code?:string})=>e.code==='PGRST202'||e.code==='42883';
  */
 export async function guardarAjusteRemoto(userId:string,chave:string,ajuste:AjusteDaFaixa):Promise<void> {
   const at=chave.indexOf(':');if(at<1||at===chave.length-1)throw Error('Invalid track');
-  const value={user_id:userId,source:chave.slice(0,at),source_id:chave.slice(at+1),
+  const source=chave.slice(0,at),id=chave.slice(at+1);
+  const value={user_id:userId,source,source_id:eDoPadrao(source)?id:idNoServidor(id),
     rate:ajuste.rate,gains:ajuste.ganhos,seen_at:new Date(ajuste.visto).toISOString()};
   // Um só comando, com a mesma regra (supabase/escritas-atomicas.sql). A
   // função escreve pela sessão (auth.uid()), e quem chama passa sempre o

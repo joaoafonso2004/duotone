@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { dadosDaLinha, lerLinha, type LinhaDosPresets, type MemoriaDePresets } from '../lib/presetsDoEqualizador';
+import { idDaPlataforma, idNoServidor } from '../lib/eqDaPlataforma';
 
 /**
  * Os presets do equalizador na conta (supabase/eq-presets.sql).
@@ -17,8 +18,11 @@ export async function lerPresetsRemotos(userId: string): Promise<MemoriaDePreset
       .order('preset_id').range(offset, offset + 499);
     if (error) throw error;
     for (const row of data ?? []) {
-      const l = lerLinha(row.preset_id, row.data, Date.parse(row.seen_at));
-      if (l) saida[row.preset_id] = l;
+      // Os presets de cada plataforma são só seus (15/11, lib/eqDaPlataforma.ts).
+      const id = idDaPlataforma(row.preset_id);
+      if (!id) continue;
+      const l = lerLinha(id, row.data, Date.parse(row.seen_at));
+      if (l) saida[id] = l;
     }
     if (!data || data.length < 500) break;
   }
@@ -27,7 +31,8 @@ export async function lerPresetsRemotos(userId: string): Promise<MemoriaDePreset
 
 /** Inserir sem substituir; atualizar só se a edição for mais recente. Dois
  * pedidos fora de ordem nunca fazem regressar uma versão antiga. */
-export async function guardarPresetRemoto(userId: string, id: string, linha: LinhaDosPresets): Promise<void> {
+export async function guardarPresetRemoto(userId: string, idDaApp: string, linha: LinhaDosPresets): Promise<void> {
+  const id = idNoServidor(idDaApp);
   const valor = {
     user_id: userId, preset_id: id, data: dadosDaLinha(linha),
     seen_at: new Date(linha.visto).toISOString(),

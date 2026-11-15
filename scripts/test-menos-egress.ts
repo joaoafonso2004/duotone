@@ -252,9 +252,10 @@ console.log('\nas estatísticas, com o Supabase a contar');
 console.log('\nos ajustes por faixa');
 {
   const agora = { t: T0 };
+  // Em Node a app conta como PC: as linhas dele levam o `pc~` (15/11, lib/eqDaPlataforma.ts).
   const linhas = [
-    { user_id: 'eu', source: 'youtube', source_id: 'a', rate: 1.1, gains: null, seen_at: new Date(T0 - 10 * DIA).toISOString() },
-    { user_id: 'eu', source: 'youtube', source_id: 'b', rate: 0.9, gains: null, seen_at: new Date(T0 - 60_000).toISOString() },
+    { user_id: 'eu', source: 'youtube', source_id: 'pc~a', rate: 1.1, gains: null, seen_at: new Date(T0 - 10 * DIA).toISOString() },
+    { user_id: 'eu', source: 'youtube', source_id: 'pc~b', rate: 0.9, gains: null, seen_at: new Date(T0 - 60_000).toISOString() },
   ];
   const m = mundo({ escutas: () => [], ajustes: () => linhas, disco: new Map(), agora });
   const ajustes = m.carregar('src/api/ajustes.ts');
@@ -291,9 +292,14 @@ console.log('\nos ajustes por faixa');
     motor.stop();
   });
   await caso('uma linha do aviso lê-se como uma lida; incompleta, não', () => {
-    const l = ajustes.linhaDoAjuste({ source: 'youtube', source_id: 'x', rate: 1.2, gains: null, seen_at: new Date(T0).toISOString() });
+    const l = ajustes.linhaDoAjuste({ source: 'youtube', source_id: 'pc~x', rate: 1.2, gains: null, seen_at: new Date(T0).toISOString() });
     // Em JSON: o array vem de dentro da vm, com outro `Array`.
     assert.equal(JSON.stringify(l), JSON.stringify(['youtube:x', { rate: 1.2, ganhos: null, visto: T0 }]));
+    // A do iPhone (sem prefixo) não é do PC; a do padrão é das duas.
+    assert.equal(ajustes.linhaDoAjuste({ source: 'youtube', source_id: 'x', rate: 1.2, gains: null, seen_at: new Date(T0).toISOString() }), null);
+    assert.equal(ajustes.eDaOutraPlataforma({ source: 'youtube', source_id: 'x' }), true);
+    assert.equal(JSON.stringify(ajustes.linhaDoAjuste({ source: 'padrao', source_id: 'global', rate: 1.1, gains: null, seen_at: new Date(T0).toISOString() })),
+      JSON.stringify(['padrao:global', { rate: 1.1, ganhos: null, visto: T0 }]));
     assert.equal(ajustes.linhaDoAjuste({ source: 'youtube', seen_at: 'x' }), null);
     assert.equal(ajustes.linhaDoAjuste(null), null);
   });

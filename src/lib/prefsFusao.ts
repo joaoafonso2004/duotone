@@ -21,6 +21,11 @@ export const DE_FORA = new Set([
   'pref:mostrarOutroAparelho',
   // Do aparelho (15/11): um iPhone novo na conta não começa a descarregar gigas sozinho.
   'pref:descarregarGostadas',
+  // O equalizador de cada plataforma (15/11, lib/eqDaPlataforma.ts): o padrão de
+  // antes, que era um só, e o Recommended dos auscultadores ligados a ESTE aparelho.
+  'pref:eqPadrao',
+  'pref:eqRecomendado',
+  'pref:eqModelosDasSaidas',
 ]);
 
 

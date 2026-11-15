@@ -6,6 +6,12 @@
  * novo na interface fica em inglês até entrar aqui. Sem imports.
  */
 export const FR: Readonly<Record<string, string>> = {
+  // O equalizador de cada plataforma (15/11).
+  "Adds this curve to your presets on this iPhone.": "Ajoute cette courbe à vos préréglages sur cet iPhone.",
+  "Changes stay on this iPhone": "Les modifications restent sur cet iPhone",
+  "It disappears from the equalizer on this iPhone. Songs that used it keep their sound.": "Il disparaît de l'égaliseur sur cet iPhone. Les titres qui l'utilisaient gardent leur son.",
+  "Choose which ones show in the equaliser. The iPhone has its own.": "Choisissez ceux qui apparaissent dans l'égaliseur. L'iPhone a les siens.",
+  "” disappears from the equaliser on this PC. Songs that used it keep their sound.": "» disparaît de l'égaliseur sur ce PC. Les titres qui l'utilisaient gardent leur son.",
   // Contagens montadas noutros sítios ("12 songs", "3 of 40"): só aceitam números.
   "{0:n} of {1:n}": "{0} sur {1}",
   "{0:n} songs": "{0} titres",

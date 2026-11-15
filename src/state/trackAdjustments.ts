@@ -4,7 +4,7 @@ import {create} from 'zustand';
 import {supabase} from '../lib/supabase';
 import {AdjustmentSync,desdeQuandoLer,precisaDeRecuperar,type AdjustmentSnapshot,type AdjustmentStatus} from '../lib/adjustmentSync';
 import {daPersistencia,type AjusteDaFaixa,type MemoriaDeAjustes} from '../lib/equalizer';
-import {lerAjustesRemotos,guardarAjusteRemoto,linhaDoAjuste} from '../api/ajustes';
+import {lerAjustesRemotos,guardarAjusteRemoto,linhaDoAjuste,eDaOutraPlataforma} from '../api/ajustes';
 import {useConnectivity} from './connectivity';
 import {useAuth} from './auth';
 import {appEstaVisivel,intervaloComAppVisivel} from '../lib/appVisibility';
@@ -89,6 +89,8 @@ export function startTrackAdjustmentSync(userId:string,apply:(values:MemoriaDeAj
     {event:'*',schema:'public',table:'user_track_adjustments',filter:`user_id=eq.${userId}`},(payload)=>{
       // O eco da própria escrita não relê nada; o que veio de outro aparelho
       // junta-se como chegou (11/11): o aviso já traz a linha inteira.
+      // A linha da outra plataforma (15/11): o EQ de cada uma é só seu.
+      if(payload.eventType!=='DELETE'&&eDaOutraPlataforma(payload.new as any))return;
       const linha=payload.eventType==='DELETE'?null:linhaDoAjuste(payload.new as any);
       if(linha){if(!engine.jaSabe(linha[0],linha[1].visto))engine.receber({[linha[0]]:linha[1]});return;}
       flush();

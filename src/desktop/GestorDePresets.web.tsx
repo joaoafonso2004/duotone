@@ -64,7 +64,7 @@ export function GestorDePresets({ ganhosIniciais }: { ganhosIniciais: Ganhos }) 
       <View style={styles.settingLine}>
         <View style={{ flex: 1 }}>
           <Text style={styles.settingLabel}>Presets</Text>
-          <Text style={styles.settingDescription}>Choose which ones show in the equaliser. They sync with your phone.</Text>
+          <Text style={styles.settingDescription}>Choose which ones show in the equaliser. The iPhone has its own.</Text>
         </View>
         <Button secondary icon="add" onPress={() => setEdicao({ id: null, modo: 'curva', nome: '', curva: normalizar(ganhosIniciais) })}>
           New preset
@@ -136,7 +136,7 @@ export function GestorDePresets({ ganhosIniciais }: { ganhosIniciais: Ganhos }) 
 
       <Dialog open={!!aApagar} title="Delete preset?" onClose={() => setAApagar(null)}>
         <Text style={styles.dialogBody}>
-          “{aApagar?.nome}” disappears from the equaliser on all your devices. Songs that used it keep their sound.
+          “{aApagar?.nome}” disappears from the equaliser on this PC. Songs that used it keep their sound.
         </Text>
         <View style={styles.dialogActions}>
           <Button secondary onPress={() => setAApagar(null)}>Cancel</Button>

@@ -171,7 +171,7 @@ export function EqualizadorSheet({ visible, onClose }: { visible: boolean; onClo
       <BottomSheet visible={visible} onClose={fechar}>
         <Text accessibilityRole="header" style={type.title}>Save preset</Text>
         <Text style={[type.caption, { marginTop: 2, marginBottom: spacing.lg }]}>
-          Adds this curve to your presets, on all your devices.
+          Adds this curve to your presets on this iPhone.
         </Text>
         <Input
           placeholder="Preset name"
