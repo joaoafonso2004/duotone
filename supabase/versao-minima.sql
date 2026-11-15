@@ -20,9 +20,10 @@
 --
 -- Mudar a versão mínima: mudar `minima` abaixo e correr o ficheiro outra vez.
 -- Era a 5.8.8 (11/11); passou a 5.9.4 com a release dela (12/11: os canais do
--- Realtime que ficavam mortos e punham a app a ler por sondagem). Correr SÓ
--- depois de as builds estarem publicadas: até lá, ninguém tinha para onde
--- atualizar.
+-- Realtime que ficavam mortos e punham a app a ler por sondagem), e a 6.0.1
+-- com a release dela (15/11: obrigatória por pedido do João; a 6.0.0 nunca
+-- saiu). Correr SÓ depois de as builds estarem publicadas: até lá, ninguém
+-- tinha para onde atualizar.
 -- Desligar tudo, se algo correr mal:
 --   alter role authenticator reset pgrst.db_pre_request;
 --   notify pgrst, 'reload config';
@@ -37,7 +38,7 @@ security definer
 set search_path = public
 as $$
 declare
-  minima constant int[] := array[5, 9, 4];
+  minima constant int[] := array[6, 0, 1];
   cabecalhos json := nullif(current_setting('request.headers', true), '')::json;
   claims json := nullif(current_setting('request.jwt.claims', true), '')::json;
   papel text := claims ->> 'role';

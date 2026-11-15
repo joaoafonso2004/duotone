@@ -48,11 +48,14 @@ recusado(await pedido({ versao: 'lixo' }), 'um cabeçalho que não é uma versã
 recusado(await pedido({ versao: '' }), 'um cabeçalho vazio');
 recusado(await pedido({ versao: '5.8.8' }), 'a mínima de antes (11/11)');
 recusado(await pedido({ versao: '5.9.2' }), 'uma 5.9 de antes');
-recusado(await pedido({ versao: '5.9.3' }), 'a última antes da mínima (12/11)');
-assert.equal(await pedido({ versao: '5.9.4' }), null, 'a mínima passa');
-assert.equal(await pedido({ versao: '5.9.10' }), null, 'acima passa (compara números)');
-assert.equal(await pedido({ versao: '5.10.0' }), null, 'compara números, não texto');
-assert.equal(await pedido({ versao: '6.0.0' }), null);
+recusado(await pedido({ versao: '5.9.3' }), 'a mínima de antes (12/11)');
+recusado(await pedido({ versao: '5.9.4' }), 'a mínima de antes (15/11)');
+recusado(await pedido({ versao: '5.9.12' }), 'uma 5.9 de número alto (compara números)');
+recusado(await pedido({ versao: '6.0.0' }), 'a 6.0.0, que nunca saiu');
+assert.equal(await pedido({ versao: '6.0.1' }), null, 'a mínima passa');
+assert.equal(await pedido({ versao: '6.0.10' }), null, 'acima passa (compara números)');
+assert.equal(await pedido({ versao: '6.1.0' }), null);
+assert.equal(await pedido({ versao: '10.0.0' }), null, 'compara números, não texto');
 assert.equal(await pedido({ papel: 'service_role' }), null, 'o painel e o servidor passam sempre');
 console.log('quem passa e quem não passa: ok');
 
@@ -100,9 +103,9 @@ const banido = (e, como) => {
   assert.equal(JSON.parse(e.detail).status, 403, `${como}: 403`);
   assert.match(JSON.parse(e.message).message, /can no longer use Duotone/, `${como}: a mensagem`);
 };
-banido(await pedido({ versao: '5.9.4', conta: A }), 'a conta banida, mesmo numa versão nova');
-banido(await pedido({ versao: '5.9.4', conta: B, aparelho: 'iphone-de-a' }), 'uma conta nova no aparelho de quem foi banido');
-assert.equal(await pedido({ versao: '5.9.4', conta: B, aparelho: 'pc-de-b' }), null, 'os outros passam');
+banido(await pedido({ versao: '6.0.1', conta: A }), 'a conta banida, mesmo numa versão nova');
+banido(await pedido({ versao: '6.0.1', conta: B, aparelho: 'iphone-de-a' }), 'uma conta nova no aparelho de quem foi banido');
+assert.equal(await pedido({ versao: '6.0.1', conta: B, aparelho: 'pc-de-b' }), null, 'os outros passam');
 assert.equal(await pedido({ papel: 'service_role', conta: A }), null, 'o painel passa sempre');
 assert.equal((await db.query(`select has_table_privilege('authenticated', 'public.banidos', 'select') as pode`)).rows[0].pode, false,
   'ninguém lê a lista de fora do painel');
