@@ -1,4 +1,5 @@
 import { PainelDeSaude } from '../components/PainelDeSaude';
+import { RelatarProblema } from '../components/RelatarProblema';
 import { souAdministrador } from '../api/painelDeSaude';
 import { loadCapaIOS, useCapaIOS } from '../state/capaIOS';
 import { ESTILOS_DA_CAPA } from '../lib/aparencia';
@@ -104,6 +105,8 @@ export function SettingsScreen({ navigation }: Props) {
   const contaDoPainel = useAuth((s) => s.session?.user.id ?? null);
   const [administrador, setAdministrador] = useState(false);
   const [painelAberto, setPainelAberto] = useState(false);
+  // "Report a problem" (15/11, components/RelatarProblema.tsx).
+  const [relatoAberto, setRelatoAberto] = useState(false);
   useEffect(() => { let vivo = true; void souAdministrador(contaDoPainel).then((v) => { if (vivo) setAdministrador(v); }); return () => { vivo = false; }; }, [contaDoPainel]);
   const offline=useOfflineMode();
   // O título encolhe ao rolar (3/10, lib/tituloQueEncolhe.ts).
@@ -652,6 +655,9 @@ export function SettingsScreen({ navigation }: Props) {
           <Linha icone="information-circle" rotulo={ROTULOS.versao} valor={APP_VERSION} />
           <Linha icone="cafe" rotulo={ROTULOS.apoiar} chevron aoTocar={() => { void Linking.openURL(ENDERECO_DO_APOIO).catch(() => {}); }} />
           <Linha icone="shield-checkmark" rotulo={ROTULOS.privacidade} chevron aoTocar={() => { void Linking.openURL(ENDERECO_DA_PRIVACIDADE).catch(() => {}); }} />
+          {/* Com uma descrição, direto para o João (15/11): várias pessoas
+              adicionavam-no como amigo só para dizer que algo falhava. */}
+          <Linha icone="bug" rotulo={ROTULOS.relatarProblema} acao desativada={offline} aoTocar={() => setRelatoAberto(true)} />
           <Linha
             icone="paper-plane"
             rotulo="Send playback report"
@@ -662,6 +668,7 @@ export function SettingsScreen({ navigation }: Props) {
           {administrador ? <Linha icone="pulse" rotulo="App health" chevron aoTocar={() => setPainelAberto(true)} /> : null}
         </Grupo>
         <PainelDeSaude visivel={painelAberto} aoFechar={() => setPainelAberto(false)} />
+        <RelatarProblema visible={relatoAberto} onClose={() => setRelatoAberto(false)} />
       </Animated.ScrollView>
 
       <ConfirmSheet

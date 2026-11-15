@@ -66,6 +66,6 @@ assert.match(textoDasMigracoes({ tipo: 'ok', emFalta: [] }), /^== server updates
 // Ligado nos dois relatórios.
 const ler = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
 assert.match(ler('src/lib/relatorioDeReproducao.ts'), /textoDasMigracoes\(await verificarMigracoes\(\)\)/, 'iPhone');
-assert.match(ler('src/desktop/paginas/SettingsPage.web.tsx'), /textoDasMigracoes\(migracoes\)/, 'PC');
+assert.match(ler('src/lib/relatorioDeReproducao.web.ts'), /textoDasMigracoes\(migracoes\)/, 'PC');
 
 console.log(`Migrações: ${MIGRACOES.length} ficheiros com marca, todas no sítio -- passou.`);

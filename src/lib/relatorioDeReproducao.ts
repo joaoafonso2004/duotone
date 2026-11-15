@@ -28,10 +28,19 @@ import { textoDoSupabase } from './pedidosAoSupabase';
  * tem de perceber porque é que a música parou.
  */
 export async function partilharRelatorioDeReproducao(): Promise<void> {
-  const texto = relatorio({
+  await Share.share({ title: 'Duotone playback report', message: await textoDoRelatorioDeReproducao() });
+}
+
+export function plataformaDoRelatorio(): string {
+  return `${Platform.OS} ${String(Platform.Version)}`;
+}
+
+/** O texto do relatório: o que a folha de partilha manda e o que o "Report a problem" junta (15/11). */
+export async function textoDoRelatorioDeReproducao(): Promise<string> {
+  return relatorio({
     versao: APP_VERSION,
     build: BUILD_ID,
-    plataforma: `${Platform.OS} ${String(Platform.Version)}`,
+    plataforma: plataformaDoRelatorio(),
     gerado: new Date().toISOString(),
     stream: estadoDoStream(),
     opus: estadoDoOpus(),
@@ -50,5 +59,4 @@ export async function partilharRelatorioDeReproducao(): Promise<void> {
     + `\n${textoDaEnergiaAgora()}\n`
     // Que SQL falta na base (29/9, lib/migracoes.ts): uma chamada, só aqui.
     + `\n${textoDasMigracoes(await verificarMigracoes())}\n`;
-  await Share.share({ title: 'Duotone playback report', message: texto });
 }

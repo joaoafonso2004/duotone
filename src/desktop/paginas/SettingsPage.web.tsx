@@ -14,17 +14,11 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, Switch, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { APP_VERSION, BUILD_ID } from '../../lib/buildInfo';
+import { APP_VERSION } from '../../lib/buildInfo';
 import { EVENTO_PROCURAR_ATUALIZACAO } from '../../lib/avisoDeVersao';
 import { checkForUpdate, PORTFOLIO_URL } from '../../lib/updates';
-import { relatorio } from '../../lib/playbackDiagnostics';
-import { textoDoTrabalhoDeMetadados } from '../../lib/trabalhoDeMetadados';
-import { textoDoTrabalhoLocal } from '../../lib/trabalhoLocal';
-import { textoDosPedidos } from '../../lib/pedidosAoYouTube';
-import { textoDoSupabase } from '../../lib/pedidosAoSupabase';
-import { textoDosRecursos } from '../../lib/recursosDaApp';
-import { textoDasMigracoes } from '../../lib/migracoes';
-import { verificarMigracoes } from '../../api/migracoes';
+import { partilharRelatorioDeReproducao } from '../../lib/relatorioDeReproducao';
+import { RelatarProblema } from '../../components/RelatarProblema';
 import {
   getGlitchMode, setGlitchMode, type GlitchMode,
   getEffectIntensity, setEffectIntensity, type EffectIntensity,
@@ -73,6 +67,8 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   const contaDoPainel = useAuth((s) => s.session?.user.id ?? null);
   const [administrador, setAdministrador] = useState(false);
   const [painelAberto, setPainelAberto] = useState(false);
+  // "Report a problem" (15/11): a mesma folha do iPhone.
+  const [relatoAberto, setRelatoAberto] = useState(false);
   useEffect(() => { let vivo = true; void souAdministrador(contaDoPainel).then((v) => { if (vivo) setAdministrador(v); }); return () => { vivo = false; }; }, [contaDoPainel]);
   const [recommendationsOpen,setRecommendationsOpen]=useState(false);
   // Identificar a biblioteca contra um catálogo a sério, como no iPhone. Só
@@ -294,39 +290,10 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
     window.dispatchEvent(new CustomEvent('duotone:effect-intensity', { detail: intensidade }));
   };
 
-  // Diagnostico de reproducao. O detalhe tecnico (cliente InnerTube, PO Token,
-  // codigo do embed, HTTP) deixou de ir para a barra do leitor e passou a
-  // viver aqui — que e onde serve para alguma coisa: um ficheiro que se abre,
-  // se le e se cola numa mensagem. Antes disto ia tudo para `console.warn`,
-  // que num executavel instalado nao e lido por ninguem.
+  // Diagnostico de reproducao: o texto monta-se em lib/relatorioDeReproducao.web.ts
+  // (15/11), o mesmo que o "Report a problem" junta ao relato.
   const exportarRelatorio = async () => {
-    // Os recursos de cada processo (27/9): demora 2 s, porque o CPU é medido
-    // entre duas leituras. Sem ponte (browser) o relatório sai sem eles.
-    const [recursos, migracoes] = await Promise.all([
-      window.duotoneDesktop?.lerRecursos?.().catch(() => null),
-      // Que SQL falta na base (29/9, lib/migracoes.ts).
-      verificarMigracoes(),
-    ]);
-    const secaoDosRecursos = textoDosRecursos(recursos ?? null);
-    const texto = relatorio({
-      versao: APP_VERSION,
-      build: BUILD_ID,
-      plataforma: `windows (${navigator.userAgent.includes('Electron') ? 'app' : 'browser'})`,
-      gerado: new Date().toISOString(),
-    }) + (secaoDosRecursos ? `\n\n${secaoDosRecursos}\n` : '') + `\n${textoDasMigracoes(migracoes)}\n`
-      + `\n${textoDoTrabalhoDeMetadados()}\n`
-      + `\n${textoDoTrabalhoLocal()}\n`
-      + `\n${textoDosPedidos()}\n`
-      + `\n${textoDoSupabase()}\n`;
-    const url = URL.createObjectURL(new Blob([texto], { type: 'text/plain;charset=utf-8' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `duotone-reproducao-${new Date().toISOString().slice(0, 10)}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    // Revogar so depois do clique: revogar antes cancela a propria transferencia.
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    await partilharRelatorioDeReproducao();
     notify('Playback report saved.');
   };
 
@@ -570,11 +537,13 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                 />
                 <SettingAction label={ROTULOS.apoiar} description="Duotone is free. Donations keep its server running." onPress={() => { window.open(ENDERECO_DO_APOIO, '_blank', 'noopener,noreferrer'); }} />
                 <SettingAction label={ROTULOS.privacidade} description="What Duotone stores, who can see it, and how to delete it." onPress={() => { window.open(ENDERECO_DA_PRIVACIDADE, '_blank', 'noopener,noreferrer'); }} />
+                <SettingAction label={ROTULOS.relatarProblema} description="Tell the developer what went wrong. The playback report can go with it." onPress={() => setRelatoAberto(true)} />
                 <SettingAction label="Save playback report" description="If a song won't play, or Duotone feels heavy, send this so it can be fixed." onPress={() => { avisarInfo('Preparing the report…'); void exportarRelatorio(); }} />
                 {/* Só na conta do João (7/10, supabase/painel-de-saude.sql). */}
                 {administrador ? <SettingAction label="App health" description="Who is on which version, failed songs, crashes and time to first sound, from everyone's app." onPress={() => setPainelAberto(true)} /> : null}
               </SettingsCard>}
               <PainelDeSaude visivel={painelAberto} aoFechar={() => setPainelAberto(false)} />
+              <RelatarProblema visible={relatoAberto} onClose={() => setRelatoAberto(false)} />
 
               {/* As mesmas três coisas da secção Account do iPhone, e o apagar a
                   conta, que vivia no About. Sem rede, como lá, ficam apagadas. */}

@@ -142,7 +142,7 @@ await caso('o processo principal aceita exatamente o mesmo que o renderer manda'
 });
 await caso('os relatórios dos dois mostram os pedidos', () => {
   assert.match(ler('src/lib/relatorioDeReproducao.ts'), /textoDoSupabase\(\)/);
-  assert.match(ler('src/desktop/paginas/SettingsPage.web.tsx'), /textoDoSupabase\(\)/);
+  assert.match(ler('src/lib/relatorioDeReproducao.web.ts'), /textoDoSupabase\(\)/);
 });
 
 console.log(falhas ? `\n  ${falhas} caso(s) a falhar.\n` : '\n  Todos os casos passaram.\n');

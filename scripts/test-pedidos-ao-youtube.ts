@@ -130,7 +130,7 @@ await caso('as pesquisas contam-se nos dois caminhos (o direto e a ponte do PC)'
   assert.match(m, /contarPedido\('ytm-pagina', \(\) => ponte\(\{ browseId/);
   // os relatórios dos dois mostram-nos
   assert.match(ler('src/lib/relatorioDeReproducao.ts'), /textoDosPedidos\(\)/);
-  assert.match(ler('src/desktop/paginas/SettingsPage.web.tsx'), /textoDosPedidos\(\)/);
+  assert.match(ler('src/lib/relatorioDeReproducao.web.ts'), /textoDosPedidos\(\)/);
 });
 
 console.log(falhas ? `\n  ${falhas} caso(s) a falhar.\n` : '\n  Todos os casos passaram.\n');

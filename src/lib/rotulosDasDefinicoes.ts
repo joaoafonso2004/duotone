@@ -34,6 +34,8 @@ export const ROTULOS = {
   versao: 'Version',
   /** A página de privacidade e termos (11/11), no About das duas e ao entrar. */
   privacidade: 'Privacy & terms',
+  /** O relato com uma descrição (15/11), que chega ao João (supabase/relatar-problema.sql). */
+  relatarProblema: 'Report a problem',
   /** As doações (11/11): o Ko-fi do João, para pagar o servidor. */
   apoiar: 'Support Duotone',
 } as const;
