@@ -67,6 +67,8 @@ const KEY_DISPOSICAO_DO_LEITOR = 'pref:disposicaoDoLeitor';
 const KEY_FUNDO_DO_LEITOR = 'pref:fundoDoLeitor';
 /** Os atalhos fixados na lateral do PC (`lib/atalhosDaLateral.ts`). */
 const KEY_ATALHOS_DA_LATERAL = 'pref:atalhosDaLateral';
+/** A gaveta da Home do iPhone (`lib/gaveta.ts`): viaja na conta, para reinstalar e ficar igual. */
+const KEY_GAVETA = 'pref:gaveta';
 /** O gosto lido do Spotify. Ver `getGostoDoSpotify`. */
 const KEY_GOSTO_SPOTIFY = 'pref:gostoDoSpotify';
 
@@ -879,6 +881,17 @@ export async function getAtalhosDaLateral(): Promise<unknown> {
 }
 export async function setAtalhosDaLateral(lista: readonly unknown[]): Promise<void> {
   await AsyncStorage.setItem(KEY_ATALHOS_DA_LATERAL, JSON.stringify(lista));
+}
+
+/** A gaveta da Home, crua: quem a valida é `lerGaveta`. `null` quando ainda não há. */
+export async function getGaveta(): Promise<unknown> {
+  try {
+    const bruto = await AsyncStorage.getItem(KEY_GAVETA);
+    return bruto ? JSON.parse(bruto) : null;
+  } catch { return null; }
+}
+export async function setGaveta(gaveta: unknown): Promise<void> {
+  await AsyncStorage.setItem(KEY_GAVETA, JSON.stringify(gaveta));
 }
 
 /**

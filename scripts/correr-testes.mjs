@@ -103,6 +103,7 @@ const TESTES = [
   `${TS} scripts/test-guardar-playlist.ts`,
   `${TS} scripts/test-transicao-da-capa.ts`,
   `${RESOLVER} scripts/test-recuo-no-ecra.ts`,
+  `${TS} scripts/test-gaveta.ts`,
   `${TS} scripts/test-aviso-de-versao.ts`,
   `${TS} scripts/test-capa-do-perfil.ts`,
   `${TS} scripts/test-prefs-sync.ts`,

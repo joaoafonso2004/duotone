@@ -52,6 +52,8 @@ interface Props {
   /** Fila pequena acima do título (ex.: botão de Definições) — canto superior esquerdo. */
   topLeft?: React.ReactNode;
   onBack?: () => void;
+  /** Um botão à esquerda do título (o da gaveta da Home, 6.0.4), no sítio do voltar e com a mesma animação. */
+  antes?: React.ReactNode;
   children: React.ReactNode;
   style?: ViewStyle;
   /** O título encolhe ao rolar a lista (ver `useCabecalhoQueEncolhe`). */
@@ -174,7 +176,7 @@ type Caixa = { x: number; y: number; width: number; height: number };
  * para o centro, o subtítulo desvanece, os botões e o `fixo` sobem, e o fundo
  * desfocado aparece mal haja conteúdo por baixo.
  */
-function ScreenQueEncolhe({ title, subtitle, right, topLeft, onBack, children, style, fixo, cab }: Props & { cab: CabecalhoQueEncolhe }) {
+function ScreenQueEncolhe({ title, subtitle, right, topLeft, onBack, antes, children, style, fixo, cab }: Props & { cab: CabecalhoQueEncolhe }) {
   const insets = useSafeAreaInsets();
   const fonte = fonteDosTitulos(useAparencia((s) => s.titulos));
   const { width } = useWindowDimensions();
@@ -252,6 +254,10 @@ function ScreenQueEncolhe({ title, subtitle, right, topLeft, onBack, children, s
                 <Pressable hitSlop={10} onPress={onBack} accessibilityRole="button" accessibilityLabel="Back" style={styles.back}>
                   <Ionicons name="chevron-back" size={26} color={colors.text} />
                 </Pressable>
+              </Animated.View>
+            ) : antes ? (
+              <Animated.View onLayout={caixa(setVoltar)} style={{ marginRight: 12, transform: [{ translateY: anim.voltar }] }}>
+                {antes}
               </Animated.View>
             ) : null}
             <View pointerEvents="none" style={{ flex: 1 }} onLayout={caixa(setColuna)}>

@@ -30,6 +30,7 @@ import { useRecentes } from '../state/recentes';
 import { useMisturaDoDia } from '../state/misturaDoDia';
 import { capasDaFila, chaveDoRecente, recentesParaMostrar, type Recente } from '../lib/recentes';
 import { Toque } from '../components/Toque';
+import { BotaoDaGaveta } from '../components/BordaDaGaveta';
 import { Animated, useWindowDimensions } from 'react-native';
 import { useNavigation, useScrollToTop } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -666,6 +667,8 @@ export function SearchScreen() {
   // ao ecra antes daquilo que ele refresca.
   return (
     <Screen title="Home"
+      // A gaveta (6.0.4): o botão para quem não conhece o gesto da borda.
+      antes={Platform.OS === 'ios' ? <BotaoDaGaveta /> : undefined}
       encolhe={cab}
       // O campo de pesquisa vive no cabeçalho (3/10): fica preso por baixo da
       // barra compacta e não perde o foco quando a lista por baixo muda.

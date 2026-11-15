@@ -28,9 +28,12 @@ import { createMaterialTopTabNavigator } from '@react-navigation/material-top-ta
 import { BarraDeSeparadores } from './BarraDeSeparadores';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
-import React, { useEffect } from 'react';
-import { Animated, StyleSheet, View, ActivityIndicator } from 'react-native';
+import React, { useEffect, useMemo } from 'react';
+import { Animated, StyleSheet, View, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { escalaDoFundo, raioDoFundo, veuDoFundo } from '../state/transicaoDoLeitor';
+import { Gaveta } from '../components/Gaveta';
+import { BordaDaGaveta, VeuDaGaveta } from '../components/BordaDaGaveta';
+import { aberturaVista, larguraDaGaveta, useEcraAtual } from '../state/gaveta';
 import { HandoffBanner } from '../components/HandoffBanner';
 import { FolhaDoOutroAparelho } from '../components/OutroAparelho';
 import { PlayerRoot } from '../components/PlayerRoot';
@@ -410,6 +413,19 @@ export function RootNavigator() {
   },[socialReceived,socialSeen,socialFriends]);
 
   useInAppNotifications(visibleConversation);
+
+  // A gaveta da Home (6.0.4, components/Gaveta.tsx): a app inteira e o leitor
+  // deslizam para a direita com a abertura, e ela aparece por baixo.
+  const { width: larguraDoEcra } = useWindowDimensions();
+  const largura = larguraDaGaveta(larguraDoEcra);
+  const gaveta = useMemo(() => {
+    const visto = aberturaVista(largura);
+    return {
+      visto,
+      deslize: visto.interpolate({ inputRange: [0, 1], outputRange: [0, largura] }),
+      raio: Animated.add(raioDoFundo, visto.interpolate({ inputRange: [0, 1], outputRange: [0, 28] })),
+    };
+  }, [largura]);
   // Os atalhos do ícone (7/10): Resume, Daily mix, Shuffle Liked Songs.
   useAtalhosDoIcone(session?.user.id ?? null);
 
@@ -435,8 +451,8 @@ export function RootNavigator() {
       // NUNCA abre sozinha nos Downloads (João, 24/9): a 3.8.1 fazia-o com e sem
       // rede, porque o estado da rede chega depois da navegação. Os Downloads
       // estão onde sempre estiveram, e sem rede as Songs já só mostram o que toca.
-      onReady={() => { anotarEcra(navigationRef.getCurrentRoute()?.name); atualizarDoca(navigationRef.getRootState()); }}
-      onStateChange={() => { anotarEcra(navigationRef.getCurrentRoute()?.name); atualizarDoca(navigationRef.getRootState()); }}
+      onReady={() => { anotarEcra(navigationRef.getCurrentRoute()?.name); atualizarDoca(navigationRef.getRootState()); useEcraAtual.setState({ nome: navigationRef.getCurrentRoute()?.name }); }}
+      onStateChange={() => { anotarEcra(navigationRef.getCurrentRoute()?.name); atualizarDoca(navigationRef.getRootState()); useEcraAtual.setState({ nome: navigationRef.getCurrentRoute()?.name }); }}
     >
       {/* O `irPara` de toda a app (5/10, lib/destinos.ts). */}
       <DestinosProvider value={irPara}>
@@ -446,11 +462,13 @@ export function RootNavigator() {
       <View style={{ flex: 1, backgroundColor: colors.bg }} onStartShouldSetResponderCapture={(e) => { registarToque(e.nativeEvent.pageX, e.nativeEvent.pageY); return false; }}>
         {session || offlineUserId ? (
           <View style={{ flex: 1, backgroundColor: '#000' }}>
+            {/* A gaveta fica POR BAIXO da app: vê-se quando ela desliza (6.0.4). */}
+            <Gaveta largura={largura} abertura={gaveta.visto} />
             {/* A app recua quando o leitor abre (2/10): encolhe, ganha os cantos
                 redondos e escurece, e volta para a frente com o gesto de o
                 fechar. O preto à volta é o que se vê entre ela e o ecrã. Ver
                 state/transicaoDoLeitor.ts. */}
-            <Animated.View style={{ flex: 1, overflow: 'hidden', borderRadius: raioDoFundo, transform: [{ scale: escalaDoFundo }] }}>
+            <Animated.View style={{ flex: 1, overflow: 'hidden', borderRadius: gaveta.raio, transform: [{ translateX: gaveta.deslize }, { scale: escalaDoFundo }] }}>
             {/* Imagem de fundo abstrata global (renderizada apenas uma vez na app inteira) */}
             {/* O desfoque vem na PRÓPRIA imagem, calculado uma vez quando ela
                 carrega. Era um BlurView de ecrã inteiro por cima dela: um
@@ -510,9 +528,15 @@ export function RootNavigator() {
             </Animated.View>
             {/* O leitor contém o motor: se rebentar, volta a montar sozinho
                 (e a faixa retoma), sem aviso por cima da app. */}
-            <BarreiraDeErros onde="leitor" discreta>
-              <PlayerRoot />
-            </BarreiraDeErros>
+            {/* O mini-player desliza com a Home quando a gaveta abre. */}
+            <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { transform: [{ translateX: gaveta.deslize }] }]}>
+              <BarreiraDeErros onde="leitor" discreta>
+                <PlayerRoot />
+              </BarreiraDeErros>
+            </Animated.View>
+            {/* Com a gaveta aberta: a Home escurece, e um toque ou um arrasto fecham-na. */}
+            <VeuDaGaveta largura={largura} deslize={gaveta.deslize} visto={gaveta.visto} raio={gaveta.raio} />
+            <BordaDaGaveta largura={largura} />
             {/* O refrão primeiro (25/10): 15 s por cima do que estiver a tocar. */}
             <BarreiraDeErros onde="refrao" discreta>
               <PreEscutaDoRefrao />

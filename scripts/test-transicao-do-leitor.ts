@@ -122,7 +122,10 @@ caso('as ligações: 120 Hz, a app de trás, o gesto e a pose', () => {
   const app = JSON.parse(ler('app.json'));
   assert.equal(app.expo.ios.infoPlist.CADisableMinimumFrameDurationOnPhone, true, 'sem a chave o iOS prende a app a 60 Hz');
   const nav = ler('src/navigation/RootNavigator.tsx');
-  assert.match(nav, /borderRadius: raioDoFundo, transform: \[\{ scale: escalaDoFundo \}\]/, 'a app de trás recua');
+  // Desde a gaveta da Home (6.0.4) a app de trás também desliza com ela, e o
+  // raio do leitor soma-se ao da gaveta: a escala e o raio continuam lá.
+  assert.match(nav, /borderRadius: gaveta\.raio, transform: \[\{ translateX: gaveta\.deslize \}, \{ scale: escalaDoFundo \}\]/, 'a app de trás recua');
+  assert.match(nav, /raio: Animated\.add\(raioDoFundo,/, 'com o raio do leitor');
   assert.match(nav, /opacity: veuDoFundo/, 'e escurece');
   const leitor = ler('src/components/PlayerRoot.tsx');
   assert.doesNotMatch(leitor, /translateY: dragY|dragY\.setValue/, 'o arrasto já não é só descer a página');
