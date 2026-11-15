@@ -32,7 +32,7 @@ import React, { useEffect, useMemo } from 'react';
 import { Animated, StyleSheet, View, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { escalaDoFundo, raioDoFundo, veuDoFundo } from '../state/transicaoDoLeitor';
 import { Gaveta } from '../components/Gaveta';
-import { BordaDaGaveta, VeuDaGaveta } from '../components/BordaDaGaveta';
+import { BordaDaGaveta, CosturaDaGaveta, VeuDaGaveta } from '../components/BordaDaGaveta';
 import { aberturaVista, larguraDaGaveta, useEcraAtual } from '../state/gaveta';
 import { HandoffBanner } from '../components/HandoffBanner';
 import { FolhaDoOutroAparelho } from '../components/OutroAparelho';
@@ -524,6 +524,8 @@ export function RootNavigator() {
             {/* A base de baixo: o vidro do mini-player e dos separadores (3/10).
                 Por cima dos ecrãs e dentro da app de trás: recua com ela. */}
             <Doca />
+            {/* A linha de luz na borda da Home, até a gaveta se abrir (6.0.4). */}
+            <CosturaDaGaveta />
             <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: veuDoFundo }]} />
             </Animated.View>
             {/* O leitor contém o motor: se rebentar, volta a montar sozinho

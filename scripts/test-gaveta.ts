@@ -6,6 +6,8 @@ import {
   apagarEspaco, arrumar, ativar, chaveDaPeca, espacoAtivo, gavetaInicial, juntar, lerGaveta, MAXIMO_DE_ESPACOS,
   MAXIMO_DE_PECAS, novoEspaco, proximaVelocidade, proximoTamanho, proximoTemporizador, renomear, rotuloDaVelocidade,
   TAMANHOS, temPeca, tirar, trocar, type Gaveta, type Peca,
+  CENAS_PRONTAS, lerCena, mudarCena, proximaEscolha, resumoDaCena,
+  ARRANQUES_A_MOSTRAR, lerMemoriaDaDescoberta, oQueMostrar,
 } from '../src/lib/gaveta.ts';
 
 let mau = 0;
@@ -128,6 +130,41 @@ console.log('\nos controlos num toque');
   check('a velocidade dá a volta', [1, 1.1, 1.25, 1.5, 0.9].map(proximaVelocidade).join() === '1.1,1.25,1.5,0.9,1');
   check('uma velocidade fora do ciclo volta ao normal', proximaVelocidade(1.37) === 1);
   check('e escreve-se como no leitor', rotuloDaVelocidade(1) === '1×' && rotuloDaVelocidade(1.25) === '1.25×');
+}
+
+console.log('\ncenas');
+{
+  check('as cenas prontas passam pela validação tal e qual', CENAS_PRONTAS.every((c) => isDeepStrictEqual(lerCena(JSON.parse(JSON.stringify(c))), c)));
+  const lida = lerCena({ id: 'x', nome: '  Gym  ', icone: 'foguete', definicoes: { privado: 'sim', temporizador: 9999, velocidade: 1.1, shuffle: 'aos-saltos', raio: true } });
+  check('uma cena estragada fica só com o que se reconhece', isDeepStrictEqual(lida, { id: 'x', nome: 'Gym', icone: 'faisca', definicoes: { velocidade: 1.1 } }));
+  check('sem id ou nome não há cena', lerCena({ nome: 'X' }) === null && lerCena({ id: 'x' }) === null);
+  check('o resumo da Night', resumoDaCena(CENAS_PRONTAS[0]!.definicoes).join(' · ') === 'Private on · Sleep in 30 min');
+  check('o resumo diz a hora, o fim da música e o desligado',
+    resumoDaCena({ temporizador: 60 })[0] === 'Sleep in 1 h' && resumoDaCena({ temporizador: 'fim' })[0] === 'Sleep at the end of the song'
+    && resumoDaCena({ temporizador: 0 })[0] === 'Sleep timer off');
+  check('e a velocidade e o shuffle', resumoDaCena({ velocidade: 1.25, shuffle: 'inteligente' }).join() === 'Speed 1.25×,Smart shuffle');
+  check('o editor percorre as escolhas e volta a "deixar como está"',
+    [undefined, true, false].map((v) => proximaEscolha('privado', v as never)).join() === 'true,false,'
+    && proximaEscolha('temporizador', 'fim') === 0 && proximaEscolha('temporizador', 0) === undefined);
+  let g: Gaveta = { espacos: [{ id: 'e', nome: 'E', pecas: [] }], ativo: 'e' };
+  g = juntar(g, 'e', { tipo: 'cena', cena: CENAS_PRONTAS[0]! }).gaveta;
+  check('uma cena entra como peça de 2x1', espacoAtivo(g).pecas[0]?.tipo === 'cena' && espacoAtivo(g).pecas[0]?.tamanho === '2x1');
+  check('a mesma cena não entra duas vezes', juntar(g, 'e', { tipo: 'cena', cena: CENAS_PRONTAS[0]! }).motivo === 'repetida');
+  const peca = espacoAtivo(g).pecas[0]!;
+  g = mudarCena(g, 'e', peca.id, { ...CENAS_PRONTAS[0]!, nome: 'Late night', definicoes: { privado: true } });
+  const nova = espacoAtivo(g).pecas[0]!;
+  check('o editor troca a cena da peça', nova.tipo === 'cena' && nova.cena.nome === 'Late night' && !('temporizador' in nova.cena.definicoes));
+  check('e ela grava-se e lê-se igual', isDeepStrictEqual(lerGaveta(JSON.parse(JSON.stringify(g))), g));
+}
+
+console.log('\ndescobrir a gaveta');
+{
+  const m = (vista: boolean, arranques: number, empurrada: boolean) => JSON.stringify(oQueMostrar({ vista, arranques, empurrada }));
+  check('no primeiro arranque: a linha de luz e o empurrão', m(false, 1, false) === '{"costura":true,"empurrar":true}');
+  check('o empurrão só uma vez', m(false, 2, true) === '{"costura":true,"empurrar":false}');
+  check('depois de a abrir, nada', m(true, 2, true) === '{"costura":false,"empurrar":false}');
+  check(`ao fim de ${ARRANQUES_A_MOSTRAR} aberturas da app deixa de pedir`, m(false, ARRANQUES_A_MOSTRAR + 1, false) === '{"costura":false,"empurrar":false}');
+  check('o que vem estragado do disco começa do zero', JSON.stringify(lerMemoriaDaDescoberta('lixo')) === '{"vista":false,"arranques":0,"empurrada":false}');
 }
 
 console.log('\na grelha');

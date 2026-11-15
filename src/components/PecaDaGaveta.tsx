@@ -19,8 +19,11 @@ import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { avisarInfo } from '../lib/avisoDeRemocao';
 import { hapticSelection } from '../lib/haptics';
 import {
-  proximaVelocidade, proximoTemporizador, rotuloDaVelocidade, TAMANHOS, type Atalho, type Peca,
+  proximaVelocidade, proximoTemporizador, resumoDaCena, rotuloDaVelocidade, TAMANHOS,
+  type Atalho, type Cena, type IconeDaCena, type Peca,
 } from '../lib/gaveta';
+import { alternarCena, useCenas } from '../state/cenas';
+import { avisarFeito } from '../lib/avisoDeRemocao';
 import type { Destino } from '../lib/destinos';
 import { colors, radii } from '../theme';
 
@@ -41,6 +44,8 @@ export type ContextoDaPeca = {
   aoRedimensionar: (id: string) => void;
   /** O toque longo fora da edição: entra nela. */
   aoSegurar: () => void;
+  /** O ✎ de uma cena, a editar: abre o editor com ela. */
+  aoEditarCena: (pecaId: string, cena: Cena) => void;
 };
 
 type Props = ContextoDaPeca & { peca: Peca };
@@ -63,6 +68,7 @@ export const PecaDaGaveta = memo(function PecaDaGaveta(p: Props) {
     case 'origem': return <PecaOrigem {...p} peca={peca} />;
     case 'amigo': return <PecaAmigo {...p} peca={peca} />;
     case 'atalho': return <PecaAtalho {...p} peca={peca} />;
+    case 'cena': return <PecaCena {...p} peca={peca} />;
     case 'controlo':
       switch (peca.controlo) {
         case 'temporizador': return <PecaTemporizador {...p} />;
@@ -75,8 +81,10 @@ export const PecaDaGaveta = memo(function PecaDaGaveta(p: Props) {
   return null;
 });
 
-function Moldura({ peca, rotulo, ligada = false, aoTocar, children, ...c }: Props & {
+function Moldura({ peca, rotulo, ligada = false, aoTocar, aoEditar, children, ...c }: Props & {
   rotulo: string; ligada?: boolean; aoTocar: () => void; children: React.ReactNode;
+  /** Um ✎ no canto de cima, a editar (as cenas). */
+  aoEditar?: () => void;
 }) {
   const podeMudar = TAMANHOS[peca.tipo].length > 1;
   return (
@@ -108,6 +116,12 @@ function Moldura({ peca, rotulo, ligada = false, aoTocar, children, ...c }: Prop
             onPress={() => { hapticSelection(); c.aoTirar(peca.id); }} style={[styles.botaoDaEdicao, styles.tirar]}>
             <Ionicons name="close" size={15} color={TINTA_LIGADA} />
           </Pressable>
+          {aoEditar ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${rotulo}`} hitSlop={8}
+              onPress={() => { hapticSelection(); aoEditar(); }} style={[styles.botaoDaEdicao, styles.editarCena]}>
+              <Ionicons name="pencil" size={13} color={colors.text} />
+            </Pressable>
+          ) : null}
           {podeMudar ? (
             <Pressable accessibilityRole="button" accessibilityLabel={`Resize ${rotulo}`} hitSlop={8}
               onPress={() => { hapticSelection(); c.aoRedimensionar(peca.id); }} style={[styles.botaoDaEdicao, styles.tamanho]}>
@@ -435,6 +449,33 @@ function PecaAtalho(p: Props & { peca: Extract<Peca, { tipo: 'atalho' }> }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Cenas
+// ---------------------------------------------------------------------------
+
+export const ICONE_DA_CENA: Record<IconeDaCena, React.ComponentProps<typeof Ionicons>['name']> = {
+  lua: 'moon-outline', faisca: 'sparkles-outline', carro: 'car-outline', velocimetro: 'speedometer-outline', onda: 'pulse-outline',
+};
+
+function PecaCena(p: Props & { peca: Extract<Peca, { tipo: 'cena' }> }) {
+  const { cena } = p.peca;
+  const ligada = useCenas((s) => s.ligada === cena.id);
+  const resumo = resumoDaCena(cena.definicoes).join(' · ');
+  return (
+    <Moldura {...p} rotulo={cena.nome} ligada={ligada}
+      aoEditar={() => p.aoEditarCena(p.peca.id, cena)}
+      aoTocar={() => {
+        hapticSelection();
+        void alternarCena(cena).then((ligou) => {
+          if (ligou) avisarFeito(`${cena.nome} is on`, resumo || undefined);
+          else avisarInfo(`${cena.nome} is off`, 'Everything is back as it was.');
+        });
+      }}>
+      <Rotulos icone={ICONE_DA_CENA[cena.icone]} nome={cena.nome} sub={resumo || 'Nothing to change yet'} ligada={ligada} largo={larga(p)} />
+    </Moldura>
+  );
+}
+
 const styles = StyleSheet.create({
   peca: {
     flex: 1,
@@ -470,5 +511,6 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOpacity: 0.45, shadowRadius: 6, shadowOffset: { width: 0, height: 3 },
   },
   tirar: { top: -4, left: -4, backgroundColor: LIGADA },
+  editarCena: { top: -4, right: -4, backgroundColor: '#2B2D33', borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(233,234,238,0.2)' },
   tamanho: { bottom: -4, right: -4, backgroundColor: '#2B2D33', borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(233,234,238,0.2)' },
 });

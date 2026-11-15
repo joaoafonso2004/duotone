@@ -17,6 +17,11 @@ eq('as marcas de markdown saem', resumirNotas('## **Nova** `coisa`').join('|'), 
 eq('um link solto sai', resumirNotas('- A coisa\nhttps://exemplo.test').join('|'), 'A coisa');
 eq('no máximo quatro linhas', resumirNotas('- a\n- b\n- c\n- d\n- e').length, 4);
 eq('sem notas não rebenta', resumirNotas('').length, 0);
+// As notas de 6.0.x (15/11): título e cabeçalhos comiam duas das quatro linhas.
+eq('o título e os cabeçalhos das notas de agora saem',
+  resumirNotas('Duotone for iPhone 6.0.4\n\nNew\n- A gaveta\n- As cenas\n\nImproved\n- O skip\n\nFixed\n- O fim\n\nFull changelog: https://github.com/x').join('|'),
+  'A gaveta|As cenas|O skip|O fim');
+eq('uma frase que só começa por "New" fica', resumirNotas('New songs every day').join('|'), 'New songs every day');
 
 console.log('\no botão');
 eq('antes de carregar', rotuloDaAtualizacao('parada', 0), 'Update now');

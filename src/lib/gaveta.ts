@@ -41,13 +41,45 @@ export const ATALHOS: readonly Atalho[] = ['downloads', 'library-check', 'estati
 /** Uma playlist, as Liked Songs, um artista, um álbum ou uma mistura: o que o "Jump back in" reabre. */
 export type OrigemDaPeca = { tipo: TipoDeRecente; nome: string; id?: string; capas: string[] };
 
+/** O modo do shuffle, como o botão do leitor o percorre. */
+export type ModoDoShuffle = 'off' | 'on' | 'inteligente';
+
+/**
+ * O que uma cena muda. Só definições que já existem; o que não está aqui fica
+ * como está. `temporizador`: minutos, 'fim' (no fim da música) ou 0 (desligado).
+ */
+export type DefinicoesDaCena = {
+  privado?: boolean;
+  temporizador?: number | 'fim';
+  velocidade?: number;
+  shuffle?: ModoDoShuffle;
+};
+
+export type IconeDaCena = 'lua' | 'faisca' | 'carro' | 'velocimetro' | 'onda';
+export const ICONES_DA_CENA: readonly IconeDaCena[] = ['lua', 'faisca', 'carro', 'velocimetro', 'onda'];
+
+/**
+ * Uma cena (6.0.4): várias definições num toque, e outro toque repõe-nas como
+ * estavam. Vive dentro da peça, e por isso viaja com a gaveta.
+ */
+export type Cena = { id: string; nome: string; icone: IconeDaCena; definicoes: DefinicoesDaCena };
+
+/** As que a folha de acrescentar oferece já feitas. */
+export const CENAS_PRONTAS: readonly Cena[] = [
+  { id: 'night', nome: 'Night', icone: 'lua', definicoes: { privado: true, temporizador: 30 } },
+  { id: 'focus', nome: 'Focus', icone: 'faisca', definicoes: { shuffle: 'off', velocidade: 1 } },
+  { id: 'gym', nome: 'Gym', icone: 'velocimetro', definicoes: { velocidade: 1.1, shuffle: 'on' } },
+  { id: 'drive', nome: 'Drive', icone: 'carro', definicoes: { shuffle: 'inteligente', temporizador: 0 } },
+];
+
 export type Peca =
   | { id: string; tipo: 'agora'; tamanho: Tamanho }
   | { id: string; tipo: 'pc'; tamanho: Tamanho }
   | { id: string; tipo: 'origem'; origem: OrigemDaPeca; tamanho: Tamanho }
   | { id: string; tipo: 'amigo'; amigoId: string; nome: string; avatar: string | null; tamanho: Tamanho }
   | { id: string; tipo: 'controlo'; controlo: Controlo; tamanho: Tamanho }
-  | { id: string; tipo: 'atalho'; atalho: Atalho; tamanho: Tamanho };
+  | { id: string; tipo: 'atalho'; atalho: Atalho; tamanho: Tamanho }
+  | { id: string; tipo: 'cena'; cena: Cena; tamanho: Tamanho };
 
 export type TipoDePeca = Peca['tipo'];
 
@@ -72,6 +104,7 @@ export const TAMANHOS: Readonly<Record<TipoDePeca, readonly Tamanho[]>> = {
   amigo: ['2x1', '2x2'],
   controlo: ['1x1', '2x1'],
   atalho: ['2x1', '1x1'],
+  cena: ['2x1', '1x1'],
 };
 
 /**
@@ -86,6 +119,7 @@ export function chaveDaPeca(p: Peca): string {
     case 'amigo': return `amigo:${p.amigoId}`;
     case 'controlo': return `controlo:${p.controlo}`;
     case 'atalho': return `atalho:${p.atalho}`;
+    case 'cena': return `cena:${p.cena.id}`;
   }
 }
 
@@ -124,8 +158,75 @@ function umaPeca(v: unknown): Peca | null {
     case 'atalho':
       if (!ATALHOS.includes(o.atalho as Atalho)) return null;
       return { id, tipo, tamanho, atalho: o.atalho as Atalho };
+    case 'cena': {
+      const cena = lerCena(o.cena);
+      return cena ? { id, tipo, tamanho, cena } : null;
+    }
     default: return null;
   }
+}
+
+const MODOS: readonly string[] = ['off', 'on', 'inteligente'];
+
+/** Uma cena guardada, validada: o que não se reconhece nas definições fica de fora. */
+export function lerCena(v: unknown): Cena | null {
+  if (!v || typeof v !== 'object') return null;
+  const c = v as Record<string, unknown>;
+  if (!texto(c.id) || !texto(c.nome)) return null;
+  const d = (c.definicoes && typeof c.definicoes === 'object' ? c.definicoes : {}) as Record<string, unknown>;
+  const definicoes: DefinicoesDaCena = {};
+  if (typeof d.privado === 'boolean') definicoes.privado = d.privado;
+  if (d.temporizador === 'fim' || (typeof d.temporizador === 'number' && d.temporizador >= 0 && d.temporizador <= 600)) {
+    definicoes.temporizador = d.temporizador;
+  }
+  if (typeof d.velocidade === 'number' && d.velocidade >= 0.5 && d.velocidade <= 2) definicoes.velocidade = d.velocidade;
+  if (MODOS.includes(d.shuffle as string)) definicoes.shuffle = d.shuffle as ModoDoShuffle;
+  return {
+    id: c.id,
+    nome: c.nome.trim().slice(0, MAXIMO_DO_NOME),
+    icone: ICONES_DA_CENA.includes(c.icone as IconeDaCena) ? (c.icone as IconeDaCena) : 'faisca',
+    definicoes,
+  };
+}
+
+/**
+ * O que a cena faz, em frases curtas ("Private on", "Sleep in 30 min"): por
+ * baixo do nome na peça, e na folha. Cada frase é uma entrada fixa do `fr.ts`.
+ */
+export function resumoDaCena(d: DefinicoesDaCena): string[] {
+  const r: string[] = [];
+  if (d.privado !== undefined) r.push(d.privado ? 'Private on' : 'Private off');
+  if (d.temporizador !== undefined) {
+    r.push(d.temporizador === 'fim' ? 'Sleep at the end of the song'
+      : d.temporizador > 0 ? `Sleep in ${rotuloDoTempo(d.temporizador)}` : 'Sleep timer off');
+  }
+  if (d.velocidade !== undefined) r.push(`Speed ${rotuloDaVelocidade(d.velocidade)}`);
+  if (d.shuffle !== undefined) r.push(d.shuffle === 'off' ? 'Shuffle off' : d.shuffle === 'on' ? 'Shuffle on' : 'Smart shuffle');
+  return r;
+}
+
+const rotuloDoTempo = (minutos: number) => (minutos % 60 === 0 ? `${minutos / 60} h` : `${minutos} min`);
+
+/** As escolhas do editor de cenas, pela ordem do toque. `undefined` é "deixar como está". */
+export const ESCOLHAS_DA_CENA = {
+  privado: [undefined, true, false] as const,
+  temporizador: [undefined, 15, 30, 60, 'fim', 0] as const,
+  velocidade: [undefined, 0.9, 1, 1.1, 1.25, 1.5] as const,
+  shuffle: [undefined, 'off', 'on', 'inteligente'] as const,
+};
+
+/** A escolha seguinte de uma definição no editor (cada toque avança uma). */
+export function proximaEscolha<K extends keyof typeof ESCOLHAS_DA_CENA>(
+  chave: K, atual: DefinicoesDaCena[K],
+): DefinicoesDaCena[K] {
+  const lista = ESCOLHAS_DA_CENA[chave] as readonly unknown[];
+  const i = lista.findIndex((v) => v === atual);
+  return lista[(i + 1) % lista.length] as DefinicoesDaCena[K];
+}
+
+/** Troca a cena de uma peça (o editor). */
+export function mudarCena(g: Gaveta, espacoId: string, pecaId: string, cena: Cena): Gaveta {
+  return noEspaco(g, espacoId, (ps) => ps.map((p) => (p.id === pecaId && p.tipo === 'cena' ? { ...p, cena } : p)));
 }
 
 /**
@@ -287,6 +388,36 @@ export function apagarEspaco(g: Gaveta, espacoId: string): Gaveta {
   const espacos = g.espacos.filter((e) => e.id !== espacoId);
   if (espacos.length === g.espacos.length) return g;
   return { espacos, ativo: g.ativo === espacoId ? espacos[0]!.id : g.ativo };
+}
+
+// ---------------------------------------------------------------------------
+// Descobrir a gaveta
+// ---------------------------------------------------------------------------
+
+/** Quantas aberturas da app a linha de luz e o ponto ficam à espera de serem vistos. */
+export const ARRANQUES_A_MOSTRAR = 5;
+
+export type MemoriaDaDescoberta = { vista: boolean; arranques: number; empurrada: boolean };
+
+/**
+ * O que a Home mostra para a gaveta se descobrir (6.0.4, a maquete "Descobrir a
+ * gaveta"), sem ecrãs de tutorial nem pílulas: a linha de luz na borda e o
+ * ponto no botão até ela abrir pela primeira vez (ou ao fim de
+ * `ARRANQUES_A_MOSTRAR` aberturas da app, para não ficarem a pedir), e o
+ * empurrão UMA vez, no primeiro arranque. `arranques` já conta este.
+ */
+export function oQueMostrar(m: MemoriaDaDescoberta): { costura: boolean; empurrar: boolean } {
+  const ainda = !m.vista && m.arranques <= ARRANQUES_A_MOSTRAR;
+  return { costura: ainda, empurrar: ainda && !m.empurrada };
+}
+
+export function lerMemoriaDaDescoberta(bruto: unknown): MemoriaDaDescoberta {
+  const o = (bruto && typeof bruto === 'object' ? bruto : {}) as Record<string, unknown>;
+  return {
+    vista: o.vista === true,
+    arranques: typeof o.arranques === 'number' && o.arranques >= 0 ? Math.floor(o.arranques) : 0,
+    empurrada: o.empurrada === true,
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -16,6 +16,10 @@ export const EVENTO_PROCURAR_ATUALIZACAO = 'duotone:procurar-atualizacao';
  * Quando o workflow cai na lista de commits, as notas trazem `release: Duotone
  * 3.2.0` e `Comparar com win-v3.1.0: https://...` -- e era isso que o aviso
  * mostrava a quem ia atualizar (14/9). Essas linhas são do git, não da versão.
+ *
+ * O título ("Duotone for iPhone 6.0.2"), os cabeçalhos ("New", "Improved",
+ * "Fixed") e o "Full changelog" também saem (15/11): as notas de 6.0.x gastavam
+ * neles duas das quatro linhas, e a novidade ficava de fora do aviso.
  */
 export function resumirNotas(notas: string, max: number = MAX_LINHAS_DAS_NOTAS): string[] {
   return (notas ?? '')
@@ -30,6 +34,9 @@ export function resumirNotas(notas: string, max: number = MAX_LINHAS_DAS_NOTAS):
     .filter((l) => !/^release:\s/i.test(l)
       && !/^(comparar com|compare with)\b/i.test(l)
       && !/^duotone \d+\.\d+/i.test(l)
+      && !/^duotone for (iphone|windows|pc)\b/i.test(l)
+      && !/^(new|improved|fixed|changed)$/i.test(l)
+      && !/^full changelog\b/i.test(l)
       && !/^https?:\/\//i.test(l))
     .slice(0, max);
 }

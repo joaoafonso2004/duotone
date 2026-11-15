@@ -1,16 +1,16 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useShallow } from 'zustand/react/shallow';
 import { BottomSheet, BottomSheetScrollView } from './BottomSheet';
-import { ATALHO } from './PecaDaGaveta';
+import { ATALHO, ICONE_DA_CENA } from './PecaDaGaveta';
 import { mudarGaveta, useGaveta } from '../state/gaveta';
 import { useRecentes } from '../state/recentes';
 import { useSocial } from '../state/social';
 import { usePlaylists } from '../state/playlists';
 import {
-  ATALHOS, CONTROLOS, espacoAtivo, juntar, temPeca, type Controlo, type PecaNova,
+  ATALHOS, CENAS_PRONTAS, CONTROLOS, espacoAtivo, juntar, resumoDaCena, temPeca, type Controlo, type PecaNova,
 } from '../lib/gaveta';
 import { chaveDoRecente, type TipoDeRecente } from '../lib/recentes';
 import { avisarInfo } from '../lib/avisoDeRemocao';
@@ -26,9 +26,11 @@ type Item = {
   icone?: React.ComponentProps<typeof Ionicons>['name'];
   capa?: string | null;
   redonda?: boolean;
+  /** Em vez de acrescentar, faz isto (a cena nova abre o editor). */
+  acao?: () => void;
 };
 
-const CATEGORIAS = ['Live', 'Music', 'Friends', 'Controls', 'Places'] as const;
+const CATEGORIAS = ['Live', 'Music', 'Friends', 'Controls', 'Scenes', 'Places'] as const;
 type Categoria = typeof CATEGORIAS[number];
 
 const CONTROLO: Record<Controlo, { nome: string; sub: string; icone: React.ComponentProps<typeof Ionicons>['name'] }> = {
@@ -92,6 +94,20 @@ export function FolhaDaGaveta() {
       case 'Controls': return CONTROLOS.map((c) => ({
         chave: c, nome: CONTROLO[c].nome, sub: CONTROLO[c].sub, icone: CONTROLO[c].icone, peca: { tipo: 'controlo' as const, controlo: c },
       }));
+      case 'Scenes': return [
+        ...CENAS_PRONTAS.map((c) => ({
+          chave: `cena:${c.id}`, nome: c.nome, sub: resumoDaCena(c.definicoes).join(' · '),
+          icone: ICONE_DA_CENA[c.icone], peca: { tipo: 'cena' as const, cena: c },
+        })),
+        {
+          chave: 'cena-nova', nome: 'New scene', sub: 'Choose what it changes', icone: 'add' as const,
+          peca: { tipo: 'cena' as const, cena: { id: 'nova', nome: '', icone: 'faisca' as const, definicoes: {} } },
+          acao: () => useGaveta.setState({
+            acrescentar: false,
+            cenaAEditar: { pecaId: null, cena: { id: `cena-${Date.now().toString(36)}`, nome: '', icone: 'faisca', definicoes: {} } },
+          }),
+        },
+      ];
       case 'Places': return ATALHOS.map((a) => ({
         chave: a, nome: ATALHO[a].nome, sub: '', icone: ATALHO[a].icone, peca: { tipo: 'atalho' as const, atalho: a },
       }));
@@ -99,6 +115,7 @@ export function FolhaDaGaveta() {
   }, [categoria, recentes, playlists, amigos]);
 
   const acrescentar = (item: Item) => {
+    if (item.acao) { hapticSelection(); item.acao(); return; }
     const g = useGaveta.getState().gaveta;
     if (!g) return;
     const r = juntar(g, g.ativo, item.peca);
@@ -111,6 +128,7 @@ export function FolhaDaGaveta() {
   return (
     <BottomSheet visible={aberta} onClose={() => useGaveta.setState({ acrescentar: false })}
       titulo={espaco ? `Add to ${espaco.nome}` : 'Add'} detentes={[0.7, 1]}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ flexGrow: 1 }}>
       <View accessibilityRole="tablist" style={styles.categorias}>
         {CATEGORIAS.map((c) => (
           <Pressable key={c} accessibilityRole="tab" accessibilityState={{ selected: c === categoria }} hitSlop={6}
@@ -120,11 +138,12 @@ export function FolhaDaGaveta() {
           </Pressable>
         ))}
       </View>
+      </ScrollView>
       <BottomSheetScrollView style={{ maxHeight: 460 }} contentContainerStyle={{ paddingBottom: 24 }}>
         {itens.length === 0 ? (
           <Text style={styles.nada}>{categoria === 'Friends' ? 'Add friends in Social and they show up here.' : 'Nothing here yet.'}</Text>
         ) : itens.map((item) => {
-          const ja = espaco ? temPeca(espaco, item.peca) : false;
+          const ja = !item.acao && espaco ? temPeca(espaco, item.peca) : false;
           return (
             <Pressable key={item.chave} accessibilityRole="button" disabled={ja}
               accessibilityLabel={ja ? `${item.nome}, added` : `Add ${item.nome}`}
@@ -150,7 +169,7 @@ export function FolhaDaGaveta() {
 
 const styles = StyleSheet.create({
   categorias: {
-    flexDirection: 'row', gap: 16, marginBottom: 10,
+    flexGrow: 1, flexDirection: 'row', gap: 16, marginBottom: 10,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(233,234,238,0.12)',
   },
   categoria: { height: 34, justifyContent: 'center' },

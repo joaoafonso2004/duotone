@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
 import { PecaDaGaveta, type ContextoDaPeca } from './PecaDaGaveta';
 import { FolhaDaGaveta } from './FolhaDaGaveta';
+import { FolhaDaCena } from './FolhaDaCena';
 import { useDestinos } from '../navigation/destinos';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { usePlayer } from '../state/player';
@@ -87,6 +88,7 @@ export function Gaveta({ largura, abertura }: { largura: number; abertura: Anima
       if (g) mudarGaveta((x) => proximoTamanho(x, g.ativo, id));
     },
     aoSegurar: () => editarGaveta(true),
+    aoEditarCena: (pecaId, cena) => useGaveta.setState({ cenaAEditar: { pecaId, cena } }),
   }), [editar, irPara]);
 
   const [nome, setNome] = useState(espaco?.nome ?? '');
@@ -214,6 +216,7 @@ export function Gaveta({ largura, abertura }: { largura: number; abertura: Anima
       </ScrollView>
 
       <FolhaDaGaveta />
+      <FolhaDaCena />
     </Animated.View>
   );
 }

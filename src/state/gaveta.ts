@@ -1,9 +1,10 @@
 import { Animated } from 'react-native';
 import { create } from 'zustand';
 import { getGaveta, setGaveta } from '../lib/prefs';
-import { gavetaInicial, lerGaveta, type DadosDaPrimeira, type Gaveta } from '../lib/gaveta';
+import { gavetaInicial, lerGaveta, type Cena, type DadosDaPrimeira, type Gaveta } from '../lib/gaveta';
 import { molaIOS } from './transicaoDoLeitor';
 import { pedirFluidez } from './fluidez';
+import { marcarGavetaVista } from './descobertaDaGaveta';
 
 /**
  * A gaveta da Home do iPhone em memória (6.0.4) -- as regras vivem em
@@ -44,10 +45,12 @@ type Estado = {
   acrescentar: boolean;
   /** Muda cada vez que a gaveta abre: as peças entram em cascata a partir daí. */
   aberturas: number;
+  /** O editor de cenas: uma nova (`pecaId` null) ou a de uma peça. */
+  cenaAEditar: { pecaId: string | null; cena: Cena } | null;
 };
 
 export const useGaveta = create<Estado>(() => ({
-  gaveta: null, carregada: false, aberta: false, editar: false, escolhida: null, acrescentar: false, aberturas: 0,
+  gaveta: null, carregada: false, aberta: false, editar: false, escolhida: null, acrescentar: false, aberturas: 0, cenaAEditar: null,
 }));
 
 let gravacao: Promise<void> = Promise.resolve();
@@ -73,7 +76,7 @@ export function mudarGaveta(f: (g: Gaveta) => Gaveta): void {
  * A primeira gaveta, feita no instante em que se abre pela primeira vez, com o
  * que a app já tem no aparelho nessa altura (os recentes, os amigos).
  */
-function garantirPrimeira(dados: () => DadosDaPrimeira): void {
+export function garantirPrimeira(dados: () => DadosDaPrimeira): void {
   const { gaveta, carregada } = useGaveta.getState();
   if (gaveta || !carregada) return;
   const nova = gavetaInicial(dados());
@@ -87,6 +90,8 @@ function garantirPrimeira(dados: () => DadosDaPrimeira): void {
  */
 export function abrirGaveta(dados: () => DadosDaPrimeira, o: { velocidade?: number; largura?: number } = {}): void {
   garantirPrimeira(dados);
+  // Aberta uma vez, já se sabe que existe: a linha de luz e o ponto saem.
+  marcarGavetaVista();
   const s = useGaveta.getState();
   useGaveta.setState({ aberta: true, aberturas: s.aberta ? s.aberturas : s.aberturas + 1 });
   pedirFluidez(900);
@@ -99,7 +104,7 @@ export function abrirGaveta(dados: () => DadosDaPrimeira, o: { velocidade?: numb
 /** Fecha a gaveta (e sai da edição: voltar a abrir é usar, não editar). */
 export function fecharGaveta(o: { velocidade?: number; largura?: number } = {}): void {
   if (!useGaveta.getState().aberta) return;
-  useGaveta.setState({ aberta: false, editar: false, escolhida: null, acrescentar: false });
+  useGaveta.setState({ aberta: false, editar: false, escolhida: null, acrescentar: false, cenaAEditar: null });
   pedirFluidez(700);
   Animated.spring(aberturaDaGaveta, {
     toValue: 0, useNativeDriver: true, ...molaIOS(0.42, 0.92),
