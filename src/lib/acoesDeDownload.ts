@@ -21,6 +21,8 @@ import type { SituacaoDoDownload } from './downloadsExplicitos';
 export interface DependenciasDasAcoes {
   registar(t: Track): Promise<boolean>;
   esquecer(id: string): Promise<void>;
+  /** Vários de uma vez, numa só escrita (o "Remove download" de uma playlist). Sem ele, um a um. */
+  esquecerVarios?(ids: readonly string[]): Promise<void>;
   esquecerTodos(): Promise<void>;
   temPedido(id: string): boolean;
   emDisco(id: string): boolean;
@@ -85,6 +87,23 @@ export function criarAcoesDeDownload(d: DependenciasDasAcoes) {
     d.apagarFicheiro(id);
   }
 
+  /**
+   * O "Remove download" de uma playlist (15/11): o mesmo que `tirar`, para
+   * várias. Os pedidos saem numa só escrita: 400 escritas do registo inteiro,
+   * uma por música, eram segundos de disco por nada.
+   */
+  async function tirarVarias(ids: readonly string[]): Promise<void> {
+    if (!ids.length) return;
+    for (const id of ids) {
+      geracoes.set(id, ++contador);
+      if (ativos.delete(id)) d.marcarADescarregar(id, false);
+    }
+    d.avisarCancelamentos();
+    if (d.esquecerVarios) await d.esquecerVarios(ids);
+    else for (const id of ids) await d.esquecer(id);
+    for (const id of ids) d.apagarFicheiro(id);
+  }
+
   /** "Clear YouTube cache" e "Remover tudo": pedidos, proteção e ficheiros. */
   async function limparTudo(): Promise<void> {
     epoca++;
@@ -105,5 +124,5 @@ export function criarAcoesDeDownload(d: DependenciasDasAcoes) {
     else await pedir(t);
   }
 
-  return { pedir, tirar, limparTudo, alternar };
+  return { pedir, tirar, tirarVarias, limparTudo, alternar };
 }

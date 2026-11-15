@@ -14,7 +14,14 @@ export type IdDaAcaoDaPlaylist =
   | 'tocar' | 'baralhar' | 'fila'
   | 'partilhar' | 'partilhar-link' | 'fixar'
   | 'editar' | 'juntar' | 'apagar'
-  | 'colaboradores' | 'sair';
+  | 'colaboradores' | 'sair'
+  | 'descarregar' | 'cancelar-download' | 'tirar-downloads';
+
+/**
+ * O download da playlist inteira (15/11, só no iPhone e só dentro dela, onde
+ * as músicas já estão carregadas). Ver lib/downloadDaLista.ts.
+ */
+export type DownloadDaPlaylist = 'nenhum' | 'parcial' | 'completo' | 'a-descarregar';
 
 export type AcaoDaPlaylist = {
   id: IdDaAcaoDaPlaylist;
@@ -40,7 +47,21 @@ export type SituacaoDaPlaylist = {
   colaboro?: boolean;
   /** Só no PC: está nos atalhos da lateral. */
   fixada?: boolean;
+  /** Só no iPhone, dentro da playlist: o que dela está descarregado. Sem isto, não há ação de download. */
+  download?: DownloadDaPlaylist;
 };
+
+function acoesDoDownload(d: DownloadDaPlaylist): AcaoDaPlaylist[] {
+  if (d === 'a-descarregar') return [{ id: 'cancelar-download', rotulo: 'Cancel download', icone: 'close-circle-outline' }];
+  if (d === 'completo') return [{ id: 'tirar-downloads', rotulo: 'Remove download', icone: 'remove-circle-outline' }];
+  if (d === 'parcial') {
+    return [
+      { id: 'descarregar', rotulo: 'Download the rest', icone: 'arrow-down-circle-outline' },
+      { id: 'tirar-downloads', rotulo: 'Remove download', icone: 'remove-circle-outline' },
+    ];
+  }
+  return [{ id: 'descarregar', rotulo: 'Download', icone: 'arrow-down-circle-outline' }];
+}
 
 export function menuDaPlaylist(s: SituacaoDaPlaylist): AcaoDaPlaylist[] {
   const acoes: AcaoDaPlaylist[] = [];
@@ -51,6 +72,11 @@ export function menuDaPlaylist(s: SituacaoDaPlaylist): AcaoDaPlaylist[] {
       { id: 'baralhar', rotulo: 'Shuffle', icone: 'shuffle' },
       { id: 'fila', rotulo: 'Add to queue', icone: 'list-outline' },
     );
+  }
+  // O download da lista inteira: primeiro, porque é a ação que se vem procurar
+  // ao "⋯" de uma playlist que se quer levar sem rede.
+  if (s.plataforma === 'ios' && s.onde === 'pagina' && s.temFaixas && s.download) {
+    acoes.push(...acoesDoDownload(s.download));
   }
   acoes.push({ id: 'partilhar', rotulo: 'Share with a friend…', icone: 'people-outline', inicioDeGrupo: acoes.length > 0 });
   // O QR e o link vivem na folha de partilha do iPhone; no PC não há.

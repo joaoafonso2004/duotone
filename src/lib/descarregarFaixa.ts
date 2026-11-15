@@ -1,10 +1,12 @@
+import { create } from 'zustand';
 import { useConnectivity } from '../state/connectivity';
 import { usePlayer } from '../state/player';
 import type { Track } from '../types';
 import { criarAcoesDeDownload } from './acoesDeDownload';
+import { criarLotesDeDownload, type EstadoDoLote } from './loteDeDownloads';
 import { downloadNoMenu, situacaoDoDownload, type DownloadNoMenu, type SituacaoDoDownload } from './downloadsExplicitos';
 import {
-  esquecerPedido, esquecerTodos, marcarADescarregar, registarPedido, temPedido, useDownloadsFixados,
+  esquecerPedido, esquecerPedidos, esquecerTodos, marcarADescarregar, registarPedido, temPedido, useDownloadsFixados,
 } from './downloadsFixados';
 import { podeDescarregarOpcionais } from './adiantarFaixas';
 import { estadoDeEnergia } from '../../modules/duotone-diagnostico';
@@ -94,6 +96,7 @@ export function useDescarregadaDeProposito(track: Track): boolean {
 const acoes = criarAcoesDeDownload({
   registar: (t) => registarPedido(t),
   esquecer: esquecerPedido,
+  esquecerVarios: esquecerPedidos,
   esquecerTodos,
   temPedido,
   emDisco: isAudioCached,
@@ -128,6 +131,77 @@ export async function pedirDownload(track: Track): Promise<void> {
 /** Tira o pedido e apaga o ficheiro desta faixa. */
 export async function tirarDownload(videoId: string): Promise<void> {
   await acoes.tirar(videoId);
+}
+
+/**
+ * Uma playlist inteira de uma vez (15/11, `lib/loteDeDownloads.ts`): uma
+ * música de cada vez, pela mesma porta do "Download" de uma só. Para quem
+ * desenha há o `useDownloadDaLista`.
+ */
+const useLotes = create<{ revisao: number }>(() => ({ revisao: 0 }));
+
+/** Resolve quando a rede muda, ou ao fim de 30 s (por segurança: uma mudança perdida não prende o lote). */
+function esperarPelaRede(): Promise<void> {
+  return new Promise((resolve) => {
+    let feito = false;
+    const acabar = () => {
+      if (feito) return;
+      feito = true;
+      clearTimeout(relogio);
+      largar();
+      resolve();
+    };
+    const largar = useConnectivity.subscribe((s, p) => {
+      if (s.offline !== p.offline || s.dadosMoveis !== p.dadosMoveis) acabar();
+    });
+    const relogio = setTimeout(acabar, 30_000);
+  });
+}
+
+const lotes = criarLotesDeDownload<Track>({
+  id: (t) => t.sourceId,
+  jaTratada: (t) => {
+    const s = situacaoDoDownloadDe(t);
+    return s === 'descarregada' || s === 'a-descarregar';
+  },
+  emDisco: (t) => isAudioCached(t.sourceId),
+  pedir: async (t) => (await acoes.pedir(t)) === 'descarregada',
+  tirar: (id) => acoes.tirar(id),
+  semRede: () => useConnectivity.getState().offline,
+  dadosMoveis: () => useConnectivity.getState().dadosMoveis,
+  esperarPelaRede,
+  pausa: (ms) => new Promise((r) => setTimeout(r, ms)),
+  aoMudar: () => useLotes.setState((s) => ({ revisao: s.revisao + 1 })),
+});
+
+/** "Download" no menu de uma playlist: junta as que faltam à fila de downloads. */
+export function descarregarLista(chave: string, faixas: readonly Track[]): void {
+  ligarVigias();
+  lotes.juntar(chave, faixas.filter(podeDescarregar));
+}
+
+/** "Cancel download": pára a lista; as que já estavam ficam. */
+export async function cancelarDownloadDaLista(chave: string): Promise<void> {
+  await lotes.cancelar(chave);
+}
+
+/** "Use mobile data": esta lista deixa de esperar pelo Wi-Fi. */
+export function usarDadosMoveisNaLista(chave: string): void {
+  lotes.permitirDadosMoveis(chave);
+}
+
+/** "Remove download" de uma playlist: tira o pedido e o ficheiro de cada música dela. */
+export async function tirarDownloadsDaLista(faixas: readonly Track[]): Promise<void> {
+  const ids = faixas.filter((t) => podeDescarregar(t) && temPedido(t.sourceId)).map((t) => t.sourceId);
+  await acoes.tirarVarias(Array.from(new Set(ids)));
+}
+
+/** Se a lista está a descarregar, à espera de quê, e se o último lote parou por falhas. */
+export function useDownloadDaLista(chave: string): EstadoDoLote {
+  useLotes((s) => s.revisao);
+  useConnectivity((s) => s.offline);
+  useConnectivity((s) => s.dadosMoveis);
+  return lotes.estado(chave);
 }
 
 /**

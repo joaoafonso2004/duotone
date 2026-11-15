@@ -1,4 +1,5 @@
 import type { DownloadNoMenu, SituacaoDoDownload } from './downloadsExplicitos';
+import type { EstadoDoLote } from './loteDeDownloads';
 import type { Track } from '../types';
 
 /**
@@ -18,3 +19,9 @@ export async function pedirDownload(_track: Track): Promise<void> {}
 export async function tirarDownload(_videoId: string): Promise<void> {}
 export async function limparTodosOsDownloads(): Promise<void> {}
 export async function guardarEmSegundoPlano(_faixas: readonly Track[], _opcoes?: { opcional?: boolean }): Promise<number> { return 0; }
+export function descarregarLista(_chave: string, _faixas: readonly Track[]): void {}
+export async function cancelarDownloadDaLista(_chave: string): Promise<void> {}
+export function usarDadosMoveisNaLista(_chave: string): void {}
+export async function tirarDownloadsDaLista(_faixas: readonly Track[]): Promise<void> {}
+const PARADO: EstadoDoLote = { aCorrer: false, espera: null, parouPorFalhas: false };
+export function useDownloadDaLista(_chave: string): EstadoDoLote { return PARADO; }

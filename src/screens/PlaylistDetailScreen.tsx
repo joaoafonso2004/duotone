@@ -4,7 +4,13 @@ import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { avisarRemocao, avisarErro, avisarFeito, avisarInfo } from '../lib/avisoDeRemocao';
 import { useOfflineMode } from '../hooks/useOfflineMode';
 import { faixasDaPlaylistSemRede } from '../api/playlistSnapshot';
-import { tocaSemRede, useRevisaoDosDownloads } from '../lib/descarregarFaixa';
+import {
+  cancelarDownloadDaLista, descarregarLista, podeDescarregar, situacaoDoDownloadDe, tirarDownloadsDaLista,
+  tocaSemRede, usarDadosMoveisNaLista, useDownloadDaLista, useRevisaoDosDownloads,
+} from '../lib/descarregarFaixa';
+import {
+  contarDaLista, downloadDaLista, TEXTO_DO_LOTE_PARADO, textoDoDescarregado, textoDoProgresso, textoDoTamanho,
+} from '../lib/downloadDaLista';
 import { useAudioCache } from '../lib/youtubeCache';
 import { tocaveisSemRede } from '../lib/playlistsSemRede';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -91,6 +97,7 @@ import {
 } from '../lib/edicaoDaPlaylist';
 import { useAlturaDosSeparadores } from '../state/doca';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
+import { useConnectivity } from '../state/connectivity';
 import { DentroDeUmModal, useModalDoRNAberto } from '../components/dentroDeUmModal';
 
 import { FRASES_DOS_ESTADOS } from '../lib/frasesDosEstados';
@@ -576,6 +583,32 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   }, [tracks]);
 
   /**
+   * A playlist inteira para ouvir sem rede (15/11, pedido no Reddit: 403
+   * musicas, uma a uma). O "⋯" pede-a, e a linha por baixo do cabecalho diz
+   * quantas ja estao no iPhone. Conta-se a cada desenho: e um `in` e um
+   * `isAudioCached` por musica, e o `useRevisaoDosDownloads` de cima ja faz
+   * desenhar quando um download acaba.
+   */
+  const chaveDoDownload = `playlist:${id}`;
+  const loteDaLista = useDownloadDaLista(chaveDoDownload);
+  const [tirarDownloadsAberto, setTirarDownloadsAberto] = useState(false);
+  const descarregaveis = useMemo(() => tracks.filter(podeDescarregar), [tracks]);
+  const contaDoDownload = contarDaLista(descarregaveis.map(situacaoDoDownloadDe));
+  const downloadDaPlaylist = loteDaLista.aCorrer ? 'a-descarregar' as const : downloadDaLista(contaDoDownload);
+  const linhaDoDownload = loteDaLista.aCorrer
+    ? textoDoProgresso(contaDoDownload, loteDaLista.espera)
+    : loteDaLista.parouPorFalhas
+      ? TEXTO_DO_LOTE_PARADO
+      : downloadDaPlaylist !== 'nenhum' && !offline ? textoDoDescarregado(contaDoDownload) : null;
+  const pedirDownloadDaLista = () => {
+    descarregarLista(chaveDoDownload, tracks);
+    if (useConnectivity.getState().dadosMoveis) {
+      const faltam = descarregaveis.filter((t) => situacaoDoDownloadDe(t) !== 'descarregada');
+      avisarInfo('Waiting for Wi-Fi', `${faltam.length} songs, ${textoDoTamanho(faltam.map((t) => t.durationSeconds))}. Tap "Use mobile data" to start now.`);
+    }
+  };
+
+  /**
    * O topo da pagina passa a ANDAR COM A LISTA.
    *
    * Estava fixo por cima dela: a capa, o play, a barra de ferramentas e a
@@ -605,6 +638,21 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             <View style={styles.semRede}>
               <Ionicons name="cloud-offline-outline" size={15} color={colors.textSecondary} />
               <Text style={type.caption}>{`Offline · ${filaTocavel.length} of ${visibleTracks.length} on this iPhone`}</Text>
+            </View>
+          ) : null}
+          {linhaDoDownload ? (
+            <View style={styles.semRede}>
+              <Ionicons
+                name={loteDaLista.aCorrer ? 'arrow-down-circle-outline' : loteDaLista.parouPorFalhas ? 'alert-circle-outline' : 'checkmark-circle'}
+                size={15}
+                color={downloadDaPlaylist === 'completo' && !loteDaLista.aCorrer ? theme.color : colors.textSecondary}
+              />
+              <Text style={type.caption}>{linhaDoDownload}</Text>
+              {loteDaLista.aCorrer && loteDaLista.espera === 'wifi' ? (
+                <Pressable hitSlop={10} onPress={() => usarDadosMoveisNaLista(chaveDoDownload)}>
+                  <Text style={[type.caption, { color: theme.color, fontWeight: '600' }]}>Use mobile data</Text>
+                </Pressable>
+              ) : null}
             </View>
           ) : null}
           {eColaborativa(pessoas) ? (
@@ -1002,10 +1050,16 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
         cabecalho={cabecalhoDoMenu}
         onClose={() => setOptionsOpen(false)}
         // O mesmo menu do PC e do cartão (5/10, lib/menuDaPlaylist.ts).
-        actions={menuDaPlaylist({ plataforma: 'ios', onde: 'pagina', temFaixas: tracks.length > 0, minha: souDono, colaboro: papel === 'colaborador' })
+        actions={menuDaPlaylist({
+          plataforma: 'ios', onde: 'pagina', temFaixas: tracks.length > 0, minha: souDono, colaboro: papel === 'colaborador',
+          download: descarregaveis.length ? downloadDaPlaylist : undefined,
+        })
           .map((a) => ({ icon: a.icone as any, label: a.rotulo, destructive: a.destrutiva, onPress: () => {
             if (a.id === 'juntar') { void abrirMerge(); return; }
             setOptionsOpen(false);
+            if (a.id === 'descarregar') pedirDownloadDaLista();
+            else if (a.id === 'cancelar-download') void cancelarDownloadDaLista(chaveDoDownload);
+            else if (a.id === 'tirar-downloads') setTirarDownloadsAberto(true);
             if (a.id === 'partilhar') setShareFriendOpen(true);
             else if (a.id === 'partilhar-link') setShareOpen(true);
             else if (a.id === 'editar') abrirEdicao();
@@ -1023,6 +1077,22 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
         pessoas={pessoasVistas}
         aoMudar={recarregarPessoas}
         aoSair={depoisDeSair}
+      />
+
+      <ConfirmSheet
+        visible={tirarDownloadsAberto}
+        title="Remove download?"
+        message={`The songs stay in "${name}", but they won't play without internet. A song downloaded from another playlist also leaves this iPhone.`}
+        confirmLabel="Remove"
+        destructive
+        onClose={() => setTirarDownloadsAberto(false)}
+        onConfirm={() => {
+          setTirarDownloadsAberto(false);
+          void cancelarDownloadDaLista(chaveDoDownload)
+            .then(() => tirarDownloadsDaLista(tracks))
+            .then(() => avisarFeito('Download removed', name))
+            .catch((e) => avisarErro(mensagemDeErro(e, "Couldn't remove the download.")));
+        }}
       />
 
       <ConfirmSheet

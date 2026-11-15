@@ -207,6 +207,7 @@ const TESTES = [
   `${DUPLOS} scripts/test-refrao-pre-escuta.ts`,
   `${RESOLVER} scripts/test-pedidos-ao-supabase-contados.ts`,
   `${TS} scripts/test-mensagem-do-registo.ts`,
+  `${TS} scripts/test-download-da-lista.ts`,
   `${TS} scripts/test-menu-da-playlist.ts`,
   `${RESOLVER} scripts/test-menu-do-lancamento.ts`,
   `${TS} scripts/test-playlist-colaborativa.ts`,
