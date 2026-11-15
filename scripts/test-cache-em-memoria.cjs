@@ -95,6 +95,14 @@ async function caso(nome, f) {
     assert.equal(leituras, 0);
     assert.equal(escritas, 0);
     assert.equal(cache.soNoAparelho('search:v2:x'), false, 'a pesquisa da Data API continua partilhada');
+    assert.equal(cache.soNoAparelho('playlists_search:v2:x'), false, 'a pesquisa de playlists também');
+  });
+  await caso('as playlists importadas ficam só na memória (15/11)', async () => {
+    const antes = { leituras, escritas };
+    await cache.cacheSet('playlist:ytm:v1:PLx', { faixas: [1, 2] });
+    assert.deepEqual(await cache.cacheGet('playlist:ytm:v1:PLx', HORA, { memoria: true }), { faixas: [1, 2] }, 'a mesma sessão volta a ter a lista');
+    assert.equal(await cache.cacheGet('playlist:ytm:v1:PLy', HORA, { memoria: true }), null, 'a que não está na memória não vai ao servidor');
+    assert.deepEqual({ leituras, escritas }, antes, 'nem leituras nem escritas no Supabase');
   });
   await caso('o catálogo e o YouTube leem com memória', async () => {
     for (const f of ['src/api/catalogo.ts', 'src/api/youtube.ts']) {

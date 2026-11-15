@@ -78,9 +78,16 @@ async function lerDoServidor<T>(key: string, maxAgeMs: number, guardar: boolean)
  * tocada lia e escrevia a vizinhança, o nome e o género de um artista.
  * Partilhá-los entre pessoas poupava pouco, porque o Deezer responde a cada
  * aparelho, e custava uma linha de log por leitura e outra por escrita.
+ *
+ * As playlists importadas também (15/11): uma importação lê a lista uma vez, e
+ * a resposta valia um dia mas ficava no servidor três meses (701 linhas e 3 MB
+ * a 13/11). Na memória chega para repetir a importação na mesma sessão. A
+ * pesquisa da Data API (`search:`, `playlists_search:`) fica no servidor: custa
+ * 100 unidades da chave de todos, e o servidor poupa-as entre os aparelhos da
+ * mesma conta.
  */
 export function soNoAparelho(key: string): boolean {
-  return key.startsWith('deezer:');
+  return key.startsWith('deezer:') || key.startsWith('playlist:');
 }
 
 export async function cacheGet<T>(key: string, maxAgeMs: number, opcoes?: { memoria?: boolean }): Promise<T | null> {

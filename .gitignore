@@ -71,6 +71,7 @@ test-*.mjs
 !scripts/test-versao-minima-sql.mjs
 !scripts/test-presenca-ao-vivo-sql.mjs
 !scripts/test-registar-escutas-sql.mjs
+!scripts/test-limpar-filas-e-cache-sql.mjs
 !scripts/test-radio-no-jam-sql.mjs
 !scripts/test-painel-de-saude-sql.mjs
 !scripts/test-presenca-mais-longa-sql.mjs

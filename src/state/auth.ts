@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 import { endSession } from '../lib/sessionSync';
 import { terminarPresenca } from '../lib/presenceSync';
 import { esquecerPerfisPublicos } from '../api/profiles';
+import { mensagemDoRegisto } from '../lib/mensagemDoRegisto';
 
 let authGeneration=0;
 /**
@@ -166,7 +167,9 @@ export const useAuth = create<AuthState>((set) => ({
       password,
       options: { data: { name: uname || email.split('@')[0], username: uname } },
     });
-    return error ? error.message : null;
+    // O registo fechado no painel chega como "Signups not allowed for this
+    // instance": troca-se por uma frase que quem chega percebe.
+    return mensagemDoRegisto(error);
   },
 
   signOut: async () => {

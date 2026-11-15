@@ -24,6 +24,7 @@ export type Migracao = {
 };
 
 export const MIGRACOES: readonly Migracao[] = [
+  { ficheiro: 'limpar-filas-e-cache.sql', marca: 'fn:limpar_filas_e_cache', efeito: 'Finished Jam queues and expired cached answers are cleaned every night' },
   { ficheiro: 'registar-escutas.sql', marca: 'fn:registar_escutas', efeito: 'Listens, started songs and play counts reach the server in one request instead of four' },
   { ficheiro: 'presenca-ao-vivo.sql', marca: 'pol:realtime.messages:presenca: ver', efeito: "Friends' online status and music arrive live, without writing to the database each time" },
   { ficheiro: 'versao-minima.sql', marca: 'fn:recusar_versoes_antigas', efeito: 'Old app versions (5.8.6 and earlier) are refused, so everyone updates' },
