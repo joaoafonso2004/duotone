@@ -6,7 +6,7 @@ import {
   abrirJaNasLetras, alternarBotao, alternarSecao, alturaDaLinha, aplicarTema, BOTOES_DO_LEITOR, capaDoTema, destinoDaOrigem,
   ESTILOS_DA_CAPA, fonteDosTitulos, lerAparencia, MAXIMO_DE_BOTOES, moverSecao, NOMES_DAS_SECOES, olhoDaOrigem, ordemDasSecoes,
   PADRAO, SECOES_DA_HOME, secoesVisiveis, tamanhoDasLetras, TEMAS, temaDe, veuDoLeitor,
-  fundoDasFolhas, GRAFITE_DAS_FOLHAS,
+  fundoDasFolhas, GRAFITE_DAS_FOLHAS, NOMES_DOS_BOTOES, rotuloDoTemporizador,
 } from '../src/lib/aparencia.ts';
 import { coresDoGradiente, contraste, deHex } from '../src/lib/corDaCapa.ts';
 
@@ -65,7 +65,19 @@ assert.equal(lido.brilho, 100, 'preso entre 0 e 100');
 assert.deepEqual(lido.botoes, ['eq', 'fila', 'letras', 'partilhar'], 'sem repetidos, sem desconhecidos, no máximo quatro');
 assert.deepEqual(lerAparencia({ botoes: ['aparelhos', 'fila'] }).botoes, ['fila'], 'o "Devices" guardado de antes (saiu a 1/11) cai');
 assert.deepEqual(lerAparencia({ botoes: [] }).botoes, [], 'sem botões é uma escolha');
-assert.ok(BOTOES_DO_LEITOR.every((x) => ['fila', 'eq', 'visibilidade', 'partilhar', 'letras'].includes(x)));
+assert.ok(BOTOES_DO_LEITOR.every((x) => ['fila', 'eq', 'visibilidade', 'partilhar', 'letras',
+  'temporizador', 'radio', 'playlist', 'descarregar', 'carro'].includes(x)));
+// 15/11: o temporizador, o Radio, a playlist, o download e o carro também vão para baixo.
+assert.deepEqual(lerAparencia({ botoes: ['temporizador', 'radio', 'playlist', 'descarregar', 'carro'] }).botoes,
+  ['temporizador', 'radio', 'playlist', 'descarregar'], 'os novos leem-se, e o máximo continua a ser quatro');
+assert.equal(rotuloDoTemporizador(0, false), 'Sleep');
+assert.equal(rotuloDoTemporizador(754, false), '12:34');
+assert.equal(rotuloDoTemporizador(3900, false), '1:05:00');
+assert.equal(rotuloDoTemporizador(0.4, false), '0:01', 'arredonda para cima: nunca mostra 0:00 a contar');
+assert.equal(rotuloDoTemporizador(0, true), 'End');
+for (const b of BOTOES_DO_LEITOR) assert.ok(NOMES_DOS_BOTOES[b], `nome de ${b}`);
+const doLeitor = readFileSync(new URL('../src/components/PlayerRoot.tsx', import.meta.url), 'utf8');
+for (const b of BOTOES_DO_LEITOR) assert.ok(doLeitor.includes(`case '${b}':`), `o leitor desenha o ${b}`);
 
 // Os novos guardados: valores de outra versão ficam os de omissão.
 const lido2 = lerAparencia({

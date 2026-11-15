@@ -15,6 +15,7 @@ A mínima do servidor continua a 6.0.1, e as notas mantêm `Minimum version: 6.0
 - **Download Liked Songs** (Storage): com o limite de 300 MB pergunta se o sobe; depois "Downloading N of M" no rodapé; gostar de uma música nova e vê-la descarregar. Desligar: "Remove downloads" ou "Keep them".
 - **Start Radio** no menu de uma música numa lista: toca-a, o Up next passa a ser o Radio, o aviso tem Undo quando a música já tocava.
 - **Show what your PC is playing** (General): desligado, a lingueta e o aviso do PC deixam de aparecer.
+- **Customise › Buttons below:** os novos (Sleep timer, Start Radio, Add to playlist, Download, Car mode). O Sleep abre o menu junto ao dedo e mostra o tempo que falta por baixo da lua; o Download mostra o ✓ quando a música está no iPhone. Em francês, os rótulos ficam numa linha (o botão alarga).
 - **EQ:** mudar o EQ de uma música no iPhone e ver que no PC essa música fica como estava (e ao contrário).
 
 ## Windows

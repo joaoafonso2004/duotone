@@ -59,8 +59,11 @@ import { useTheme } from '../state/theme';
 import { useShallow } from 'zustand/react/shallow';
 import { useAparencia } from '../state/aparencia';
 import {
-  abrirJaNasLetras, destinoDaOrigem, fonteDosTitulos, NOMES_DOS_BOTOES, olhoDaOrigem, veuDoLeitor, type BotaoDoLeitor,
+  abrirJaNasLetras, destinoDaOrigem, fonteDosTitulos, NOMES_DOS_BOTOES, olhoDaOrigem, ROTULOS_DOS_BOTOES, rotuloDoTemporizador,
+  veuDoLeitor, type BotaoDoLeitor,
 } from '../lib/aparencia';
+import { ancoraDoUltimoToque } from '../lib/ultimoToque';
+import { comecarRadioDaMusica } from '../state/radioDaFaixa';
 import { FundoEmGradiente } from './FundoEmGradiente';
 import { lyricsCacheKey, useLyrics } from '../state/lyrics';
 import { rotuloDaOrigem } from '../lib/origemDaFila';
@@ -366,6 +369,10 @@ export function PlayerRoot() {
   const escurecerCapa = useMemo(() => pulse.interpolate({ inputRange: [0.4, 1], outputRange: [0.6, 0] }), [pulse]);
 
   const [playlistOpen, setPlaylistOpen] = useState(false);
+  // O temporizador nos botões de baixo (15/11): o menu abre junto ao dedo.
+  const [menuDoSono, setMenuDoSono] = useState<Ancora | null>(null);
+  const sonoRestanteS = usePlayer((s) => s.sleepTimerTimeLeft);
+  const sonoNoFim = usePlayer((s) => s.pararNoFimDaFaixa);
   const [optionsVisible, setOptionsVisible] = useState(false);
   const ancoraDasOpcoes = useRef<View>(null);
   const [ancora, setAncora] = useState<Ancora | null>(null);
@@ -1375,7 +1382,7 @@ export function PlayerRoot() {
           style={styles.utilityIconBtn}
         >
           <Ionicons name="list-outline" size={23} color={colors.text} />
-          <Text style={styles.utilityIconLabel}>Queue</Text>
+          <Text style={styles.utilityIconLabel} numberOfLines={1}>Queue</Text>
         </Toque>
       );
       // Quem vê o que está a tocar: amigos, ninguém, ou o Jam.
@@ -1399,14 +1406,14 @@ export function PlayerRoot() {
           style={styles.utilityIconBtn}
         >
           <EqualizerIcon />
-          <Text style={styles.utilityIconLabel}>EQ</Text>
+          <Text style={styles.utilityIconLabel} numberOfLines={1}>EQ</Text>
         </Toque>
       );
       case 'partilhar': return (
         <Toque key={b} escala={ESCALA.icone} accessibilityRole="button" accessibilityLabel="Share"
           onPress={() => { hapticSelection(); setPartilhaAberta(true); }} style={styles.utilityIconBtn}>
           <Ionicons name="share-outline" size={22} color={colors.text} />
-          <Text style={styles.utilityIconLabel}>{NOMES_DOS_BOTOES.partilhar}</Text>
+          <Text style={styles.utilityIconLabel} numberOfLines={1}>{NOMES_DOS_BOTOES.partilhar}</Text>
         </Toque>
       );
       case 'letras': return (
@@ -1415,11 +1422,73 @@ export function PlayerRoot() {
           onPress={() => { hapticSelection(); setShowLyrics(!showLyrics); }} style={styles.utilityIconBtn}>
           <Ionicons name={showLyrics ? 'chatbox-ellipses' : 'chatbox-ellipses-outline'} size={22}
             color={showLyrics ? theme.color : colors.text} />
-          <Text style={styles.utilityIconLabel}>{NOMES_DOS_BOTOES.letras}</Text>
+          <Text style={styles.utilityIconLabel} numberOfLines={1}>{NOMES_DOS_BOTOES.letras}</Text>
+        </Toque>
+      );
+      // Os de 15/11 (Customise › Buttons below).
+      case 'temporizador': {
+        const aContar = sonoNoFim || sonoRestanteS > 0;
+        return (
+          <Toque key={b} escala={ESCALA.icone} accessibilityRole="button" accessibilityLabel={NOMES_DOS_BOTOES.temporizador}
+            onPress={() => { hapticSelection(); setMenuDoSono(ancoraDoUltimoToque({ largura: W, altura: H })); }}
+            style={styles.utilityIconBtn}>
+            <Ionicons name={aContar ? 'moon' : 'moon-outline'} size={21} color={aContar ? theme.color : colors.text} />
+            <Text style={styles.utilityIconLabel} numberOfLines={1}>{rotuloDoTemporizador(sonoRestanteS, sonoNoFim)}</Text>
+          </Toque>
+        );
+      }
+      case 'radio': return (
+        <Toque key={b} escala={ESCALA.icone} accessibilityRole="button" accessibilityLabel={NOMES_DOS_BOTOES.radio}
+          onPress={() => { hapticSelection(); if (current) void comecarRadioDaMusica(current); }} style={styles.utilityIconBtn}>
+          <Ionicons name="radio-outline" size={22} color={colors.text} />
+          <Text style={styles.utilityIconLabel} numberOfLines={1}>{ROTULOS_DOS_BOTOES.radio}</Text>
+        </Toque>
+      );
+      case 'playlist': return (
+        <Toque key={b} escala={ESCALA.icone} accessibilityRole="button" accessibilityLabel={NOMES_DOS_BOTOES.playlist}
+          onPress={() => { hapticSelection(); setPlaylistOpen(true); }} style={styles.utilityIconBtn}>
+          <Ionicons name="albums-outline" size={22} color={colors.text} />
+          <Text style={styles.utilityIconLabel} numberOfLines={1}>{ROTULOS_DOS_BOTOES.playlist}</Text>
+        </Toque>
+      );
+      case 'descarregar': {
+        const estado = downloadNoMenuDe(current);
+        const pode = podeDescarregar(current);
+        return (
+          <Toque key={b} escala={ESCALA.icone} accessibilityRole="button" disabled={!pode}
+            accessibilityLabel={estado === 'descarregada' ? 'Remove download' : estado === 'a-descarregar' ? 'Cancel download' : 'Download'}
+            onPress={() => { hapticSelection(); void alternarDownload(current); }}
+            style={[styles.utilityIconBtn, !pode && { opacity: 0.4 }]}>
+            <Ionicons name={estado === 'descarregada' ? 'checkmark-circle' : estado === 'a-descarregar' ? 'close-circle-outline' : 'arrow-down-circle-outline'}
+              size={22} color={estado === 'descarregada' ? theme.color : colors.text} />
+            <Text style={styles.utilityIconLabel} numberOfLines={1}>{NOMES_DOS_BOTOES.descarregar}</Text>
+          </Toque>
+        );
+      }
+      case 'carro': return (
+        <Toque key={b} escala={ESCALA.icone} accessibilityRole="button" accessibilityLabel={NOMES_DOS_BOTOES.carro}
+          onPress={() => { hapticSelection(); setModoCarro(true); }} style={styles.utilityIconBtn}>
+          <Ionicons name="car-sport-outline" size={22} color={colors.text} />
+          <Text style={styles.utilityIconLabel} numberOfLines={1}>{ROTULOS_DOS_BOTOES.carro}</Text>
         </Toque>
       );
     }
   };
+  /** O menu do temporizador: as mesmas escolhas das Definições, com o ✓ na de agora. */
+  const minutosDoSono = [0, 15, 30, 45, 60];
+  const escolhaDoSono = sonoNoFim ? 5 : sonoRestanteS === 0 ? 0
+    : sonoRestanteS <= 15 * 60 ? 1 : sonoRestanteS <= 30 * 60 ? 2 : sonoRestanteS <= 45 * 60 ? 3 : 4;
+  const accoesDoSono: PlayerAction[] = ['Off', '15 minutes', '30 minutes', '45 minutes', '1 hour', 'End of track'].map((nome, i) => ({
+    label: nome,
+    icon: 'moon-outline' as const,
+    escolhida: i === escolhaDoSono,
+    onPress: () => {
+      setMenuDoSono(null);
+      const p = usePlayer.getState();
+      if (i === 5) p.setSleepTimerNoFimDaFaixa();
+      else p.setSleepTimer(minutosDoSono[i] ?? 0);
+    },
+  }));
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
@@ -2172,6 +2241,14 @@ export function PlayerRoot() {
         track={current}
         onClose={() => setPlaylistOpen(false)}
       />
+      {/* O temporizador dos botões de baixo (15/11). */}
+      <MenuFlutuante
+        visivel={menuDoSono !== null}
+        ancora={menuDoSono}
+        aoFechar={() => setMenuDoSono(null)}
+        titulo={NOMES_DOS_BOTOES.temporizador}
+        accoes={accoesDoSono}
+      />
 
       {/* ========================== MODO CARRO ========================== */}
       <ModoCarro visivel={modoCarro} aoFechar={() => setModoCarro(false)} />
@@ -2320,8 +2397,11 @@ const styles = StyleSheet.create({
     // Sem `marginTop`: a separação do transporte vem do espaçador de baixo
     // (`folga`). Somar-lhe uma margem era pedir duas vezes o mesmo espaço.
   },
+  // 15/11: a largura vem do rótulo (48 no mínimo), numa linha só: em francês
+  // "File d'attente" e "Égaliseur" partiam-se em duas, desalinhadas do ícone.
   utilityIconBtn: {
-    width: 48,
+    minWidth: 48,
+    paddingHorizontal: 2,
     minHeight: 52,
     alignItems: 'center',
     justifyContent: 'center',

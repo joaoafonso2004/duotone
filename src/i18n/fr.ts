@@ -6,6 +6,9 @@
  * novo na interface fica em inglês até entrar aqui. Sem imports.
  */
 export const FR: Readonly<Record<string, string>> = {
+  // Os botões de baixo do leitor (15/11).
+  "Sleep": "Veille",
+  "Car": "Voiture",
   // Contagens montadas noutros sítios ("12 songs", "3 of 40"): só aceitam números.
   "{0:n} of {1:n}": "{0} sur {1}",
   "{0:n} songs": "{0} titres",

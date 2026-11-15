@@ -15,8 +15,14 @@
  */
 
 // O "Devices" saiu a 1/11 com o Play on another device; guardado de antes, lê-se como desconhecido e cai.
-export type BotaoDoLeitor = 'fila' | 'eq' | 'visibilidade' | 'partilhar' | 'letras';
-export const BOTOES_DO_LEITOR: readonly BotaoDoLeitor[] = ['fila', 'visibilidade', 'eq', 'partilhar', 'letras'];
+// 15/11 (pedido do João): o temporizador, o Radio desta música, pôr numa playlist, o
+// download e o modo carro também podem ir para baixo.
+export type BotaoDoLeitor =
+  | 'fila' | 'eq' | 'visibilidade' | 'partilhar' | 'letras'
+  | 'temporizador' | 'radio' | 'playlist' | 'descarregar' | 'carro';
+export const BOTOES_DO_LEITOR: readonly BotaoDoLeitor[] = [
+  'fila', 'visibilidade', 'eq', 'partilhar', 'letras', 'temporizador', 'radio', 'playlist', 'descarregar', 'carro',
+];
 export const MAXIMO_DE_BOTOES = 4;
 
 /** As secções da Home do iPhone, pela ordem de sempre (`SearchScreen`). */
@@ -269,7 +275,26 @@ export function veuDoLeitor(brilho: number): { opacidadeDoVeu: number; escurecer
 
 export const NOMES_DOS_BOTOES: Record<BotaoDoLeitor, string> = {
   fila: 'Queue', eq: 'EQ', visibilidade: 'Who sees it', partilhar: 'Share', letras: 'Lyrics',
+  temporizador: 'Sleep timer', radio: 'Start Radio', playlist: 'Add to playlist', descarregar: 'Download', carro: 'Car mode',
 };
+
+/** O que vai por baixo do ícone, quando é mais curto do que o nome (o botão tem 48 pt). */
+export const ROTULOS_DOS_BOTOES: Partial<Record<BotaoDoLeitor, string>> = {
+  temporizador: 'Sleep', radio: 'Radio', playlist: 'Playlist', carro: 'Car',
+};
+
+/**
+ * Por baixo da lua (15/11): o que falta, quando o temporizador está a contar
+ * ("12:04", "1:05:00"), "End" quando pára no fim da música, e "Sleep" sem ele.
+ */
+export function rotuloDoTemporizador(restanteS: number, noFimDaFaixa: boolean): string {
+  if (noFimDaFaixa) return 'End';
+  if (!(restanteS > 0)) return 'Sleep';
+  const s = Math.ceil(restanteS);
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), seg = s % 60;
+  const dois = (n: number) => String(n).padStart(2, '0');
+  return h > 0 ? `${h}:${dois(m)}:${dois(seg)}` : `${m}:${dois(seg)}`;
+}
 
 /**
  * A linha de cima do "Playing from" (o G1): "From" passa a "Playing from"; o
