@@ -34,7 +34,7 @@ import { criarRoda, volumeComARoda } from '../lib/rodaDoRato';
 import { useShallow } from 'zustand/react/shallow';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { useTheme } from '../state/theme';
-import { styles } from './estilos.web';
+import { ALTURA_DA_BARRA_DA_JANELA, styles } from './estilos.web';
 import { BarraDoOutroAparelho, BotaoDoOutroAparelho } from './OutroAparelho.web';
 import { COR, cssDasFontes, ESP, ESTADO, FONT, RAIO } from './tokens.web';
 import { useLateralRecolhida } from './estadoDasBarras.web';
@@ -102,6 +102,11 @@ export function injectDesktopDocumentStyles() {
        por cima da barra que a separava. O fundo da página (48 px) deixa a última
        linha subir acima disto. */
     [data-dt~="rolo-da-pagina"]{ -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(180deg, #000 calc(100% - 40px), transparent); }
+    /* A área da página corta pelos lados e por baixo, mas deixa passar
+       ${ALTURA_DA_BARRA_DA_JANELA} px por cima (15/11): é por onde a página do artista sobe
+       para debaixo da barra da janela, com a foto até ao limite (o João: "o
+       chapéu fica cortado"). Era um overflow: hidden, que cortava os quatro lados. */
+    [data-dt~="conteudo-da-pagina"]{ clip-path: inset(-${ALTURA_DA_BARRA_DA_JANELA}px 0 0 0); }
     /* O anel do foco do teclado, no metal. Era [data-focusable="true"], que o
        react-native-web 0.21 ja nao escreve: a regra nao apanhava nada e via-se
        o anel do browser (medido a 20/10 na pagina de ensaio). Os sliders tem o

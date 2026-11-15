@@ -52,7 +52,7 @@ import { ORDEM_DAS_PRATELEIRAS, temRecomendacoes, useRecomendacoes, type NomeDaP
 import { useSaved } from '../../state/saved';
 import type { Track } from '../../types';
 import { crescer, faltaMostrar, PRIMEIRO_LOTE, quantosMostrar } from '../../lib/grelhaQueCresce';
-import { styles } from '../estilos.web';
+import { ALTURA_DA_BARRA_DA_JANELA, styles } from '../estilos.web';
 import { BotaoVoltar,
   Artwork, Button, ContentScroll, Dialog, Empty, Field, IconButton, marcar, Page,
   capaDaFaixa, Chips, PrateleiraDeMisturas, Separadores, Shelf, ShelfDeLancamentos, TrackTable, type ColunaOrdenavel,
@@ -962,8 +962,13 @@ export function ArtistPage({ name, back, corNaJanela = false, ...props }: { name
   const abrirPorId = (id: string) => { const a = albuns.find((x) => x.id === id); if (a) void abrirAlbum(a); };
 
   return <>
-    {/* Sem o título "Artist" por cima: a foto é o cabeçalho, e o voltar vive nela. */}
-    <View style={{ flex: 1, minWidth: 0 }}>
+    {/* Sem o título "Artist" por cima: a foto é o cabeçalho, e o voltar vive nela.
+        A página sobe para debaixo da barra da janela (15/11, o João: "o chapéu
+        fica cortado, quero que vá até ao limite"): a foto começa no topo da
+        janela, e o cabeçalho cresce o mesmo para o nome e os botões ficarem onde
+        estavam. A área da página deixa passar isto por cima (casca.web.tsx,
+        `conteudo-da-pagina`). */}
+    <View style={{ flex: 1, minWidth: 0, marginTop: -ALTURA_DA_BARRA_DA_JANELA }}>
       <ContentScroll scrollKey={`artist:${chaveDeArtista(name)}`}>
         {cor ? <View pointerEvents="none" style={[artistStyles.tom, { backgroundImage: tomDoArtista(cor) } as any]} /> : null}
         <View style={artistStyles.heroi}>
@@ -1249,8 +1254,8 @@ const artistStyles = StyleSheet.create({
   // Um absoluto mede-se pela caixa COM a margem do `ContentScroll`: 0 e 0 já é de ponta a ponta
   // (com -48 a página ficava 48 px mais larga e fugia para o lado ao focar o filtro).
   tom: { position: 'absolute', top: 0, left: 0, right: 0, height: ALTURA_DO_HEROI + 520 } as any,
-  heroi: { height: ALTURA_DO_HEROI, marginHorizontal: -ESP.xxxl, marginBottom: ESP.lg, overflow: 'hidden' },
-  voltar: { position: 'absolute', top: ESP.xl, left: ESP.xxxl },
+  heroi: { height: ALTURA_DO_HEROI + ALTURA_DA_BARRA_DA_JANELA, marginHorizontal: -ESP.xxxl, marginBottom: ESP.lg, overflow: 'hidden' },
+  voltar: { position: 'absolute', top: ESP.xl + ALTURA_DA_BARRA_DA_JANELA, left: ESP.xxxl },
   heroiBaixo: { position: 'absolute', left: ESP.xxxl, right: ESP.xxxl, bottom: ESP.xl },
   heroiNome: {
     fontFamily: FONT.display, color: COR.texto, fontSize: 72, lineHeight: 74, fontWeight: '800' as any, letterSpacing: -2,

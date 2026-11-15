@@ -81,5 +81,18 @@ caso('o artista fica a 32 px do título', () => {
   assert.doesNotMatch(ui, /ui\.colunaDoArtista, \{ paddingHorizontal: ESP\.sm \}/, 'a cabeça e as linhas usam a mesma coluna');
 });
 
+caso('a foto do artista vai até ao topo da janela, por baixo da barra (15/11)', () => {
+  // A área da página corta pelos lados e por baixo, e deixa passar a altura da barra por cima.
+  assert.match(estilos, /\bcontent: \{ flex: 1, minWidth: 0, minHeight: 0 \}/, 'a área da página já não corta os quatro lados');
+  assert.match(navegador, /<View style=\{styles\.content\} \{\.\.\.marcar\('conteudo-da-pagina'\)\}>/);
+  assert.match(casca, /\[data-dt~="conteudo-da-pagina"\]\{ clip-path: inset\(-\$\{ALTURA_DA_BARRA_DA_JANELA\}px 0 0 0\); \}/);
+  assert.match(estilo('titleBar'), /height: ALTURA_DA_BARRA_DA_JANELA/, 'a barra e a subida são a mesma medida');
+  // Só a página do artista sobe; o cabeçalho cresce o mesmo, e o voltar desce o mesmo.
+  const artista = ler('src/desktop/paginas/BibliotecaPages.web.tsx');
+  assert.match(artista, /<View style=\{\{ flex: 1, minWidth: 0, marginTop: -ALTURA_DA_BARRA_DA_JANELA \}\}>/);
+  assert.match(artista, /heroi: \{ height: ALTURA_DO_HEROI \+ ALTURA_DA_BARRA_DA_JANELA,/);
+  assert.match(artista, /voltar: \{ position: 'absolute', top: ESP\.xl \+ ALTURA_DA_BARRA_DA_JANELA,/);
+});
+
 if (falhas) { console.error(`\n${falhas} caso(s) falharam.`); process.exit(1); }
 console.log('\nTodos os casos passaram.');
