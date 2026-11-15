@@ -809,6 +809,19 @@ function comArtistasDoVideo<T extends { source?: string; title: string; artist: 
   return { ...t, artist: conhecidos };
 }
 
+/**
+ * A tradução da interface (15/11, src/i18n) corre sobre o texto que se mostra:
+ * um título ou um artista que saem daqui marcam-se, para nunca se traduzirem
+ * (uma música chamada "Home" fica "Home"). Por `globalThis`, para este módulo
+ * continuar sem imports nos testes. O "Unknown artist" é da app e traduz-se.
+ */
+function conteudo(texto: string): string {
+  if (texto && texto !== 'Unknown artist') {
+    (globalThis as { __duotoneConteudo?: (t: string) => void }).__duotoneConteudo?.(texto);
+  }
+  return texto;
+}
+
 export function displayArtist(
   t: { source?: string; title: string; artist: string | null },
   vocabulario: Vocabulario = vocabularioAprendido(),
@@ -817,8 +830,8 @@ export function displayArtist(
   const memoria = memoriaDe(vocabulario).artista;
   const chave = chaveDaFaixa(t);
   const sabido = memoria.get(chave);
-  if (sabido !== undefined) return sabido;
-  return lembrar(memoria, chave, calcularArtista(t, vocabulario));
+  if (sabido !== undefined) return conteudo(sabido);
+  return conteudo(lembrar(memoria, chave, calcularArtista(t, vocabulario)));
 }
 
 function calcularArtista(
@@ -852,13 +865,13 @@ export function tituloDaFaixa(
   t = comArtistasDoVideo(t);
   const bruto = (t.title ?? '').trim();
   // Fora do YouTube o título vem da API da fonte e já é só o título.
-  if (!bruto || (t.source && t.source !== 'youtube')) return bruto;
+  if (!bruto || (t.source && t.source !== 'youtube')) return conteudo(bruto);
   // Pela mesma memória do `displayArtist`: depende da faixa e do vocabulário.
   const memoria = memoriaDe(vocabulario).titulo;
   const chave = chaveDaFaixa(t);
   const sabido = memoria.get(chave);
-  if (sabido !== undefined) return sabido;
-  return lembrar(memoria, chave, calcularTitulo(t, bruto, vocabulario));
+  if (sabido !== undefined) return conteudo(sabido);
+  return conteudo(lembrar(memoria, chave, calcularTitulo(t, bruto, vocabulario)));
 }
 
 function calcularTitulo(

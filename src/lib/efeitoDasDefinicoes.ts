@@ -192,6 +192,14 @@ export function efeitoDasGostadas(e: {
   return e.aCorrer ? `Downloading ${quantas} · new likes download too` : `${quantas} on this iPhone`;
 }
 
+/**
+ * A língua (15/11): no iPhone a escolha só vale quando a app volta a abrir, e
+ * isso tem de se ler -- senão parecia que não fez nada. No PC a janela recarrega.
+ */
+export function efeitoDoIdioma(e: { escolhido: string; emVigor: string; nomeDoEscolhido: string }): string | null {
+  return e.escolhido !== e.emVigor ? `Switches to ${e.nomeDoEscolhido} the next time you open Duotone` : null;
+}
+
 export function efeitoDeManterOEcra(ligado: boolean): string | null {
   return ligado ? 'The screen stays on while Duotone is open' : null;
 }

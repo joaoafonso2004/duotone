@@ -18,6 +18,8 @@ export const ROTULOS = {
   autoplay: 'Autoplay similar music',
   equalizador: 'Equaliser',
   acento: 'Accent',
+  /** A língua da interface (15/11, src/i18n): English por omissão, ou Français. */
+  idioma: 'Language',
   duracao: 'Song length in lists',
   recuo: '15-second rewind',
   mensagens: 'Message notifications',

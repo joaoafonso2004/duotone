@@ -53,6 +53,8 @@ import { DURACOES_DO_CROSSFADE, type DuracaoDoCrossfade } from '../../lib/crossf
 import { efeitoDaMarcaDoRefrao, efeitoDoCrossfade, efeitoDoDiscord, efeitoDoOutroAparelho, efeitoDoPadrao, efeitoDoRadio, efeitoDoRecomendado, efeitoDoSmartShuffle, efeitoDoTemporizador } from '../../lib/efeitoDasDefinicoes';
 import { lerMarcaDoRefrao, ligarMarcaDoRefrao, useMarcaDoRefrao } from '../../state/refrao';
 import { lerMostrarOutroAparelho, mostrarOutroAparelho, useMostrarOutroAparelho } from '../../state/outroAparelho';
+import { IDIOMAS, idiomaEscolhido, lerIdioma } from '../../i18n';
+import { escolherIdioma } from '../../i18n/escolher';
 import { useEstadoDoDiscord } from '../../hooks/usePresencaDoDiscord';
 import { usePrivacidade } from '../../state/privacidade';
 import { getLibrary } from '../../api/library';
@@ -447,6 +449,10 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
               </SettingsCard>}
 
               {aberta === 'aspeto' && <SettingsCard title="Appearance">
+                {/* A língua (15/11, src/i18n): o que já está escrito só muda de língua ao recarregar. */}
+                <ChoiceLine label={ROTULOS.idioma} description="Duotone reloads to switch."
+                  value={idiomaEscolhido()} choices={IDIOMAS.map(([id, nome]) => [id, nome] as [string, string])}
+                  onChange={(v) => escolherIdioma(lerIdioma(v))} />
                 {/* O layout e o fundo do Now Playing (5/11): o Classic e a capa de origem, e muda ao vivo. */}
                 <ChoiceLine label="Now Playing layout" description="Classic shows the big artwork. Cinema fills the window and puts a large title on the left." value={disposicao} choices={[['classico', 'Classic'], ['cinema', 'Cinema']]} onChange={(v) => { const d = lerDisposicaoEscolhida(v); setDisposicaoState(d); definirDisposicaoDoLeitor(d); void setDisposicaoDoLeitor(d); }} />
                 <ChoiceLine label="Now Playing background" description="Use the blurred artwork, or the artist's photo when there is one." value={fundo} choices={[['capa', 'Artwork'], ['artista', 'Artist photo']]} onChange={(v) => { const f = lerFundoDoLeitor(v); setFundoState(f); definirFundoDoLeitor(f); void setFundoDoLeitor(f); }} />

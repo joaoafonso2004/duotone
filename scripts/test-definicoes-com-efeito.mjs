@@ -64,6 +64,9 @@ const TABELA = [
     leitores: [['src/components/TrackRow.tsx', /isShowTrackDurationSync\(\)/], ['src/desktop/ui.web.tsx', /isShowTrackDurationSync\(\)/]] },
   { opcao: 'Rewind 15 s', escreve: ['setShowRewindButton'],
     leitores: [['src/components/PlayerRoot.tsx', /showRewindButton/], ['src/desktop/casca.web.tsx', /showRewindButton/]] },
+  // 15/11: a língua. Escrita pelo `escolherIdioma`; lida antes do primeiro desenho.
+  { opcao: 'Language', escreve: [],
+    leitores: [['index.ts', /comIdioma\(require\('\.\/App'\)\.default\)/], ['src/i18n/instalar.web.ts', /idiomaAtual\(\) !== 'fr'/]] },
   // 15/11: escrita pela store (`ligarDescarregarGostadas`); o arranque lê-a e junta as que faltam.
   { opcao: 'Download Liked Songs', escreve: ['setDescarregarGostadas'],
     leitores: [['App.tsx', /lerDescarregarGostadas\(\);/], ['src/state/gostadasNoAparelho.ts', /descarregarLista\(CHAVE_DAS_GOSTADAS/]] },

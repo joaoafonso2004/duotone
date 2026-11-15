@@ -8,7 +8,7 @@ import {
   efeitoDaNormalizacao, efeitoDaQualidade, efeitoDeLimparACache, efeitoDeManterOEcra,
   efeitoDoCrossfade, efeitoDoSmartShuffle, efeitoDoDiscord, efeitoDoGostoDoSpotify, efeitoDoPadrao, efeitoDoPoToken,
   efeitoDoAutomix, efeitoDoRadio, efeitoDoRecomendado, efeitoDoTemporizador, tamanho,
-  efeitoDoOutroAparelho, efeitoDasGostadas,
+  efeitoDoOutroAparelho, efeitoDasGostadas, efeitoDoIdioma,
 } from '../src/lib/efeitoDasDefinicoes.ts';
 
 let falhas = 0;
@@ -97,6 +97,10 @@ caso('o rádio diz de onde vêm as músicas, pela ordem da cascata', () => {
 caso('manter o ecrã ligado', () => {
   assert.ok(efeitoDeManterOEcra(true));
   assert.equal(efeitoDeManterOEcra(false), null);
+});
+caso('a língua no iPhone diz que só muda ao reabrir (15/11)', () => {
+  assert.equal(efeitoDoIdioma({ escolhido: 'en', emVigor: 'en', nomeDoEscolhido: 'English' }), null);
+  assert.equal(efeitoDoIdioma({ escolhido: 'fr', emVigor: 'en', nomeDoEscolhido: 'Français' }), 'Switches to Français the next time you open Duotone');
 });
 caso('as Liked Songs no iPhone dizem quantas já cá estão, e à espera de quê (15/11)', () => {
   const base = { ligada: true, total: 312, descarregadas: 40, aCorrer: true, espera: null } as const;

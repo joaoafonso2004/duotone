@@ -34,8 +34,10 @@ import {
   efeitoDaNormalizacao, efeitoDaQualidade, efeitoDeLimparACache, efeitoDeManterOEcra,
   efeitoDoCrossfade, efeitoDoSmartShuffle, efeitoDoGostoDoSpotify, efeitoDoPadrao, efeitoDoRadio,
   efeitoDoAutomix, efeitoDoRecomendado, efeitoDoTemporizador, efeitoDaMarcaDoRefrao, efeitoDoOutroAparelho,
-  efeitoDasGostadas,
+  efeitoDasGostadas, efeitoDoIdioma,
 } from '../lib/efeitoDasDefinicoes';
+import { IDIOMAS, idiomaAtual, idiomaEscolhido, type Idioma } from '../i18n';
+import { escolherIdioma } from '../i18n/escolher';
 import { temAutomixNativo } from '../../modules/duotone-audio';
 import { estadoDeEnergia } from '../../modules/duotone-diagnostico';
 import { quantoPoupar } from '../lib/adiantarFaixas';
@@ -323,6 +325,8 @@ export function SettingsScreen({ navigation }: Props) {
   // A risca do refrão na barra do Now Playing (25/10, desligada de origem).
   const marcaDoRefrao = useMarcaDoRefrao((s) => s.ligada);
   useEffect(lerMarcaDoRefrao, []);
+  // A língua (15/11, src/i18n): vale quando a app voltar a abrir.
+  const [idioma, setIdioma] = useState<Idioma>(idiomaEscolhido());
   // O PC a tocar (15/11): o aviso, a lingueta e o mini. Ligada de origem.
   const mostrarOutro = useMostrarOutroAparelho((s) => s.mostrar);
   useEffect(lerMostrarOutroAparelho, []);
@@ -476,6 +480,9 @@ export function SettingsScreen({ navigation }: Props) {
     radio: efeitoDoRadio({ ligado: autoplayRadio, aTocarRadio: radioActivo }),
     ecra: efeitoDeManterOEcra(keepAwakeOn),
     outroAparelho: efeitoDoOutroAparelho({ mostrar: mostrarOutro, outro: 'PC' }),
+    idioma: efeitoDoIdioma({
+      escolhido: idioma, emVigor: idiomaAtual(), nomeDoEscolhido: IDIOMAS.find(([id]) => id === idioma)?.[1] ?? 'English',
+    }),
     gostadas: efeitoDasGostadas({
       ligada: gostadasLigada, total: contaDasGostadas.total, descarregadas: contaDasGostadas.descarregadas,
       aCorrer: loteDasGostadas.aCorrer, espera: loteDasGostadas.espera,
@@ -514,6 +521,11 @@ export function SettingsScreen({ navigation }: Props) {
     },
     qualidade: { opcoes: ['High', 'Data saver'], atual: audioQuality === 'saver' ? 1 : 0, escolher: (i) => void changeAudioQuality(i) },
     destaque: { opcoes: ['Steel', 'Cover'], atual: modo === 'cover' ? 1 : 0, escolher: (i) => void setMode(i === 1 ? 'cover' : 'steel') },
+    idioma: {
+      opcoes: IDIOMAS.map(([, nome]) => nome),
+      atual: Math.max(0, IDIOMAS.findIndex(([id]) => id === idioma)),
+      escolher: (i) => { const v = IDIOMAS[i]?.[0] ?? 'en'; setIdioma(v); escolherIdioma(v); },
+    },
     capa: {
       opcoes: ESTILOS_DA_CAPA.map((e) => e.nome),
       atual: Math.max(0, ESTILOS_DA_CAPA.findIndex((e) => e.valor === coverStyle)),
@@ -608,7 +620,8 @@ export function SettingsScreen({ navigation }: Props) {
           <Linha icone="list" rotulo="Presets" valor={String(presetsNaFila.length)} chevron aoTocar={() => setPresetsOpen(true)} />
         </Grupo>
 
-        <Grupo titulo="Appearance" rodape="Cover follows the artwork of whatever is playing, and the sheets show it blurred.">
+        <Grupo titulo="Appearance" rodape={[efeitos.idioma, 'Cover follows the artwork of whatever is playing, and the sheets show it blurred.']}>
+          <Linha icone="language-outline" rotulo={ROTULOS.idioma} valor={valorDe('idioma')} chevron aoTocar={abrirMenu('idioma')} />
           <Linha
             icone="color-palette"
             rotulo={ROTULOS.acento}

@@ -266,6 +266,8 @@ const TESTES = [
   `${DUPLOS} scripts/test-escolha-codec.ts`,
   `${TS} scripts/test-efeito-das-definicoes.ts`,
   'scripts/test-definicoes-com-efeito.mjs',
+  // A interface em francês (15/11): o motor, o dicionário e as ligações.
+  `${TS} scripts/test-idiomas.ts`,
   'scripts/test-sair-da-conta.mjs',
   `${TS} scripts/test-higiene-da-biblioteca.ts`,
   'scripts/test-higiene-da-biblioteca-sql.mjs',
