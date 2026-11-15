@@ -7,7 +7,7 @@ import {
   MAXIMO_DE_PECAS, novoEspaco, proximaVelocidade, proximoTamanho, proximoTemporizador, renomear, rotuloDaVelocidade,
   TAMANHOS, temPeca, tirar, trocar, type Gaveta, type Peca,
   CENAS_PRONTAS, lerCena, mudarCena, proximaEscolha, resumoDaCena,
-  ARRANQUES_A_MOSTRAR, lerMemoriaDaDescoberta, oQueMostrar,
+  ARRANQUES_A_MOSTRAR, lerMemoriaDaDescoberta, oQueMostrar, comCenaDeOrigem,
 } from '../src/lib/gaveta.ts';
 
 let mau = 0;
@@ -37,7 +37,22 @@ console.log('\na primeira gaveta');
     ['amigo:u1', 'controlo:temporizador', 'controlo:privado', 'pc'].every((k) => ps.some((p) => chaveDaPeca(p) === k)));
   const vazia = gavetaInicial({ recentes: [], amigos: [], temPc: false });
   check('sem nada no aparelho, nasce na mesma com o essencial e sem o PC',
-    espacoAtivo(vazia).pecas.map((p) => p.tipo).join() === 'agora,controlo,controlo');
+    espacoAtivo(vazia).pecas.map((p) => p.tipo).join() === 'agora,controlo,controlo,cena');
+  check('com a Night de origem (15/11)', ps.some((p) => p.tipo === 'cena' && p.cena.id === 'night') && g.versao === 2);
+}
+
+console.log('\na cena de origem nas gavetas da 6.0.4');
+{
+  const daSeisZeroQuatro: Gaveta = { espacos: [{ id: 'everyday', nome: 'Everyday', pecas: [{ id: 'agora', tipo: 'agora', tamanho: '4x2' }] }], ativo: 'everyday' };
+  const migrada = comCenaDeOrigem(daSeisZeroQuatro);
+  check('ganha a Night no fim do primeiro espaço', espacoAtivo(migrada).pecas.at(-1)?.tipo === 'cena' && migrada.versao === 2);
+  check('só uma vez: quem a tirar não a vê voltar',
+    espacoAtivo(comCenaDeOrigem(tirar(migrada, 'everyday', espacoAtivo(migrada).pecas.at(-1)!.id))).pecas.every((p) => p.tipo !== 'cena'));
+  const comCena: Gaveta = { ...daSeisZeroQuatro, espacos: [{ ...daSeisZeroQuatro.espacos[0]!, pecas: [{ id: 'c', tipo: 'cena', cena: CENAS_PRONTAS[1]!, tamanho: '2x1' }] }] };
+  check('quem já tem uma cena não ganha outra', espacoAtivo(comCenaDeOrigem(comCena)).pecas.length === 1);
+  check('a versão sobrevive a criar e a apagar espaços, e a gravar e ler',
+    novoEspaco(migrada, 'Car')!.versao === 2 && apagarEspaco(novoEspaco(migrada, 'Car')!, 'espaco-2').versao === 2
+    && lerGaveta(JSON.parse(JSON.stringify(migrada)))!.versao === 2);
 }
 
 console.log('\nler o que está guardado');

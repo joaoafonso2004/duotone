@@ -2405,6 +2405,7 @@ export const FR: Readonly<Record<string, string>> = {
   "Remove a tile to make room.": "Retirez une tuile pour faire de la place.",
   "Close the drawer": "Fermer le tiroir",
   "Open your drawer": "Ouvrir votre tiroir",
+  "Hold any tile to edit": "Maintenez une tuile pour modifier",
   // As cenas da gaveta (6.0.4).
   "{0} is on": "{0} est activée",
   "{0} is off": "{0} est désactivée",

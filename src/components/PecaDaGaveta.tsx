@@ -51,7 +51,7 @@ export type ContextoDaPeca = {
 type Props = ContextoDaPeca & { peca: Peca };
 
 /** O fundo das peças e o aço das que estão ligadas (a maquete de 15/11). */
-const FUNDO = '#15151A';
+const FUNDO = 'rgba(21,21,26,0.78)';
 const LIGADA = '#E9EAEE';
 const TINTA_LIGADA = '#060608';
 

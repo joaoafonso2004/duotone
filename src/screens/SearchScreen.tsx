@@ -30,7 +30,7 @@ import { useRecentes } from '../state/recentes';
 import { useMisturaDoDia } from '../state/misturaDoDia';
 import { capasDaFila, chaveDoRecente, recentesParaMostrar, type Recente } from '../lib/recentes';
 import { Toque } from '../components/Toque';
-import { BotaoDaGaveta } from '../components/BordaDaGaveta';
+import { ArrastoDaGaveta, BotaoDaGaveta } from '../components/BordaDaGaveta';
 import { Animated, useWindowDimensions } from 'react-native';
 import { useNavigation, useScrollToTop } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -666,6 +666,8 @@ export function SearchScreen() {
   // recomendacoes: antes disso nao ha nada para refrescar, e o botao chegava
   // ao ecra antes daquilo que ele refresca.
   return (
+    // Arrastar para a direita em qualquer parte da Home abre a gaveta (15/11).
+    <ArrastoDaGaveta>
     <Screen title="Home"
       // A gaveta (6.0.4): o botão para quem não conhece o gesto da borda.
       antes={Platform.OS === 'ios' ? <BotaoDaGaveta /> : undefined}
@@ -1024,6 +1026,7 @@ export function SearchScreen() {
       />
 
     </Screen>
+    </ArrastoDaGaveta>
   );
 }
 

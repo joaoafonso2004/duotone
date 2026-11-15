@@ -1,7 +1,7 @@
 import { Animated } from 'react-native';
 import { create } from 'zustand';
 import { getGaveta, setGaveta } from '../lib/prefs';
-import { gavetaInicial, lerGaveta, type Cena, type DadosDaPrimeira, type Gaveta } from '../lib/gaveta';
+import { comCenaDeOrigem, gavetaInicial, lerGaveta, type Cena, type DadosDaPrimeira, type Gaveta } from '../lib/gaveta';
 import { molaIOS } from './transicaoDoLeitor';
 import { pedirFluidez } from './fluidez';
 import { marcarGavetaVista } from './descobertaDaGaveta';
@@ -58,8 +58,11 @@ let gravacao: Promise<void> = Promise.resolve();
 /** Lê a gaveta guardada. Sem nenhuma, fica `null` até à primeira abertura (que a faz). */
 export async function carregarGaveta(): Promise<void> {
   if (useGaveta.getState().carregada) return;
-  const gaveta = lerGaveta(await getGaveta());
+  const lida = lerGaveta(await getGaveta());
+  // As gavetas da 6.0.4 ganham a cena de origem uma vez (lib/gaveta.ts).
+  const gaveta = lida ? comCenaDeOrigem(lida) : null;
   useGaveta.setState({ gaveta, carregada: true });
+  if (gaveta && gaveta !== lida) gravacao = gravacao.then(() => setGaveta(gaveta)).catch(() => {});
 }
 
 /** Muda a gaveta e grava-a, pela ordem em que as mudanças aconteceram. */

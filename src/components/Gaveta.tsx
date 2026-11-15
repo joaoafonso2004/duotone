@@ -1,11 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
 import { PecaDaGaveta, type ContextoDaPeca } from './PecaDaGaveta';
 import { FolhaDaGaveta } from './FolhaDaGaveta';
 import { FolhaDaCena } from './FolhaDaCena';
+import { FundoEmGradiente } from './FundoEmGradiente';
+import { desfoqueLeve } from '../lib/capaGrande';
 import { useDestinos } from '../navigation/destinos';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { usePlayer } from '../state/player';
@@ -13,7 +15,7 @@ import {
   carregarGaveta, editarGaveta, fecharGaveta, mudarGaveta, useGaveta,
 } from '../state/gaveta';
 import {
-  apagarEspaco, arrumar, ativar, COLUNAS, espacoAtivo, novoEspaco, proximoTamanho, renomear, tirar, trocar,
+  apagarEspaco, arrumar, ativar, COLUNAS, espacoAtivo, MAXIMO_DE_PECAS, novoEspaco, proximoTamanho, renomear, tirar, trocar,
 } from '../lib/gaveta';
 import { avisarInfo } from '../lib/avisoDeRemocao';
 import { hapticSelection } from '../lib/haptics';
@@ -28,16 +30,20 @@ export const FUNDO_DA_GAVETA = '#0D0D10';
 /**
  * A gaveta da Home do iPhone (6.0.4, `lib/gaveta.ts`): fica POR BAIXO da app,
  * à esquerda, e vê-se quando a app desliza para a direita (`RootNavigator`).
- * As peças entram em cascata a cada abertura; a editar, × tira, ⤢ muda o
- * tamanho e tocar em duas troca-as de sítio.
+ * As peças entram em cascata COM a abertura; a editar (um toque longo numa
+ * peça, e só assim), × tira, ⤢ muda o tamanho e tocar em duas troca-as.
  */
 export function Gaveta({ largura, abertura }: { largura: number; abertura: Animated.AnimatedInterpolation<number> }) {
   const insets = useSafeAreaInsets();
   const reduzido = useReducedMotion();
   const { irPara: irParaNaApp } = useDestinos();
-  const { gaveta, aberta, editar, escolhida, aberturas } = useGaveta(useShallow((s) => ({
-    gaveta: s.gaveta, aberta: s.aberta, editar: s.editar, escolhida: s.escolhida, aberturas: s.aberturas,
+  const { gaveta, aberta, editar, escolhida } = useGaveta(useShallow((s) => ({
+    gaveta: s.gaveta, aberta: s.aberta, editar: s.editar, escolhida: s.escolhida,
   })));
+  // O fundo é a cor da capa que está a tocar (15/11, João): a mesma leitura do
+  // fundo em gradiente do leitor, a partir da miniatura pequena.
+  const capa = usePlayer((s) => s.current?.artworkUrl ?? null);
+  const fundo = desfoqueLeve(capa, 64)?.uri ?? null;
 
   useEffect(() => { void carregarGaveta(); }, []);
 
@@ -51,17 +57,18 @@ export function Gaveta({ largura, abertura }: { largura: number; abertura: Anima
   const celula = Math.floor((largura - MARGEM * 2 - ESPACO * (COLUNAS - 1)) / COLUNAS);
   const grelha = useMemo(() => arrumar(espaco?.pecas ?? []), [espaco?.pecas]);
 
-  // A cascata: uma só animação por abertura, e cada peça entra a 30 ms da anterior.
-  const entrada = useRef(new Animated.Value(1)).current;
-  const total = espaco?.pecas.length ?? 0;
-  const duracao = 420 + Math.min(total, 14) * 30;
-  useEffect(() => {
-    if (!aberturas) return;
-    if (reduzido) { entrada.setValue(1); return; }
-    entrada.setValue(0);
-    Animated.timing(entrada, { toValue: 1, duration: duracao, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aberturas]);
+  // A cascata VEM DA ABERTURA (15/11): cada peça aparece no seu troço do caminho
+  // da gaveta, um pouco depois da anterior, e com o dedo também. Era uma animação
+  // à parte que recomeçava do zero a cada abertura: as peças, ainda acesas da
+  // vez anterior, apagavam-se de repente e voltavam -- o "pisca" do vídeo do João.
+  const total = Math.min(Math.max(espaco?.pecas.length ?? 0, 1), MAXIMO_DE_PECAS);
+  const entradas = useMemo(() => Array.from({ length: total }, (_, i) => {
+    const a = Math.min(i, 12) * 0.035, b = a + 0.38;
+    return {
+      opacity: abertura.interpolate({ inputRange: [0, a, b, 1], outputRange: [0, 0, 1, 1] }),
+      translateX: abertura.interpolate({ inputRange: [0, a, b, 1], outputRange: [-18, -18, 0, 0] }),
+    };
+  }), [abertura, total]);
 
   const irPara = useCallback((d: Destino) => { fecharGaveta(); irParaNaApp(d); }, [irParaNaApp]);
   const contexto = useMemo<Omit<ContextoDaPeca, 'largura' | 'altura' | 'escolhida'>>(() => ({
@@ -114,6 +121,10 @@ export function Gaveta({ largura, abertura }: { largura: number; abertura: Anima
       importantForAccessibility={aberta ? 'auto' : 'no-hide-descendants'}
       style={[styles.painel, { width: largura, paddingTop: insets.top + 10, transform: [{ translateX: paralaxe }] }]}
     >
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        <FundoEmGradiente uri={fundo} animar={aberta} />
+        <View style={[StyleSheet.absoluteFill, styles.veuDoFundo]} />
+      </View>
       <View style={styles.cabecalho}>
         <View style={{ flex: 1, minWidth: 0 }}>
           {editar ? (
@@ -131,14 +142,18 @@ export function Gaveta({ largura, abertura }: { largura: number; abertura: Anima
             <Text numberOfLines={1} accessibilityRole="header" style={styles.titulo}>{espaco?.nome ?? 'Your drawer'}</Text>
           )}
           <Text numberOfLines={1} style={styles.legenda}>
-            {editar ? (escolhida ? 'Now tap where it goes' : 'Tap two tiles to swap them') : 'Your drawer'}
+            {editar ? (escolhida ? 'Now tap where it goes' : 'Tap two tiles to swap them') : 'Hold any tile to edit'}
           </Text>
         </View>
-        <Pressable accessibilityRole="button" hitSlop={8}
-          onPress={() => { hapticSelection(); editarGaveta(!editar); }}
-          style={({ pressed }) => [styles.editar, editar && styles.editarLigado, pressed && { opacity: 0.7 }]}>
-          <Text style={[styles.editarTexto, editar && { color: '#060608' }]}>{editar ? 'Done' : 'Edit'}</Text>
-        </Pressable>
+        {/* Sem botão Edit (15/11, João): a edição abre só com um toque longo numa
+            peça. O Done aparece enquanto se edita, para sair dela. */}
+        {editar ? (
+          <Pressable accessibilityRole="button" hitSlop={8}
+            onPress={() => { hapticSelection(); editarGaveta(false); }}
+            style={({ pressed }) => [styles.editar, styles.editarLigado, pressed && { opacity: 0.7 }]}>
+            <Text style={[styles.editarTexto, { color: '#060608' }]}>Done</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       {gaveta ? (
@@ -172,8 +187,7 @@ export function Gaveta({ largura, abertura }: { largura: number; abertura: Anima
           {espaco?.pecas.map((peca, i) => {
             const lugar = grelha.lugares.find((l) => l.id === peca.id);
             if (!lugar) return null;
-            const inicio = Math.min(i, 14) * 30 / duracao;
-            const fim = Math.min(1, inicio + 420 / duracao);
+            const entrada = entradas[Math.min(i, entradas.length - 1)]!;
             const largura = lugar.colunas * celula + (lugar.colunas - 1) * ESPACO;
             const altura = lugar.linhas * celula + (lugar.linhas - 1) * ESPACO;
             return (
@@ -184,11 +198,8 @@ export function Gaveta({ largura, abertura }: { largura: number; abertura: Anima
                   left: lugar.coluna * (celula + ESPACO),
                   top: lugar.linha * (celula + ESPACO),
                   zIndex: escolhida === peca.id ? 3 : 1,
-                  opacity: entrada.interpolate({ inputRange: [0, inicio, fim, 1], outputRange: [0, 0, 1, 1] }),
-                  transform: [
-                    { translateX: entrada.interpolate({ inputRange: [0, inicio, fim, 1], outputRange: [-18, -18, 0, 0] }) },
-                    { scale: entrada.interpolate({ inputRange: [0, inicio, fim, 1], outputRange: [0.96, 0.96, 1, 1] }) },
-                  ],
+                  opacity: entrada.opacity,
+                  transform: reduzido ? [] : [{ translateX: entrada.translateX }],
                 }}
               >
                 <PecaDaGaveta peca={peca} largura={largura} altura={altura} escolhida={escolhida === peca.id} {...contexto} />
@@ -197,14 +208,14 @@ export function Gaveta({ largura, abertura }: { largura: number; abertura: Anima
           })}
         </View>
 
-        {editar ? (
+        {editar || espaco?.pecas.length === 0 ? (
           <View style={{ gap: 12, marginTop: grelha.linhas ? 16 : 0 }}>
             <Pressable accessibilityRole="button" onPress={() => { hapticSelection(); useGaveta.setState({ acrescentar: true }); }}
               style={({ pressed }) => [styles.acrescentar, pressed && { opacity: 0.7 }]}>
               <Ionicons name="add" size={18} color={colors.text} />
               <Text style={styles.acrescentarTexto}>Add</Text>
             </Pressable>
-            {gaveta && gaveta.espacos.length > 1 && espaco ? (
+            {editar && gaveta && gaveta.espacos.length > 1 && espaco ? (
               <Pressable accessibilityRole="button" hitSlop={6}
                 onPress={() => { hapticSelection(); mudarGaveta((g) => apagarEspaco(g, espaco.id)); }}
                 style={{ alignSelf: 'center', paddingVertical: 6 }}>
@@ -222,7 +233,9 @@ export function Gaveta({ largura, abertura }: { largura: number; abertura: Anima
 }
 
 const styles = StyleSheet.create({
-  painel: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: FUNDO_DA_GAVETA },
+  painel: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: FUNDO_DA_GAVETA, overflow: 'hidden' },
+  // Um véu leve por cima da cor da capa: as peças e o texto leem-se sempre.
+  veuDoFundo: { backgroundColor: 'rgba(13,13,16,0.35)' },
   cabecalho: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: MARGEM + 4 },
   titulo: { color: colors.text, fontSize: 22, fontWeight: '800', letterSpacing: -0.3, padding: 0 },
   tituloAEditar: { borderBottomWidth: 1, borderBottomColor: 'rgba(233,234,238,0.25)' },

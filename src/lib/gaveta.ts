@@ -88,7 +88,7 @@ type SemOs<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 export type PecaNova = SemOs<Peca, 'id' | 'tamanho'>;
 
 export type Espaco = { id: string; nome: string; pecas: Peca[] };
-export type Gaveta = { espacos: Espaco[]; ativo: string };
+export type Gaveta = { espacos: Espaco[]; ativo: string; versao?: number };
 
 /** Mais do que isto e a gaveta deixa de ser um atalho para ser outra página. */
 export const MAXIMO_DE_PECAS = 24;
@@ -262,7 +262,7 @@ export function lerGaveta(bruto: unknown): Gaveta | null {
   }
   if (!espacos.length) return null;
   const ativo = texto(o.ativo) && espacos.some((e) => e.id === o.ativo) ? o.ativo : espacos[0]!.id;
-  return { espacos, ativo };
+  return typeof o.versao === 'number' && o.versao > 1 ? { espacos, ativo, versao: Math.floor(o.versao) } : { espacos, ativo };
 }
 
 // ---------------------------------------------------------------------------
@@ -298,8 +298,34 @@ export function gavetaInicial(d: DadosDaPrimeira): Gaveta {
   if (amigo) pecas.push({ id: 'amigo-0', tipo: 'amigo', tamanho: '2x1', amigoId: amigo.id, nome: amigo.nome, avatar: amigo.avatar });
   pecas.push({ id: 'temporizador', tipo: 'controlo', controlo: 'temporizador', tamanho: '1x1' });
   pecas.push({ id: 'privado', tipo: 'controlo', controlo: 'privado', tamanho: '1x1' });
+  // Uma cena de origem (15/11, João): a Night, que se percebe à primeira.
+  pecas.push({ id: 'cena-night', tipo: 'cena', cena: CENA_DE_ORIGEM, tamanho: '2x1' });
   if (d.temPc) pecas.push({ id: 'pc', tipo: 'pc', tamanho: '4x1' });
-  return { espacos: [{ id: 'everyday', nome: 'Everyday', pecas }], ativo: 'everyday' };
+  return { espacos: [{ id: 'everyday', nome: 'Everyday', pecas }], ativo: 'everyday', versao: VERSAO_DA_GAVETA };
+}
+
+/** A cena com que a gaveta nasce. */
+export const CENA_DE_ORIGEM: Cena = CENAS_PRONTAS[0]!;
+
+/**
+ * A versão da gaveta guardada. 1 (sem número) é a da 6.0.4 sem cena de origem;
+ * 2 já a tem, ou já passou pela migração.
+ */
+export const VERSAO_DA_GAVETA = 2;
+
+/**
+ * As gavetas feitas antes da cena de origem (a 6.0.4) ganham-na UMA vez, no fim
+ * do primeiro espaço -- se ainda não tiverem cena nenhuma e houver lugar. Quem a
+ * tirar depois não a vê voltar: a gaveta passa à versão 2 na mesma.
+ */
+export function comCenaDeOrigem(g: Gaveta): Gaveta {
+  if ((g.versao ?? 1) >= VERSAO_DA_GAVETA) return g;
+  const temCena = g.espacos.some((e) => e.pecas.some((p) => p.tipo === 'cena'));
+  const primeiro = g.espacos[0]!;
+  const comVersao = { ...g, versao: VERSAO_DA_GAVETA };
+  if (temCena) return comVersao;
+  const r = juntar(comVersao, primeiro.id, { tipo: 'cena', cena: CENA_DE_ORIGEM, tamanho: '2x1' });
+  return r.gaveta;
 }
 
 // ---------------------------------------------------------------------------
@@ -373,7 +399,7 @@ export function novoEspaco(g: Gaveta, nome: string): Gaveta | null {
   while (ids.has(`espaco-${n}`)) n++;
   const id = `espaco-${n}`;
   const limpo = nome.trim().slice(0, MAXIMO_DO_NOME) || `Space ${g.espacos.length + 1}`;
-  return { espacos: [...g.espacos, { id, nome: limpo, pecas: [] }], ativo: id };
+  return { ...g, espacos: [...g.espacos, { id, nome: limpo, pecas: [] }], ativo: id };
 }
 
 export function renomear(g: Gaveta, espacoId: string, nome: string): Gaveta {
@@ -387,7 +413,7 @@ export function apagarEspaco(g: Gaveta, espacoId: string): Gaveta {
   if (g.espacos.length <= 1) return g;
   const espacos = g.espacos.filter((e) => e.id !== espacoId);
   if (espacos.length === g.espacos.length) return g;
-  return { espacos, ativo: g.ativo === espacoId ? espacos[0]!.id : g.ativo };
+  return { ...g, espacos, ativo: g.ativo === espacoId ? espacos[0]!.id : g.ativo };
 }
 
 // ---------------------------------------------------------------------------

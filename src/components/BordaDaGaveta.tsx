@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Animated, Easing, Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { PanGestureHandler, State, type PanGestureHandlerStateChangeEvent } from 'react-native-gesture-handler';
 import { usePlayer } from '../state/player';
 import {
-  aberturaDaGaveta, abrirGaveta, dedoDaGaveta, fecharGaveta, garantirPrimeira, largarGaveta, useEcraAtual, useGaveta,
+  aberturaDaGaveta, abrirGaveta, dedoDaGaveta, fecharGaveta, garantirPrimeira, largarGaveta, larguraDaGaveta, useEcraAtual, useGaveta,
 } from '../state/gaveta';
 import { carregarDescoberta, marcarEmpurrada, useDescoberta } from '../state/descobertaDaGaveta';
 import { useAbertura } from '../state/abertura';
@@ -19,16 +19,58 @@ import { colors } from '../theme';
 const BORDA = 16;
 
 /**
- * Abrir a gaveta da borda esquerda da Home (6.0.4). Uma tira estreita POR CIMA
- * de tudo, e não um gesto dentro da Home: lá dentro competia com o paginador dos
- * separadores. Só existe na Home, na raiz, com o leitor fechado. O dedo escreve
- * no motor nativo (`dedoDaGaveta`); o JavaScript só decide no fim.
+ * O arrasto que abre a gaveta: só na Home, na raiz, com a gaveta e o leitor
+ * fechados. O dedo escreve no motor nativo (`dedoDaGaveta`); o JavaScript só
+ * decide no fim, pelo caminho feito ou pela velocidade.
  */
-export function BordaDaGaveta({ largura }: { largura: number }) {
+function useGestoDeAbrir(largura: number) {
   const ecra = useEcraAtual((s) => s.nome);
   const aberta = useGaveta((s) => s.aberta);
   const expandido = usePlayer((s) => s.expanded);
   const ativa = ecra === 'Search' && !aberta && !expandido;
+  const evento = useMemo(() => Animated.event([{ nativeEvent: { translationX: dedoDaGaveta } }], { useNativeDriver: true }), []);
+  const largar = useRef<(() => void) | null>(null);
+  const aoMudar = useCallback((e: PanGestureHandlerStateChangeEvent) => {
+    const { state, oldState, translationX, velocityX } = e.nativeEvent;
+    if (state === State.ACTIVE) {
+      largar.current?.();
+      largar.current = segurarFluidez(900);
+      hapticSelection();
+      return;
+    }
+    if (oldState !== State.ACTIVE) return;
+    largar.current?.();
+    largar.current = null;
+    largarGaveta({ deslocacao: translationX, velocidade: velocityX, largura, deAbrir: true, dados: dadosDaPrimeiraGaveta });
+  }, [largura]);
+  return { ativa, evento, aoMudar };
+}
+
+/**
+ * A Home inteira abre a gaveta a arrastar para a direita (15/11, João: "em
+ * qualquer parte, e não só na borda"). Só para a direita e na horizontal: para
+ * a esquerda falha logo (o paginador leva à secção seguinte), e na vertical
+ * também (a Home rola). As prateleiras que rolam de lado ficam com o gesto delas.
+ */
+export function ArrastoDaGaveta({ children }: { children: React.ReactNode }) {
+  const { width } = useWindowDimensions();
+  const { ativa, evento, aoMudar } = useGestoDeAbrir(larguraDaGaveta(width));
+  if (Platform.OS !== 'ios') return <>{children}</>;
+  return (
+    <PanGestureHandler enabled={ativa} activeOffsetX={12} failOffsetX={-8} failOffsetY={[-12, 12]}
+      onGestureEvent={evento} onHandlerStateChange={aoMudar}>
+      <Animated.View style={{ flex: 1 }}>{children}</Animated.View>
+    </PanGestureHandler>
+  );
+}
+
+/**
+ * A borda esquerda da Home (6.0.4): uma tira estreita POR CIMA de tudo, fora do
+ * paginador dos separadores. Fica como garantia do `ArrastoDaGaveta`, que vive
+ * dentro dele. E é aqui que vive o empurrão do primeiro arranque.
+ */
+export function BordaDaGaveta({ largura }: { largura: number }) {
+  const { ativa, evento, aoMudar } = useGestoDeAbrir(largura);
   const reduzido = useReducedMotion();
   const empurrar = useDescoberta((s) => s.empurrar);
   const tapado = useAbertura((s) => s.aFrente);
@@ -55,21 +97,6 @@ export function BordaDaGaveta({ largura }: { largura: number }) {
     return () => clearTimeout(t);
   }, [ativa, empurrar, reduzido, tapado, largura]);
 
-  const evento = useMemo(() => Animated.event([{ nativeEvent: { translationX: dedoDaGaveta } }], { useNativeDriver: true }), []);
-  const largar = useRef<(() => void) | null>(null);
-  const aoMudar = useCallback((e: PanGestureHandlerStateChangeEvent) => {
-    const { state, oldState, translationX, velocityX } = e.nativeEvent;
-    if (state === State.ACTIVE) {
-      largar.current?.();
-      largar.current = segurarFluidez(900);
-      hapticSelection();
-      return;
-    }
-    if (oldState !== State.ACTIVE) return;
-    largar.current?.();
-    largar.current = null;
-    largarGaveta({ deslocacao: translationX, velocidade: velocityX, largura, deAbrir: true, dados: dadosDaPrimeiraGaveta });
-  }, [largura]);
   return (
     <PanGestureHandler enabled={ativa} activeOffsetX={10} failOffsetX={-6} failOffsetY={[-18, 18]}
       onGestureEvent={evento} onHandlerStateChange={aoMudar}>
