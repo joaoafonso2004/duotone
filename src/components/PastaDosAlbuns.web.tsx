@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { styles } from '../desktop/estilos.web';
 import { marcar } from '../desktop/ui.web';
+import { RAIO } from '../desktop/tokens.web';
 import {
   CAMADAS_DA_PASTA, capasDaPasta, FRASES_DOS_ALBUNS, LADO_DA_CAPA_NA_PASTA, type AlbumGuardado,
 } from '../lib/albunsGuardados';
@@ -38,7 +39,7 @@ export function PastaDosAlbuns({ albuns, lado, onPress }: {
                 position: 'absolute', width: ladoDaCapa, height: ladoDaCapa,
                 left: (lado * c.esquerda) / 100, top: (lado * c.topo) / 100,
                 opacity: c.opacidade, transform: `rotate(${c.rodar}deg)`,
-                borderRadius: 10, overflow: 'hidden', background: '#1b1b22',
+                borderRadius: RAIO.cartao, overflow: 'hidden', background: '#1b1b22',
                 boxShadow: '0 10px 26px rgba(0,0,0,.45)',
               }}
             >
