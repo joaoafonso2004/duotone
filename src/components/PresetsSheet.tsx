@@ -102,7 +102,7 @@ export function PresetsSheet({
       <View>
         <Text accessibilityRole="header" style={type.title}>{novo ? 'New preset' : p?.nome}</Text>
         <Text style={[type.caption, styles.legenda]}>
-          {novo ? 'Starts from the curve you have now' : p?.daApp ? 'Restore the original from its menu at any time' : 'Changes stay on this iPhone'}
+          {novo ? 'Starts from the curve you have now' : p?.daApp ? 'Restore the original from its menu at any time' : 'Changes reach all your devices'}
         </Text>
         {novo ? (
           <Input
@@ -156,7 +156,7 @@ export function PresetsSheet({
       <View>
         <Text accessibilityRole="header" style={[type.title, { marginBottom: 6 }]}>Delete “{p?.nome}”?</Text>
         <Text style={[type.caption, { lineHeight: 19 }]}>
-          It disappears from the equalizer on this iPhone. Songs that used it keep their sound.
+          It disappears from the equalizer on all your devices. Songs that used it keep their sound.
         </Text>
         <View style={styles.botoes}>
           <PillButton

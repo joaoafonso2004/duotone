@@ -22,4 +22,4 @@ A mínima do servidor continua a 6.0.1, e as notas mantêm `Minimum version: 6.0
 - **Francês:** Definições › Appearance › Language › Français: a janela recarrega em francês.
 - **Start Radio** no clique direito de uma música e no menu da barra do leitor.
 - **Show what your iPhone is playing** (Definições › Windows).
-- **EQ:** os presets e o EQ de cada música já não chegam ao iPhone.
+- **EQ:** o EQ de cada música e o padrão já não chegam ao iPhone; os presets sim (são os únicos que passam, pedido do João).

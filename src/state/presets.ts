@@ -8,7 +8,6 @@ import {
   daPersistenciaDePresets, fundirPresets, type LinhaDosPresets, type MemoriaDePresets,
 } from '../lib/presetsDoEqualizador';
 import { guardarPresetRemoto, lerPresetsRemotos } from '../api/presets';
-import { idDaPlataforma } from '../lib/eqDaPlataforma';
 import { appEstaVisivel, intervaloComAppVisivel } from '../lib/appVisibility';
 import { useAuth } from './auth';
 import { useConnectivity } from './connectivity';
@@ -131,11 +130,8 @@ export function iniciarPresets(userId: string): () => void {
     { event: '*', schema: 'public', table: 'user_eq_presets', filter: `user_id=eq.${userId}` }, (payload) => {
       // O eco da própria escrita não relê nada.
       const linha = payload.new as { preset_id?: string; seen_at?: string } | null;
-      // Os presets da outra plataforma (15/11): cada uma tem os seus.
-      const id = linha?.preset_id ? idDaPlataforma(linha.preset_id) : null;
-      if (payload.eventType !== 'DELETE' && linha?.preset_id && id === null) return;
-      if (payload.eventType !== 'DELETE' && id
-        && engine.jaSabe(id, Date.parse(linha?.seen_at ?? ''))) return;
+      if (payload.eventType !== 'DELETE' && linha?.preset_id
+        && engine.jaSabe(linha.preset_id, Date.parse(linha.seen_at ?? ''))) return;
       flush();
     }).subscribe((estado) => {
       const antes = aoVivo;

@@ -6,7 +6,7 @@ New
 - Show what your iPhone is playing, in Settings › Windows: turn it off and your iPhone's music stops showing up here.
 
 Improved
-- The equaliser is now separate on PC and iPhone. Each song's EQ and speed, and your presets, stay on the platform where you set them.
+- The equaliser is now separate on PC and iPhone: each song's EQ and speed, and your default EQ, stay on the platform where you set them. Your presets are still the same on both.
 
 Minimum version: 6.0.1
 

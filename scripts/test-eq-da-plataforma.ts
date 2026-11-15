@@ -1,7 +1,8 @@
 /**
- * O equalizador de cada plataforma (15/11, src/lib/eqDaPlataforma.ts): os
- * ajustes por faixa e os presets do iPhone e do PC na mesma tabela, sem se
- * verem; a velocidade padrão continua uma só.
+ * O equalizador de cada plataforma (15/11, src/lib/eqDaPlataforma.ts): o EQ e
+ * a velocidade de cada música do iPhone e do PC na mesma tabela, sem se verem.
+ * O que passa entre as duas são os presets (o João: "a única coisa que deve
+ * passar entre plataformas são os presets do equalizador") e a velocidade padrão.
  *
  * Correr: node --experimental-strip-types scripts/test-eq-da-plataforma.ts
  */
@@ -28,37 +29,31 @@ caso('cada um lê só as suas', () => {
   assert.equal(idDaPlataforma('pc~dQw4w9WgXcQ', true), 'dQw4w9WgXcQ');
   assert.equal(idDaPlataforma('dQw4w9WgXcQ', true), null, 'o PC não vê as do iPhone');
 });
-caso('ida e volta nas duas plataformas, presets incluídos', () => {
+caso('ida e volta nas duas plataformas', () => {
   for (const noPc of [false, true]) {
-    for (const id of ['abc', 'u-lz3k-9f2', 'carro']) assert.equal(idDaPlataforma(idNoServidor(id, noPc), noPc), id);
+    for (const id of ['abc', 'dQw4w9WgXcQ', 'x:y']) assert.equal(idDaPlataforma(idNoServidor(id, noPc), noPc), id);
   }
-  assert.ok(idNoServidor('u-' + 'x'.repeat(58), true).length <= 64, 'cabe no preset_id (até 64)');
 });
 
 console.log('\nligado');
 const AJUSTES = ler('src/api/ajustes.ts');
-const PRESETS = ler('src/api/presets.ts');
 caso('os ajustes por faixa: lidos e escritos por plataforma, e a linha do padrão é uma só', () => {
   assert.match(AJUSTES, /const id=eDoPadrao\(row\.source\)\?row\.source_id:idDaPlataforma\(row\.source_id\);/);
   assert.match(AJUSTES, /source_id:eDoPadrao\(source\)\?id:idNoServidor\(id\)/);
 });
 caso('o aviso do Realtime de uma linha da outra plataforma não relê nada', () => {
   assert.match(ler('src/state/trackAdjustments.ts'), /if\(payload\.eventType!=='DELETE'&&eDaOutraPlataforma\(payload\.new as any\)\)return;/);
-  assert.match(ler('src/state/presets.ts'), /if \(payload\.eventType !== 'DELETE' && linha\?\.preset_id && id === null\) return;/);
 });
-caso('os presets: lidos e escritos por plataforma', () => {
-  assert.match(PRESETS, /const id = idDaPlataforma\(row\.preset_id\);\n\s+if \(!id\) continue;/);
-  assert.match(PRESETS, /const id = idNoServidor\(idDaApp\);/);
+caso('os presets passam entre as plataformas (são os mesmos no iPhone e no PC)', () => {
+  for (const f of ['src/api/presets.ts', 'src/state/presets.ts']) {
+    assert.ok(!/eqDaPlataforma|idDaPlataforma|idNoServidor/.test(ler(f)), `${f} não separa por plataforma`);
+  }
+  assert.match(ler('src/desktop/GestorDePresets.web.tsx'), /They sync with your phone\./);
 });
 caso('o padrão de antes e o Recommended não viajam na conta', () => {
   for (const k of ['pref:eqPadrao', 'pref:eqRecomendado', 'pref:eqModelosDasSaidas']) assert.ok(DE_FORA.has(k), k);
   assert.ok(!DE_FORA.has('pref:eqPadrao:ios') && !DE_FORA.has('pref:eqPadrao:windows'),
     'o de cada plataforma continua na conta: reinstalar a mesma plataforma recupera-o');
-});
-caso('as frases já não prometem o EQ no outro aparelho', () => {
-  for (const f of ['src/components/EqualizadorSheet.tsx', 'src/components/PresetsSheet.tsx', 'src/desktop/GestorDePresets.web.tsx']) {
-    assert.ok(!/on all your devices|reach all your devices|sync with your phone/.test(ler(f)), f);
-  }
 });
 
 if (falhas) {
