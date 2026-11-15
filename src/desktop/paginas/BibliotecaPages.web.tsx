@@ -75,7 +75,10 @@ import { useLibraryData } from './comum.web';
 import { contextoDaMistura, contextoDaPrateleira, contextoParaAnalytics, notaDaPrateleira } from '../../lib/contextoDaDescoberta';
 import { registar } from '../../lib/eventos';
 
-import { avisarErro } from '../../lib/avisoDeRemocao';
+import { avisarErro, avisarFeito } from '../../lib/avisoDeRemocao';
+import { eAlbumDoYouTubeMusic, FRASES_DOS_ALBUNS, legendaDoAlbum, type AlbumGuardado } from '../../lib/albunsGuardados';
+import { alternarAlbumGuardado, carregarAlbunsGuardados, useAlbunsGuardados } from '../../state/albunsGuardados';
+import { grelhaQueEnche } from '../../lib/grelhaDeCartoes';
 import { FRASES_DOS_ESTADOS } from '../../lib/frasesDosEstados';
 import { removerDasGostadas } from '../acoesDasEscolhidas.web';
 /** As prateleiras menos usadas ficam atrás de um botão, e a escolha fica entre visitas (30/10). */
@@ -363,7 +366,12 @@ function CabecalhoDoMenu({ capa, titulo, legenda }: { capa: string | null; titul
 }
 
 /** Um disco no menu: um lançamento novo, um álbum ou single do artista, um álbum ou uma playlist da pesquisa. */
-type DiscoDoMenu = { id: string; titulo: string; legenda: string; capa: string | null; tipo: string; artista: string | null };
+type DiscoDoMenu = {
+  id: string; titulo: string; legenda: string; capa: string | null; tipo: string; artista: string | null;
+  /** Quem o fez, para o guardar como álbum (15/11), mesmo onde não há "View artist" (a página dele). */
+  dono?: string | null;
+  ano?: string | null;
+};
 
 /**
  * O botão direito num disco (20/10 nos "New releases"; 24/10 também nos discos
@@ -375,11 +383,18 @@ function useMenuDoDisco(dialogo: Pick<ReturnType<typeof useDialogoDoAlbum>, 'abr
   const [menu, setMenu] = useState<{ d: DiscoDoMenu; ponto: PontoNoEcra } | null>(null);
   const semRede = useConnectivity((s) => s.offline);
   const { irPara } = useDestinos();
+  // Os álbuns guardados (15/11): "Save album" / "Remove from library" nos álbuns do YouTube Music.
+  const guardados = useAlbunsGuardados((s) => s.ids);
   const abrirMenuDoDisco = useCallback((d: DiscoDoMenu, e: any) => { e?.preventDefault?.(); setMenu({ d, ponto: pontoDoEvento(e) }); }, []);
   const fazer = (d: DiscoDoMenu, acao: AcaoDoLancamento) => {
     const album: YtRecommendedPlaylist = { id: d.id, title: d.titulo, artworkUrl: d.capa, channelTitle: d.legenda };
     if (acao === 'abrir') void dialogo.abrirAlbum(album);
     else if (acao === 'guardar') void dialogo.guardarAlbumSemAbrir(album);
+    else if (acao === 'guardar-album') {
+      void alternarAlbumGuardado({ id: d.id, title: d.titulo, artworkUrl: d.capa, tipo: d.tipo, ano: d.ano ?? null }, d.dono ?? d.artista ?? null)
+        .then((feito) => avisarFeito(feito === 'guardado' ? FRASES_DOS_ALBUNS.feitoGuardar : FRASES_DOS_ALBUNS.feitoTirar, d.titulo))
+        .catch((e) => avisarErro(mensagemDeErro(e, "Couldn't update your library.")));
+    }
     else if (acao === 'artista') { if (d.artista) irPara({ tipo: 'artista', nome: d.artista }); }
     else void dialogo.albumSemAbrir(album, acao);
   };
@@ -387,7 +402,7 @@ function useMenuDoDisco(dialogo: Pick<ReturnType<typeof useDialogoDoAlbum>, 'abr
     rato={menu.ponto}
     rotulo={`Options for ${menu.d.titulo}`}
     cabecalho={<CabecalhoDoMenu capa={menu.d.capa} titulo={menu.d.titulo} legenda={menu.d.legenda} />}
-    linhas={menuDoLancamento(menu.d, { semRede, temArtista: !!menu.d.artista }).map((a) => ({ id: a.id, rotulo: a.rotulo, icone: a.icone, inicioDeGrupo: a.inicioDeGrupo, motivo: a.motivo }))}
+    linhas={menuDoLancamento(menu.d, { semRede, temArtista: !!menu.d.artista, guardado: eAlbumDoYouTubeMusic(menu.d.id) ? guardados.has(menu.d.id) : undefined }).map((a) => ({ id: a.id, rotulo: a.rotulo, icone: a.icone, inicioDeGrupo: a.inicioDeGrupo, motivo: a.motivo }))}
     aoEscolher={(id) => fazer(menu.d, id as AcaoDoLancamento)}
     aoFechar={() => setMenu(null)}
   /> : null;
@@ -784,6 +799,49 @@ export function MisturaPage({ id, titulo, back, ...props }: {
   </Page>;
 }
 
+/**
+ * Os álbuns guardados no PC (15/11): a grelha que a pasta das Playlists abre.
+ * Os cartões do tamanho dos das playlists, com a capa, o título e "Artista ·
+ * ano". Clicar abre o diálogo do álbum (com o coração); o botão direito, o menu
+ * de um disco com "Remove from library".
+ */
+export function AlbunsGuardadosPage({ back, ...props }: { back: () => void } & CommonPageProps) {
+  const albuns = useAlbunsGuardados((s) => s.albuns);
+  useEffect(() => { void carregarAlbunsGuardados(); }, []);
+  const dialogo = useDialogoDoAlbum(props);
+  const { abrirMenuDoDisco, menuDoDisco, discoDoMenu } = useMenuDoDisco(dialogo);
+  const [largura, setLargura] = useState(0);
+  const { lado } = grelhaQueEnche(largura, 200, ESP.xxl);
+  const disco = (a: AlbumGuardado): DiscoDoMenu => ({
+    id: a.id, titulo: a.titulo, legenda: legendaDoAlbum(a), capa: a.capa, tipo: a.tipo ?? 'Album',
+    artista: a.artista, dono: a.artista, ano: a.ano,
+  });
+  const abrir = (a: AlbumGuardado) => void dialogo.abrirAlbum({ id: a.id, title: a.titulo, artworkUrl: a.capa, tipo: a.tipo ?? 'Album', ano: a.ano } as AlbumDaPagina);
+  return <>
+    <Page title={FRASES_DOS_ALBUNS.pasta} subtitle={FRASES_DOS_ALBUNS.guardados(albuns.length)}>
+      <View style={{ alignSelf: 'flex-start', marginBottom: ESP.lg }}><BotaoVoltar onPress={back} /></View>
+      {albuns.length ? (
+        <View style={styles.playlistGrid} onLayout={(e) => { const w = e.nativeEvent.layout.width; setLargura((antes) => (Math.abs(antes - w) > 1 ? w : antes)); }}>
+          {albuns.map((a) => (
+            <Pressable key={a.id} onPress={() => abrir(a)} onContextMenu={((e: any) => abrirMenuDoDisco(disco(a), e)) as any}
+              accessibilityRole="button" accessibilityLabel={`${a.titulo}, ${legendaDoAlbum(a)}`}
+              {...marcar('cartao')} style={[styles.playlistCard, { width: lado }, discoDoMenu === a.id && { opacity: 0.85 }]}>
+              <View {...marcar('brilho')} style={{ width: lado, height: lado, borderRadius: RAIO.cartao, overflow: 'hidden', backgroundColor: COR.metalEscuro }}>
+                {a.capa ? <img src={a.capa} alt="" referrerPolicy="no-referrer" decoding="async" draggable={false}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} /> : null}
+              </View>
+              <Text numberOfLines={1} style={styles.playlistTitle}>{a.titulo}</Text>
+              <Text numberOfLines={1} style={styles.playlistMeta}>{legendaDoAlbum(a)}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : <Empty icon="disc-outline" title={FRASES_DOS_ALBUNS.vazio} body={FRASES_DOS_ALBUNS.vazioDetalhe} />}
+    </Page>
+    {dialogo.dialogoDoAlbum}
+    {menuDoDisco}
+  </>;
+}
+
 export function ArtistPage({ name, back, corNaJanela = false, ...props }: { name: string; back: () => void; corNaJanela?: boolean } & CommonPageProps) {
   const data = useLibraryData();
   // A página do artista (23/10, variante A de docs/artista-pc-maquete.html,
@@ -812,7 +870,7 @@ export function ArtistPage({ name, back, corNaJanela = false, ...props }: { name
   const { abrirMenuDoDisco, menuDoDisco, discoDoMenu } = useMenuDoDisco(dialogo);
   const { abrirMenuDoArtista, menuDoArtista } = useMenuDoArtista(props.notify);
   // Na página dele, o "View artist" não iria a lado nenhum.
-  const discoNoMenu = (a: AlbumDaPagina): DiscoDoMenu => ({ id: a.id, titulo: a.title, legenda: legendaDoDisco(a), capa: a.artworkUrl, tipo: a.tipo, artista: null });
+  const discoNoMenu = (a: AlbumDaPagina): DiscoDoMenu => ({ id: a.id, titulo: a.title, legenda: legendaDoDisco(a), capa: a.artworkUrl, tipo: a.tipo, artista: null, dono: name, ano: a.ano });
   // A que já se sabe (no aparelho) desenha-se logo: é a mesma da grelha.
   const [foto, setFoto] = useState<string | null>(() => fotoJaConhecida(name) ?? null);
   useEffect(() => {
@@ -1137,6 +1195,30 @@ function useDialogoDoAlbum(props: CommonPageProps) {
     }
   };
 
+  // O coração dos álbuns (15/11): guarda o aberto na pasta dos álbuns. Um álbum
+  // da página do artista traz o tipo e o ano (AlbumDaPagina); o artista é o da
+  // primeira música, que num álbum é dele.
+  const guardados = useAlbunsGuardados((s) => s.ids);
+  const [aAlternar, setAAlternar] = useState(false);
+  const eAlbumAberto = !!albumAberto && eAlbumDoYouTubeMusic(albumAberto.id);
+  const albumGuardado = !!albumAberto && guardados.has(albumAberto.id);
+  const alternarGuardado = async () => {
+    if (!albumAberto || aAlternar) return;
+    setAAlternar(true);
+    const extra = albumAberto as Partial<AlbumDaPagina>;
+    try {
+      const feito = await alternarAlbumGuardado(
+        { id: albumAberto.id, title: albumAberto.title, artworkUrl: albumAberto.artworkUrl, tipo: extra.tipo ?? 'Album', ano: extra.ano ?? null },
+        faixasDoAlbum[0] ? displayArtist(faixasDoAlbum[0]) : null,
+      );
+      props.notify(feito === 'guardado' ? FRASES_DOS_ALBUNS.feitoGuardar : FRASES_DOS_ALBUNS.feitoTirar);
+    } catch (e) {
+      avisarErro(mensagemDeErro(e, "Couldn't update your library."));
+    } finally {
+      setAAlternar(false);
+    }
+  };
+
   const tocarAlbum = () => {
     if (!faixasDoAlbum.length) return;
     props.play(faixasDoAlbum[0], faixasDoAlbum, undefined, { tipo: 'album', nome: albumAberto?.title ?? '' });
@@ -1148,6 +1230,9 @@ function useDialogoDoAlbum(props: CommonPageProps) {
       {aCarregarAlbum ? <Carregando forma="linhas" quantas={5} /> : <>
         <View style={artistStyles.albumDialogActions}>
           <Button icon="play" onPress={tocarAlbum} disabled={!faixasDoAlbum.length}>Play</Button>
+          {eAlbumAberto ? <Button secondary marcado={albumGuardado} icon={albumGuardado ? 'heart' : 'heart-outline'} onPress={() => void alternarGuardado()} disabled={!faixasDoAlbum.length} ocupado={aAlternar}>
+            {albumGuardado ? FRASES_DOS_ALBUNS.guardado : FRASES_DOS_ALBUNS.guardar}
+          </Button> : null}
           <Button secondary icon="download-outline" onPress={() => void guardarAlbum()} disabled={!faixasDoAlbum.length} ocupado={aGuardarAlbum}>
             {aGuardarAlbum ? 'Saving…' : 'Save as playlist'}
           </Button>

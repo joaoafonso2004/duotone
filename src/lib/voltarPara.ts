@@ -9,7 +9,7 @@
  * chevron do iPhone. Puro e sem imports (a forma da rota vem por estrutura).
  */
 export type RotaComNome =
-  | { name: 'search' | 'songs' | 'artists' | 'playlists' | 'profile' | 'settings' | 'social' | 'now-playing' | 'import' | 'spotify-import' | 'library-check' }
+  | { name: 'search' | 'songs' | 'artists' | 'playlists' | 'profile' | 'settings' | 'social' | 'now-playing' | 'import' | 'spotify-import' | 'library-check' | 'albuns' }
   | { name: 'friend-profile'; userId: string }
   | { name: 'artist'; value: string }
   | { name: 'playlist'; id: string; title: string }
@@ -24,7 +24,7 @@ const NOMES: Record<string, string> = {
   social: 'Social', profile: 'Profile', settings: 'Settings', 'now-playing': 'Now Playing',
   import: 'Import', 'spotify-import': 'Spotify import', 'library-check': 'Library check',
   'friend-profile': 'Profile', stats: 'Listening stats',
-  'voces-os-dois': 'You two', retrospetiva: 'Year in review',
+  'voces-os-dois': 'You two', retrospetiva: 'Year in review', albuns: 'Albums',
 };
 
 export const MAXIMO_DO_NOME = 28;

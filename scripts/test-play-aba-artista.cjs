@@ -63,7 +63,11 @@ const mocks = {
   '../components/Skeleton': { SkeletonDeFaixas: 'Skeleton', SkeletonDePrateleira: 'ShelfSkeleton' },
   '../state/gruposDaBiblioteca': { gruposDaBiblioteca: tracks => [{chave:'isak',faixas:tracks}] },
   '../state/doca': { useAlturaDosSeparadores: () => 54 },
-  '../lib/avisoDeRemocao': { avisarErro() {} },
+  '../lib/avisoDeRemocao': { avisarErro() {}, avisarFeito() {} },
+  // Os álbuns guardados (15/11): o "Save album" do menu de um disco.
+  '../state/albunsGuardados': { alternarAlbumGuardado: async () => 'guardado', useAlbunsGuardados: (sel) => sel({ ids: new Set(), albuns: [] }) },
+  '../lib/albunsGuardados': { FRASES_DOS_ALBUNS: { feitoGuardar: 'Saved', feitoTirar: 'Removed' } },
+  '../lib/mensagemDeErro': { mensagemDeErro: (_e, f) => f },
   '../components/PillButton': { PillButton: 'Pill' }, '../components/Screen': { Screen: 'Screen', useCabecalhoQueEncolhe: () => ({
     rolagem: { setValue() {}, interpolate: () => 0 }, onScroll: undefined, scrollEventThrottle: 16, espaco: 0, definirEspaco() {}, repor() {},
   }) },

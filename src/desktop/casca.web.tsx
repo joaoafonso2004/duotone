@@ -842,7 +842,7 @@ export function Sidebar({ route, navigate, notify, voltar, leitorAberto = false 
     : route.name === 'library-check' ? 'settings'
     : route.name === 'stats' || route.name === 'retrospetiva' ? 'profile'
     : route.name === 'voces-os-dois' ? 'social'
-    : route.name === 'playlist' || route.name === 'import' ? 'playlists' : route.name;
+    : route.name === 'playlist' || route.name === 'import' || route.name === 'albuns' ? 'playlists' : route.name;
 
   const [name,setName]=useState('Profile');
   // O @ da conta (30/10): por baixo do nome, em vez do email. É do mesmo perfil

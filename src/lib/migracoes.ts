@@ -24,6 +24,7 @@ export type Migracao = {
 };
 
 export const MIGRACOES: readonly Migracao[] = [
+  { ficheiro: 'albuns-guardados.sql', marca: 'tab:saved_albums', efeito: 'Save albums to your library as albums, not playlists' },
   { ficheiro: 'relatar-problema.sql', marca: 'fn:relatar_problema', efeito: 'Report a problem in Settings reaches the developer' },
   { ficheiro: 'limpar-filas-e-cache.sql', marca: 'fn:limpar_filas_e_cache', efeito: 'Finished Jam queues and expired cached answers are cleaned every night' },
   { ficheiro: 'registar-escutas.sql', marca: 'fn:registar_escutas', efeito: 'Listens, started songs and play counts reach the server in one request instead of four' },

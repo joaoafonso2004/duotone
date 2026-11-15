@@ -52,7 +52,8 @@ caso('o cartão de um lançamento abre o menu no clique direito', () => {
   const prateleira = ui.slice(ui.indexOf('export function ShelfDeLancamentos('), ui.indexOf('export function PrateleiraDeMisturas('));
   assert.match(prateleira, /onContextMenu=\{\(\(e: any\) => \{ if \(!onMenu\) return; e\.preventDefault\(\); onMenu\(it\.id, e\); \}\) as any\}/);
   assert.match(home, /onMenu=\{\(id, e\) => \{ const l = lancamentos\.find\([^\n]+abrirMenuDoDisco\(\{ id: l\.id, titulo: l\.titulo, legenda: legendaDoLancamento\(l\), capa: l\.capa, tipo: l\.tipo, artista: l\.artista \}, e\)/);
-  assert.match(home, /linhas=\{menuDoLancamento\(menu\.d, \{ semRede, temArtista: !!menu\.d\.artista \}\)/);
+  // 15/11: e se o álbum está guardado, para o "Save album" / "Remove from library".
+  assert.match(home, /linhas=\{menuDoLancamento\(menu\.d, \{ semRede, temArtista: !!menu\.d\.artista, guardado: /);
   assert.match(home, /aoEscolher=\{\(id\) => fazer\(menu\.d, id as AcaoDoLancamento\)\}/);
 });
 caso('o que o menu faz é o mesmo da pré-visualização do álbum', () => {
@@ -75,8 +76,10 @@ caso('os discos da página do artista: o toque longo abre o menu, com a vibraç�
   const artista = ler('src/screens/LibraryGroupScreen.tsx');
   assert.equal((artista.match(/aoSegurar=\{setDiscoComMenu\}/g) ?? []).length, 3, 'o destaque, os álbuns e os singles');
   // As mesmas linhas do PC, sem "View artist" (já se está na página dele), e sem as que pedem rede quando não há.
-  assert.match(artista, /menuDoLancamento\(discoComMenu, \{ semRede: offline, temArtista: false \}\)\n\s+\.filter\(\(a\) => !a\.motivo\)/);
-  assert.match(artista, /if \(acao === 'abrir'\) abrirDisco\(d\);\n\s+else if \(acao === 'guardar'\) void guardarDiscoComoPlaylist\(d\);\n\s+else if \(acao === 'tocar' \|\| acao === 'baralhar' \|\| acao === 'fila'\) void discoSemAbrir\(d, acao\);/);
+  // 15/11: com o "Save album" (os álbuns na biblioteca), que sabe se o disco já está guardado.
+  assert.match(artista, /menuDoLancamento\(discoComMenu, \{ semRede: offline, temArtista: false, guardado: albunsGuardados\.has\(discoComMenu\.id\) \}\)\n\s+\.filter\(\(a\) => !a\.motivo\)/);
+  assert.match(artista, /if \(acao === 'abrir'\) abrirDisco\(d\);\n\s+else if \(acao === 'guardar'\) void guardarDiscoComoPlaylist\(d\);\n\s+else if \(acao === 'guardar-album'\) \{/);
+  assert.match(artista, /else if \(acao === 'tocar' \|\| acao === 'baralhar' \|\| acao === 'fila'\) void discoSemAbrir\(d, acao\);/);
   assert.equal(menuDoLancamento({ tipo: 'Album' }, { semRede: false, temArtista: false }).some((l) => l.id === 'artista'), false);
 });
 caso('o que o menu faz no iPhone: as faixas como as lê a folha do álbum, e o jeito das playlists do iPhone', () => {

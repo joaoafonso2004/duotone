@@ -25,7 +25,9 @@ import { BottomSheet, BottomSheetFlatList } from './BottomSheet';
 import { TrackRow } from './TrackRow';
 import { TrackActionsSheet } from './TrackActionsSheet';
 import { hapticNotification } from '../lib/haptics';
-import { extractArtist } from '../lib/artistName';
+import { displayArtist, extractArtist } from '../lib/artistName';
+import { eAlbumDoYouTubeMusic, FRASES_DOS_ALBUNS } from '../lib/albunsGuardados';
+import { alternarAlbumGuardado, useAlbumGuardado } from '../state/albunsGuardados';
 import type { Track } from '../types';
 import { avisarErro, avisarFeito, contarMusicas } from '../lib/avisoDeRemocao';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
@@ -37,6 +39,12 @@ interface Props {
   playlistArtwork: string | null;
   onClose: () => void;
   onImportDone?: () => void;
+  /**
+   * Um ÁLBUM (15/11, os álbuns na biblioteca): quem o fez, o ano e o tipo, para o
+   * coração o guardar como álbum. Sem isto, um id de álbum do YouTube Music
+   * (OLAK5uy_…) conta como álbum na mesma, com o artista da primeira música.
+   */
+  album?: { artista: string | null; ano: string | null; tipo: string | null };
 }
 
 export function YtPlaylistRecommendationSheet({
@@ -46,6 +54,7 @@ export function YtPlaylistRecommendationSheet({
   playlistArtwork,
   onClose,
   onImportDone,
+  album,
 }: Props) {
   const [tracks, setTracks] = useState<Track[]>([]);
   /** A música com o menu aberto (o toque longo numa linha). */
@@ -115,6 +124,29 @@ export function YtPlaylistRecommendationSheet({
       .finally(() => setLoading(false));
   }, [visible, playlistId]);
 
+  // O coração dos álbuns (15/11): guarda-o na pasta dos álbuns, como álbum.
+  const eAlbum = !isInternalPlaylist && (!!album || eAlbumDoYouTubeMusic(playlistId));
+  const guardado = useAlbumGuardado(eAlbum ? playlistId : null);
+  const [aGuardarAlbum, setAGuardarAlbum] = useState(false);
+  const artistaDoAlbum = album?.artista ?? (tracks[0] ? displayArtist(tracks[0]) : null);
+  const alternarGuardado = async () => {
+    if (!playlistId || aGuardarAlbum) return;
+    setAGuardarAlbum(true);
+    const titulo = loadedTitle ?? playlistTitle ?? 'Album';
+    try {
+      const feito = await alternarAlbumGuardado(
+        { id: playlistId, title: titulo, artworkUrl: playlistArtwork, tipo: album?.tipo ?? 'Album', ano: album?.ano ?? null },
+        artistaDoAlbum,
+      );
+      hapticNotification();
+      avisarFeito(feito === 'guardado' ? FRASES_DOS_ALBUNS.feitoGuardar : FRASES_DOS_ALBUNS.feitoTirar, titulo);
+    } catch (e) {
+      avisarErro(mensagemDeErro(e, "Couldn't update your library."));
+    } finally {
+      setAGuardarAlbum(false);
+    }
+  };
+
   const handlePlay = () => {
     if (tracks.length === 0) return;
     playTrack(tracks[0], tracks, true);
@@ -159,7 +191,9 @@ export function YtPlaylistRecommendationSheet({
             {loadedTitle ?? playlistTitle ?? 'Playlist'}
           </Text>
           <Text style={type.caption}>
-            {isInternalPlaylist ? 'Shared playlist' : 'Recommendation'}
+            {isInternalPlaylist ? 'Shared playlist'
+              : eAlbum ? [album?.tipo ?? 'Album', artistaDoAlbum, album?.ano].filter(Boolean).join(' · ')
+              : 'Recommendation'}
           </Text>
         </View>
       </View>
@@ -184,13 +218,25 @@ export function YtPlaylistRecommendationSheet({
               </LinearGradient>
             </Pressable>
 
+            {eAlbum ? (
+              <Pressable
+                style={[styles.btnCoracao, guardado && { backgroundColor: theme.soft, borderColor: theme.color }]}
+                onPress={() => void alternarGuardado()}
+                disabled={aGuardarAlbum}
+                accessibilityRole="button"
+                accessibilityLabel={guardado ? FRASES_DOS_ALBUNS.guardado : FRASES_DOS_ALBUNS.guardar}
+              >
+                <Ionicons name={guardado ? 'heart' : 'heart-outline'} size={20} color={guardado ? theme.color : colors.text} />
+              </Pressable>
+            ) : null}
+
             <Pressable style={styles.btnSave} onPress={handleSave} disabled={saving}>
               {saving ? (
                 <ActivityIndicator size="small" color={colors.text} />
               ) : (
                 <>
                   <Ionicons name="download-outline" size={18} color={colors.text} />
-                  <Text style={styles.btnTextSave}>Save Playlist</Text>
+                  <Text style={styles.btnTextSave}>{eAlbum ? 'Save as playlist' : 'Save Playlist'}</Text>
                 </>
               )}
             </Pressable>
@@ -282,6 +328,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+  },
+  btnCoracao: {
+    width: 44,
+    height: 44,
+    borderRadius: radii.md,
+    borderCurve: 'continuous',
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   btnTextPlay: {
     fontSize: 14,

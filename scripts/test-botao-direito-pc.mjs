@@ -52,7 +52,7 @@ caso('abrir o menu não vai à rede: a biblioteca e a foto em memória', () => {
 
 console.log('\num disco');
 caso('nos discos, singles e último lançamento do artista, sem "View artist" (é a página dele)', () => {
-  assert.match(home, /const discoNoMenu = \(a: AlbumDaPagina\): DiscoDoMenu => \(\{[^\n]+artista: null \}\);/);
+  assert.match(home, /const discoNoMenu = \(a: AlbumDaPagina\): DiscoDoMenu => \(\{[^\n]+artista: null, dono: name, ano: a\.ano \}\);/);
   assert.equal(home.match(/onContextMenu: \(e: any\) => abrirMenuDoDisco\(discoNoMenu\(a\), e\)/g)?.length, 2, 'discos e singles');
   assert.match(home, /aoMenu=\{\(e\) => abrirMenuDoDisco\(discoNoMenu\(pagina\.maisRecente!\), e\)\}/);
 });

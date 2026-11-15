@@ -48,6 +48,7 @@ import { LibraryGroupScreen } from '../screens/LibraryGroupScreen';
 import { PrateleiraScreen } from '../screens/PrateleiraScreen';
 import type { NomeDaPrateleira } from '../state/recomendacoes';
 import { PlaylistDetailScreen } from '../screens/PlaylistDetailScreen';
+import { AlbunsGuardadosScreen } from '../screens/AlbunsGuardadosScreen';
 import { VocesOsDoisScreen } from '../screens/VocesOsDoisScreen';
 import { PlaylistsScreen } from '../screens/PlaylistsScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
@@ -110,6 +111,8 @@ export type PilhaParamList = {
   /** A pagina sobre ti e um amigo. Ver `screens/VocesOsDoisScreen.tsx`. */
   VocesOsDois: { userId: string; nome?: string };
   Playlists: undefined;
+  /** Os álbuns guardados (15/11): a grelha que a pasta das Playlists abre. */
+  AlbunsGuardados: undefined;
   /** `editar`: abre já na edição (o "Edit playlist" do toque longo, 28/9). */
   PlaylistDetail: { id: string; name: string; editar?: boolean; pessoas?: boolean };
   ImportYouTube: undefined;
@@ -204,6 +207,7 @@ function ecrasDaPilha() {
       {/* Sem withInternet desde 16/10 (auditoria 29): sem rede abre com a
           última cópia e toca o que está no iPhone. */}
       <Stack.Screen name="PlaylistDetail" component={PlaylistDetailScreen} />
+      <Stack.Screen name="AlbunsGuardados" component={AlbunsGuardadosScreen} />
       <Stack.Screen name="LibraryGroup" component={OnlineLibraryGroup} />
       <Stack.Screen name="Prateleira" component={OnlinePrateleira} />
       <Stack.Screen name="FriendProfile" component={FriendProfileScreen} />

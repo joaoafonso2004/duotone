@@ -23,6 +23,8 @@ import {
 } from '../api/playlists';
 import { metaDaPlaylist } from '../lib/playlistColaborativa';
 import { ArtworkCollage } from '../components/ArtworkCollage';
+import { PastaDosAlbuns } from '../components/PastaDosAlbuns';
+import { carregarAlbunsGuardados, useAlbunsGuardados } from '../state/albunsGuardados';
 import { BottomSheet } from '../components/BottomSheet';
 import { ConfirmSheet } from '../components/ConfirmSheet';
 import { EmptyState } from '../components/EmptyState';
@@ -54,6 +56,9 @@ import { tocaSemRede, useRevisaoDosDownloads } from '../lib/descarregarFaixa';
 import { useAudioCache } from '../lib/youtubeCache';
 import { legendaSemRede, naCopiaSemRede, type NaCopia } from '../lib/playlistsSemRede';
 
+/** A célula da pasta dos álbuns, à cabeça da grelha (15/11). */
+const PASTA_DOS_ALBUNS = { id: '__pasta-dos-albuns__', pasta: true } as const;
+
 export function PlaylistsScreen() {
   // Tocar no separador onde ja se esta volta ao topo (3/10, como no iOS).
   const topo = useRef<any>(null);
@@ -76,6 +81,12 @@ export function PlaylistsScreen() {
   /** Esqueleto só para quem ainda não tem nada. Com lista no ecrã, a
    *  revalidação não se anuncia -- era esse anúncio o pisca. */
   const loading = estado !== 'pronto' && playlists.length === 0;
+  // Os álbuns guardados (15/11): a pasta à cabeça da grelha. Relê-se ao entrar,
+  // no máximo de 10 em 10 min (state/albunsGuardados.ts).
+  const albuns = useAlbunsGuardados((s) => s.albuns);
+  useFocusEffect(useCallback(() => { void carregarAlbunsGuardados(); }, []));
+  // Sem playlists mas com álbuns, a grelha aparece na mesma: senão a pasta ficava escondida.
+  const semNadaNaGrelha = playlists.length === 0 && albuns.length === 0;
   const [busy, setBusy] = useState(false);
   const theme = useTheme((s) => s.theme);
   const quantosDescarregados = useDownloadsFixados((s) => Object.keys(s.registo.pedidos).length);
@@ -286,13 +297,13 @@ export function PlaylistsScreen() {
 
       {/* O cabeçalho flutua por cima (3/10): tudo o que não é a lista começa
           por baixo dele. */}
-      {(loading || playlists.length === 0) && <View style={{ height: cab.espaco }} />}
-      {(loading || playlists.length === 0) && linhaDosDownloads}
+      {(loading || semNadaNaGrelha) && <View style={{ height: cab.espaco }} />}
+      {(loading || semNadaNaGrelha) && linhaDosDownloads}
       {/* Com a lista à vista, o erro vai no topo dela (não por baixo do cabeçalho). */}
-      {!!loadError&&(loading||playlists.length===0)&&avisoDeErro}
+      {!!loadError&&(loading||semNadaNaGrelha)&&avisoDeErro}
       {loading ? (
         <SkeletonDePlaylists lado={cardSize} />
-      ) : playlists.length === 0 && loadError ? null : playlists.length === 0 ? (
+      ) : semNadaNaGrelha && loadError ? null : semNadaNaGrelha ? (
         <>
         <EmptyState
           icon="albums-outline"
@@ -317,7 +328,7 @@ export function PlaylistsScreen() {
       ) : (
         <Animated.FlatList
           ref={topo}
-          data={playlists}
+          data={albuns.length ? [PASTA_DOS_ALBUNS, ...playlists] : playlists}
           ListHeaderComponent={<>{avisoDeErro}{offline ? avisoSemRede : null}{linhaDosDownloads}</>}
           refreshControl={puxar}
           onScroll={cab.onScroll}
@@ -331,7 +342,11 @@ export function PlaylistsScreen() {
             paddingBottom: bottomPad,
             paddingTop: cab.espaco + spacing.sm,
           }}
-          renderItem={({ item }) => {
+          renderItem={({ item: celula }) => {
+            if ('pasta' in celula) {
+              return <PastaDosAlbuns albuns={albuns} lado={cardSize} onPress={() => navigation.navigate('AlbunsGuardados')} />;
+            }
+            const item = celula;
             const naCopia = copia?.get(item.id);
             return (
             <Pressable

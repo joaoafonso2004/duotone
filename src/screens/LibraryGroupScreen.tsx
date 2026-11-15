@@ -3,6 +3,8 @@ import {
   GrelhaDeMusicas, LancamentoEmDestaque, ParecidosDoArtista, PilulaDeVidro, SobreOArtista, type Disco,
 } from '../components/SeccoesDoArtista';
 import { discoSemAbrir, guardarDiscoComoPlaylist } from '../state/acoesDoDisco';
+import { alternarAlbumGuardado, useAlbunsGuardados } from '../state/albunsGuardados';
+import { FRASES_DOS_ALBUNS } from '../lib/albunsGuardados';
 import { menuDoLancamento, type AcaoDoLancamento } from '../lib/menuDoLancamento';
 import { useConnectivity } from '../state/connectivity';
 import { MusicasDoArtistaSheet } from '../components/MusicasDoArtistaSheet';
@@ -41,7 +43,8 @@ import { getOrdemDoArtista, setOrdemDoArtista, type OrdemDoArtista } from '../li
 import { useAuth } from '../state/auth';
 import type { Track } from '../types';
 import { useAlturaDosSeparadores } from '../state/doca';
-import { avisarErro } from '../lib/avisoDeRemocao';
+import { avisarErro, avisarFeito } from '../lib/avisoDeRemocao';
+import { mensagemDeErro } from '../lib/mensagemDeErro';
 
 import { FRASES_DOS_ESTADOS } from '../lib/frasesDosEstados';
 type Props = NativeStackScreenProps<RootStackParamList, 'LibraryGroup'>;
@@ -260,9 +263,13 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   // a discografia partida em álbuns e em singles e EPs.
   const vizinhanca = useVizinhancaDoArtista(name, tracks, type === 'artist' && !loading);
   const discos = useMemo(() => discografia(ytAlbums as AlbumDaPagina[]), [ytAlbums]);
-  const abrirDisco = (d: { id: string; title: string; artworkUrl: string | null }) => {
+  // O álbum aberto (15/11): o artista, o ano e o tipo, para o coração da folha o guardar.
+  const [albumAberto, setAlbumAberto] = useState<{ artista: string | null; ano: string | null; tipo: string | null } | undefined>(undefined);
+  const abrirDisco = (d: { id: string; title: string; artworkUrl: string | null; tipo?: string; ano?: string | null }) => {
     setSelectedYtPlaylistId(d.id); setSelectedYtPlaylistTitle(d.title); setSelectedYtPlaylistArtwork(d.artworkUrl);
+    setAlbumAberto(type === 'artist' ? { artista: name, ano: d.ano ?? null, tipo: d.tipo ?? null } : undefined);
   };
+  const albunsGuardados = useAlbunsGuardados((s) => s.ids);
   // O toque longo num disco (8/11): o menu dele, com as linhas do clique direito
   // do PC (`menuDoLancamento`). Sem "View artist": já se está na página dele.
   const [discoComMenu, setDiscoComMenu] = useState<Disco | null>(null);
@@ -271,6 +278,11 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
     setDiscoComMenu(null);
     if (acao === 'abrir') abrirDisco(d);
     else if (acao === 'guardar') void guardarDiscoComoPlaylist(d);
+    else if (acao === 'guardar-album') {
+      void alternarAlbumGuardado(d, type === 'artist' ? name : null)
+        .then((feito) => avisarFeito(feito === 'guardado' ? FRASES_DOS_ALBUNS.feitoGuardar : FRASES_DOS_ALBUNS.feitoTirar, d.title))
+        .catch((e) => avisarErro(mensagemDeErro(e, "Couldn't update your library.")));
+    }
     else if (acao === 'tocar' || acao === 'baralhar' || acao === 'fila') void discoSemAbrir(d, acao);
   };
   const tocarTudo = () => { if (!waiting) void tocarLista(faixasDaAba, shuffleLigado, shuffleInteligente, { tipo: 'artista', nome: name }); };
@@ -338,7 +350,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
       track={null}
       onClose={() => setDiscoComMenu(null)}
       cabecalho={discoComMenu ? { titulo: discoComMenu.title, subtitulo: legendaDoDisco(discoComMenu), capas: discoComMenu.artworkUrl ? [discoComMenu.artworkUrl] : [] } : null}
-      actions={discoComMenu ? menuDoLancamento(discoComMenu, { semRede: offline, temArtista: false })
+      actions={discoComMenu ? menuDoLancamento(discoComMenu, { semRede: offline, temArtista: false, guardado: albunsGuardados.has(discoComMenu.id) })
         .filter((a) => !a.motivo)
         .map((a) => ({ icon: a.icone as any, label: a.rotulo, onPress: () => fazerNoDisco(discoComMenu, a.id) })) : []}
     />
@@ -348,6 +360,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
       playlistId={selectedYtPlaylistId}
       playlistTitle={selectedYtPlaylistTitle}
       playlistArtwork={selectedYtPlaylistArtwork}
+      album={albumAberto}
       onClose={() => {
         setSelectedYtPlaylistId(null);
         setSelectedYtPlaylistTitle(null);

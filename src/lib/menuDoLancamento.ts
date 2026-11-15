@@ -16,7 +16,7 @@
  */
 import { MOTIVOS } from './menuDaFaixa';
 
-export type AcaoDoLancamento = 'abrir' | 'tocar' | 'baralhar' | 'fila' | 'guardar' | 'artista';
+export type AcaoDoLancamento = 'abrir' | 'tocar' | 'baralhar' | 'fila' | 'guardar-album' | 'guardar' | 'artista';
 
 export type LinhaDoLancamento = {
   id: AcaoDoLancamento;
@@ -39,15 +39,31 @@ function nomeDoTipo(tipo: string): string {
  * playlists da pesquisa. `temArtista: false` tira o "View artist" onde não há
  * para onde ir: na página do próprio artista, ou numa playlist da pesquisa.
  */
-export function menuDoLancamento(l: { tipo: string }, s: { semRede: boolean; temArtista?: boolean }): LinhaDoLancamento[] {
+export function menuDoLancamento(
+  l: { tipo: string },
+  s: {
+    semRede: boolean;
+    temArtista?: boolean;
+    /**
+     * Os álbuns na biblioteca (15/11, lib/albunsGuardados.ts): se está guardado.
+     * Sem isto (uma playlist da pesquisa, que não é um álbum), não há a linha.
+     */
+    guardado?: boolean;
+  },
+): LinhaDoLancamento[] {
   const rede = s.semRede ? MOTIVOS.semRede : null;
   const linhas: LinhaDoLancamento[] = [
     { id: 'abrir', rotulo: `Open ${nomeDoTipo(l.tipo)}`, icone: 'albums-outline', motivo: rede },
     { id: 'tocar', rotulo: 'Play', icone: 'play-outline', inicioDeGrupo: true, motivo: rede },
     { id: 'baralhar', rotulo: 'Shuffle', icone: 'shuffle', motivo: rede },
     { id: 'fila', rotulo: 'Add to queue', icone: 'list-outline', motivo: rede },
-    { id: 'guardar', rotulo: 'Save as playlist', icone: 'add-circle-outline', inicioDeGrupo: true, motivo: rede },
   ];
+  if (s.guardado !== undefined) {
+    linhas.push(s.guardado
+      ? { id: 'guardar-album', rotulo: 'Remove from library', icone: 'heart', inicioDeGrupo: true, motivo: rede }
+      : { id: 'guardar-album', rotulo: 'Save album', icone: 'heart-outline', inicioDeGrupo: true, motivo: rede });
+  }
+  linhas.push({ id: 'guardar', rotulo: 'Save as playlist', icone: 'add-circle-outline', inicioDeGrupo: s.guardado === undefined, motivo: rede });
   if (s.temArtista !== false) linhas.push({ id: 'artista', rotulo: 'View artist', icone: 'mic-outline' });
   return linhas;
 }

@@ -73,6 +73,7 @@ test-*.mjs
 !scripts/test-registar-escutas-sql.mjs
 !scripts/test-limpar-filas-e-cache-sql.mjs
 !scripts/test-relatar-problema-sql.mjs
+!scripts/test-albuns-guardados-sql.mjs
 !scripts/test-radio-no-jam-sql.mjs
 !scripts/test-painel-de-saude-sql.mjs
 !scripts/test-presenca-mais-longa-sql.mjs

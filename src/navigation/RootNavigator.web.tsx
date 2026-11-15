@@ -70,7 +70,7 @@ import { JanelaDoJam } from '../desktop/JanelaDoJam.web';
 
 import { ProfilePage, StatsPage } from '../desktop/paginas/ProfilePage.web';
 
-import { ArtistPage, ArtistsPage, MisturaPage, SearchPage, SongsPage } from '../desktop/paginas/BibliotecaPages.web';
+import { AlbunsGuardadosPage, ArtistPage, ArtistsPage, MisturaPage, SearchPage, SongsPage } from '../desktop/paginas/BibliotecaPages.web';
 
 import { PlaylistPage, PlaylistsPage } from '../desktop/paginas/PlaylistPages.web';
 
@@ -761,7 +761,7 @@ function DesktopShell() {
   let page: ReactNode;
   switch (route.name) {
     case 'search': page = <SearchPage navigate={navigate} {...common} />; break; case 'songs': page = <SongsPage {...common} />; break; case 'artists': page = <ArtistsPage navigate={navigate} notify={notify} />; break;
-    case 'artist': page = <ArtistPage name={route.value} back={back} corNaJanela={corDoArtistaMontada && !corDoArtistaApaga} {...common} />; break; case 'playlists': page = <PlaylistsPage navigate={navigate} notify={notify} share={openShareDialog} />; break; case 'playlist': // `key`: uma playlist nova NÃO herda as faixas da anterior (duas fixadas na lateral: a segunda abria com a lista da primeira e só o título mudava).
+    case 'artist': page = <ArtistPage name={route.value} back={back} corNaJanela={corDoArtistaMontada && !corDoArtistaApaga} {...common} />; break; case 'playlists': page = <PlaylistsPage navigate={navigate} notify={notify} share={openShareDialog} />; break; case 'albuns': page = <AlbunsGuardadosPage back={back} {...common} />; break; case 'playlist': // `key`: uma playlist nova NÃO herda as faixas da anterior (duas fixadas na lateral: a segunda abria com a lista da primeira e só o título mudava).
     page = <PlaylistPage key={route.id} id={route.id} title={route.title} abrirPessoas={!!route.pessoas} back={back} share={openShareDialog} navigate={navigate} {...common} />; break;
     case 'mistura': page = <MisturaPage key={route.id} id={route.id} titulo={route.titulo} back={back} {...common} />; break;
     case 'stats': page = <StatsPage key={route.userId} back={back} play={play} userId={route.userId} />; break;

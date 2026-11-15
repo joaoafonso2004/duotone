@@ -27,6 +27,8 @@ export type Route =
    *  store das recomendacoes e nao na base de dados, por isso viaja por id. */
   | { name: 'mistura'; id: string; titulo: string }
   | { name: 'import' }
+  /** Os álbuns guardados (15/11): a grelha que a pasta das Playlists abre. */
+  | { name: 'albuns' }
   | { name: 'stats';userId?:string }
   | { name: 'spotify-import' }
   /** O Library check, que se abre das Definições. */
