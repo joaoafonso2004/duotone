@@ -117,17 +117,22 @@ interface Resolvido {
   falhou: boolean;
 }
 
-/** Os resultados como candidatos do comparador. */
-const comoCandidatos = (hits: SearchHit[]): MatchCandidate[] => hits.map((hit) => ({
+/**
+ * Os resultados como candidatos do comparador. Os que vieram da pesquisa de
+ * canções levam a marca: numa escolha com vídeos, a canção ganha ao videoclipe
+ * da mesma música (15/11, `preferirACancao` em lib/trackMatch.ts).
+ */
+const comoCandidatos = (hits: SearchHit[], cancoes: ReadonlySet<string>): MatchCandidate[] => hits.map((hit) => ({
   id: hit.track.sourceId,
   title: hit.track.title,
   channel: hit.channel,
   durationSec: hit.track.durationSeconds,
+  cancao: cancoes.has(hit.track.sourceId),
 }));
 
 /** A escolha e as alternativas de uma lista de resultados. */
-function escolher(row: SpotifyCsvRow, hits: SearchHit[], target: MatchTarget): ImportedTrack {
-  const { best, ranked, confident } = pickBest(comoCandidatos(hits), target);
+function escolher(row: SpotifyCsvRow, hits: SearchHit[], target: MatchTarget, cancoes: ReadonlySet<string> = new Set()): ImportedTrack {
+  const { best, ranked, confident } = pickBest(comoCandidatos(hits, cancoes), target);
   const byId = new Map(hits.map((hit) => [hit.track.sourceId, hit.track]));
   const chosen = best ? (byId.get(best.id) ?? null) : null;
   const alternatives = ranked
@@ -154,7 +159,7 @@ async function resolveOne(row: SpotifyCsvRow, search: ImportOptions['search'], s
     ritmo.falhasDasCancoes = lidas ? 0 : ritmo.falhasDasCancoes + 1;
     cancoes = lidas ?? [];
     if (cancoes.length) {
-      const so = escolher(row, cancoes, target);
+      const so = escolher(row, cancoes, target, new Set(cancoes.map((h) => h.track.sourceId)));
       if (so.confident) return { resultado: so, falhou: false };
     }
   }
@@ -182,7 +187,7 @@ async function resolveOne(row: SpotifyCsvRow, search: ImportOptions['search'], s
   const todos = [...cancoes, ...hits.filter((h) => !vistos.has(h.track.sourceId))];
   if (!todos.length) return { resultado: { row, track: null, confident: false, alternatives: [] }, falhou: falhou && !cancoes.length };
 
-  return { resultado: escolher(row, todos, target), falhou: false };
+  return { resultado: escolher(row, todos, target, vistos), falhou: false };
 }
 
 export async function importSpotifyCsv(options: ImportOptions): Promise<ImportedTrack[]> {

@@ -101,5 +101,25 @@ naoEntra('karaoke com a duração exata',
   { title: 'Creep', artist: 'Radiohead', durationSec: 238 },
   [{ id: 'k', title: 'Creep (Karaoke Version)', channel: 'Radiohead - Topic', durationSec: 238 }]);
 
+// A canção antes do videoclipe (15/11, Reddit: importou do Apple Music e
+// tocava o videoclipe, com a letra fora de tempo). Sem a marca, o vídeo do VEVO
+// somava 141 contra 130 da canção.
+const videoclipe: MatchCandidate = { id: 'mv', title: 'Artista X - Canção Y (Official Music Video)', channel: 'ArtistaXVEVO', durationSec: 201 };
+const cancaoDoTopic: MatchCandidate = { id: 'song', title: 'Canção Y', channel: 'Artista X - Topic', durationSec: 200, cancao: true };
+const alvoDaCancao: MatchTarget = { title: 'Canção Y', artist: 'Artista X', durationSec: 200 };
+entra('a canção do YouTube Music ganha ao videoclipe da mesma música', alvoDaCancao, [videoclipe, cancaoDoTopic], 'song');
+{
+  const semMarca = pickBest([videoclipe, { ...cancaoDoTopic, cancao: false }], alvoDaCancao);
+  confere('sem a marca de canção, o videoclipe ganhava (o caso do Reddit)', semMarca.best?.id === 'mv', resumo(semMarca));
+}
+entra('uma canção de OUTRO artista não passa à frente do videoclipe certo',
+  alvoDaCancao,
+  [videoclipe, { id: 'cover', title: 'Canção Y', channel: 'Outra Banda - Topic', durationSec: 200, cancao: true }],
+  'mv');
+{
+  const r = pickBest([videoclipe, { id: 'live', title: 'Canção Y (Live)', channel: 'Artista X - Topic', durationSec: 200, cancao: true }], alvoDaCancao);
+  confere('uma canção ao vivo não passa à frente do videoclipe de estúdio', r.best?.id === 'mv', resumo(r));
+}
+
 console.log(falhas ? `\n  ${falhas} falha(s)` : '\n  Todos os casos passaram.');
 process.exit(falhas ? 1 : 0);

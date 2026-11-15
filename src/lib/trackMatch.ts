@@ -27,6 +27,11 @@ export interface MatchCandidate {
   channel: string;
   /** Duração em segundos, ou null se desconhecida. */
   durationSec: number | null;
+  /**
+   * Veio da pesquisa de CANÇÕES do YouTube Music: é o áudio da gravação, e não
+   * um vídeo. Ver `preferirACancao`.
+   */
+  cancao?: boolean;
 }
 
 export interface ScoredCandidate extends MatchCandidate {
@@ -372,10 +377,34 @@ function identidade(c: ScoredCandidate, target: MatchTarget): boolean {
   return Math.abs(c.durationSec - target.durationSec) <= FOLGA_DO_VIDEO_SEC;
 }
 
+/** Até quantos pontos abaixo do videoclipe a canção ainda ganha. */
+const VANTAGEM_DO_VIDEO_QUE_NAO_CHEGA = 40;
+
+/**
+ * A canção antes do videoclipe (15/11, Reddit): "importei uma playlist do
+ * Apple Music e uma música tocava o videoclipe em vez da faixa, e a letra
+ * ficou fora de tempo". Um videoclipe oficial do canal VEVO com a duração
+ * certa somava mais do que a canção do " - Topic" (o canal, o VEVO e o nome do
+ * artista no título davam ~141 contra ~130). Mas o videoclipe traz intros,
+ * cenas faladas e às vezes outra mistura, e a letra sincronizada é da canção.
+ * Quando a pesquisa de canções trouxe a MESMA música (o mesmo título, a mesma
+ * versão, do mesmo artista), é ela que fica, desde que não esteja muito atrás.
+ * Uma canção de outra versão ou de outro artista não passa à frente.
+ */
+function preferirACancao(ranked: ScoredCandidate[], target: MatchTarget): ScoredCandidate[] {
+  const best = ranked[0];
+  if (!best || best.cancao) return ranked;
+  const cancao = ranked.find((c) => c.cancao
+    && best.score - c.score <= VANTAGEM_DO_VIDEO_QUE_NAO_CHEGA
+    && (sameRecording(best, c, target) || mesmaMusica(best, c, target)));
+  if (!cancao) return ranked;
+  return [cancao, ...ranked.filter((c) => c !== cancao)];
+}
+
 export function pickBest(candidates: MatchCandidate[], target: MatchTarget): MatchResult {
-  const ranked = candidates
+  const ranked = preferirACancao(candidates
     .map((candidate) => ({ ...candidate, score: scoreCandidate(candidate, target) }))
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) => b.score - a.score), target);
 
   const best = ranked[0] ?? null;
   // A margem mede-se contra o primeiro concorrente que seja mesmo outra coisa.
