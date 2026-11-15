@@ -136,16 +136,47 @@ caso('a primeira abertura não roda uma capa parada nem monta as letras', () => 
   assert.equal(a.animacoes.filter(x => x.tipo === 'spring').length, 1, 'Reduzir movimento continua sem mola');
   assert.equal(todos(tree).find(x => x.type === 'Lyrics').props.visible, false);
 });
+// O CapaFlutuante3D com os duplos de sempre. `RecuoNativo` é a vista do Core
+// Animation (15/11): null é um binário sem ela, e o recuo fica no React Native.
+function capaFlutuante(a, h, lib, RecuoNativo) {
+  const pose = carregar('src/lib/capaFlutuante3D.ts');
+  return carregar('src/components/CapaFlutuante3D.tsx', {
+    react: h.React, 'react-native': a.rn, '../hooks/useReducedMotion': { useReducedMotion: () => false },
+    '../lib/capaFlutuante3D': pose, '../lib/transicaoDaCapa': lib,
+    '../lib/recuoDoEncaixe': carregar('src/lib/recuoDoEncaixe.ts'), '../state/fluidez': { pedirFluidez() {} },
+    '../state/passagemAVista': { luasNoEcra: () => false },
+    '../../modules/duotone-capa': { RecuoNativo },
+    '../lib/recuoNoEcra': carregar('src/lib/recuoNoEcra.ts', { './capaFlutuante3D': pose, './transicaoDaCapa': lib }),
+    '../../assets/capa3d-sombra-ambiente.png': 1, '../../assets/capa3d-sombra-contacto.png': 2,
+  }, a.globais);
+}
+caso('com a vista nativa, o recuo vai no desenho da faixa nova e segue as mesmas regras', () => {
+  const a = ambiente(), h = a.hooks();
+  const lib = carregar('src/lib/transicaoDaCapa.ts');
+  const { CapaFlutuante3D } = capaFlutuante(a, h, lib, 'RecuoNativo');
+  const props = { size: 320, enabled: true, aVista: false, aFlutuar: false, transicao: { chave: 'a', sentido: 0 }, children: () => null };
+  const pedido = tree => todos(tree).find(x => x.type === 'RecuoNativo')?.props.salto ?? null;
+  let tree = h.mount(CapaFlutuante3D, props);
+  props.aVista = true; props.transicao = { chave: 'b', sentido: 0 }; tree = h.update(props);
+  assert.equal(pedido(tree), null, 'mini -> aberto com nova faixa é uma abertura, sem recuo');
+  props.transicao = { chave: 'c', sentido: 1 }; tree = h.update(props);
+  const um = pedido(tree);
+  assert.equal(um?.id, 1, 'uma troca com o leitor aberto leva o pedido no mesmo desenho');
+  assert.equal(um.x.length, um.tempos.length, 'com a curva inteira');
+  assert.equal(a.animacoes.filter(x => x.tipo === 'timing' && x.config.duration === lib.curvaDoSkip().duracaoMs).length, 0,
+    'e o motor do React Native já não o corre');
+  tree = h.update(props);
+  assert.equal(pedido(tree), um, 'redesenhar a mesma faixa não repete o pedido');
+  props.aVista = false; props.transicao = { chave: 'd', sentido: 1 }; tree = h.update(props);
+  props.aVista = true; tree = h.update(props);
+  assert.equal(pedido(tree)?.id, 1, 'uma troca escondida não é reproduzida ao reabrir');
+  props.transicao = { chave: 'e', sentido: -1 }; tree = h.update(props);
+  assert.equal(pedido(tree)?.id, 2, 'o skip seguinte é outro pedido');
+});
 caso('abrir com outra música não sobrepõe o recuo do skip à abertura', () => {
   const a = ambiente(), h = a.hooks();
   const lib = carregar('src/lib/transicaoDaCapa.ts');
-  const { CapaFlutuante3D } = carregar('src/components/CapaFlutuante3D.tsx', {
-    react: h.React, 'react-native': a.rn, '../hooks/useReducedMotion': { useReducedMotion: () => false },
-    '../lib/capaFlutuante3D': carregar('src/lib/capaFlutuante3D.ts'), '../lib/transicaoDaCapa': lib,
-    '../lib/recuoDoEncaixe': carregar('src/lib/recuoDoEncaixe.ts'), '../state/fluidez': { pedirFluidez() {} },
-    '../state/passagemAVista': { luasNoEcra: () => false },
-    '../../assets/capa3d-sombra-ambiente.png': 1, '../../assets/capa3d-sombra-contacto.png': 2,
-  }, a.globais);
+  const { CapaFlutuante3D } = capaFlutuante(a, h, lib, null);
   const props = { size: 320, enabled: true, aVista: false, aFlutuar: false, transicao: { chave: 'a', sentido: 0 }, children: () => null };
   const skips = () => a.animacoes.filter(x => x.tipo === 'timing' && x.config.duration === lib.curvaDoSkip().duracaoMs).length;
   h.mount(CapaFlutuante3D, props);

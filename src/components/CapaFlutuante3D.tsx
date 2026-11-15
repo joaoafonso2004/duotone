@@ -7,6 +7,8 @@ import { RECUO_DO_ENCAIXE, curvaDoRecuo } from '../lib/recuoDoEncaixe';
 import type { AnimacaoDaMontagem } from '../hooks/useMontagemDaCapa';
 import { pedirFluidez } from '../state/fluidez';
 import { luasNoEcra } from '../state/passagemAVista';
+import { RecuoNativo } from '../../modules/duotone-capa';
+import { saltoDaCapa, type SaltoDaCapa } from '../lib/recuoNoEcra';
 
 // Os materiais saem de scripts/gerar-materiais-da-capa.py.
 const SOMBRA_AMBIENTE: ImageSourcePropType = require('../../assets/capa3d-sombra-ambiente.png');
@@ -166,10 +168,37 @@ export function CapaFlutuante3D({ size, enabled, montagem = null, transicao = nu
       inputRange: curva.inputRange,
       outputRange: curva.outputRange.map((y) => -RECUO_DO_ENCAIXE.profundidade * size * y),
     });
-    return Animated.add(recuoZ, recuoDoEncaixe);
+    // Com a vista nativa, o recuo do skip já não passa por aqui (ver abaixo).
+    return RecuoNativo ? recuoDoEncaixe : Animated.add(recuoZ, recuoDoEncaixe);
   }, [encaixe, recuoZ, size]);
   const chaveAnterior = useRef(transicao?.chave ?? null);
   const visibilidadeAnterior = useRef(aVista);
+
+  // O recuo do skip no Core Animation (15/11, lib/recuoNoEcra.ts). Decide-se no
+  // DESENHO em que a faixa nova chega, e o pedido vai para o lado nativo no mesmo
+  // commit que a capa nova -- sem esperar por um efeito do JavaScript, que no
+  // skip está ocupado com a faixa. Lá, a animação corre fora da thread principal
+  // da app, e o trabalho do skip já não a pode parar. As regras são as do efeito
+  // de baixo: a primeira chave é abrir o leitor, e fechado, com a capa Simple,
+  // com Reduzir movimento, em segundo plano ou com as Duas luas não há recuo.
+  const salto = useRef<{ chave: string | null; pedido: SaltoDaCapa | null; n: number }>({
+    chave: transicao?.chave ?? null, pedido: null, n: 0,
+  });
+  const aVistaNoDesenhoAnterior = useRef(aVista);
+  if (RecuoNativo) {
+    const chave = transicao?.chave ?? null;
+    const s = salto.current;
+    if (chave !== s.chave) {
+      s.chave = chave;
+      const sentido = transicao?.sentido ?? 0;
+      const recuo = recuoDaCapa({ lado: size, sentido, capa3D: enabled, reduzirMovimento: reduced });
+      if (recuo && aVistaNoDesenhoAnterior.current && aVista && foreground && !luasNoEcra()) {
+        s.n += 1;
+        s.pedido = saltoDaCapa({ id: s.n, em: Date.now(), lado: size, sentido });
+      }
+    }
+  }
+  aVistaNoDesenhoAnterior.current = aVista;
 
   // Uma faixa nova na capa: recua, desvia-se no sentido do skip e volta com uma
   // mola. A primeira chave é abrir o leitor, e isso não é um skip.
@@ -188,6 +217,8 @@ export function CapaFlutuante3D({ size, enabled, montagem = null, transicao = nu
     // não um skip por cima do arco de entrada da capa.
     if (!estavaAVista) return;
     pedirFluidez(900);
+    // Com a vista nativa o recuo já foi entregue com o commit (ver `salto`).
+    if (RecuoNativo) return;
     const recuo = recuoDaCapa({
       lado: size, sentido: transicao?.sentido ?? 0, capa3D: enabled, reduzirMovimento: reduced,
     });
@@ -271,8 +302,8 @@ export function CapaFlutuante3D({ size, enabled, montagem = null, transicao = nu
   // Estáveis entre renders: o leitor volta a desenhar a cada segundo da música,
   // e refazer as interpolações a cada vez era religar o grafo nativo por nada.
   const postura = useMemo(
-    () => criarPostura(poseVista, flutuar, derivar, size, voo, assentar, recuoX, recuoTotal),
-    [poseVista, flutuar, derivar, size, voo, assentar, recuoX, recuoTotal],
+    () => criarPostura(poseVista, flutuar, derivar, size, voo, assentar, RecuoNativo ? semMontagem.zero : recuoX, recuoTotal),
+    [poseVista, flutuar, derivar, size, voo, assentar, recuoX, recuoTotal, semMontagem],
   );
   const pose3D = useMemo<PoseDaCapa3D | null>(
     () => (enabled
@@ -311,7 +342,12 @@ export function CapaFlutuante3D({ size, enabled, montagem = null, transicao = nu
       <Animated.View pointerEvents="none" style={[styles.sombra, sombras.contacto]}>
         <Image source={SOMBRA_DE_CONTACTO} resizeMode="stretch" style={styles.cheia} />
       </Animated.View>
-      {children(pose3D)}
+      {RecuoNativo ? (
+        // A caixa inteira recua dentro desta vista; as sombras ficam no fundo, como antes.
+        <RecuoNativo salto={salto.current.pedido} pointerEvents="box-none" style={{ width: size, height: size, overflow: 'visible' }}>
+          {children(pose3D)}
+        </RecuoNativo>
+      ) : children(pose3D)}
     </View>
   );
 }

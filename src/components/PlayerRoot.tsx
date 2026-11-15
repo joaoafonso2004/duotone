@@ -164,6 +164,8 @@ const RESERVA_COM_A_CAPA_INTEIRA = 300;
  * nao se nota que sai de um quadrado mais pequeno.
  */
 const RECUO_DA_SOMBRA = 10;
+/** A capa só "respira" a carregar passado isto: o recuo do skip (660 ms) e o cruzamento já acabaram. */
+const ESPERA_ANTES_DE_RESPIRAR_MS = 700;
 
 /** O espaçamento entre as letras da marca. Ver o `brandName`. */
 const ESPACO_DA_MARCA = 2.6;
@@ -637,16 +639,24 @@ export function PlayerRoot() {
   }, [current, queue.length, repeatMode, shuffle, isPlaying, temSessao, filaDaSessao, convidadosControlam]);
 
   // Pulsar suave da capa durante o carregamento; volta a opaco quando toca.
+  //
+  // Só depois de `ESPERA_ANTES_DE_RESPIRAR_MS` (15/11). Cada skip passa por
+  // "a carregar", e quase sempre por menos de meio segundo: a capa começava a
+  // escurecer em cima do recuo e do cruzamento e voltava logo a seguir, e esse
+  // piscar lia-se como mais um travão. Agora só respira o que demora de facto.
   useEffect(() => {
     if (buffering) {
-      const loop = Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulse, { toValue: 0.4, duration: 750, useNativeDriver: true }),
-          Animated.timing(pulse, { toValue: 1, duration: 750, useNativeDriver: true }),
-        ])
-      );
-      loop.start();
-      return () => loop.stop();
+      let loop: Animated.CompositeAnimation | null = null;
+      const espera = setTimeout(() => {
+        loop = Animated.loop(
+          Animated.sequence([
+            Animated.timing(pulse, { toValue: 0.4, duration: 750, useNativeDriver: true }),
+            Animated.timing(pulse, { toValue: 1, duration: 750, useNativeDriver: true }),
+          ])
+        );
+        loop.start();
+      }, ESPERA_ANTES_DE_RESPIRAR_MS);
+      return () => { clearTimeout(espera); loop?.stop(); };
     }
     Animated.timing(pulse, { toValue: 1, duration: 250, useNativeDriver: true }).start();
   }, [buffering, pulse]);
