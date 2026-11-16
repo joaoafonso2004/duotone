@@ -1,4 +1,4 @@
-import React, { memo, useEffect } from 'react';
+import React, { memo, useEffect, useSyncExternalStore } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
@@ -12,6 +12,9 @@ import { definirPrivacidade, garantirPrivacidade, usePrivacidade } from '../stat
 import { comecarRadioDaMusica } from '../state/radioDaFaixa';
 import { abrirFolhaDoAmigo } from '../state/folhaDoAmigo';
 import { continuarAqui } from '../lib/sessionSync';
+import { capaParaLista } from '../lib/capaDoEcraBloqueado';
+import { capaDeRecurso } from '../lib/capaGrande';
+import { capaGrande, ouvirCapasGrandes } from '../state/capasGrandes';
 import { deviceLabel } from '../lib/handoff';
 import { destinoDoRecente } from '../lib/destinos';
 import { rotuloDoTemporizador } from '../lib/aparencia';
@@ -32,17 +35,18 @@ export type ContextoDaPeca = {
   largura: number;
   altura: number;
   editar: boolean;
-  escolhida: boolean;
   /** Fecha a gaveta e vai lá. */
   irPara: (d: Destino) => void;
   /** Fecha a gaveta e abre o leitor. */
   abrirLeitor: () => void;
   /** Fecha a gaveta (para o que abre por cima dela, como a folha de um amigo). */
   fechar: () => void;
-  aoEscolher: (id: string) => void;
   aoTirar: (id: string) => void;
+  /** O tamanho seguinte (o toque no canto, e o VoiceOver). */
   aoRedimensionar: (id: string) => void;
-  /** O toque longo fora da edição: entra nela. */
+  /** Uma posição para trás ou para a frente (o VoiceOver: o arrasto não se faz com ele). */
+  aoMoverUm: (id: string, sentido: -1 | 1) => void;
+  /** Entrar na edição sem o dedo (o VoiceOver). Com o dedo, é segurar a peça (`Gaveta.tsx`). */
   aoSegurar: () => void;
   /** O ✎ de uma cena, a editar: abre o editor com ela. */
   aoEditarCena: (pecaId: string, cena: Cena) => void;
@@ -87,45 +91,48 @@ function Moldura({ peca, rotulo, ligada = false, aoTocar, aoEditar, children, ..
   aoEditar?: () => void;
 }) {
   const podeMudar = TAMANHOS[peca.tipo].length > 1;
+  // O arrasto não se faz com o VoiceOver: mover, mudar o tamanho e editar ficam nas ações dele.
+  const acoes = c.editar
+    ? [{ name: 'antes', label: 'Move earlier' }, { name: 'depois', label: 'Move later' },
+      ...(podeMudar ? [{ name: 'tamanho', label: 'Change size' }] : []), { name: 'tirar', label: 'Remove' }]
+    : [{ name: 'editar', label: 'Edit the drawer' }];
   return (
     <View style={{ width: c.largura, height: c.altura }}>
       <Toque
-        escala={ESCALA.cartao}
+        escala={c.editar ? 1 : ESCALA.cartao}
         raio={18}
         onPress={() => {
-          if (c.editar) { hapticSelection(); c.aoEscolher(peca.id); return; }
+          // A editar, a peça não se abre: move-se com o dedo (Gaveta.tsx).
+          if (c.editar) return;
           aoTocar();
         }}
-        onLongPress={c.editar ? undefined : () => { hapticSelection(); c.aoSegurar(); }}
-        delayLongPress={380}
         accessibilityRole="button"
-        accessibilityLabel={c.editar ? `Move ${rotulo}` : rotulo}
-        accessibilityState={{ selected: c.escolhida }}
-        style={[
-          styles.peca,
-          ligada && styles.ligada,
-          c.editar && styles.aEditar,
-          c.escolhida && styles.escolhida,
-        ]}
+        accessibilityLabel={rotulo}
+        accessibilityHint={c.editar ? undefined : 'Hold to edit the drawer'}
+        accessibilityActions={acoes}
+        onAccessibilityAction={(e) => {
+          const n = e.nativeEvent.actionName;
+          if (n === 'editar') c.aoSegurar();
+          else if (n === 'antes') c.aoMoverUm(peca.id, -1);
+          else if (n === 'depois') c.aoMoverUm(peca.id, 1);
+          else if (n === 'tamanho') c.aoRedimensionar(peca.id);
+          else if (n === 'tirar') c.aoTirar(peca.id);
+        }}
+        style={[styles.peca, ligada && styles.ligada]}
       >
         {children}
       </Toque>
       {c.editar ? (
         <>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${rotulo}`} hitSlop={8}
+          {/* O − de tirar, como nos widgets do iPhone. */}
+          <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${rotulo}`} hitSlop={10}
             onPress={() => { hapticSelection(); c.aoTirar(peca.id); }} style={[styles.botaoDaEdicao, styles.tirar]}>
-            <Ionicons name="close" size={15} color={TINTA_LIGADA} />
+            <Ionicons name="remove" size={16} color={colors.text} />
           </Pressable>
           {aoEditar ? (
             <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${rotulo}`} hitSlop={8}
               onPress={() => { hapticSelection(); aoEditar(); }} style={[styles.botaoDaEdicao, styles.editarCena]}>
               <Ionicons name="pencil" size={13} color={colors.text} />
-            </Pressable>
-          ) : null}
-          {podeMudar ? (
-            <Pressable accessibilityRole="button" accessibilityLabel={`Resize ${rotulo}`} hitSlop={8}
-              onPress={() => { hapticSelection(); c.aoRedimensionar(peca.id); }} style={[styles.botaoDaEdicao, styles.tamanho]}>
-              <Ionicons name="resize" size={14} color={colors.text} />
             </Pressable>
           ) : null}
         </>
@@ -164,8 +171,21 @@ const larga = (p: Props) => p.peca.tamanho !== '1x1';
 // O que está a tocar e o PC
 // ---------------------------------------------------------------------------
 
+/**
+ * A capa do que está a tocar sem as barras pretas (16/11): a capa grande quando
+ * já está em cache (a do leitor), e até lá a das listas -- a miniatura 16:9 do
+ * vídeo, que o `cover` corta ao centro. O `artworkUrl` cru é a 4:3 do YouTube,
+ * com faixas pretas em cima e em baixo.
+ */
+function useCapaLimpa(t: Parameters<typeof capaGrande>[0] | null): string | null {
+  const grande = useSyncExternalStore(ouvirCapasGrandes, () => (t ? capaGrande(t) : null));
+  if (!t) return null;
+  return grande && grande !== capaDeRecurso(t) ? grande : capaParaLista(t.artworkUrl) ?? grande;
+}
+
 function PecaAgora(p: Props) {
   const current = usePlayer((s) => s.current);
+  const capa = useCapaLimpa(current);
   const isPlaying = usePlayer((s) => s.isPlaying);
   const togglePlay = usePlayer((s) => s.togglePlay);
   const grande = p.peca.tamanho === '4x2';
@@ -185,6 +205,7 @@ function PecaAgora(p: Props) {
   const titulo = tituloDaFaixa(current);
   const artista = displayArtist(current);
   const lado = p.altura - 20;
+  const capaLimpa = capa;
   const botao = (
     <Pressable accessibilityRole="button" accessibilityLabel={isPlaying ? 'Pause' : 'Play'} hitSlop={10}
       onPress={() => { hapticSelection(); void togglePlay(); }} style={styles.play}>
@@ -195,7 +216,7 @@ function PecaAgora(p: Props) {
     <Moldura {...p} rotulo={`Now playing: ${titulo}`} aoTocar={p.abrirLeitor}>
       {grande ? (
         <View style={[styles.agora, { padding: 10 }]}>
-          <Image source={current.artworkUrl ? { uri: current.artworkUrl } : null} style={[styles.capaDoAgora, { width: lado, height: lado }]} contentFit="cover" transition={200} />
+          <Image source={capaLimpa ? { uri: capaLimpa } : null} style={[styles.capaDoAgora, { width: lado, height: lado }]} contentFit="cover" transition={200} />
           <View style={{ flex: 1, minWidth: 0, justifyContent: 'center', gap: 2 }}>
             <Text style={styles.micro}>NOW PLAYING</Text>
             <Text numberOfLines={2} style={[styles.nome, { fontSize: 15 }]}>{titulo}</Text>
@@ -205,7 +226,7 @@ function PecaAgora(p: Props) {
         </View>
       ) : (
         <View style={StyleSheet.absoluteFill}>
-          <Image source={current.artworkUrl ? { uri: current.artworkUrl } : null} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
+          <Image source={capaLimpa ? { uri: capaLimpa } : null} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
           <LinearGradient colors={['rgba(6,6,8,0)', 'rgba(6,6,8,0.82)']} locations={[0.35, 1]} style={StyleSheet.absoluteFill} />
           <View style={styles.rodape}>
             <View style={{ flex: 1, minWidth: 0 }}>
@@ -327,7 +348,13 @@ function PecaAmigo(p: Props & { peca: Extract<Peca, { tipo: 'amigo' }> }) {
     </View>
   );
   return (
-    <Moldura {...p} rotulo={nome} aoTocar={() => { hapticSelection(); p.fechar(); abrirFolhaDoAmigo(p.peca.amigoId); }}>
+    <Moldura {...p} rotulo={nome} aoTocar={() => {
+      hapticSelection();
+      // A folha "o que ele está a ouvir" só abre com uma música (16/11: sem ela, o
+      // toque só fechava a gaveta). Sem música, o perfil dele.
+      if (faixa) { p.fechar(); abrirFolhaDoAmigo(p.peca.amigoId); }
+      else p.irPara({ tipo: 'perfil', userId: p.peca.amigoId });
+    }}>
       {grande ? (
         <View style={styles.artista}>
           {cara}
@@ -487,8 +514,6 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(233,234,238,0.1)',
   },
   ligada: { backgroundColor: LIGADA, borderColor: LIGADA },
-  aEditar: { transform: [{ scale: 0.965 }], borderColor: 'rgba(201,205,214,0.45)', borderWidth: 1 },
-  escolhida: { transform: [{ scale: 1.035 }], borderColor: LIGADA, borderWidth: 2, zIndex: 3 },
   pequena: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 4 },
   larga: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12 },
   nome: { color: colors.text, fontSize: 13, fontWeight: '700' },
@@ -510,7 +535,6 @@ const styles = StyleSheet.create({
     position: 'absolute', width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center',
     shadowColor: '#000', shadowOpacity: 0.45, shadowRadius: 6, shadowOffset: { width: 0, height: 3 },
   },
-  tirar: { top: -4, left: -4, backgroundColor: LIGADA },
+  tirar: { top: -6, left: -6, backgroundColor: 'rgba(58,58,64,0.96)', borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(233,234,238,0.25)' },
   editarCena: { top: -4, right: -4, backgroundColor: '#2B2D33', borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(233,234,238,0.2)' },
-  tamanho: { bottom: -4, right: -4, backgroundColor: '#2B2D33', borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(233,234,238,0.2)' },
 });

@@ -6,6 +6,7 @@ import {
   apagarEspaco, arrumar, ativar, chaveDaPeca, espacoAtivo, gavetaInicial, juntar, lerGaveta, MAXIMO_DE_ESPACOS,
   MAXIMO_DE_PECAS, novoEspaco, proximaVelocidade, proximoTamanho, proximoTemporizador, renomear, rotuloDaVelocidade,
   TAMANHOS, temPeca, tirar, trocar, type Gaveta, type Peca,
+  mover, moverNaLista, definirTamanho, tamanhoMaisPerto, posicaoNoPonto,
   CENAS_PRONTAS, lerCena, mudarCena, proximaEscolha, resumoDaCena,
   ARRANQUES_A_MOSTRAR, lerMemoriaDaDescoberta, oQueMostrar, comCenaDeOrigem,
 } from '../src/lib/gaveta.ts';
@@ -204,6 +205,31 @@ console.log('\na grelha');
     }
     return true;
   })());
+}
+
+console.log('\narrastar e puxar o canto (16/11)');
+{
+  const g = gavetaInicial({ recentes: [{ tipo: 'artista', nome: 'Isak', capas: [] }], amigos: [{ id: 'u1', nome: 'Rita', avatar: null }], temPc: true });
+  const e = g.ativo;
+  const ids = espacoAtivo(g).pecas.map((p) => p.id);
+  const movida = mover(g, e, ids[0]!, 2);
+  check('mover leva a peça para a posição e empurra as outras', espacoAtivo(movida).pecas.map((p) => p.id).join() === [ids[1], ids[2], ids[0], ...ids.slice(3)].join());
+  check('para lá do fim fica no fim', espacoAtivo(mover(g, e, ids[0]!, 99)).pecas.at(-1)?.id === ids[0]);
+  check('para o mesmo sítio não muda nada', espacoAtivo(mover(g, e, ids[1]!, 1)).pecas.map((p) => p.id).join() === ids.join());
+  check('moverNaLista não estraga o original', moverNaLista(['a', 'b', 'c'].map((id) => ({ id })), 'c', 0).map((p) => p.id).join() === 'c,a,b');
+  check('um controlo puxado para duas colunas fica 2x1', tamanhoMaisPerto('controlo', 2.2, 1.1) === '2x1');
+  check('o que está a tocar puxado para pequeno fica 2x2 (não sai dos tamanhos dele)', tamanhoMaisPerto('agora', 1, 1) === '2x2');
+  check('uma origem a meio caminho de 2x2 vai para 2x2', tamanhoMaisPerto('origem', 1.9, 1.8) === '2x2');
+  const agora = espacoAtivo(g).pecas.find((p) => p.tipo === 'agora')!;
+  check('definirTamanho só aceita os tamanhos do tipo',
+    espacoAtivo(definirTamanho(g, e, agora.id, '1x1')).pecas.find((p) => p.id === agora.id)!.tamanho === agora.tamanho
+    && espacoAtivo(definirTamanho(g, e, agora.id, '2x2')).pecas.find((p) => p.id === agora.id)!.tamanho === '2x2');
+  const pecas = espacoAtivo(g).pecas;
+  const { lugares } = arrumar(pecas);
+  const ordem = pecas.map((p) => p.id);
+  const segundo = lugares.find((l) => l.id === ordem[1])!;
+  check('largar em cima de uma peça vai para a posição dela', posicaoNoPonto(lugares, ordem, segundo.coluna + 0.5, segundo.linha + 0.5) === 1);
+  check('largar por baixo de tudo vai para o fim', posicaoNoPonto(lugares, ordem, 1, 99) === ordem.length - 1);
 }
 
 if (mau) {

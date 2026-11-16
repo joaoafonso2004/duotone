@@ -30,6 +30,18 @@ export const MEDIDAS: Readonly<Record<Tamanho, { colunas: number; linhas: number
 
 export const COLUNAS = 4;
 
+/**
+ * O raio dos cantos da Home quando desliza para mostrar a gaveta (16/11): o dos
+ * cantos do ecrã do iPhone, para a Home aberta ter o canto do próprio aparelho.
+ * Com o ecrã quadrado (botão de início: sem margem de baixo), um canto discreto.
+ */
+export function raioDosCantosDoEcra(larguraDoEcra: number, margemDeBaixo: number): number {
+  if (margemDeBaixo <= 0) return 14;
+  if (larguraDoEcra >= 393) return 55;
+  if (larguraDoEcra >= 390) return 47;
+  return 39;
+}
+
 /** Os controlos que uma peça pode ter: cada um é uma definição que já existe. */
 export type Controlo = 'temporizador' | 'privado' | 'velocidade' | 'shuffle' | 'radio';
 export const CONTROLOS: readonly Controlo[] = ['temporizador', 'privado', 'velocidade', 'shuffle', 'radio'];
@@ -367,6 +379,64 @@ export function trocar(g: Gaveta, espacoId: string, a: string, b: string): Gavet
     [c[i], c[j]] = [c[j]!, c[i]!];
     return c;
   });
+}
+
+/**
+ * Arrastar uma peça (16/11, João: "segurar para mover, como no iPhone"): ela
+ * passa para a posição `para` da ordem do espaço, e as outras arrumam-se à volta
+ * (a grelha é densa, `arrumar`). Substitui o "tocar em duas para as trocar".
+ */
+export function mover(g: Gaveta, espacoId: string, pecaId: string, para: number): Gaveta {
+  return noEspaco(g, espacoId, (ps) => moverNaLista(ps, pecaId, para));
+}
+
+/** O mesmo numa lista solta: a grelha a meio do arrasto, antes de se gravar. */
+export function moverNaLista<T extends { id: string }>(ps: readonly T[], id: string, para: number): T[] {
+  const i = ps.findIndex((p) => p.id === id);
+  if (i < 0) return ps as T[];
+  const destino = Math.max(0, Math.min(ps.length - 1, Math.round(para)));
+  if (destino === i) return ps as T[];
+  const c = ps.slice();
+  const [peca] = c.splice(i, 1);
+  c.splice(destino, 0, peca!);
+  return c;
+}
+
+/** Um tamanho escolhido a puxar o canto: só os que o tipo da peça tem. */
+export function definirTamanho(g: Gaveta, espacoId: string, pecaId: string, tamanho: Tamanho): Gaveta {
+  return noEspaco(g, espacoId, (ps) => ps.map((p) => (
+    p.id === pecaId && p.tamanho !== tamanho && TAMANHOS[p.tipo].includes(tamanho) ? { ...p, tamanho } : p
+  )));
+}
+
+/**
+ * Puxar o canto: das colunas e linhas onde o dedo está, o tamanho do tipo que
+ * fica mais perto (as linhas pesam mais: uma peça alta muda muito a grelha).
+ */
+export function tamanhoMaisPerto(tipo: TipoDePeca, colunas: number, linhas: number): Tamanho {
+  const opcoes = TAMANHOS[tipo];
+  let melhor = opcoes[0]!, distancia = Infinity;
+  for (const t of opcoes) {
+    const m = MEDIDAS[t];
+    const d = Math.abs(m.colunas - colunas) + Math.abs(m.linhas - linhas) * 1.5;
+    if (d < distancia - 1e-9) { melhor = t; distancia = d; }
+  }
+  return melhor;
+}
+
+/**
+ * Onde se larga uma peça: a posição, na ordem, da peça por baixo do ponto
+ * (em células da grelha; o ponto é o centro da peça que se arrasta). Por baixo
+ * de tudo, vai para o fim; num buraco, para a peça arrumada a seguir.
+ */
+export function posicaoNoPonto(lugares: readonly Lugar[], ordem: readonly string[], coluna: number, linha: number): number {
+  const dentro = lugares.find((l) => coluna >= l.coluna && coluna < l.coluna + l.colunas && linha >= l.linha && linha < l.linha + l.linhas);
+  if (dentro) return Math.max(0, ordem.indexOf(dentro.id));
+  const depois = lugares
+    .filter((l) => l.linha > linha || (l.linha <= linha && linha < l.linha + l.linhas && l.coluna > coluna))
+    .map((l) => ordem.indexOf(l.id))
+    .filter((i) => i >= 0);
+  return depois.length ? Math.min(...depois) : Math.max(0, ordem.length - 1);
 }
 
 export type ResultadoDeJuntar = { gaveta: Gaveta; motivo: null | 'repetida' | 'cheia' };

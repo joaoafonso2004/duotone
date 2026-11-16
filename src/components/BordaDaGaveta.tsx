@@ -113,7 +113,7 @@ export function VeuDaGaveta({ largura, deslize, visto, raio }: {
   largura: number;
   deslize: Animated.AnimatedInterpolation<number>;
   visto: Animated.AnimatedInterpolation<number>;
-  raio: Animated.AnimatedInterpolation<number> | Animated.AnimatedAddition<number>;
+  raio: number | Animated.AnimatedInterpolation<number> | Animated.AnimatedAddition<number>;
 }) {
   const aberta = useGaveta((s) => s.aberta);
   const evento = useMemo(() => Animated.event([{ nativeEvent: { translationX: dedoDaGaveta } }], { useNativeDriver: true }), []);

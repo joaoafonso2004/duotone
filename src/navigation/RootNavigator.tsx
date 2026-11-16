@@ -34,6 +34,8 @@ import { veuDoFundo } from '../state/transicaoDoLeitor';
 import { Gaveta } from '../components/Gaveta';
 import { BordaDaGaveta, CosturaDaGaveta, VeuDaGaveta } from '../components/BordaDaGaveta';
 import { aberturaVista, larguraDaGaveta, useEcraAtual } from '../state/gaveta';
+import { raioDosCantosDoEcra } from '../lib/gaveta';
+import { initialWindowMetrics } from 'react-native-safe-area-context';
 import { HandoffBanner } from '../components/HandoffBanner';
 import { FolhaDoOutroAparelho } from '../components/OutroAparelho';
 import { PlayerRoot } from '../components/PlayerRoot';
@@ -418,14 +420,19 @@ export function RootNavigator() {
   // deslizam para a direita com a abertura, e ela aparece por baixo.
   const { width: larguraDoEcra } = useWindowDimensions();
   const largura = larguraDaGaveta(larguraDoEcra);
+  // Os cantos da Home com a gaveta aberta (16/11, João: "ficam retos"): o raio
+  // animado no motor nativo não chegava ao recorte, e a Home abria com os cantos
+  // retos. Agora é fixo, do tamanho dos cantos do ecrã: fechada não se vê (o
+  // ecrã corta mais), aberta é o mesmo canto do iPhone.
+  const raioDoEcra = raioDosCantosDoEcra(larguraDoEcra, initialWindowMetrics?.insets.bottom ?? 0);
   const gaveta = useMemo(() => {
     const visto = aberturaVista(largura);
     return {
       visto,
       deslize: visto.interpolate({ inputRange: [0, 1], outputRange: [0, largura] }),
-      raio: visto.interpolate({ inputRange: [0, 1], outputRange: [0, 28] }),
+      raio: raioDoEcra,
     };
-  }, [largura]);
+  }, [largura, raioDoEcra]);
   // Os atalhos do ícone (7/10): Resume, Daily mix, Shuffle Liked Songs.
   useAtalhosDoIcone(session?.user.id ?? null);
 
