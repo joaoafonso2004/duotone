@@ -35,7 +35,7 @@ let focused=true, cleanup, social={conversation:null}, backs=0;
 const navigation={goBack:()=>backs++,navigate(){}};
 const target={kind:'friend',id:'friend-a'};
 const {ConversaScreen}=load('src/screens/ConversaScreen.tsx',{
-  react:{...React,useCallback:fn=>fn},'react-native':{KeyboardAvoidingView:'Keyboard',Platform:{OS:'ios'}},
+  react:{...React,useCallback:fn=>fn},'react-native':{Platform:{OS:'ios'}},'../components/Teclado':{EvitarTeclado:'Keyboard'},
   '@react-navigation/native':{useIsFocused:()=>focused,useFocusEffect:fn=>{cleanup=fn();}},
   'react-native-safe-area-context':{useSafeAreaInsets:()=>({top:59,bottom:34})},
   '../components/SocialHub':{SocialHub:'Hub'},'../components/socialTokens':{colors:{bg:'#000'}},

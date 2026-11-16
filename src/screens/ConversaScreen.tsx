@@ -1,5 +1,6 @@
 import React from 'react';
-import { KeyboardAvoidingView, Platform, View } from 'react-native';
+import { Platform, View } from 'react-native';
+import { EvitarTeclado } from '../components/Teclado';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,7 +32,8 @@ export function ConversaScreen({route,navigation}:NativeStackScreenProps<RootSta
   // substitui o paddingBottom do próprio estilo, e com o teclado fechado a
   // caixa de escrever ficava por baixo da barra do iPhone. O desvio negativo
   // desconta essa margem quando o teclado abre.
-  return <KeyboardAvoidingView behavior={Platform.OS==='ios'?'padding':undefined} keyboardVerticalOffset={-safe.bottom}
+  // O teclado anda com a conversa fotograma a fotograma (16/11, components/Teclado.tsx).
+  return <EvitarTeclado behavior={Platform.OS==='ios'?'padding':undefined} keyboardVerticalOffset={-safe.bottom}
     style={{flex:1,backgroundColor:colors.bg,paddingTop:safe.top}}>
     <View style={{flex:1,minHeight:0,paddingBottom:safe.bottom}}>
       {/* Um perfil, um artista ou uma playlist abrem por cima, na mesma pilha:
@@ -41,5 +43,5 @@ export function ConversaScreen({route,navigation}:NativeStackScreenProps<RootSta
     <TrackActionsSheet visible={!!menu} track={menu} onClose={()=>setMenu(null)}/>
     <YtPlaylistRecommendationSheet visible={!!album} playlistId={album?.id??null} playlistTitle={album?.titulo??null} playlistArtwork={album?.capa??null}
       album={album?{artista:album.artista,ano:album.ano,tipo:album.tipo}:undefined} onClose={()=>setAlbum(null)}/>
-  </KeyboardAvoidingView>;
+  </EvitarTeclado>;
 }

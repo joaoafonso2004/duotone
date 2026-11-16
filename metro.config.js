@@ -25,10 +25,21 @@ const RUNTIMES = {
   'react/jsx-runtime': path.join(PASTA_I18N, 'jsx-runtime.ts'),
   'react/jsx-dev-runtime': path.join(PASTA_I18N, 'jsx-dev-runtime.ts'),
 };
+// O MMKV por baixo do AsyncStorage no iPhone (16/11, src/lib/armazenamento.ts):
+// o `import AsyncStorage` do código da app vai para lá, e o código fica igual.
+// Nunca o das bibliotecas, nunca o do próprio armazém (que usa o verdadeiro
+// para ler o que lá estava) e nunca no PC.
+const ARMAZEM = path.join(__dirname, 'src', 'lib', 'armazenamento.ts');
 const resolverDeAntes = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   const destino = RUNTIMES[moduleName];
   const origem = path.normalize(context.originModulePath || '');
+  if (moduleName === '@react-native-async-storage/async-storage' && platform === 'ios'
+    && origem.startsWith(RAIZ)
+    && !origem.includes(`${path.sep}node_modules${path.sep}`)
+    && origem !== ARMAZEM) {
+    return { type: 'sourceFile', filePath: ARMAZEM };
+  }
   if (destino && platform !== 'web'
     && origem.startsWith(RAIZ)
     && !origem.includes(`${path.sep}node_modules${path.sep}`)

@@ -220,6 +220,7 @@ const TESTES = [
   `${TS} scripts/test-radio-sem-repetir.ts`,
   `${DUPLOS} scripts/test-fila-em-lote.ts`,
   `${TS} scripts/test-pastas-de-playlists.ts`,
+  `${DUPLOS} scripts/test-armazenamento.ts`,
   `${TS} scripts/test-exportar-biblioteca.ts`,
   `${TS} scripts/test-menu-da-playlist.ts`,
   `${RESOLVER} scripts/test-menu-do-lancamento.ts`,

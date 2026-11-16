@@ -16,6 +16,7 @@ import { AppState, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { UpdateSheet } from './src/components/UpdateSheet';
+import { ProvedorDoTeclado } from './src/components/Teclado';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { definirEstiloDaCapaDoEcraBloqueado } from './modules/duotone-remote-commands';
 import {
@@ -458,6 +459,8 @@ export default function App() {
     // Os gestos do leitor correm na thread da interface (3/10, Gesture Handler):
     // seguem o dedo mesmo com o JavaScript ocupado.
     <GestureHandlerRootView style={{ flex: 1 }}>
+    {/* O teclado que anda com o dedo (16/11, components/Teclado.tsx). */}
+    <ProvedorDoTeclado>
     <SafeAreaProvider>
       <StatusBar style="light" />
       {/* A última rede: cada ecrã tem a sua (ver os navegadores), esta apanha
@@ -476,6 +479,7 @@ export default function App() {
           arranca por baixo enquanto ele toca. Ver `components/Abertura.tsx`. */}
       <Abertura />
     </SafeAreaProvider>
+    </ProvedorDoTeclado>
     </GestureHandlerRootView>
   );
 }
