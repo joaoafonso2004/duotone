@@ -129,7 +129,7 @@ await repor(false);
     ['src/components/TrackActionsSheet.tsx', /case 'tocar-agora': void player\.tocarMusica\(/],
     ['src/desktop/paginas/BibliotecaPages.web.tsx', /props\.tocarMusica\(t, filteredTracks/],
     ['src/desktop/paginas/PlaylistPages.web.tsx', /props\.tocarMusica\(t, filteredTracks/],
-    ['src/navigation/RootNavigator.web.tsx', /const common = \{ play, tocarMusica, notify, more \}/],
+    ['src/navigation/RootNavigator.web.tsx', /const common = \{ play, tocarMusica, notify, more, share: openShareDialog \}/],
   ];
   for (const [f, re] of usam) assert.match(ler(f), re, `${f}: tocar numa música passa pelo tocarMusica`);
   assert.match(ler('src/screens/LibraryGroupScreen.tsx'), /label="Play all" small onPress=\{\(\) => playTrack\(tracks\[0\], tracks/,

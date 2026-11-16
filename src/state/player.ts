@@ -39,6 +39,7 @@ import { getLibrary } from '../api/library';
 import { cacheGet, cacheSet } from '../api/cache';
 import { lerFaixas } from '../lib/cacheDaBiblioteca';
 import { chavesDaMusica, chavesDeTodas } from '../lib/identidadeDaMusica';
+import { aEvitar, lembrarLote, lerMemoriaDoRadio, naoRepetir, ultimoLote, type MemoriaDoRadio } from '../lib/radioSemRepetir';
 import { chaveDeArtista, displayArtist } from '../lib/artistName';
 import {
   intervaloDosPontos, ordenarParaInserir, type Proveniencia,
@@ -1229,6 +1230,30 @@ async function comLancamentoNovo(
   return { lote: juntarAoLote(lote, novo.faixa, chaveDoArtistaPrincipal), marcar: novo.marcar };
 }
 
+// O Radio nunca devolve a mesma fila (16/11, lib/radioSemRepetir.ts): os
+// últimos lotes de cada semente, só no aparelho (nenhum pedido ao Supabase).
+const CHAVE_DA_MEMORIA_DO_RADIO = 'duotone:radio-lotes:v1';
+let lotesDoRadio: MemoriaDoRadio | null = null;
+async function lerMemoriaDoRadioGuardada(): Promise<MemoriaDoRadio> {
+  if (lotesDoRadio) return lotesDoRadio;
+  try {
+    const raw = await AsyncStorage.getItem(CHAVE_DA_MEMORIA_DO_RADIO);
+    lotesDoRadio = lerMemoriaDoRadio(raw ? JSON.parse(raw) : {});
+  } catch {
+    lotesDoRadio = {};
+  }
+  return lotesDoRadio;
+}
+/** Para os testes: um Radio como o primeiro de sempre. */
+export function esquecerLotesDoRadio(): void {
+  lotesDoRadio = {};
+}
+function lembrarLoteDoRadio(semente: string, tracks: readonly Track[]): void {
+  const m = lembrarLote(lotesDoRadio ?? {}, semente, tracks.map(trackKey), tracks.flatMap((t) => chavesDaMusica(t)));
+  lotesDoRadio = m;
+  void AsyncStorage.setItem(CHAVE_DA_MEMORIA_DO_RADIO, JSON.stringify(m)).catch(() => {});
+}
+
 async function chavesDasDescobertasRecentes(dono: string | null): Promise<Set<string>> {
   try {
     await trazerHistoricoDaConta(dono);
@@ -1993,15 +2018,22 @@ export const usePlayer = create<PlayerState>()(
     const valid = () => request === radioRequest && playbackRequest === playRequestId && get().current === current && get().queue === before.queue
       && get().radioMode === 'preparing' && donoDoSmartShuffle() === owner && !ouvirJuntos() && !seguindoAmigo() && !useConnectivity.getState().offline;
     try {
-      const [discovered, ouvidas] = await Promise.all([chavesDasDescobertasRecentes(owner), identidadesOuvidas()]);
+      const [discovered, ouvidas, memoria] = await Promise.all([
+        chavesDasDescobertasRecentes(owner), identidadesOuvidas(), lerMemoriaDoRadioGuardada(),
+      ]);
       if (!valid()) return false;
+      // O que os últimos Radios desta semente levaram (as tuas também) vai para o
+      // fim: ligar outra vez traz outras (16/11, lib/radioSemRepetir.ts).
+      const semente = tipo === 'mix' ? 'mix' : trackKey(current);
+      const evitar = aEvitar(memoria, semente);
+      const comMemoria = new Set([...discovered, ...evitar]);
       const heard = before.radioListeningSession?.owner === owner ? before.radioListeningSession.tracks : [];
       // Like this substitui Up next. Essas sugestões ainda podem servir;
       // excluem-se a música atual e o percurso que já se ouviu.
       const excluir = [...(tipo === 'mix' ? before.queue : [...past, current]), ...heard];
       // O Mix (18/10) parte de tudo o que se ouve, e não desta música.
       let lote: Track[] = [];
-      if (tipo === 'mix') lote = await loteDaMix(12, excluir, discovered, ouvidas);
+      if (tipo === 'mix') lote = await loteDaMix(12, excluir, comMemoria, ouvidas);
       else {
         // Um lote já mostrado fica na memória de sugestões. Uma nova escolha
         // explícita pode reutilizá-lo, sempre com a mesma música como âncora.
@@ -2011,8 +2043,9 @@ export const usePlayer = create<PlayerState>()(
           { sementes: context, semMemoria: true, comRepetidas: true },
         ], trackKey);
         for (const tentativa of tentativas) {
+          // "Sem memória" é sem a das sugestões de toda a app; a desta semente fica sempre.
           lote = filterSuggestions(await fetchRadioTracks([...tentativa.sementes], excluir, 12,
-            tentativa.semMemoria ? new Set<string>() : discovered, tentativa.comRepetidas ? 'automatic' : 'session', ouvidas));
+            tentativa.semMemoria ? evitar : comMemoria, tentativa.comRepetidas ? 'automatic' : 'session', ouvidas));
           if (!valid()) return false;
           if (lote.length) break;
         }
@@ -2023,10 +2056,12 @@ export const usePlayer = create<PlayerState>()(
       // música: sem lançamento ao ligar.
       const comNovo = tipo === 'mix' ? { lote, marcar: undefined } : await comLancamentoNovo(lote, context, [],
         crivoDoLancamento(excluir, lote, discovered, ouvidas, () => false));
-      const tracks = espalharArtistas(comNovo.lote,
+      // Quase o mesmo lote da última vez (uma semente com poucas parecidas): baralha-se antes de espalhar os artistas.
+      const tracks = espalharArtistas(naoRepetir(comNovo.lote, ultimoLote(memoria, semente), trackKey),
         (t) => chaveDeArtista(displayArtist(t)), [chaveDeArtista(displayArtist(current))]);
       if (!valid()) return false;
       if (!tracks.length) { set({ radioMode: 'off', radioStopped: true, radioError: 'No related music found for this session. Your queue is unchanged.' }); return false; }
+      lembrarLoteDoRadio(semente, tracks);
       invalidarPedidosDoSmartShuffle();
       // Preservar o percurso passado e a faixa atual; substituir só Up next.
       const queue = [...past, current, ...tracks];

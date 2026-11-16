@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { usePlayer, registarOuvirJuntos } from '../src/state/player.ts';
+import { usePlayer, registarOuvirJuntos, esquecerLotesDoRadio } from '../src/state/player.ts';
 import { rememberRadioListen, radioSessionSeeds } from '../src/lib/radioSession.ts';
 import { controlo, reporControlo } from './duplos/controlo.ts';
 import { displayArtist, chaveDeArtista } from '../src/lib/artistName.ts';
@@ -20,6 +20,8 @@ let pauses=0,plays=0,seeks=0;
 const initial=usePlayer.getState();
 function reset(){
   reporControlo();
+  // Cada caso é um Radio novo: sem a memória dos lotes (16/11, lib/radioSemRepetir.ts).
+  esquecerLotesDoRadio();
   const queue=[past,current,queued];
   usePlayer.setState({...initial,current,queue,queueIndex:1,positionMs:23_000,durationMs:60_000,
     radioMode:'off',radioContext:[],radioOwner:null,radioStopped:false,radioError:null,radioListeningSession:{owner:'utilizador-de-teste',tracks:[track('heard')]},
