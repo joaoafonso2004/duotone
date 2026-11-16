@@ -1,4 +1,5 @@
 import { useOfflineMode } from '../hooks/useOfflineMode';
+import { ListaAnimada } from '../components/ListaAnimada';
 import { OfflineNotice } from '../components/OfflineNotice';
 import { useAuth } from '../state/auth';
 import { isAudioCached,useAudioCache } from '../lib/youtubeCache';
@@ -206,14 +207,11 @@ export function SongsScreen() {
   const conteudoDaLista = useMemo(() => ({ paddingBottom: bottomPad, paddingTop: cab.espaco }), [bottomPad, cab.espaco]);
   // As posições das linhas contam com o espaço do cabeçalho e com o Play/Shuffle
   // por cima delas: a virtualização mede a partir do topo do conteúdo.
-  const [alturaDoTopoDaLista, setAlturaDoTopoDaLista] = useState(0);
   // A altura das linhas segue as listas compactas (10/10, personalização).
   const alturaDaFila = alturaDaLinha(useAparencia((s) => s.listas));
-  const posicaoDaLinha = useCallback((_: ArrayLike<Track> | null | undefined, index: number) => ({
-    length: alturaDaFila,
-    offset: cab.espaco + alturaDoTopoDaLista + alturaDaFila * index,
-    index,
-  }), [cab.espaco, alturaDoTopoDaLista, alturaDaFila]);
+  // Todas as linhas têm a mesma altura: a Legend List sabe onde cada uma fica
+  // sem as medir, e mede o cabeçalho ela própria (16/11).
+  const alturaFixa = useCallback(() => alturaDaFila, [alturaDaFila]);
 
   // Estáveis (27/9): com o `React.memo` do TrackRow, uma linha só se redesenha
   // quando muda o que ela mostra. O `current` já não passa por aqui -- cada
@@ -247,7 +245,7 @@ export function SongsScreen() {
     </>
   );
   const cabecalhoDaLista = (
-    <View onLayout={(e) => setAlturaDoTopoDaLista(e.nativeEvent.layout.height)}>
+    <View>
       {avisosDoTopo}
           {!selectMode && sortedTracks.length > 0 && (
             <View style={styles.actionRow}>
@@ -422,16 +420,16 @@ export function SongsScreen() {
         </View>
       ) : (
         <View style={{ flex: 1 }}>
-          <Animated.FlatList
+          {/* A Legend List (16/11, pedido do João): as linhas reaproveitam os
+              contentores em vez de montar e desmontar a cada ecrã rolado, e
+              com milhares de gostadas não há espaços em branco a rolar depressa.
+              A versão animada aceita o `Animated.event` nativo do título que encolhe. */}
+          <ListaAnimada
             ref={topo}
             data={sortedTracks}
             keyExtractor={chaveDaLinha}
-            initialNumToRender={12}
-            maxToRenderPerBatch={10}
-            updateCellsBatchingPeriod={50}
-            windowSize={7}
-            removeClippedSubviews
-            getItemLayout={posicaoDaLinha}
+            getFixedItemSize={alturaFixa}
+            estimatedItemSize={alturaDaFila}
             ListHeaderComponent={cabecalhoDaLista}
             contentContainerStyle={conteudoDaLista}
             onScroll={cab.onScroll}

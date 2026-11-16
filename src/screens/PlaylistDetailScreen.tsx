@@ -1,4 +1,5 @@
 import { useNotificationOverlay } from '../hooks/useNotificationOverlay';
+import { ListaAnimada } from '../components/ListaAnimada';
 import { menuDaPlaylist } from '../lib/menuDaPlaylist';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { avisarRemocao, avisarErro, avisarFeito, avisarInfo } from '../lib/avisoDeRemocao';
@@ -969,7 +970,10 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
         <EmptyState icon="search-outline" title={FRASES_DOS_ESTADOS.semCorrespondencias.titulo} subtitle={FRASES_DOS_ESTADOS.semCorrespondencias.corpo(playlistSearchQuery, 'songs')} />
         </View>
       ) : (
-        <Animated.FlatList
+        // A Legend List (16/11): mede o cabeçalho (o herói, que depende da
+        // largura do ecrã) e parte da altura das linhas para as que ainda não
+        // viu -- o que o `getItemLayout` não sabia fazer sem mentir.
+        <ListaAnimada
           onScroll={cab.onScroll}
           scrollEventThrottle={cab.scrollEventThrottle}
           scrollIndicatorInsets={{ top: cab.espaco }}
@@ -977,21 +981,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
           // As linhas apagadas dependem da rede e do que está no disco.
           extraData={offline ? revisaoDoAudio : -1}
           keyExtractor={(t) => t.id}
-          initialNumToRender={12}
-          maxToRenderPerBatch={10}
-          updateCellsBatchingPeriod={50}
-          windowSize={7}
-          removeClippedSubviews
-          /**
-           * Sem `getItemLayout`, e de proposito.
-           *
-           * Ele diz que a faixa `i` comeca em `i * altura` -- verdade sem
-           * cabecalho, mentira com ele: os deslocamentos passavam todos a
-           * faltar a altura do heroi, que depende da largura do ecra e nao se
-           * sabe de antemao. Era so uma optimizacao (nao ha `scrollToIndex`
-           * neste ecra), e uma optimizacao que mente sobre posicoes paga-se em
-           * espacos em branco a rolar depressa.
-           */
+          estimatedItemSize={64}
           ListHeaderComponent={cabecalhoDaLista}
           refreshControl={puxar}
           contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: bottomPad }}
