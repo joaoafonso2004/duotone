@@ -171,7 +171,6 @@ async function main() {
   find(n => n.type === 'SectionHeader' && n.props.titulo === 'Top Songs').props.aoCarregar(); render();
   assert.equal(folha().props.visible, true, 'a folha abriu');
   assert.deepEqual(ids(folha().props.musicas), todas);
-  assert.equal(folha().props.chavesTuas.size, 2, 'sabe quais são as tuas');
   folha().props.aoTocar(more[2]); assert.deepEqual(ids(calls.at(-1)[2]), todas, 'da folha, a fila é a página toda');
   player.shuffle = false; render(); folha().props.aoTocarTudo(true);
   assert.equal(calls.at(-1)[0], 'list'); assert.equal(calls.at(-1)[2], true, 'o Shuffle da folha baralha');

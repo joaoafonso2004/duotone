@@ -966,13 +966,13 @@ export function ArtistPage({ name, back, corNaJanela = false, ...props }: { name
   })), chaveDoTitulo)), [doCanal, outras, detalhesDaPesquisa]);
   const infoDaFaixa = useCallback((t: Track) => (pagina ? infoDe(pagina.info, t.sourceId, tituloDaFaixa(t), chaveDoTitulo) : null)
     ?? (infoDaBusca ? infoDe(infoDaBusca, t.sourceId, tituloDaFaixa(t), chaveDoTitulo) : null), [pagina, infoDaBusca]);
-  const guardadasPorOrdem = useMemo(() => ordenarMusicasDoArtista(tracks, ordem, infoDaFaixa), [tracks, ordem, infoDaFaixa]);
-  const outrasPorOrdem = useMemo(() => ordenarMusicasDoArtista(outrasSemRepetir, ordem, infoDaFaixa), [outrasSemRepetir, ordem, infoDaFaixa]);
-  // As tuas primeiro (o coração da linha marca-as), depois as outras dele --
-  // só quando a fonte certa responder (a pesquisa pelo nome chega antes do
-  // canal, e trocar uma pela outra mudava a lista debaixo do rato).
-  const musicas = useMemo(() => musicasDoArtista(guardadasPorOrdem, aProcurarMusicas ? [] : outrasPorOrdem),
-    [guardadasPorOrdem, outrasPorOrdem, aProcurarMusicas]);
+  // Uma lista só (16/11, pedido do João: "tudo o que é do artista deve estar
+  // na mesma lista e obedecer aos filtros"): as tuas e as outras dele juntas,
+  // pela ordem escolhida. As tuas continuam marcadas pelo coração da linha. As
+  // outras só entram quando a fonte certa responder (a pesquisa pelo nome chega
+  // antes do canal, e trocar uma pela outra mudava a lista debaixo do rato).
+  const musicas = useMemo(() => ordenarMusicasDoArtista(musicasDoArtista(tracks, aProcurarMusicas ? [] : outrasSemRepetir), ordem, infoDaFaixa),
+    [tracks, outrasSemRepetir, aProcurarMusicas, ordem, infoDaFaixa]);
   // O botão só aparece quando muda alguma coisa na lista (ou ainda a chegar).
   const mostrarOrdem = aProcurarMusicas || modosComDados(musicas, infoDaFaixa).length > 0;
   const detalheDaFaixa = useCallback((t: Track) => {
@@ -1017,8 +1017,6 @@ export function ArtistPage({ name, back, corNaJanela = false, ...props }: { name
     const q = filtro.trim();
     return q ? musicas.filter((t) => correspondeAPesquisa(q, tituloDaFaixa(t), displayArtist(t), t.album)) : musicas;
   }, [musicas, filtro]);
-  const tuasNaLista = useMemo(() => musicasFiltradas.filter((t) => chavesDaBiblioteca.has(`${t.source}:${t.sourceId}`)).length,
-    [musicasFiltradas, chavesDaBiblioteca]);
   // Os fãs e os parecidos (o catálogo, com as tuas como prova de quem ele é),
   // e a discografia partida em álbuns e em singles e EPs.
   const vizinhanca = useVizinhancaDoArtista(name, tracks, !data.loading);
@@ -1082,11 +1080,10 @@ export function ArtistPage({ name, back, corNaJanela = false, ...props }: { name
                 </Pressable>)}
               </View>}
             </View>
-            {/* Todas, sem botão: as tuas primeiro (com o coração), uma linha, e as
-                outras dele, que entram quando chegarem. A tabela monta ao rolar. */}
+            {/* Todas, sem botão, numa lista só pela ordem escolhida: as tuas com o
+                coração, e as outras dele entram quando chegarem. A tabela monta ao rolar. */}
             {aProcurarMusicas && !musicas.length ? <Carregando forma="linhas" quantas={5} /> : <>
               <TrackTable plain colunaDoArtista={false} showSavedBadge tracks={musicasFiltradas} listKey={`artista:${chaveDoArtista}`}
-                divisoria={{ antesDe: tuasNaLista, rotulo: `More from ${name}` }}
                 caraDaLinha={detalheDaFaixa} larguraDaCara={96}
                 onPlay={(t) => props.tocarMusica(t, musicas, undefined, { tipo: 'artista', nome: name })} onMore={props.more}
                 empty={filtro.trim() ? <Empty icon="search" title={FRASES_DOS_ESTADOS.semCorrespondencias.titulo} body={FRASES_DOS_ESTADOS.semCorrespondencias.corpo(filtro, 'songs')} />

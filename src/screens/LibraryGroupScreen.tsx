@@ -194,11 +194,12 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   const tracksDaAba = useMemo(() => ordenar(tracks), [tracks, ordenar]);
   // As do canal chegam com os álbuns; a pesquisa pelo nome é o recurso.
   const aCarregarOutras = loadingYtAlbums || (!doCanal && loadingYtTracks);
-  // As tuas primeiro (o coração da linha marca-as), depois as outras dele --
-  // só quando a fonte certa responder: a pesquisa pelo nome chega antes do
-  // canal, e mostrá-la para a trocar a seguir mudava a lista debaixo do dedo.
-  const musicas = useMemo(() => musicasDoArtista(tracksDaAba, aCarregarOutras ? [] : otherTracks),
-    [tracksDaAba, otherTracks, aCarregarOutras]);
+  // Uma lista só (16/11, como no PC): as tuas e as outras dele juntas, pela
+  // ordem escolhida (o coração da linha marca as tuas). As outras só quando a
+  // fonte certa responder: a pesquisa pelo nome chega antes do canal, e
+  // mostrá-la para a trocar a seguir mudava a lista debaixo do dedo.
+  const musicas = useMemo(() => ordenar(musicasDoArtista(tracks, aCarregarOutras ? [] : otherTracks)),
+    [tracks, otherTracks, aCarregarOutras, ordenar]);
   // O botão só aparece quando muda alguma coisa na lista (ou ainda a chegar).
   const mostrarOrdem = type === 'artist' && (aCarregarOutras
     || modosComDados(musicas, infoDaFaixa).length > 0);
@@ -290,7 +291,6 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
     else if (acao === 'tocar' || acao === 'baralhar' || acao === 'fila') void discoSemAbrir(d, acao);
   };
   const tocarTudo = () => { if (!waiting) void tocarLista(faixasDaAba, shuffleLigado, shuffleInteligente, { tipo: 'artista', nome: name }); };
-  const chavesTuas = useMemo(() => new Set(tracks.map((t) => `${t.source}:${t.sourceId}`)), [tracks]);
   const detalheDe = useCallback((t: Track) => detalheDaLinha(ordem, infoDaFaixa(t)) ?? undefined, [ordem, infoDaFaixa]);
   const tocarDaPagina = useCallback((t: Track) => tocarMusica(t, musicas, true, undefined, origemDaPagina),
     [tocarMusica, musicas, origemDaPagina]);
@@ -418,9 +418,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
         <MusicasDoArtistaSheet
           visible={verTodas}
           onClose={() => setVerTodas(false)}
-          nome={name}
           musicas={musicas}
-          chavesTuas={chavesTuas}
           ordem={ordem}
           mostrarOrdem={mostrarOrdem}
           aoMudarOrdem={escolherOrdem}

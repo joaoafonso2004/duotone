@@ -16,22 +16,31 @@ import type { Track } from '../types';
 
 const web = Platform.OS === 'web';
 
-/** Uma pílula como a do "Start a Jam" do cabeçalho do chat. */
-function Pilula({ rotulo, icone, texto, aCarregar, desligada, onPress }: {
+/**
+ * Uma ação da conversa (16/11, "não gosto de pílulas"): o ícone e o texto, sem
+ * contorno nem fundo; o fundo só aparece ao passar o rato, ao focar e ao
+ * carregar, como o ✕ ao lado (`SocialIconButton`). Serve o Play all, o Save as
+ * playlist e o Start a Jam do cabeçalho.
+ */
+export function AcaoDaConversa({ rotulo, icone, texto, aCarregar = false, desligada = false, cor, onPress }: {
   rotulo: string; icone: React.ComponentProps<typeof Ionicons>['name']; texto: string;
-  aCarregar: boolean; desligada: boolean; onPress: () => void;
+  aCarregar?: boolean; desligada?: boolean;
+  /** A cor do ícone e do texto: a de destaque quando há alguma coisa ao vivo (o amigo a ouvir). */
+  cor?: string;
+  onPress: () => void;
 }) {
+  const tom = cor ?? colors.textSecondary;
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={rotulo} accessibilityState={{ disabled: desligada, busy: aCarregar }}
       disabled={desligada} onPress={() => { if (!web) hapticSelection(); onPress(); }}
-      style={({ pressed, hovered }: any) => [{
-        flexDirection: 'row', alignItems: 'center', gap: 7, height: 34, paddingHorizontal: 14, borderRadius: 17,
-        borderWidth: 1, borderColor: colors.borderStrong, opacity: desligada && !aCarregar ? 0.5 : 1,
-      }, hovered && { backgroundColor: colors.surface }, pressed && { opacity: 0.7 }]}>
+      style={({ pressed, hovered, focused }: any) => [{
+        flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingHorizontal: 8, borderRadius: 8,
+        opacity: desligada && !aCarregar ? 0.5 : 1,
+      }, (pressed || hovered || focused) && { backgroundColor: colors.surfacePressed }]}>
       {aCarregar
-        ? <ActivityIndicator size="small" color={colors.text} style={{ width: 15, height: 15 }} />
-        : <Ionicons name={icone} size={15} color={colors.text} />}
-      <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>{texto}</Text>
+        ? <ActivityIndicator size="small" color={tom} style={{ width: 16, height: 16 }} />
+        : <Ionicons name={icone} size={16} color={tom} />}
+      <Text style={{ color: tom, fontSize: 13, fontWeight: '600' }}>{texto}</Text>
     </Pressable>
   );
 }
@@ -72,10 +81,11 @@ export function MusicasDaConversa({ alvo, conversa, carregadas }: {
 
   return (
     <>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <Pilula rotulo="Play all the songs from this chat" icone="play" texto="Play all"
+      {/* -8 à esquerda: o ícone fica alinhado com o resto da conversa, e o fundo do hover sai para fora. */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap', marginLeft: -8 }}>
+        <AcaoDaConversa rotulo="Play all the songs from this chat" icone="play" texto="Play all"
           aCarregar={aJuntar === 'tocar'} desligada={!!aJuntar} onPress={() => void juntar('tocar')} />
-        <Pilula rotulo="Save the songs from this chat as a playlist" icone="add" texto="Save as playlist"
+        <AcaoDaConversa rotulo="Save the songs from this chat as a playlist" icone="add" texto="Save as playlist"
           aCarregar={aJuntar === 'guardar'} desligada={!!aJuntar} onPress={() => void juntar('guardar')} />
       </View>
       <PromptSheet

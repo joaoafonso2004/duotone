@@ -122,7 +122,8 @@ caso('os balões não passam dos 62 % no PC, e dos 92 % de sempre no iPhone', ()
   assert.match(HUB, /maxWidth:web\?'62%':'92%'/);
 });
 caso('o cabeçalho da conversa tem "Start a Jam" (ou "Listen along" se ele está a ouvir), pela mesma porta do iPhone', () => {
-  assert.match(HUB, /onPress=\{\(\)=>ouvirJuntosCom\(friend\)\}\n\s+style=\{\(\{pressed\}:any\)=>\[\{flexDirection:'row',alignItems:'center',gap:8,height:34/);
+  // 16/11: sem pílula, a ação discreta das músicas da conversa.
+  assert.match(HUB, /\{friend\?<AcaoDaConversa rotulo=\{friend\.currentlyPlaying\?`Listen along with \$\{title\}`:`Start a Jam with \$\{title\}`\} onPress=\{\(\)=>ouvirJuntosCom\(friend\)\}/);
   assert.match(HUB, /\{friend\.currentlyPlaying\?'Listen along':'Start a Jam'\}/);
 });
 caso('o compositor no PC: o campo em pílula e o enviar redondo e branco com a seta; no iPhone o botão "Send" de sempre', () => {

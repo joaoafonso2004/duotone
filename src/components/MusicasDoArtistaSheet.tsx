@@ -18,18 +18,17 @@ const chave = (t: Track) => `${t.source}:${t.sourceId}`;
 /**
  * Todas as músicas de um artista (23/10, `docs/artista-ios-maquete.html`): o
  * "›" das Top Songs abre-as numa folha, por cima da página. Têm pesquisa, Most
- * played / Newest, Play e Shuffle, e as tuas separadas das dele. São as que a
- * página já tem em memória: abrir, procurar e ordenar não fazem pedidos.
+ * played / Newest, Play e Shuffle, numa lista só (16/11: as tuas com o coração,
+ * e já não à parte das dele). São as que a página já tem em memória: abrir,
+ * procurar e ordenar não fazem pedidos.
  */
 export function MusicasDoArtistaSheet({
-  visible, onClose, nome, musicas, chavesTuas, ordem, mostrarOrdem, aoMudarOrdem, detalhe, aoTocar, aoTocarTudo, aoMudarBiblioteca,
+  visible, onClose, musicas, ordem, mostrarOrdem, aoMudarOrdem, detalhe, aoTocar, aoTocarTudo, aoMudarBiblioteca,
 }: {
   visible: boolean;
   onClose: () => void;
-  nome: string;
-  /** Na ordem da página: as tuas primeiro, depois as dele. */
+  /** Na ordem da página. */
   musicas: readonly Track[];
-  chavesTuas: ReadonlySet<string>;
   ordem: OrdemDoArtista;
   mostrarOrdem: boolean;
   aoMudarOrdem: (o: OrdemDoArtista) => void;
@@ -47,13 +46,9 @@ export function MusicasDoArtistaSheet({
   const itens = React.useMemo<Item[]>(() => {
     const q = pesquisa.trim();
     const passa = (t: Track) => !q || correspondeAPesquisa(q, tituloDaFaixa(t), displayArtist(t), t.album);
-    const tuas = musicas.filter((t) => chavesTuas.has(chave(t)) && passa(t));
-    const dele = musicas.filter((t) => !chavesTuas.has(chave(t)) && passa(t));
-    const fora: Item[] = [];
-    if (tuas.length) fora.push({ tipo: 'grupo', rotulo: `In your library · ${tuas.length}` }, ...tuas.map((faixa) => ({ tipo: 'faixa' as const, faixa })));
-    if (dele.length) fora.push({ tipo: 'grupo', rotulo: `More from ${nome} · ${dele.length}` }, ...dele.map((faixa) => ({ tipo: 'faixa' as const, faixa })));
-    return fora;
-  }, [musicas, chavesTuas, pesquisa, nome]);
+    // Uma lista só (16/11), pela ordem da página: as tuas levam o coração da linha.
+    return musicas.filter(passa).map((faixa) => ({ tipo: 'faixa' as const, faixa }));
+  }, [musicas, pesquisa]);
 
   return (
     <BottomSheet visible={visible} onClose={onClose} titulo="Songs">

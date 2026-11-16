@@ -13,6 +13,7 @@ import {
   discografia, fasDoArtista, legendaDoDisco, metaDoAlbum, metaDoArtista, musicasAVista, musicasDoArtista,
   MUSICAS_A_VISTA, MUSICAS_NA_GRELHA, parecidosAVista,
 } from '../src/lib/musicasDoArtista.ts';
+import { ordenarMusicasDoArtista } from '../src/lib/ordemDoArtista.ts';
 
 let falhas = 0;
 function caso(nome: string, fn: () => void): void {
@@ -30,6 +31,12 @@ caso('as tuas primeiro, pela ordem delas, e depois as dele', () => {
 caso('uma que é tua e também está nas dele aparece uma vez, no sítio das tuas', () => {
   const lista = musicasDoArtista([t('a')], [t('z'), t('a'), t('a')]);
   assert.deepEqual(lista.map((x) => x.sourceId), ['a', 'z']);
+});
+caso('juntas, obedecem à ordem escolhida: uma dele mais nova passa à frente das tuas (16/11)', () => {
+  const ano: Record<string, number> = { a: 2023, b: 2024, z: 2026 };
+  const info = (x: { sourceId: string }) => (ano[x.sourceId] ? { ano: ano[x.sourceId] } : null);
+  const lista = ordenarMusicasDoArtista(musicasDoArtista([t('a'), t('b')], [t('z'), t('y')]), 'recentes', info as any);
+  assert.deepEqual(lista.map((x) => x.sourceId), ['z', 'b', 'a', 'y'], 'sem ano vai para o fim');
 });
 caso('o cabeçalho só diz quantas são tuas, e só quando se sabe e são', () => {
   assert.equal(metaDoArtista(0, false), null, 'nada de "0 songs"');
@@ -117,15 +124,16 @@ caso('doze na grelha do iPhone (todas no "›") e todas no PC, e o Play toca a p
   assert.match(iphone, /<MusicasDoArtistaSheet[\s\S]{0,120}musicas=\{musicas\}/);
   const folha = ler('src/components/MusicasDoArtistaSheet.tsx');
   assert.match(folha, /correspondeAPesquisa\(q, tituloDaFaixa\(t\), displayArtist\(t\), t\.album\)/, 'a pesquisa é em memória');
-  assert.match(folha, /`In your library · \$\{tuas\.length\}`/);
+  // 16/11: uma lista só, sem "In your library" e "More from" à parte.
+  assert.doesNotMatch(folha, /In your library · |More from \$\{nome\}/);
   assert.match(folha, /<TrackActionsSheet visible=\{!!acao\}/, 'o menu de uma música abre dentro da folha');
   assert.match(iphone, /const tocarDaPagina = useCallback\(\(t: Track\) => tocarMusica\(t, musicas, true, undefined, origemDaPagina\)/,
     'iPhone: uma linha (da grelha ou da folha) toca a página toda');
   // No PC estão todas na tabela (que monta ao rolar), sem "See all", com um
-  // filtro em memória e uma linha entre as tuas e as dele.
+  // filtro em memória, numa lista só (16/11: sem a linha "More from" entre as tuas e as dele).
   assert.match(pc, /<TrackTable plain colunaDoArtista=\{false\} showSavedBadge tracks=\{musicasFiltradas\}/);
   assert.match(pc, /correspondeAPesquisa\(q, tituloDaFaixa\(t\), displayArtist\(t\), t\.album\)/);
-  assert.match(pc, /divisoria=\{\{ antesDe: tuasNaLista, rotulo: `More from \$\{name\}` \}\}/);
+  assert.doesNotMatch(pc, /divisoria=|tuasNaLista/);
   assert.doesNotMatch(pc, /See all \$\{musicas\.length\} songs|MUSICAS_A_VISTA_NO_PC|setTodas/);
   assert.match(pc, /props\.tocarMusica\(t, musicas, undefined, \{ tipo: 'artista', nome: name \}\)/, 'PC: uma linha toca a página toda');
 });
@@ -138,9 +146,9 @@ caso('os fãs e os parecidos pela vizinhança confirmada, e os parecidos abrem a
   assert.match(iphone, /navigation\.push\('LibraryGroup', \{ type: 'artist', name: n, capa: f \}\)/, 'com a foto que se tocou');
   assert.match(pc, /irPara\(\{ tipo: 'artista', nome: n \}\)/);
 });
-caso('a lista é a das tuas mais as dele, e as dele só quando a fonte certa responde', () => {
-  assert.match(iphone, /musicasDoArtista\(tracksDaAba, aCarregarOutras \? \[\] : otherTracks\)/);
-  assert.match(pc, /musicasDoArtista\(guardadasPorOrdem, aProcurarMusicas \? \[\] : outrasPorOrdem\)/);
+caso('uma lista só, pela ordem escolhida, e as dele só quando a fonte certa responde (16/11)', () => {
+  assert.match(iphone, /ordenar\(musicasDoArtista\(tracks, aCarregarOutras \? \[\] : otherTracks\)\)/);
+  assert.match(pc, /ordenarMusicasDoArtista\(musicasDoArtista\(tracks, aProcurarMusicas \? \[\] : outrasSemRepetir\), ordem, infoDaFaixa\)/);
   assert.match(iphone, /<TrackRow track=\{t\} showSavedBadge acompanharATocar mostrarDuracao=\{false\}/, 'iPhone: as tuas marcadas');
   assert.match(pc, /<TrackTable plain colunaDoArtista=\{false\} showSavedBadge tracks=\{musicasFiltradas\}/, 'PC: as tuas marcadas');
 });

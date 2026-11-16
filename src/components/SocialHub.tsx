@@ -39,7 +39,7 @@ import { ConviteDeSessao } from './ConviteDeSessao';
 import { SkeletonDeConversas } from './Skeleton';
 import { usePuxarParaAtualizar } from './PuxarParaAtualizar';
 import { CabecalhoDoAmigo, FaixaPartilhada, FundoDaApp } from './ChatAmigo';
-import { MusicasDaConversa } from './MusicasDaConversa';
+import { AcaoDaConversa, MusicasDaConversa } from './MusicasDaConversa';
 import { useConnectivity } from '../state/connectivity';
 import { copiaEmMemoria, guardarCopiaDaConversa, lerCopiaDaConversa } from '../lib/copiaDasConversas';
 import { contarMusicasCarregadas, musicasUnicas, origemDaConversa } from '../lib/musicasDaConversa';
@@ -479,9 +479,9 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
               </Text>:null}
             </View>
           </Pressable>
-          {friend?<Pressable accessibilityRole="button" accessibilityLabel={friend.currentlyPlaying?`Listen along with ${title}`:`Start a Jam with ${title}`} onPress={()=>ouvirJuntosCom(friend)}
-            style={({pressed}:any)=>[{flexDirection:'row',alignItems:'center',gap:8,height:34,paddingHorizontal:14,borderRadius:17,borderWidth:1,borderColor:colors.borderStrong},pressed&&{opacity:0.7}]}>
-            <Ionicons name="headset-outline" size={15} color={colors.text}/><Text style={{color:colors.text,fontSize:13,fontWeight:'600'}}>{friend.currentlyPlaying?'Listen along':'Start a Jam'}</Text></Pressable>:null}
+          {/* Sem pílula (16/11): uma ação discreta, como as músicas da conversa por baixo. */}
+          {friend?<AcaoDaConversa rotulo={friend.currentlyPlaying?`Listen along with ${title}`:`Start a Jam with ${title}`} onPress={()=>ouvirJuntosCom(friend)}
+            icone="headset-outline" cor={friend.currentlyPlaying?accent:undefined} texto={friend.currentlyPlaying?'Listen along':'Start a Jam'}/>:null}
           <SocialIconButton label="Back to chats" icon={split?'close':'chevron-back'} onPress={closeChat}/>
         </View>}
         {/* As músicas da conversa (5/11): Play all e Save as playlist, com duas ou mais. */}
