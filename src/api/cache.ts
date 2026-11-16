@@ -48,16 +48,37 @@ function lembrar(key: string, valor: NaMemoria): void {
 export function esquecerCacheEmMemoria(): void {
   memoria.clear();
   aCaminho.clear();
+  aLerDoServidor.clear();
 }
 
-async function lerDoServidor<T>(key: string, maxAgeMs: number, guardar: boolean): Promise<T | null> {
-  try {
-    contarCache('servidor', guardar);
+/**
+ * A mesma chave lida ao mesmo tempo é UM pedido (16/11). A mistura do dia e as
+ * descobertas eram lidas duas vezes no mesmo segundo ao abrir a app (a vista
+ * Logs de 16/11). Só se partilha o pedido que está a meio: uma leitura a
+ * seguir volta ao servidor, porque o que é da conta pode ter mudado noutro
+ * aparelho. Cada um aplica a sua validade ao que veio.
+ */
+const aLerDoServidor = new Map<string, Promise<{ payload: unknown; fetched_at: string } | null>>();
+
+function buscarNoServidor(key: string, guardar: boolean): Promise<{ payload: unknown; fetched_at: string } | null> {
+  const pendente = aLerDoServidor.get(key);
+  if (pendente) return pendente;
+  contarCache('servidor', guardar);
+  const pedido = (async () => {
     const { data } = await supabase
       .from('yt_cache')
       .select('payload, fetched_at')
       .eq('cache_key', key)
       .maybeSingle();
+    return (data as { payload: unknown; fetched_at: string } | null) ?? null;
+  })().finally(() => { if (aLerDoServidor.get(key) === pedido) aLerDoServidor.delete(key); });
+  aLerDoServidor.set(key, pedido);
+  return pedido;
+}
+
+async function lerDoServidor<T>(key: string, maxAgeMs: number, guardar: boolean): Promise<T | null> {
+  try {
+    const data = await buscarNoServidor(key, guardar);
     const em = data ? new Date(data.fetched_at as string).getTime() : 0;
     if (!data || Date.now() - em > maxAgeMs) {
       if (guardar) lembrar(key, { payload: FALTA, em: Date.now() });

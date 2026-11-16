@@ -61,6 +61,14 @@ async function caso(nome, f) {
     await cache.cacheGet('conta', HORA);
     assert.equal(leituras, 2);
   });
+  await caso('o que é da conta lido duas vezes AO MESMO TEMPO é um pedido só (16/11)', async () => {
+    linhas.set('conta-junta', { payload: 7, fetched_at: new Date().toISOString() });
+    const [a, b] = await Promise.all([cache.cacheGet('conta-junta', HORA), cache.cacheGet('conta-junta', HORA)]);
+    assert.deepEqual([a, b], [7, 7]);
+    assert.equal(leituras, 1, 'os dois partilham o pedido a meio');
+    await cache.cacheGet('conta-junta', HORA);
+    assert.equal(leituras, 2, 'uma leitura a seguir volta ao servidor');
+  });
   await caso('uma falta também fica lembrada, e o cacheSet a seguir substitui-a', async () => {
     assert.equal(await cache.cacheGet('b', HORA, { memoria: true }), null);
     assert.equal(await cache.cacheGet('b', HORA, { memoria: true }), null);

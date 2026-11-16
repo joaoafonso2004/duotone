@@ -329,10 +329,37 @@ export async function getFaixasComecadas(limite: number): Promise<{
     }));
 }
 
-export async function getHeavyRotation(limit = 10): Promise<Track[]> {
+/**
+ * As mais tocadas (16/11): a Home, as misturas e a descoberta pediam-nas cada
+ * uma com o seu tamanho (10, 30, 60...), e na abertura saíam dois ou três
+ * pedidos iguais no mesmo segundo (a vista Logs de 16/11). Agora é UM pedido,
+ * do tamanho maior, que fica 10 min em memória por conta; cada um fica com o
+ * princípio da lista, que é a mesma ordem. Uma falha não fica guardada.
+ */
+const HEAVY_MAIOR = 60;
+const HEAVY_VALE_MS = 10 * 60 * 1000;
+const heavyEmMemoria = new Map<string, { em: number; pedido: Promise<Track[]> }>();
+
+async function lerHeavyRotation(limit: number): Promise<Track[]> {
   const { data, error } = await supabase.rpc('get_heavy_rotation', { limit_val: limit });
   if (error) throw error;
   return (data ?? []).map(rowToTrack);
+}
+
+export async function getHeavyRotation(limit = 10): Promise<Track[]> {
+  const conta = await idDaConta().catch(() => null);
+  if (!conta) return lerHeavyRotation(limit);
+  const tamanho = Math.max(limit, HEAVY_MAIOR);
+  const chave = `${conta}:${tamanho}`;
+  const guardado = heavyEmMemoria.get(chave);
+  if (guardado && Date.now() - guardado.em < HEAVY_VALE_MS) return guardado.pedido.then((l) => l.slice(0, limit));
+  const pedido = lerHeavyRotation(tamanho);
+  heavyEmMemoria.set(chave, { em: Date.now(), pedido });
+  void pedido.then(
+    (lista) => { if (!lista.length && heavyEmMemoria.get(chave)?.pedido === pedido) heavyEmMemoria.delete(chave); },
+    () => { if (heavyEmMemoria.get(chave)?.pedido === pedido) heavyEmMemoria.delete(chave); },
+  );
+  return pedido.then((l) => l.slice(0, limit));
 }
 
 /**
@@ -452,19 +479,27 @@ export interface TopArtist {
  * partilham o mesmo. Sem conta lida, não se guarda nada.
  */
 const TOP_VALE_MS = 10 * 60 * 1000;
+/**
+ * Um tamanho só (16/11): guardar por tamanho deixava 8, 20, 200 e o resto
+ * irem cada um ao servidor, e a vista Logs de 16/11 mostrou quatro pedidos no
+ * mesmo segundo ao abrir a app. Pede-se o maior e cada um fica com o princípio
+ * (a lista vem ordenada pelas reproduções, por isso é a mesma).
+ */
+const TOP_MAIOR = 200;
 const topEmMemoria = new Map<string, { em: number; pedido: Promise<TopArtist[]> }>();
 
 export async function getTopArtists(limit = 8): Promise<TopArtist[]> {
   const conta = await idDaConta().catch(() => null);
   if (!conta) return lerTopArtists(limit);
-  const chave = `${conta}:${limit}`;
+  const tamanho = Math.max(limit, TOP_MAIOR);
+  const chave = `${conta}:${tamanho}`;
   const guardado = topEmMemoria.get(chave);
-  if (guardado && Date.now() - guardado.em < TOP_VALE_MS) return guardado.pedido;
-  const pedido = lerTopArtists(limit);
+  if (guardado && Date.now() - guardado.em < TOP_VALE_MS) return guardado.pedido.then((l) => l.slice(0, limit));
+  const pedido = lerTopArtists(tamanho);
   topEmMemoria.set(chave, { em: Date.now(), pedido });
   // Uma leitura falhada devolve [] e não fica: a seguinte tenta outra vez.
   void pedido.then((lista) => { if (!lista.length && topEmMemoria.get(chave)?.pedido === pedido) topEmMemoria.delete(chave); });
-  return pedido;
+  return pedido.then((l) => l.slice(0, limit));
 }
 
 async function lerTopArtists(limit: number): Promise<TopArtist[]> {

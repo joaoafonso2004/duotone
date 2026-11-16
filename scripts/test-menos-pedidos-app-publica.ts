@@ -22,10 +22,19 @@ const ler = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'ut
 
 console.log('\nos artistas mais ouvidos');
 const plays = ler('src/api/plays.ts');
-await caso('ficam 10 minutos em memória, por conta e por tamanho', () => {
+await caso('ficam 10 minutos em memória, por conta, e um tamanho só (16/11)', () => {
   assert.match(plays, /const TOP_VALE_MS = 10 \* 60 \* 1000;/);
-  assert.match(plays, /const chave = `\$\{conta\}:\$\{limit\}`;/);
-  assert.match(plays, /if \(guardado && Date\.now\(\) - guardado\.em < TOP_VALE_MS\) return guardado\.pedido;/);
+  // 16/11: guardar por tamanho deixava 8, 20 e 200 irem cada um ao servidor
+  // (quatro pedidos no mesmo segundo ao abrir). Pede-se o maior e corta-se.
+  assert.match(plays, /const TOP_MAIOR = 200;/);
+  assert.match(plays, /const tamanho = Math\.max\(limit, TOP_MAIOR\);\n\s+const chave = `\$\{conta\}:\$\{tamanho\}`;/);
+  assert.match(plays, /if \(guardado && Date\.now\(\) - guardado\.em < TOP_VALE_MS\) return guardado\.pedido\.then\(\(l\) => l\.slice\(0, limit\)\);/);
+  assert.match(plays, /return pedido\.then\(\(l\) => l\.slice\(0, limit\)\);/);
+});
+await caso('as mais tocadas: um pedido do tamanho maior, 10 minutos por conta (16/11)', () => {
+  assert.match(plays, /const HEAVY_MAIOR = 60;/);
+  assert.match(plays, /const tamanho = Math\.max\(limit, HEAVY_MAIOR\);/);
+  assert.match(plays, /if \(guardado && Date\.now\(\) - guardado\.em < HEAVY_VALE_MS\) return guardado\.pedido\.then\(\(l\) => l\.slice\(0, limit\)\);/);
 });
 await caso('sem conta lida não se guarda nada, e uma leitura falhada não fica', () => {
   assert.match(plays, /if \(!conta\) return lerTopArtists\(limit\);/);
