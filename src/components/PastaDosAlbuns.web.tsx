@@ -18,8 +18,9 @@ export function PastaDosAlbuns({ albuns, lado, onPress }: {
   lado: number;
   onPress: () => void;
 }) {
+  // Sempre três camadas (16/11): os lugares que faltam são cartões vazios atrás.
   const capas = capasDaPasta(albuns);
-  const camadas = CAMADAS_DA_PASTA.slice(CAMADAS_DA_PASTA.length - capas.length);
+  const camadas = CAMADAS_DA_PASTA;
   const ladoDaCapa = (lado * LADO_DA_CAPA_NA_PASTA) / 100;
   return (
     <Pressable
@@ -30,7 +31,7 @@ export function PastaDosAlbuns({ albuns, lado, onPress }: {
       style={[styles.playlistCard, { width: lado }]}
     >
       <View style={{ width: lado, height: lado }}>
-        {capas.map((capa, i) => {
+        {capas.map(({ capa, vazia }, i) => {
           const c = camadas[i];
           return (
             <div
@@ -39,7 +40,8 @@ export function PastaDosAlbuns({ albuns, lado, onPress }: {
                 position: 'absolute', width: ladoDaCapa, height: ladoDaCapa,
                 left: (lado * c.esquerda) / 100, top: (lado * c.topo) / 100,
                 opacity: c.opacidade, transform: `rotate(${c.rodar}deg)`,
-                borderRadius: RAIO.cartao, overflow: 'hidden', background: '#1b1b22',
+                borderRadius: RAIO.cartao, overflow: 'hidden', background: vazia ? '#16161b' : '#1b1b22',
+                border: vazia ? '1px solid rgba(255,255,255,.06)' : undefined,
                 boxShadow: '0 10px 26px rgba(0,0,0,.45)',
               }}
             >

@@ -16,7 +16,7 @@
  */
 import { MOTIVOS } from './menuDaFaixa';
 
-export type AcaoDoLancamento = 'abrir' | 'tocar' | 'baralhar' | 'fila' | 'guardar-album' | 'guardar' | 'artista';
+export type AcaoDoLancamento = 'abrir' | 'tocar' | 'baralhar' | 'fila' | 'guardar-album' | 'guardar' | 'partilhar' | 'artista';
 
 export type LinhaDoLancamento = {
   id: AcaoDoLancamento;
@@ -49,6 +49,11 @@ export function menuDoLancamento(
      * Sem isto (uma playlist da pesquisa, que não é um álbum), não há a linha.
      */
     guardado?: boolean;
+    /**
+     * Mandar a um amigo (16/11: "não dá para partilhar álbuns com amigos").
+     * Só onde quem abre o menu sabe abrir a folha de partilha.
+     */
+    partilhar?: boolean;
   },
 ): LinhaDoLancamento[] {
   const rede = s.semRede ? MOTIVOS.semRede : null;
@@ -64,6 +69,8 @@ export function menuDoLancamento(
       : { id: 'guardar-album', rotulo: 'Save album', icone: 'heart-outline', inicioDeGrupo: true, motivo: rede });
   }
   linhas.push({ id: 'guardar', rotulo: 'Save as playlist', icone: 'add-circle-outline', inicioDeGrupo: s.guardado === undefined, motivo: rede });
+  // As mesmas palavras e o mesmo ícone do menu de uma playlist (lib/menuDaPlaylist.ts).
+  if (s.partilhar) linhas.push({ id: 'partilhar', rotulo: 'Share with a friend…', icone: 'people-outline', inicioDeGrupo: true, motivo: rede });
   if (s.temArtista !== false) linhas.push({ id: 'artista', rotulo: 'View artist', icone: 'mic-outline' });
   return linhas;
 }

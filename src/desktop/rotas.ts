@@ -3,6 +3,7 @@ import { ICONES } from '../lib/icones';
 import type { Track } from '../types';
 import type { DiscoveryContext } from '../lib/contextoDaDescoberta';
 import type { OrigemDaFila } from '../lib/origemDaFila';
+import type { AlbumPartilhado } from '../lib/albumPartilhado';
 
 /**
  * Navegação do desktop: as rotas e o contrato que as páginas partilham.
@@ -40,7 +41,9 @@ export type Route =
 /** O que se pode partilhar com um amigo. */
 export type ShareTarget =
   | { itemType: 'track'; item: Track; name: string }
-  | { itemType: 'playlist'; item: { id: string; name: string }; name: string };
+  | { itemType: 'playlist'; item: { id: string; name: string }; name: string }
+  /** Um álbum do YouTube Music (16/11, supabase/partilhar-albuns.sql). */
+  | { itemType: 'album'; item: AlbumPartilhado; name: string };
 
 /**
  * O que quase todas as páginas precisam: tocar uma faixa (opcionalmente com a
@@ -63,6 +66,8 @@ export interface CommonPageProps {
    * mudar (o papel real: dono, colaborador ou leitor).
    */
   more: (track: Track, discoveryContext?: DiscoveryContext, origem?: OrigemDoMenu) => void;
+  /** O diálogo "Share with a friend…" da casca (16/11: os discos, em qualquer página). */
+  share?: (target: ShareTarget) => void;
 }
 
 /** De onde abriu o menu de uma faixa (o `more`). */

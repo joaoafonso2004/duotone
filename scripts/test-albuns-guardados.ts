@@ -43,8 +43,11 @@ caso('os mais recentes primeiro, cada um uma vez', () => {
 
 caso('a pasta: as três capas mais recentes, desenhadas de trás para a frente', () => {
   const a = (id: string, em: number) => paraGuardar({ id, title: id, artworkUrl: `capa-${id}` }, null, em);
-  assert.deepEqual(capasDaPasta([a('1', 1), a('2', 2), a('3', 3), a('4', 4)]), ['capa-2', 'capa-3', 'capa-4']);
-  assert.deepEqual(capasDaPasta([a('1', 1)]), ['capa-1']);
+  const capas = (l: ReturnType<typeof capasDaPasta>) => l.map((c) => (c.vazia ? 'vazia' : c.capa));
+  assert.deepEqual(capas(capasDaPasta([a('1', 1), a('2', 2), a('3', 3), a('4', 4)])), ['capa-2', 'capa-3', 'capa-4']);
+  // 16/11: sempre três camadas; com um álbum só, a capa fica à frente e os lugares de trás são cartões vazios.
+  assert.deepEqual(capas(capasDaPasta([a('1', 1)])), ['vazia', 'vazia', 'capa-1']);
+  assert.deepEqual(capas(capasDaPasta([a('1', 1), a('2', 2)])), ['vazia', 'capa-1', 'capa-2']);
   // As camadas da maquete escolhida: a de trás rodada para a esquerda e mais apagada, a da frente para a direita.
   assert.deepEqual(CAMADAS_DA_PASTA.map((c) => c.rodar), [-6, -1, 5]);
   assert.ok(CAMADAS_DA_PASTA[0].opacidade < CAMADAS_DA_PASTA[2].opacidade);

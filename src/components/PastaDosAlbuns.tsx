@@ -20,9 +20,9 @@ export function PastaDosAlbuns({ albuns, lado, onPress }: {
   lado: number;
   onPress: () => void;
 }) {
+  // Sempre três camadas (16/11): os lugares que faltam são cartões vazios atrás.
   const capas = capasDaPasta(albuns);
-  // Com uma ou duas capas, ficam as camadas da frente.
-  const camadas = CAMADAS_DA_PASTA.slice(CAMADAS_DA_PASTA.length - capas.length);
+  const camadas = CAMADAS_DA_PASTA;
   const ladoDaCapa = (lado * LADO_DA_CAPA_NA_PASTA) / 100;
   return (
     <Pressable
@@ -32,7 +32,7 @@ export function PastaDosAlbuns({ albuns, lado, onPress }: {
       style={({ pressed }) => [{ width: lado }, pressed && { opacity: 0.8 }]}
     >
       <View style={{ width: lado, height: lado }}>
-        {capas.map((capa, i) => {
+        {capas.map(({ capa, vazia }, i) => {
           const c = camadas[i];
           const uri = capaParaLista(capa);
           return (
@@ -52,8 +52,8 @@ export function PastaDosAlbuns({ albuns, lado, onPress }: {
             >
               {/* A sombra por fora e o corte por dentro: no iOS, uma sombra num
                   View com overflow: hidden fica cortada. */}
-              <View style={styles.dentro}>
-                {uri ? <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} /> : (
+              <View style={[styles.dentro, vazia && styles.vazia]}>
+                {vazia ? null : uri ? <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} /> : (
                   <View style={[StyleSheet.absoluteFill, styles.semCapa]}>
                     <Ionicons name="disc-outline" size={ladoDaCapa / 3} color={colors.textTertiary} />
                   </View>
@@ -83,6 +83,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
   },
   dentro: { flex: 1, borderRadius: radii.md, overflow: 'hidden' },
+  // O cartão vazio de trás: um cinzento da superfície com um fio, sem ícone.
+  vazia: { backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   semCapa: { alignItems: 'center', justifyContent: 'center' },
   titulo: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 },
 });

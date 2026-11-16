@@ -26,6 +26,7 @@ import { EmptyState } from '../components/EmptyState';
 import { SkeletonDeFaixas, SkeletonDePrateleira } from '../components/Skeleton';
 import { PillButton } from '../components/PillButton';
 import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
+import { ShareFriendSheet } from '../components/ShareFriendSheet';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { TrackRow } from '../components/TrackRow';
 import { YtPlaylistRecommendationSheet } from '../components/YtPlaylistRecommendationSheet';
@@ -273,6 +274,8 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   // O toque longo num disco (8/11): o menu dele, com as linhas do clique direito
   // do PC (`menuDoLancamento`). Sem "View artist": já se está na página dele.
   const [discoComMenu, setDiscoComMenu] = useState<Disco | null>(null);
+  // "Share with a friend…" num disco (16/11): o tipo 'album' da shared_items (supabase/partilhar-albuns.sql).
+  const [discoAPartilhar, setDiscoAPartilhar] = useState<Disco | null>(null);
   const offline = useConnectivity((s) => s.offline);
   const fazerNoDisco = (d: Disco, acao: AcaoDoLancamento) => {
     setDiscoComMenu(null);
@@ -283,6 +286,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
         .then((feito) => avisarFeito(feito === 'guardado' ? FRASES_DOS_ALBUNS.feitoGuardar : FRASES_DOS_ALBUNS.feitoTirar, d.title))
         .catch((e) => avisarErro(mensagemDeErro(e, "Couldn't update your library.")));
     }
+    else if (acao === 'partilhar') setDiscoAPartilhar(d);
     else if (acao === 'tocar' || acao === 'baralhar' || acao === 'fila') void discoSemAbrir(d, acao);
   };
   const tocarTudo = () => { if (!waiting) void tocarLista(faixasDaAba, shuffleLigado, shuffleInteligente, { tipo: 'artista', nome: name }); };
@@ -350,9 +354,19 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
       track={null}
       onClose={() => setDiscoComMenu(null)}
       cabecalho={discoComMenu ? { titulo: discoComMenu.title, subtitulo: legendaDoDisco(discoComMenu), capas: discoComMenu.artworkUrl ? [discoComMenu.artworkUrl] : [] } : null}
-      actions={discoComMenu ? menuDoLancamento(discoComMenu, { semRede: offline, temArtista: false, guardado: albunsGuardados.has(discoComMenu.id) })
+      actions={discoComMenu ? menuDoLancamento(discoComMenu, { semRede: offline, temArtista: false, guardado: albunsGuardados.has(discoComMenu.id), partilhar: true })
         .filter((a) => !a.motivo)
         .map((a) => ({ icon: a.icone as any, label: a.rotulo, onPress: () => fazerNoDisco(discoComMenu, a.id) })) : []}
+    />
+
+    <ShareFriendSheet
+      visible={!!discoAPartilhar}
+      itemType="album"
+      item={discoAPartilhar ? {
+        id: discoAPartilhar.id, titulo: discoAPartilhar.title, artista: type === 'artist' ? name : null,
+        capa: discoAPartilhar.artworkUrl, tipo: discoAPartilhar.tipo ?? null, ano: discoAPartilhar.ano ?? null,
+      } : null}
+      onClose={() => setDiscoAPartilhar(null)}
     />
 
     <YtPlaylistRecommendationSheet

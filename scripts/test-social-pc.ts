@@ -114,7 +114,7 @@ caso('o dia é uma pílula pequena em maiúsculas no PC, e o texto de sempre no 
   assert.match(HUB, /const estiloDoSeparador=web\n\s+\?\{alignSelf:'center' as const,fontSize:11,[^}]*textTransform:'uppercase' as const[^}]*borderRadius:999[^}]*\}\n\s+:\{alignSelf:'center' as const,fontSize:12,fontWeight:'600' as const,color:colors\.textTertiary,marginBottom:8,marginTop:4\};/);
 });
 caso('o que escreves é um balão claro com letra escura, só no PC e só quando é só texto (sem música, playlist nem resposta)', () => {
-  assert.match(HUB, /const claro=web&&minha&&!m\.trackData&&!m\.playlistId&&!cit;/);
+  assert.match(HUB, /const claro=web&&minha&&!m\.trackData&&!m\.playlistId&&!m\.album&&!cit;/);
   assert.match(HUB, /backgroundColor:claro\?colors\.text:\(minha\?tema\.soft:colors\.surface\),/);
   assert.match(HUB, /claro&&\{color:colors\.bg\}\]\}>\{m\.message\}<\/Text>/);
 });
@@ -152,7 +152,7 @@ caso('a música do momento de um amigo usa o menu novo; a tua mantém o "Remove 
 caso('a casca passa-lhe o `more` (o menu de qualquer lista), no perfil, no de um amigo e no Social', () => {
   assert.match(NAVEGADOR, /<ProfilePage aoMenuDaFaixa=\{\(t\) => void more\(t\)\} \/>/);
   assert.match(NAVEGADOR, /<ProfilePage userId=\{route\.userId\} back=\{back\} aoMenuDaFaixa=\{\(t\) => void more\(t\)\} \/>/);
-  assert.match(NAVEGADOR, /<SocialPage friendId=\{route\.friendId\} groupId=\{route\.groupId\} visible=\{!nowPlayingOpen && !jamOpen\} aoMenuDaFaixa=\{\(t\) => void more\(t\)\} \/>/);
+  assert.match(NAVEGADOR, /<SocialPage friendId=\{route\.friendId\} groupId=\{route\.groupId\} visible=\{!nowPlayingOpen && !jamOpen\} aoMenuDaFaixa=\{\(t\) => void more\(t\)\} \{\.\.\.common\} \/>/, 'e o comum: tocar e partilhar o álbum de uma mensagem (16/11)');
   assert.match(PAGINA_PERFIL, /aoMenuDaFaixa=\{aoMenuDaFaixa\}\/>/);
 });
 caso('no Social, o cartão de quem ouve, a música de uma mensagem e as de um grupo abrem o menu novo', () => {

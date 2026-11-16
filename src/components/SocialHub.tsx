@@ -28,7 +28,8 @@ import { useSocialBottomPadding } from './useSocialBottomPadding';
 import { useTheme } from '../state/theme';
 import { SocialButton,SocialModal,SocialIconButton,socialStyles as s } from './socialUI';
 import { SocialTrackActions } from './SocialTrackActions';
-import { SharedPlaylistCard } from './SharedPlaylistCard';
+import { SharedAlbumCard, SharedPlaylistCard } from './SharedPlaylistCard';
+import type { AlbumPartilhado } from '../lib/albumPartilhado';
 import { MessageBubble,ReactionRow } from './ReactionRow';
 import { BarraDeResposta,CitacaoDaResposta } from './RespostaNaConversa';
 import { acharOriginal,citadasPorCarregar,excertoDaMensagem,quemECitado } from '../lib/respostas';
@@ -52,7 +53,9 @@ import type { Playlist,Track } from '../types';
  * um artista, a conversa no iPhone) é o `irPara` da app (5/10, lib/destinos.ts):
  * os ecrãs que o montam já não escolhem ligar uma função e esquecer outra.
  */
-export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,novaConversa,procurar,conversationTarget,onCloseConversation,aoMenuDaFaixa}:{visible?:boolean;initialFriend?:string;initialGroup?:string;
+export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,novaConversa,procurar,conversationTarget,onCloseConversation,aoMenuDaFaixa,aoAbrirAlbum}:{visible?:boolean;initialFriend?:string;initialGroup?:string;
+  /** Um álbum mandado numa mensagem (16/11): cada plataforma abre o seu (a folha do iPhone, o diálogo do PC). */
+  aoAbrirAlbum?:(album:AlbumPartilhado)=>void;
   /** O PC (30/10): o menu de uma música da app, em vez da folha `SocialTrackActions`. */
   aoMenuDaFaixa?:(track:Track)=>void;
   /** A lupa do cabeçalho do Social no iPhone (9/10). */
@@ -393,7 +396,7 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
     if(group){
       corpo=<GroupMessage message={m} own={m.sender.id===myId} showSender={!seguida(m,index)} citacao={citacao(m)} onResponder={()=>responderA(m)} destacada={destacada===m.id}
           onMenu={abrirMenuDaMensagem?e=>abrirMenuDaMensagem(m,e):undefined} playlist={m.playlistId?playlistsDoChat.get(m.playlistId):undefined}
-          reactions={reacoes.get(m.id)??[]} myId={myId} aReagir={aReagir===m.id} onReagir={emoji=>void reagir(m.id,emoji)} onAbrirReacoes={()=>setAReagir(a=>a===m.id?null:m.id)} onFecharReacoes={()=>setAReagir(null)} onProfile={onProfile} onTrack={t=>aoMenuDaFaixa?aoMenuDaFaixa(t):setTrack(t)} onPlaylist={onPlaylist}/>;
+          reactions={reacoes.get(m.id)??[]} myId={myId} aReagir={aReagir===m.id} onReagir={emoji=>void reagir(m.id,emoji)} onAbrirReacoes={()=>setAReagir(a=>a===m.id?null:m.id)} onFecharReacoes={()=>setAReagir(null)} onProfile={onProfile} onTrack={t=>aoMenuDaFaixa?aoMenuDaFaixa(t):setTrack(t)} onPlaylist={onPlaylist} onAlbum={aoAbrirAlbum}/>;
     }else if(m.itemType==='sessao'&&m.sessionId){
       corpo=<ConviteDeSessao id={m.sessionId} mensagem={m.message} minha={minha} quem={m.sender.name}/>;
     }else if(m.playlistId&&m.message?.trim()===MENSAGEM_DO_CONVITE){
@@ -407,7 +410,8 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
       // No PC (30/10, da maquete) o que escreves é um balão CLARO com letra escura, e os balões não passam dos 62 %.
       // Com uma música, uma playlist ou uma resposta lá dentro fica o balão de sempre (a letra desses é clara).
       const cit=citacao(m);
-      const claro=web&&minha&&!m.trackData&&!m.playlistId&&!cit;
+      const claro=web&&minha&&!m.trackData&&!m.playlistId&&!m.album&&!cit;
+      const comCartao=!!(m.trackData||m.playlistId||m.album);
       corpo=<View style={{flexDirection:'row',alignItems:'flex-end',gap:6,alignSelf:minha?'flex-end':'flex-start',maxWidth:web?'62%':'92%'}}>
         {/* A cara de quem falou, ao lado do balão: só do lado dele, e só na
             última de um grupo -- nas outras fica o espaço, para alinharem. */}
@@ -426,18 +430,19 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
             // Sem borda (9/10): era o balão com uma moldura e o cartão com outra.
             borderWidth:destacada===m.id?1:0,
             borderColor:accent,
-            paddingHorizontal:m.trackData||m.playlistId?10:13,paddingVertical:m.trackData||m.playlistId?10:9,borderRadius:20,gap:8,
+            paddingHorizontal:comCartao?10:13,paddingVertical:comCartao?10:9,borderRadius:20,gap:8,
             // O canto cortado do lado de quem fala, só na última do grupo.
             ...(fimDoGrupo?{[minha?'borderBottomRightRadius':'borderBottomLeftRadius']:6}:{}),
           }}>
         {cit}
-        {!!m.message&&<Text selectable style={[s.text,{flexShrink:1,paddingHorizontal:m.trackData||m.playlistId?3:0},claro&&{color:colors.bg}]}>{m.message}</Text>}
+        {!!m.message&&<Text selectable style={[s.text,{flexShrink:1,paddingHorizontal:comCartao?3:0},claro&&{color:colors.bg}]}>{m.message}</Text>}
         {m.trackData&&<FaixaPartilhada faixa={m.trackData} minha={minha} onPress={()=>aoMenuDaFaixa?aoMenuDaFaixa(m.trackData!):setTrack(m.trackData)}
           onTocar={()=>void usePlayer.getState().tocarMusica(m.trackData!,
             // As músicas desta conversa, pela ordem dela, e de onde vêm (10/11): o
             // "From chat with …" do leitor e a seguinte da conversa. Era só esta, sem origem.
             musicasUnicas(messages.map(x=>x.trackData)),true,undefined,origemDaConversa({tipo:group?'grupo':'amigo',nome:title}))}/>}
         {m.playlistId&&<SharedPlaylistCard semFundo playlist={playlistsDoChat.get(m.playlistId)} onPress={()=>onPlaylist(m.playlistId!)}/>}
+        {m.album&&<SharedAlbumCard semFundo album={m.album} onPress={()=>aoAbrirAlbum?.(m.album!)}/>}
         </MessageBubble>
         <ReactionRow reactions={reacoes.get(m.id)??[]} myId={myId} own={minha}
           aberto={aReagir===m.id} onEscolher={emoji=>void reagir(m.id,emoji)} onFechar={()=>setAReagir(null)}

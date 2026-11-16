@@ -82,9 +82,17 @@ export function ordenarAlbuns(albuns: readonly AlbumGuardado[]): AlbumGuardado[]
     .filter((a) => (vistos.has(a.id) ? false : (vistos.add(a.id), true)));
 }
 
-/** As capas da pasta: as três mais recentes, a de trás primeiro (desenha-se de trás para a frente). */
-export function capasDaPasta(albuns: readonly AlbumGuardado[]): (string | null)[] {
-  return ordenarAlbuns(albuns).slice(0, 3).reverse().map((a) => a.capa);
+/**
+ * As capas da pasta: as três mais recentes, a de trás primeiro (desenha-se de
+ * trás para a frente). São sempre três camadas (16/11): com um álbum só, a capa
+ * ficava sozinha na camada da frente, rodada e encostada à direita, e parecia
+ * um erro. Os lugares que faltam ficam atrás, como cartões vazios.
+ */
+export type CamadaDaPasta = { capa: string | null; vazia: boolean };
+export function capasDaPasta(albuns: readonly AlbumGuardado[]): CamadaDaPasta[] {
+  const daFrente = ordenarAlbuns(albuns).slice(0, 3).reverse().map((a) => ({ capa: a.capa, vazia: false }));
+  const vazias: CamadaDaPasta[] = Array.from({ length: 3 - daFrente.length }, () => ({ capa: null, vazia: true }));
+  return [...vazias, ...daFrente];
 }
 
 /** "Billie Eilish · 2024", ou o que houver. */

@@ -4,13 +4,14 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import {LinearGradient} from 'expo-linear-gradient';
 import type {ChatGroup,Reaction,SharedItem} from '../api/social';
 import type {Playlist,Track} from '../types';
+import type {AlbumPartilhado} from '../lib/albumPartilhado';
 import {useTheme} from '../state/theme';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import {BotaoGuardar} from './BotaoGuardar';
 import {FriendAvatar} from './FriendAvatar';
 import {colors,radii} from './socialTokens';
 import {SocialButton,SocialIconButton,socialStyles as s} from './socialUI';
-import {SharedPlaylistCard} from './SharedPlaylistCard';
+import {SharedAlbumCard,SharedPlaylistCard} from './SharedPlaylistCard';
 import {MessageBubble,ReactionRow} from './ReactionRow';
 import {CapaDaFaixaPartilhada} from './CapaDaFaixaPartilhada';
 import {capasDaFaixaPartilhada} from '../lib/capaDoEcraBloqueado';
@@ -84,14 +85,16 @@ export function GroupEmptyState({group}:{group:ChatGroup}) {
  * mas desaparece quando a mesma pessoa fala de seguida: repetir o avatar e o
  * nome em cada linha era o que fazia o grupo parecer uma lista de recibos.
  */
-export function GroupMessage({message:m,own,showSender=true,playlist,reactions=[],myId,aReagir=false,onReagir,onAbrirReacoes,onFecharReacoes,onProfile,onTrack,onPlaylist,citacao,onResponder,onMenu,destacada=false}:{message:SharedItem;own:boolean;showSender?:boolean;playlist?:Playlist;
+export function GroupMessage({message:m,own,showSender=true,playlist,reactions=[],myId,aReagir=false,onReagir,onAbrirReacoes,onFecharReacoes,onProfile,onTrack,onPlaylist,onAlbum,citacao,onResponder,onMenu,destacada=false}:{message:SharedItem;own:boolean;showSender?:boolean;playlist?:Playlist;
   /** A citação, quando esta mensagem responde a outra. Ver RespostaNaConversa. */
   citacao?:React.ReactNode;onResponder?:()=>void;destacada?:boolean;
   /** O botão direito no PC: o menu da mensagem (24/10). */
   onMenu?:(e:any)=>void;
   reactions?:Reaction[];myId?:string;aReagir?:boolean;
   onReagir?:(emoji:string|null)=>void;onAbrirReacoes?:()=>void;onFecharReacoes?:()=>void;
-  onProfile:(id:string)=>void;onTrack:(track:Track)=>void;onPlaylist:(id:string)=>void}) {
+  onProfile:(id:string)=>void;onTrack:(track:Track)=>void;onPlaylist:(id:string)=>void;
+  /** Um álbum mandado (16/11). */
+  onAlbum?:(album:AlbumPartilhado)=>void}) {
   // A mensagem realcada leva a cor da capa no iPhone (3/10): era o roxo antigo.
   const corDoTema=useTheme(s=>s.destino.color);
   return <View style={{alignSelf:own?'flex-end':'flex-start',maxWidth:Platform.OS==='web'?'82%':'94%',minWidth:128,gap:6,marginTop:showSender?12:0}}>
@@ -118,6 +121,7 @@ export function GroupMessage({message:m,own,showSender=true,playlist,reactions=[
         <Ionicons name="chevron-forward" size={16} color={colors.textSecondary}/>
       </Pressable>}
       {m.playlistId&&<SharedPlaylistCard playlist={playlist} onPress={()=>onPlaylist(m.playlistId!)}/>}
+      {m.album&&<SharedAlbumCard album={m.album} onPress={()=>onAlbum?.(m.album!)}/>}
       <Text style={[s.muted,{fontSize:11,lineHeight:14,alignSelf:'flex-end'}]}>{new Date(m.createdAt).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}</Text>
     </MessageBubble>
     <ReactionRow reactions={reactions} myId={myId} own={own} aberto={aReagir}

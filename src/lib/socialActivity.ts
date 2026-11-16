@@ -43,8 +43,9 @@ export interface ConversationPreview {
 export function previewOf(item: SharedItem): ConversationPreview {
   return { createdAt: item.createdAt, senderId: item.sender.id, itemType: item.itemType,
     message: item.message?.trim().slice(0, 360) || null,
-    trackTitle: item.trackData?.title ?? null, trackArtist: item.trackData?.artist ?? null,
-    trackArtwork: item.trackData?.artworkUrl ?? null };
+    // Um álbum (16/11) diz-se como uma música: o título e o artista (é o que o resumo do servidor também lê).
+    trackTitle: item.trackData?.title ?? item.album?.titulo ?? null, trackArtist: item.trackData?.artist ?? item.album?.artista ?? null,
+    trackArtwork: item.trackData?.artworkUrl ?? item.album?.capa ?? null };
 }
 
 export function mergePreviews(base: Readonly<Record<string, ConversationPreview>>,
@@ -71,6 +72,7 @@ export function previewText(preview: ConversationPreview, myId: string | undefin
   const own = preview.senderId === myId;
   const text = preview.message || (preview.itemType === 'sessao' ? 'Invited you to a Jam'
     : preview.itemType === 'playlist' ? 'Shared a playlist'
+    : preview.itemType === 'album' && !preview.trackTitle ? 'Shared an album'
     : preview.trackTitle ? `${preview.trackTitle}${preview.trackArtist ? ` · ${preview.trackArtist}` : ''}` : 'Shared a song');
   return `${own ? 'You: ' : ''}${text}`;
 }

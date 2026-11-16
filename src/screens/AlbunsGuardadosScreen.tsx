@@ -7,6 +7,7 @@ import { Animated, Pressable, StyleSheet, Text, useWindowDimensions, View } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmptyState } from '../components/EmptyState';
 import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
+import { ShareFriendSheet } from '../components/ShareFriendSheet';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { YtPlaylistRecommendationSheet } from '../components/YtPlaylistRecommendationSheet';
 import { FRASES_DOS_ALBUNS, legendaDoAlbum, type AlbumGuardado } from '../lib/albunsGuardados';
@@ -38,6 +39,8 @@ export function AlbunsGuardadosScreen() {
   const offline = useConnectivity((s) => s.offline);
   const [aberto, setAberto] = useState<AlbumGuardado | null>(null);
   const [comMenu, setComMenu] = useState<AlbumGuardado | null>(null);
+  // Mandar um álbum a um amigo (16/11): o tipo 'album' da shared_items (supabase/partilhar-albuns.sql).
+  const [aPartilhar, setAPartilhar] = useState<AlbumGuardado | null>(null);
   useFocusEffect(useCallback(() => { void carregarAlbunsGuardados(); }, []));
 
   const lado = (width - spacing.xl * 2 - spacing.lg) / 2;
@@ -51,6 +54,7 @@ export function AlbunsGuardadosScreen() {
         .then(() => avisarFeito(FRASES_DOS_ALBUNS.feitoTirar, a.titulo))
         .catch((e) => avisarErro(mensagemDeErro(e, "Couldn't update your library.")));
     } else if (acao === 'guardar') void guardarDiscoComoPlaylist({ id: a.id, title: a.titulo });
+    else if (acao === 'partilhar') setAPartilhar(a);
     else if (acao === 'artista') { if (a.artista) navigation.navigate('LibraryGroup', { type: 'artist', name: a.artista }); }
     else void discoSemAbrir({ id: a.id, title: a.titulo }, acao);
   };
@@ -113,7 +117,7 @@ export function AlbunsGuardadosScreen() {
         track={null}
         onClose={() => setComMenu(null)}
         cabecalho={comMenu ? { titulo: comMenu.titulo, subtitulo: legendaDoAlbum(comMenu), capas: comMenu.capa ? [comMenu.capa] : [] } : null}
-        actions={comMenu ? menuDoLancamento({ tipo: comMenu.tipo ?? 'Album' }, { semRede: offline, temArtista: !!comMenu.artista, guardado: true })
+        actions={comMenu ? menuDoLancamento({ tipo: comMenu.tipo ?? 'Album' }, { semRede: offline, temArtista: !!comMenu.artista, guardado: true, partilhar: true })
           .filter((a) => !a.motivo)
           .map((a) => ({ icon: a.icone as any, label: a.rotulo, onPress: () => fazer(comMenu, a.id) })) : []}
       />
@@ -125,6 +129,13 @@ export function AlbunsGuardadosScreen() {
         playlistArtwork={aberto?.capa ?? null}
         album={aberto ? { artista: aberto.artista, ano: aberto.ano, tipo: aberto.tipo } : undefined}
         onClose={() => setAberto(null)}
+      />
+
+      <ShareFriendSheet
+        visible={!!aPartilhar}
+        itemType="album"
+        item={aPartilhar}
+        onClose={() => setAPartilhar(null)}
       />
     </>
   );

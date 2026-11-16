@@ -72,7 +72,7 @@ const mocks = {
     rolagem: { setValue() {}, interpolate: () => 0 }, onScroll: undefined, scrollEventThrottle: 16, espaco: 0, definirEspaco() {}, repor() {},
   }) },
   '../components/TrackActionsSheet': { TrackActionsSheet: 'Actions' }, '../components/TrackRow': { TrackRow: 'TrackRow' },
-  '../components/YtPlaylistRecommendationSheet': { YtPlaylistRecommendationSheet: 'AlbumSheet' },
+  '../components/YtPlaylistRecommendationSheet': { YtPlaylistRecommendationSheet: 'AlbumSheet' }, '../components/ShareFriendSheet': { ShareFriendSheet: 'Share' },
   '../state/catalogoDeFaixas': { comCatalogo: x => x }, '../api/library': { getLibrary: async () => library },
   '../lib/cacheDaBiblioteca': { lerFaixas: async read => read() }, '../api/catalogo': { fotoDoArtista: async () => 'catalogo.jpg', fotoJaConhecida: () => undefined },
   '../api/albunsDoArtista': { paginaDoArtista: () => paginaPromise }, '../api/search': { pesquisarMusica: async () => ({ faixas: more, continuacao: null, detalhes: {} }) },

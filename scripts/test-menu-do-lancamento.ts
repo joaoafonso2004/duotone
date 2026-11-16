@@ -77,7 +77,7 @@ caso('os discos da página do artista: o toque longo abre o menu, com a vibraç�
   assert.equal((artista.match(/aoSegurar=\{setDiscoComMenu\}/g) ?? []).length, 3, 'o destaque, os álbuns e os singles');
   // As mesmas linhas do PC, sem "View artist" (já se está na página dele), e sem as que pedem rede quando não há.
   // 15/11: com o "Save album" (os álbuns na biblioteca), que sabe se o disco já está guardado.
-  assert.match(artista, /menuDoLancamento\(discoComMenu, \{ semRede: offline, temArtista: false, guardado: albunsGuardados\.has\(discoComMenu\.id\) \}\)\n\s+\.filter\(\(a\) => !a\.motivo\)/);
+  assert.match(artista, /menuDoLancamento\(discoComMenu, \{ semRede: offline, temArtista: false, guardado: albunsGuardados\.has\(discoComMenu\.id\), partilhar: true \}\)\n\s+\.filter\(\(a\) => !a\.motivo\)/);
   assert.match(artista, /if \(acao === 'abrir'\) abrirDisco\(d\);\n\s+else if \(acao === 'guardar'\) void guardarDiscoComoPlaylist\(d\);\n\s+else if \(acao === 'guardar-album'\) \{/);
   assert.match(artista, /else if \(acao === 'tocar' \|\| acao === 'baralhar' \|\| acao === 'fila'\) void discoSemAbrir\(d, acao\);/);
   assert.equal(menuDoLancamento({ tipo: 'Album' }, { semRede: false, temArtista: false }).some((l) => l.id === 'artista'), false);

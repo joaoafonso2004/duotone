@@ -7,6 +7,7 @@ import {
   getFriendships, getGrupos, shareComGrupo, shareItem,
   type ChatGroup, type Friendship,
 } from '../api/social';
+import { tipoDoAlbumPartilhado } from '../lib/albumPartilhado';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
@@ -29,8 +30,9 @@ type Destino =
 
 interface ShareFriendSheetProps {
   visible: boolean;
-  itemType: 'playlist' | 'track';
-  item: any; // Track ou Playlist
+  /** `album` (16/11): um álbum do YouTube Music, com a forma de lib/albumPartilhado.ts. */
+  itemType: 'playlist' | 'track' | 'album';
+  item: any; // Track, Playlist ou AlbumPartilhado
   onClose: () => void;
 }
 
@@ -179,7 +181,10 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
     }
   };
 
-  const titulo = itemType === 'track' ? 'Send to friends' : 'Send playlist to friends';
+  // Um álbum (16/11) diz-se álbum (um single ou um EP também: são discos).
+  const titulo = itemType === 'track' ? 'Send to friends'
+    : itemType === 'album' ? 'Send album to friends'
+    : 'Send playlist to friends';
   const linha = (d: Destino) => {
     const marcado = escolhidos.includes(chaveDe(d));
     return (
@@ -312,11 +317,25 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
 
 /** O que se vai mandar: a capa, o nome e o artista (ou a playlist). */
 function OQueVai({ itemType, item, playlists }: {
-  itemType: 'playlist' | 'track';
+  itemType: 'playlist' | 'track' | 'album';
   item: any;
   playlists: readonly { id: string; artworks: string[]; trackCount: number }[];
 }) {
   if (!item) return null;
+  if (itemType === 'album') {
+    const capa = capaParaLista(item.capa) ?? item.capa ?? null;
+    return (
+      <View style={styles.oQue}>
+        {capa ? <Image source={{ uri: capa }} style={styles.capa} contentFit="cover" />
+          : <View style={[styles.capa, styles.semCapa]}><Ionicons name="disc-outline" size={18} color={colors.textTertiary} /></View>}
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.tipo}>{tipoDoAlbumPartilhado(item).toUpperCase()}</Text>
+          <Text numberOfLines={1} style={styles.oQueTitulo}>{item.titulo}</Text>
+          {item.artista ? <Text numberOfLines={1} style={type.caption}>{item.artista}</Text> : null}
+        </View>
+      </View>
+    );
+  }
   if (itemType === 'track') {
     const capa = capaParaLista(item.artworkUrl) ?? item.artworkUrl ?? null;
     return (

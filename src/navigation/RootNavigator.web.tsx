@@ -760,19 +760,19 @@ function DesktopShell() {
   // foto com o leitor aberto e "Artist photo" escolhido.
   const cinemaNoLeitor = useDisposicaoDoLeitor() === 'cinema';
   const fotoDoFundo = useFotoDoFundo(leitorAberto ? currentTrack : null);
-  const common = { play, tocarMusica, notify, more };
+  const common = { play, tocarMusica, notify, more, share: openShareDialog };
   let page: ReactNode;
   switch (route.name) {
     case 'search': page = <SearchPage navigate={navigate} {...common} />; break; case 'songs': page = <SongsPage {...common} />; break; case 'artists': page = <ArtistsPage navigate={navigate} notify={notify} />; break;
     case 'artist': page = <ArtistPage name={route.value} back={back} corNaJanela={corDoArtistaMontada && !corDoArtistaApaga} {...common} />; break; case 'playlists': page = <PlaylistsPage navigate={navigate} notify={notify} share={openShareDialog} />; break; case 'albuns': page = <AlbunsGuardadosPage back={back} {...common} />; break; case 'playlist': // `key`: uma playlist nova NÃO herda as faixas da anterior (duas fixadas na lateral: a segunda abria com a lista da primeira e só o título mudava).
-    page = <PlaylistPage key={route.id} id={route.id} title={route.title} abrirPessoas={!!route.pessoas} back={back} share={openShareDialog} navigate={navigate} {...common} />; break;
+    page = <PlaylistPage key={route.id} id={route.id} title={route.title} abrirPessoas={!!route.pessoas} back={back} navigate={navigate} {...common} />; break;
     case 'mistura': page = <MisturaPage key={route.id} id={route.id} titulo={route.titulo} back={back} {...common} />; break;
     case 'stats': page = <StatsPage key={route.userId} back={back} play={play} userId={route.userId} />; break;
     case 'retrospetiva': page = <RetrospetivaPage key={`${route.userId}:${route.ano}`} back={back} play={play} userId={route.userId} ano={route.ano} />; break;
     case 'voces-os-dois': page = <VocesOsDoisPage key={route.userId} userId={route.userId} nome={route.nome} back={back} play={play} />; break;
     case 'import': page = <ImportPage back={back} notify={notify} navigate={navigate} />; break; case 'spotify-import': page = <SpotifyImportPage back={back} notify={notify} />; break; case 'profile': page = <ProfilePage aoMenuDaFaixa={(t) => void more(t)} />; break; case 'settings': page = <SettingsPage notify={notify} navigate={navigate} />; break;
     case 'library-check': page = <LibraryCheckPage back={back} play={play} />; break;
-    case 'social': page = <SocialPage friendId={route.friendId} groupId={route.groupId} visible={!nowPlayingOpen && !jamOpen} aoMenuDaFaixa={(t) => void more(t)} />; break;
+    case 'social': page = <SocialPage friendId={route.friendId} groupId={route.groupId} visible={!nowPlayingOpen && !jamOpen} aoMenuDaFaixa={(t) => void more(t)} {...common} />; break;
     case 'friend-profile': page = <ProfilePage userId={route.userId} back={back} aoMenuDaFaixa={(t) => void more(t)} />; break;
     case 'now-playing': page = <NowPlayingPage fundoNaJanela={corNaJanela} share={openShareDialog} play={play} tocarMusica={tocarMusica} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={abrirPlaylistsSozinhas} />; break;
   }

@@ -39,7 +39,7 @@ const {ConversaScreen}=load('src/screens/ConversaScreen.tsx',{
   '@react-navigation/native':{useIsFocused:()=>focused,useFocusEffect:fn=>{cleanup=fn();}},
   'react-native-safe-area-context':{useSafeAreaInsets:()=>({top:59,bottom:34})},
   '../components/SocialHub':{SocialHub:'Hub'},'../components/socialTokens':{colors:{bg:'#000'}},
-  '../components/TrackActionsSheet':{TrackActionsSheet:'Menu'},
+  '../components/TrackActionsSheet':{TrackActionsSheet:'Menu'},'../components/YtPlaylistRecommendationSheet':{YtPlaylistRecommendationSheet:'AlbumSheet'},
   '../state/social':{useSocial:{getState:()=>social,setState:patch=>Object.assign(social,patch)}},
 });
 const screen=ConversaScreen({route:{params:target},navigation});

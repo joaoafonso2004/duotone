@@ -1,3 +1,4 @@
+import { albumPartilhado, paraPartilhar, type AlbumPartilhado } from '../lib/albumPartilhado';
 import { getPublicProfiles, searchPublicProfiles } from './profiles';
 import { supabase } from '../lib/supabase';
 import { idDaConta } from '../lib/idDaConta';
@@ -83,8 +84,10 @@ export interface SharedItem {
     avatarUrl: string | null;
   };
   groupId?: string | null;
-  itemType: 'playlist' | 'track' | 'sessao';
+  itemType: 'playlist' | 'track' | 'sessao' | 'album';
   playlistId: string | null;
+  /** Só em `album` (16/11, supabase/partilhar-albuns.sql): o álbum do YouTube Music que se mandou. */
+  album?: AlbumPartilhado | null;
   /** Só em `sessao`: o convite para ouvir junto. */
   sessionId?: string | null;
   trackData: Track | null;
@@ -222,6 +225,16 @@ export async function declineOrRemoveFriendship(friendId: string): Promise<void>
   if (error) throw new Error("Couldn't remove this friend.");
 }
 
+/** O `track_data` de um álbum (lib/albumPartilhado.ts), ou um erro que se pode mostrar. */
+function dadosDoAlbum(item: any): Record<string, string | null> {
+  const dados = paraPartilhar({
+    id: String(item?.id ?? ''), titulo: String(item?.titulo ?? item?.name ?? ''),
+    artista: item?.artista ?? null, capa: item?.capa ?? null, tipo: item?.tipo ?? null, ano: item?.ano ?? null,
+  });
+  if (!dados) throw new Error("Couldn't share this album.");
+  return dados;
+}
+
 /**
  * Partilha com um amigo ou com varios de uma vez.
  *
@@ -231,7 +244,7 @@ export async function declineOrRemoveFriendship(friendId: string): Promise<void>
  */
 export async function shareItem(
   friendId: string | readonly string[],
-  itemType: 'playlist' | 'track',
+  itemType: 'playlist' | 'track' | 'album',
   item: any,
   message?: string,
   /** O id da mensagem a que isto responde. */
@@ -254,6 +267,8 @@ export async function shareItem(
 
   if (itemType === 'playlist') {
     comum.playlist_id = item.id;
+  } else if (itemType === 'album') {
+    comum.track_data = dadosDoAlbum(item);
   } else {
     comum.track_data = item;
   }
@@ -316,9 +331,10 @@ export async function getInboxItems(desde: string | null = null): Promise<Shared
         name: sender?.name || 'Unknown',
         avatarUrl: sender?.avatar_url || null,
       },
-      itemType: r.item_type as 'playlist' | 'track' | 'sessao',
+      itemType: r.item_type as 'playlist' | 'track' | 'sessao' | 'album',
       sessionId: r.session_id ?? null,
       playlistId: r.playlist_id,
+      album: r.item_type === 'album' ? albumPartilhado(r.track_data) : null,
       trackData,
       message: r.item_type === 'track' && !trackData && !r.message ? 'This shared track is unavailable.' : r.message,
       createdAt: r.created_at,
@@ -368,7 +384,7 @@ async function getConversationMessages(target:{p_friend?:string;p_group?:string}
     const p=map.get(r.sender_id);
     const trackData=r.item_type==='track'?sharedTrack(r.track_data):null;
     return {id:r.id,groupId:r.group_id??null,sender:{id:r.sender_id,name:p?.name||'Utilizador',username:p?.username||'',avatarUrl:p?.avatar_url||null},
-      itemType:r.item_type,playlistId:r.playlist_id,sessionId:r.session_id??null,trackData,message:r.item_type==='track'&&!trackData&&!r.message?'This shared track is unavailable.':r.message,createdAt:r.created_at,replyToId:r.reply_to_id??null};
+      itemType:r.item_type,playlistId:r.playlist_id,album:r.item_type==='album'?albumPartilhado(r.track_data):null,sessionId:r.session_id??null,trackData,message:r.item_type==='track'&&!trackData&&!r.message?'This shared track is unavailable.':r.message,createdAt:r.created_at,replyToId:r.reply_to_id??null};
   });
 }
 
@@ -562,7 +578,8 @@ export async function getMensagensCitadas(ids: readonly string[]): Promise<Map<s
     mapa.set(r.id, {
       id: r.id, groupId: r.group_id ?? null,
       sender: { id: r.sender_id, name: p?.name || 'Utilizador', username: p?.username || '', avatarUrl: p?.avatar_url || null },
-      itemType: r.item_type, playlistId: r.playlist_id, sessionId: r.session_id ?? null, trackData,
+      itemType: r.item_type, playlistId: r.playlist_id, album: r.item_type === 'album' ? albumPartilhado(r.track_data) : null,
+      sessionId: r.session_id ?? null, trackData,
       message: r.message, createdAt: r.created_at, replyToId: r.reply_to_id ?? null,
     });
   }
@@ -572,7 +589,7 @@ export async function getMensagensCitadas(ids: readonly string[]): Promise<Map<s
 /** Partilha (ou escreve) num grupo. */
 export async function shareComGrupo(
   groupId: string,
-  itemType: 'playlist' | 'track',
+  itemType: 'playlist' | 'track' | 'album',
   item: any,
   message?: string,
   /** O id da mensagem a que isto responde. */
@@ -590,6 +607,7 @@ export async function shareComGrupo(
     message: message?.trim() || null,
   };
   if (itemType === 'playlist') payload.playlist_id = item.id;
+  else if (itemType === 'album') payload.track_data = dadosDoAlbum(item);
   else payload.track_data = item;
   if (respostaA) payload.reply_to_id = respostaA;
 

@@ -2,6 +2,7 @@ import React from 'react';
 import {Pressable,Text,View} from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type {Playlist} from '../types';
+import {legendaDoAlbumPartilhado,type AlbumPartilhado} from '../lib/albumPartilhado';
 import {ArtworkCollage} from './ArtworkCollage';
 import {colors,radii} from './socialTokens';
 import {socialStyles as s} from './socialUI';
@@ -29,6 +30,26 @@ export function SharedPlaylistCard({playlist,onPress,semFundo=false}:{playlist?:
       <Text numberOfLines={1} style={s.muted}>
         {playlist ? `${playlist.trackCount} ${playlist.trackCount===1?'track':'tracks'}` : 'Open playlist'}
       </Text>
+    </View>
+    <Ionicons name="chevron-forward" size={16} color={colors.textSecondary}/>
+  </Pressable>;
+}
+
+/**
+ * Um álbum partilhado (16/11, supabase/partilhar-albuns.sql), com a mesma forma:
+ * a capa, o nome e "Artista · ano". Abre o álbum, como na página do artista.
+ */
+export function SharedAlbumCard({album,onPress,semFundo=false}:{album:AlbumPartilhado;onPress:()=>void;semFundo?:boolean}) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={`${album.titulo}, ${legendaDoAlbumPartilhado(album)}`}
+    onPress={onPress} style={({pressed})=>[s.row,{padding:semFundo?0:10,gap:10,minWidth:semFundo?230:190,borderRadius:12,backgroundColor:semFundo?'transparent':colors.bg,opacity:pressed?0.7:1}]}>
+    {album.capa
+      ? <View style={{borderRadius:radii.sm,overflow:'hidden'}}><ArtworkCollage artworks={[album.capa]} size={48}/></View>
+      : <View style={{width:48,height:48,borderRadius:radii.sm,backgroundColor:colors.surfaceHigh,alignItems:'center',justifyContent:'center'}}>
+          <Ionicons name="disc-outline" size={22} color={colors.textSecondary}/>
+        </View>}
+    <View style={{flex:1,minWidth:0,gap:3}}>
+      <Text numberOfLines={2} style={[s.text,{fontWeight:'600'}]}>{album.titulo}</Text>
+      <Text numberOfLines={1} style={s.muted}>{legendaDoAlbumPartilhado(album)}</Text>
     </View>
     <Ionicons name="chevron-forward" size={16} color={colors.textSecondary}/>
   </Pressable>;

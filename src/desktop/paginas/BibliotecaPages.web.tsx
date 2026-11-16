@@ -84,7 +84,7 @@ import { removerDasGostadas } from '../acoesDasEscolhidas.web';
 /** As prateleiras menos usadas ficam atrás de um botão, e a escolha fica entre visitas (30/10). */
 let outrasPrateleirasAbertas = false;
 
-export function SearchPage({ play, tocarMusica, notify, more, navigate }: CommonPageProps & { navigate: NavegarFn }) {
+export function SearchPage({ play, tocarMusica, notify, more, share, navigate }: CommonPageProps & { navigate: NavegarFn }) {
   const [outras, setOutras] = useState(outrasPrateleirasAbertas);
   const alternarOutras = () => setOutras((v) => { outrasPrateleirasAbertas = !v; return !v; });
   const [query, setQuery] = useState(''); const [history, setHistory] = useState<string[]>([]); const input = useRef<any>(null);
@@ -179,7 +179,7 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
     ({ id: l.id, title: l.titulo, artworkUrl: l.capa, channelTitle: legendaDoLancamento(l) });
   // O botão direito num disco (os lançamentos novos, os álbuns e as playlists
   // da pesquisa), num artista e numa mistura (24/10).
-  const { abrirMenuDoDisco, menuDoDisco, discoDoMenu } = useMenuDoDisco(dialogo);
+  const { abrirMenuDoDisco, menuDoDisco, discoDoMenu } = useMenuDoDisco(dialogo, share);
   const { abrirMenuDoArtista, menuDoArtista, artistaDoMenu } = useMenuDoArtista(notify);
   const [menuDaMist, setMenuDaMist] = useState<{ id: string; ponto: PontoNoEcra } | null>(null);
   const fazerNaMistura = async (id: string, acao: AcaoDaMistura) => {
@@ -379,7 +379,11 @@ type DiscoDoMenu = {
  * `lib/menuDoLancamento.ts`, e o que fazem é o da pré-visualização do álbum.
  * `discoDoMenu`: o id do que está aberto, para o cartão ficar marcado.
  */
-function useMenuDoDisco(dialogo: Pick<ReturnType<typeof useDialogoDoAlbum>, 'abrirAlbum' | 'albumSemAbrir' | 'guardarAlbumSemAbrir'>) {
+function useMenuDoDisco(
+  dialogo: Pick<ReturnType<typeof useDialogoDoAlbum>, 'abrirAlbum' | 'albumSemAbrir' | 'guardarAlbumSemAbrir'>,
+  /** O diálogo de partilha da casca (16/11): sem ele, não há "Share with a friend…". */
+  share?: CommonPageProps['share'],
+) {
   const [menu, setMenu] = useState<{ d: DiscoDoMenu; ponto: PontoNoEcra } | null>(null);
   const semRede = useConnectivity((s) => s.offline);
   const { irPara } = useDestinos();
@@ -396,13 +400,18 @@ function useMenuDoDisco(dialogo: Pick<ReturnType<typeof useDialogoDoAlbum>, 'abr
         .catch((e) => avisarErro(mensagemDeErro(e, "Couldn't update your library.")));
     }
     else if (acao === 'artista') { if (d.artista) irPara({ tipo: 'artista', nome: d.artista }); }
+    else if (acao === 'partilhar') {
+      share?.({ itemType: 'album', name: d.titulo, item: {
+        id: d.id, titulo: d.titulo, artista: d.dono ?? d.artista ?? null, capa: d.capa, tipo: d.tipo || null, ano: d.ano ?? null,
+      } });
+    }
     else void dialogo.albumSemAbrir(album, acao);
   };
   const menuDoDisco = menu ? <MenuDeContexto
     rato={menu.ponto}
     rotulo={`Options for ${menu.d.titulo}`}
     cabecalho={<CabecalhoDoMenu capa={menu.d.capa} titulo={menu.d.titulo} legenda={menu.d.legenda} />}
-    linhas={menuDoLancamento(menu.d, { semRede, temArtista: !!menu.d.artista, guardado: eAlbumDoYouTubeMusic(menu.d.id) ? guardados.has(menu.d.id) : undefined }).map((a) => ({ id: a.id, rotulo: a.rotulo, icone: a.icone, inicioDeGrupo: a.inicioDeGrupo, motivo: a.motivo }))}
+    linhas={menuDoLancamento(menu.d, { semRede, temArtista: !!menu.d.artista, guardado: eAlbumDoYouTubeMusic(menu.d.id) ? guardados.has(menu.d.id) : undefined, partilhar: !!share && eAlbumDoYouTubeMusic(menu.d.id) }).map((a) => ({ id: a.id, rotulo: a.rotulo, icone: a.icone, inicioDeGrupo: a.inicioDeGrupo, motivo: a.motivo }))}
     aoEscolher={(id) => fazer(menu.d, id as AcaoDoLancamento)}
     aoFechar={() => setMenu(null)}
   /> : null;
@@ -809,7 +818,7 @@ export function AlbunsGuardadosPage({ back, ...props }: { back: () => void } & C
   const albuns = useAlbunsGuardados((s) => s.albuns);
   useEffect(() => { void carregarAlbunsGuardados(); }, []);
   const dialogo = useDialogoDoAlbum(props);
-  const { abrirMenuDoDisco, menuDoDisco, discoDoMenu } = useMenuDoDisco(dialogo);
+  const { abrirMenuDoDisco, menuDoDisco, discoDoMenu } = useMenuDoDisco(dialogo, props.share);
   const [largura, setLargura] = useState(0);
   const { lado } = grelhaQueEnche(largura, 200, ESP.xxl);
   const disco = (a: AlbumGuardado): DiscoDoMenu => ({
@@ -867,7 +876,7 @@ export function ArtistPage({ name, back, corNaJanela = false, ...props }: { name
   const dialogo = useDialogoDoAlbum(props);
   const { abrirAlbum, fecharAlbum, dialogoDoAlbum } = dialogo;
   // O botão direito num disco, num single e num parecido (24/10).
-  const { abrirMenuDoDisco, menuDoDisco, discoDoMenu } = useMenuDoDisco(dialogo);
+  const { abrirMenuDoDisco, menuDoDisco, discoDoMenu } = useMenuDoDisco(dialogo, props.share);
   const { abrirMenuDoArtista, menuDoArtista } = useMenuDoArtista(props.notify);
   // Na página dele, o "View artist" não iria a lado nenhum.
   const discoNoMenu = (a: AlbumDaPagina): DiscoDoMenu => ({ id: a.id, titulo: a.title, legenda: legendaDoDisco(a), capa: a.artworkUrl, tipo: a.tipo, artista: null, dono: name, ano: a.ano });
@@ -1139,7 +1148,7 @@ export function ArtistPage({ name, back, corNaJanela = false, ...props }: { name
  * playlist. Nasceu na página do artista e serve também os álbuns da pesquisa
  * por tipo (29/9).
  */
-function useDialogoDoAlbum(props: CommonPageProps) {
+export function useDialogoDoAlbum(props: CommonPageProps) {
   const [albumAberto, setAlbumAberto] = useState<YtRecommendedPlaylist | null>(null);
   const [faixasDoAlbum, setFaixasDoAlbum] = useState<Track[]>([]);
   const [aCarregarAlbum, setACarregarAlbum] = useState(false);
