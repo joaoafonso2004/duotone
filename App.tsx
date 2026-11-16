@@ -59,7 +59,8 @@ import { startTrackAdjustmentSync } from './src/state/trackAdjustments';
 import { iniciarPresets } from './src/state/presets';
 import { iniciarModoCarro } from './src/state/carro';
 import { iniciarRecomendado } from './src/state/recomendado';
-import { definirEmSegundoPlano, definirGuardarEscutaPorEnviar, definirPodeTocarSemRede, usePlayer } from './src/state/player';
+import { definirEmSegundoPlano, definirGuardarEscutaPorEnviar, definirPodeTocarSemRede, definirScrobbler, usePlayer } from './src/state/player';
+import { carregarScrobbling, scrobblerDoListenBrainz } from './src/state/scrobbling';
 import { guardarEscutaPorEnviar, instalarEnvioDeEscutas } from './src/state/escutasPorEnviar';
 import { tocaSemRede } from './src/lib/descarregarFaixa';
 import { descarregadorNativo } from './modules/duotone-download';
@@ -118,6 +119,9 @@ vigiarOLeitor();
 // escutas sem rede ficam guardadas e seguem quando ela volta; e no iPhone a
 // fila sem rede só pára no que está no telemóvel.
 definirGuardarEscutaPorEnviar(guardarEscutaPorEnviar);
+// O scrobbling (16/11): direto ao ListenBrainz, só com o token deste aparelho.
+definirScrobbler(scrobblerDoListenBrainz);
+void carregarScrobbling();
 instalarEnvioDeEscutas();
 if (Platform.OS === 'ios') definirPodeTocarSemRede(tocaSemRede);
 // O download do áudio fora do JavaScript (4/10, auditoria 4.1): os bocados vão

@@ -1,5 +1,8 @@
 import { PainelDeSaude } from '../components/PainelDeSaude';
 import { RelatarProblema } from '../components/RelatarProblema';
+import { FolhaDoListenBrainz } from '../components/FolhaDoListenBrainz';
+import { FRASES_DO_SCROBBLING } from '../lib/scrobbling';
+import { useScrobbling } from '../state/scrobbling';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { FRASES_DA_EXPORTACAO, nomeDoFicheiro, paraCSV, paraJSON } from '../lib/exportarBiblioteca';
 import { recolherBiblioteca } from '../lib/recolherBiblioteca';
@@ -122,6 +125,9 @@ export function SettingsScreen({ navigation }: Props) {
   const [painelAberto, setPainelAberto] = useState(false);
   // "Report a problem" (15/11, components/RelatarProblema.tsx).
   const [relatoAberto, setRelatoAberto] = useState(false);
+  // O scrobbling (16/11, state/scrobbling.ts).
+  const [listenBrainzAberto, setListenBrainzAberto] = useState(false);
+  const utilizadorDoListenBrainz = useScrobbling((s) => s.utilizador);
   // Exportar a biblioteca (16/11): escolhe-se o formato, e a folha de partilha guarda-o.
   const [exportarAberto, setExportarAberto] = useState(false);
   const [aExportar, setAExportar] = useState(false);
@@ -744,6 +750,13 @@ export function SettingsScreen({ navigation }: Props) {
           <Linha icone="heart-dislike" rotulo="Clear Liked Songs" perigo desativada={offline} aoTocar={() => setClearLibraryOpen(true)} />
           <Linha icone="trash" rotulo={ROTULOS.apagarConta} perigo desativada={offline} aoTocar={() => setDeleteAccountOpen(true)} />
         </Grupo>
+
+        {/* As escutas vão do iPhone direto ao ListenBrainz (16/11): nada passa pelo servidor do Duotone. */}
+        <Grupo titulo="Scrobbling" rodape="Songs count at half their length, or four minutes. Private listening sends nothing.">
+          <Linha icone="radio" rotulo={FRASES_DO_SCROBBLING.titulo} chevron desativada={offline}
+            valor={utilizadorDoListenBrainz ?? FRASES_DO_SCROBBLING.desligado} aoTocar={() => setListenBrainzAberto(true)} />
+        </Grupo>
+        <FolhaDoListenBrainz visible={listenBrainzAberto} onClose={() => setListenBrainzAberto(false)} />
 
         {/* O relatório vai pela folha de partilha: quem precisa dele é quem o
             vai mandar a alguém. */}

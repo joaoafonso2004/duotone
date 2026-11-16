@@ -210,6 +210,7 @@ function comecarEscuta(conta: Track, chave: string, duracaoMs: number | null, ja
   // dele: é por aqui que o Rare Finds não volta a oferecer como novidade uma
   // música que se saltou.
   registarInicioDaFaixa(conta).catch(() => {});
+  scrobbler?.agora(conta);
   return escuta;
 }
 
@@ -245,6 +246,7 @@ function medirEscuta(
     const comecouEm = new Date(em.getTime() - posicaoMs / Math.max(0.25, s.playbackRate || 1));
     if (guardarEscutaPorEnviar) guardarEscutaPorEnviar(faixa, em, comecouEm);
     else recordPlayInSupabase(faixa).catch(() => {});
+    scrobbler?.contou(faixa, comecouEm);
     if(contextoAtual)aprenderComEscutaDeRecomendacao(faixaDaEscuta);
   }
 }
@@ -690,6 +692,12 @@ interface PlayerState {
 // arrasta a cache de áudio -- por isso entra por aqui, ligado no App.tsx só no
 // iPhone. Sem ligação (PC, testes), ou com rede, pode-se tocar tudo.
 let podeTocarSemRede: ((t: Track) => boolean) | null = null;
+/**
+ * O scrobbling (16/11, state/scrobbling.ts, ligado no App.tsx): "a tocar agora"
+ * quando uma música começa, e a escuta quando conta. Direto ao ListenBrainz.
+ */
+let scrobbler: { agora: (t: Track) => void; contou: (t: Track, comecouEm: Date) => void } | null = null;
+export function definirScrobbler(s: typeof scrobbler): void { scrobbler = s; }
 /** Guarda uma escuta que não chegou ao Supabase (state/escutasPorEnviar.ts, ligado no App.tsx). */
 let guardarEscutaPorEnviar: ((t: Track, em: Date, comecouEm: Date) => void) | null = null;
 export function definirGuardarEscutaPorEnviar(f: ((t: Track, em: Date, comecouEm: Date) => void) | null): void {

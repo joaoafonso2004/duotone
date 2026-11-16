@@ -19,6 +19,9 @@ import { EVENTO_PROCURAR_ATUALIZACAO } from '../../lib/avisoDeVersao';
 import { checkForUpdate, PORTFOLIO_URL } from '../../lib/updates';
 import { partilharRelatorioDeReproducao } from '../../lib/relatorioDeReproducao';
 import { RelatarProblema } from '../../components/RelatarProblema';
+import { FolhaDoListenBrainz } from '../../components/FolhaDoListenBrainz';
+import { FRASES_DO_SCROBBLING } from '../../lib/scrobbling';
+import { useScrobbling } from '../../state/scrobbling';
 import { FRASES_DA_EXPORTACAO, nomeDoFicheiro, paraCSV, paraJSON } from '../../lib/exportarBiblioteca';
 import { recolherBiblioteca } from '../../lib/recolherBiblioteca';
 import { guardarExportacao } from '../../lib/guardarExportacao';
@@ -75,6 +78,9 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   const [painelAberto, setPainelAberto] = useState(false);
   // "Report a problem" (15/11): a mesma folha do iPhone.
   const [relatoAberto, setRelatoAberto] = useState(false);
+  // O scrobbling (16/11, state/scrobbling.ts): direto ao ListenBrainz, deste PC.
+  const [listenBrainzAberto, setListenBrainzAberto] = useState(false);
+  const utilizadorDoListenBrainz = useScrobbling((s) => s.utilizador);
   // Exportar a biblioteca (16/11): no PC saem os dois ficheiros de uma vez.
   const [aExportar, setAExportar] = useState(false);
   const exportarBiblioteca = async () => {
@@ -579,6 +585,9 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                 />
                 <SettingAction label={ROTULOS.apoiar} description="Duotone is free. Donations keep its server running." onPress={() => { window.open(ENDERECO_DO_APOIO, '_blank', 'noopener,noreferrer'); }} />
                 <SettingAction label={ROTULOS.privacidade} description="What Duotone stores, who can see it, and how to delete it." onPress={() => { window.open(ENDERECO_DA_PRIVACIDADE, '_blank', 'noopener,noreferrer'); }} />
+                <SettingAction label={FRASES_DO_SCROBBLING.titulo}
+                  description={utilizadorDoListenBrainz ? FRASES_DO_SCROBBLING.ligado(utilizadorDoListenBrainz) : 'Send what you listen to ListenBrainz, straight from this PC. Songs count at half their length, or four minutes.'}
+                  onPress={() => setListenBrainzAberto(true)} />
                 <SettingAction label={ROTULOS.relatarProblema} description="Tell the developer what went wrong. The playback report can go with it." onPress={() => setRelatoAberto(true)} />
                 <SettingAction label="Save playback report" description="If a song won't play, or Duotone feels heavy, send this so it can be fixed." onPress={() => { avisarInfo('Preparing the report…'); void exportarRelatorio(); }} />
                 {/* Só na conta do João (7/10, supabase/painel-de-saude.sql). */}
@@ -586,6 +595,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
               </SettingsCard>}
               <PainelDeSaude visivel={painelAberto} aoFechar={() => setPainelAberto(false)} />
               <RelatarProblema visible={relatoAberto} onClose={() => setRelatoAberto(false)} />
+              <FolhaDoListenBrainz visible={listenBrainzAberto} onClose={() => setListenBrainzAberto(false)} />
 
               {/* As mesmas três coisas da secção Account do iPhone, e o apagar a
                   conta, que vivia no About. Sem rede, como lá, ficam apagadas. */}
