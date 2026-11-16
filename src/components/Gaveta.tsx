@@ -26,6 +26,7 @@ import { hapticImpact, hapticSelection, ImpactFeedbackStyle } from '../lib/hapti
 import { segurarFluidez } from '../state/fluidez';
 import type { Destino } from '../lib/destinos';
 import { colors } from '../theme';
+import { traduzir } from '../i18n';
 
 const MARGEM = 12;
 const ESPACO = 10;
@@ -105,8 +106,13 @@ export function Gaveta({ largura, abertura }: { largura: number; abertura: Anima
     aoEditarCena: (pecaId, cena) => useGaveta.setState({ cenaAEditar: { pecaId, cena } }),
   }), [editar, irPara]);
 
-  const [nome, setNome] = useState(espaco?.nome ?? '');
-  useEffect(() => { setNome(espaco?.nome ?? ''); }, [espaco?.id, espaco?.nome]);
+  // O nome a editar já vem na língua da app (16/11, João: em francês aparecia
+  // "Everyday"). O que se escreve num campo não passa pelo tradutor do ecrã, por
+  // isso traduz-se aqui; e só se grava se a pessoa o mudar, para o nome de
+  // origem continuar em inglês e acompanhar a língua escolhida.
+  const nomeVisto = traduzir(espaco?.nome ?? '');
+  const [nome, setNome] = useState(nomeVisto);
+  useEffect(() => { setNome(nomeVisto); }, [espaco?.id, nomeVisto]);
 
   const criarEspaco = () => {
     hapticSelection();
@@ -149,7 +155,7 @@ export function Gaveta({ largura, abertura }: { largura: number; abertura: Anima
                     <TextInput
                       value={nome}
                       onChangeText={setNome}
-                      onEndEditing={() => { if (gaveta) mudarGaveta((g) => renomear(g, g.ativo, nome)); }}
+                      onEndEditing={() => { if (gaveta && nome.trim() !== nomeVisto.trim()) mudarGaveta((g) => renomear(g, g.ativo, nome)); }}
                       maxLength={24}
                       returnKeyType="done"
                       placeholder="Name"

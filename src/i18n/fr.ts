@@ -2438,6 +2438,7 @@ export const FR: Readonly<Record<string, string>> = {
   "An empty space. Add artists, friends, controls or shortcuts, and make it yours.": "Un espace vide. Ajoutez des artistes, des amis, des commandes ou des raccourcis, et faites-en le vôtre.",
   "Delete this space": "Supprimer cet espace",
   "Everyday": "Au quotidien",
+  "Space {0:n}": "Espace {0}",
   "Music": "Musique",
   "Controls": "Commandes",
   "Places": "Raccourcis",
