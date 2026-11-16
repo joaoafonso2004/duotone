@@ -14,11 +14,11 @@ import { guardarRetrato, NOME_DO_RETRATO, retratoDe, viajar } from '../viagem.we
 import { RETRATO } from '../../lib/retratosQueViajam';
 import { filtrarPlaylists, OPCOES_DE_ORDEM, ordenarPlaylists, resumoDasPlaylists, type OrdemDasPlaylists } from '../../lib/ordemDasPlaylists';
 import { grelhaQueEnche } from '../../lib/grelhaDeCartoes';
-import { ESP } from '../tokens.web';
+import { ESP, RAIO } from '../tokens.web';
 import { menuDaPlaylist, type IdDaAcaoDaPlaylist } from '../../lib/menuDaPlaylist';
 import { Image, Pressable, Text, View as NativeView, type LayoutChangeEvent } from 'react-native';
 import {
-  addTracksToPlaylist, copiasGuardadas, createPlaylist, deletePlaylist, getPlaylistTracks, getPlaylistDetails, listPlaylists, mergePlaylists,
+  addTracksToPlaylist, copiasGuardadas, createPlaylist, definirPasta, deletePlaylist, getPlaylistTracks, getPlaylistDetails, listPlaylists, mergePlaylists,
   renamePlaylist, savePlaylistCopy, lerPessoasDaPlaylist, quemPosNaPlaylist, relerPlaylist, sairDaPlaylist, setPlaylistOrder,
 } from '../../api/playlists';
 import { movidaPara } from '../../lib/arrastar';
@@ -52,6 +52,10 @@ import { displayArtist, tituloDaFaixa } from '../../lib/artistName';
 import type { CommonPageProps, Route, ShareTarget } from '../rotas';
 import { PlaylistArtwork } from './comum.web';
 import { PastaDosAlbuns } from '../../components/PastaDosAlbuns';
+import { PastaDePlaylists } from '../../components/PastaDePlaylists';
+import {
+  FRASES_DAS_PASTAS, grelhaComPastas, limparNomeDaPasta, nomeDePastaNova, nomesDasPastas, oQueFazAoLargar, playlistsDaPasta, podeIrParaUmaPasta,
+} from '../../lib/pastasDePlaylists';
 import { carregarAlbunsGuardados, useAlbunsGuardados } from '../../state/albunsGuardados';
 import { BotaoDeFixar } from '../AtalhosNaLateral.web';
 import { useAtalhosDaLateral } from '../../state/atalhosDaLateral';
@@ -126,7 +130,12 @@ function LavagemDaPlaylist({ capa }: { capa: string | null }) {
     { backgroundImage: `radial-gradient(110% 100% at 15% 0%, color-mix(in oklab, ${cor} 48%, transparent), transparent 75%)` }]} />;
 }
 
-export function PlaylistsPage({ navigate, notify, share }: { navigate: (route: Route) => void; notify: (s: string) => void; share: (target: ShareTarget) => void }) {
+export function PlaylistsPage({ navigate, notify, share, pasta = null, back }: {
+  navigate: (route: Route) => void; notify: (s: string) => void; share: (target: ShareTarget) => void;
+  /** Uma pasta aberta (16/11, lib/pastasDePlaylists.ts): a mesma página, só com as playlists dela. */
+  pasta?: string | null;
+  back?: () => void;
+}) {
   // A pesquisa e a ordem da grelha (30/10), e a porta única para importar.
   const [consulta, setConsulta] = useState('');
   const [ordemDaGrelha, setOrdemDaGrelha] = useState<OrdemDasPlaylists>('recent');
@@ -149,6 +158,7 @@ export function PlaylistsPage({ navigate, notify, share }: { navigate: (route: R
     else if (id === 'apagar') setApagar(alvo);
     else if (id === 'colaboradores') navigate({ name: 'playlist', id: alvo.id, title: alvo.name, pessoas: true });
     else if (id === 'sair') setSair(alvo);
+    else if (id === 'pasta') { setNomeDaPastaNova(''); setPastaPara(alvo); }
   };
   // Sair de uma playlist onde se colabora (7/10).
   const [sair, setSair] = useState<Playlist | null>(null);
@@ -172,8 +182,77 @@ export function PlaylistsPage({ navigate, notify, share }: { navigate: (route: R
   // Os álbuns guardados (15/11): a pasta é o primeiro cartão da grelha (fora de uma pesquisa).
   const albuns = useAlbunsGuardados((s) => s.albuns);
   useEffect(() => { void carregarAlbunsGuardados(); }, []);
-  const comPasta = albuns.length > 0 && !consulta.trim();
-  const visiveis = useMemo(() => ordenarPlaylists(filtrarPlaylists(items, consulta), ordemDaGrelha), [items, consulta, ordemDaGrelha]);
+  const comPasta = albuns.length > 0 && !consulta.trim() && !pasta;
+  const visiveis = useMemo(() => {
+    const ordenadas = ordenarPlaylists(filtrarPlaylists(items, consulta), ordemDaGrelha);
+    return pasta ? playlistsDaPasta(ordenadas, pasta) : ordenadas;
+  }, [items, consulta, ordemDaGrelha, pasta]);
+  // As pastas (16/11): na grelha, no lugar da primeira playlist delas. A pesquisar,
+  // ou dentro de uma pasta, as playlists vêm soltas.
+  const itensDaGrelha = useMemo(() => (consulta.trim() || pasta
+    ? visiveis.map((playlist) => ({ tipo: 'playlist' as const, playlist }))
+    : grelhaComPastas(visiveis)), [visiveis, consulta, pasta]);
+  const pastas = useMemo(() => nomesDasPastas(items), [items]);
+  const [pastaPara, setPastaPara] = useState<Playlist | null>(null);
+  const [nomeDaPastaNova, setNomeDaPastaNova] = useState('');
+  const [menuDaPasta, setMenuDaPasta] = useState<{ nome: string; ponto: PontoNoEcra } | null>(null);
+  const [renomearPasta, setRenomearPasta] = useState<{ antes: string; nome: string } | null>(null);
+  /** Muda a pasta destas playlists: na grelha já, no servidor a seguir; se falhar, volta. */
+  const mudarPasta = async (ids: readonly string[], destino: string | null, aviso: string) => {
+    const antes = new Map(usePlaylists.getState().items.filter((x) => ids.includes(x.id)).map((x) => [x.id, x.pasta ?? null]));
+    const nome = limparNomeDaPasta(destino);
+    usePlaylists.getState().aplicar((l) => l.map((x) => (ids.includes(x.id) ? { ...x, pasta: nome } : x)));
+    try { await definirPasta(ids, nome); notify(aviso); }
+    catch (e) {
+      usePlaylists.getState().aplicar((l) => l.map((x) => (antes.has(x.id) ? { ...x, pasta: antes.get(x.id) ?? null } : x)));
+      avisarErro(mensagemDeErro(e, "Couldn't update the folder."));
+    }
+  };
+  // Arrastar uma playlist para cima de outra (16/11, o João: "criar a pasta ou
+  // fazer merge"): numa pasta entra nela; numa playlist, um menu com as duas
+  // escolhas onde se largou. O arrastar do HTML: um cartão não tem a lista de
+  // destinos das músicas (`Arrastar.web.tsx`).
+  const [arrastada, setArrastada] = useState<Playlist | null>(null);
+  const [alvoDoLargar, setAlvoDoLargar] = useState<string | null>(null);
+  const [largada, setLargada] = useState<{ origem: Playlist; alvo: Playlist; ponto: PontoNoEcra } | null>(null);
+  const largarNaPasta = (nome: string) => {
+    const origem = arrastada;
+    setArrastada(null); setAlvoDoLargar(null);
+    if (origem && podeIrParaUmaPasta(origem) && limparNomeDaPasta(origem.pasta) !== nome) void mudarPasta([origem.id], nome, FRASES_DAS_PASTAS.movida(nome));
+  };
+  const largarNaPlaylist = (alvo: Playlist, e: any) => {
+    const origem = arrastada;
+    setArrastada(null); setAlvoDoLargar(null);
+    if (!origem || origem.id === alvo.id) return;
+    if (oQueFazAoLargar({ tipo: 'playlist' }) === 'escolher') setLargada({ origem, alvo, ponto: pontoDoEvento(e) });
+  };
+  const fazerAoLargar = async (id: string) => {
+    const l = largada;
+    setLargada(null);
+    if (!l) return;
+    const { origem, alvo } = l;
+    if (id === 'pasta') {
+      const nome = limparNomeDaPasta(alvo.pasta) ?? nomeDePastaNova(pastas);
+      await mudarPasta([origem.id, alvo.id].filter((x) => podeIrParaUmaPasta(items.find((p) => p.id === x) ?? { id: x })), nome, FRASES_DAS_PASTAS.movida(nome));
+    } else if (id === 'juntar') {
+      try {
+        const r = await mergePlaylists(alvo.id, origem.id);
+        notify(r.adicionadas ? `Added ${r.adicionadas} ${r.adicionadas === 1 ? 'song' : 'songs'} to ${alvo.name}` : `Everything was already in ${alvo.name}`);
+        void refresh();
+      } catch (e) { avisarErro(mensagemDeErro(e, "Couldn't merge the playlists.")); }
+    }
+  };
+  /** O que um cartão precisa para ser arrastado e para receber uma playlist. */
+  const arrastar = (p: Playlist) => ({
+    draggable: true,
+    onDragStart: (e: any) => { e.dataTransfer?.setData('text/plain', p.name); if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'; setArrastada(p); },
+    onDragEnd: () => { setArrastada(null); setAlvoDoLargar(null); },
+  });
+  const receber = (chave: string, aoLargar: (e: any) => void) => ({
+    onDragOver: (e: any) => { if (!arrastada || chave === `playlist:${arrastada.id}`) return; e.preventDefault(); if (alvoDoLargar !== chave) setAlvoDoLargar(chave); },
+    onDragLeave: () => { if (alvoDoLargar === chave) setAlvoDoLargar(null); },
+    onDrop: (e: any) => { e.preventDefault(); aoLargar(e); },
+  });
   /** Depois de mexer na lista, a versao do servidor e a que manda. */
   const refresh = useCallback(() => { void carregar(true); }, [carregar]);
   useEffect(() => {
@@ -193,10 +272,62 @@ export function PlaylistsPage({ navigate, notify, share }: { navigate: (route: R
   };
 
   const create = async () => { if (!name.trim()) return; try { const item = await createPlaylist(name.trim()); setCreateOpen(false); setName(''); navigate({ name: 'playlist', id: item.id, title: item.name }); } catch (e: any) { avisarErro(mensagemDeErro(e, "Couldn't create playlist.")); } };
-  return <><Page title="Playlists" subtitle={items.length ? resumoDasPlaylists(items) : undefined} action={<View style={{ flexDirection: 'row', gap: 10 }}><Button secondary icon="download-outline" onPress={() => navigate({ name: 'import' })}>Import</Button><Button icon="add" onPress={() => setCreateOpen(true)}>New playlist</Button></View>}>{items.length ? <View style={styles.songsToolbar}><View style={styles.songsSearch}><Field icon="search" placeholder="Search playlists" value={consulta} onChangeText={setConsulta} /></View><View style={{ flex: 1 }} />{consulta.trim() ? <Text style={styles.songsResultCount}>{visiveis.length} of {items.length}</Text> : null}<Chips rotulo="Sort playlists" valor={ordemDaGrelha} opcoes={OPCOES_DE_ORDEM} aoMudar={setOrdemDaGrelha} /></View> : null}<ContentScroll scrollKey="playlists">{!!loadError&&<Empty icon="alert-circle-outline" title="Playlists unavailable" body={loadError} action={<Button secondary onPress={refresh}>Try again</Button>}/>}{loading ? <Carregando forma="grelha" aoTentar={refresh} /> : items.length || comPasta ? <View style={styles.playlistGrid} onLayout={(e: LayoutChangeEvent) => { const w = e.nativeEvent.layout.width; setLarguraDaGrelha((antes) => (Math.abs(antes - w) > 1 ? w : antes)); }}>{comPasta ? <PastaDosAlbuns albuns={albuns} lado={ladoDoCartao} onPress={() => navigate({ name: 'albuns' })} /> : null}{visiveis.map((item) => <Pressable key={item.id} ref={refDoAlvo(`cartao-playlist:${item.id}`, alvoDaPlaylist({ id: item.id, nome: item.name })) as any} onPress={() => viajar(retratoDe(RETRATO.playlist(item.id)), () => navigate({ name: 'playlist', id: item.id, title: item.name }))} onContextMenu={((e: any) => { e.preventDefault(); setOndeMenu(pontoDoEvento(e)); setMenuAlvo(item); }) as any} {...marcar('cartao')} style={[styles.playlistCard, { width: ladoDoCartao }]}><AuraDaPlaylist capa={item.artworks[0] ?? null} /><View ref={guardarRetrato(RETRATO.playlist(item.id)) as any} {...marcar('brilho')} style={styles.retratoDoCartao}><PlaylistArtwork artworks={item.artworks} lado={ladoDoCartao} />{item.trackCount > 0 ? <PlayDoCartao aoTocar={() => void tocarSemAbrir(item, 'tocar', notify)} rotulo={`Play ${item.name}`} /> : null}</View><Text numberOfLines={1} style={styles.playlistTitle}>{item.name}</Text><Text numberOfLines={1} style={styles.playlistMeta}>{metaDaPlaylist(item)}</Text></Pressable>)}</View> : loadError?null:<Empty icon="albums-outline" title="Nothing here yet" body="Bring a playlist over from YouTube or Spotify, or start an empty one and fill it as you go." action={<View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}><Button icon="logo-youtube" secondary onPress={() => navigate({ name: 'import' })}>Import from YouTube</Button><Button icon="musical-notes-outline" secondary onPress={() => navigate({ name: 'spotify-import' })}>Import from Spotify</Button><Button onPress={() => setCreateOpen(true)}>New playlist</Button></View>} />}</ContentScroll></Page>{menuAlvo ? <MenuDeContexto rato={ondeMenu} rotulo={`Options for ${menuAlvo.name}`}
+  return <><Page title={pasta ?? 'Playlists'} subtitle={pasta ? FRASES_DAS_PASTAS.quantas(visiveis.length) : items.length ? resumoDasPlaylists(items) : undefined} action={pasta && back ? <BotaoVoltar onPress={back} /> : <View style={{ flexDirection: 'row', gap: 10 }}><Button secondary icon="download-outline" onPress={() => navigate({ name: 'import' })}>Import</Button><Button icon="add" onPress={() => setCreateOpen(true)}>New playlist</Button></View>}>{items.length ? <View style={styles.songsToolbar}><View style={styles.songsSearch}><Field icon="search" placeholder="Search playlists" value={consulta} onChangeText={setConsulta} /></View><View style={{ flex: 1 }} />{consulta.trim() ? <Text style={styles.songsResultCount}>{visiveis.length} of {items.length}</Text> : null}<Chips rotulo="Sort playlists" valor={ordemDaGrelha} opcoes={OPCOES_DE_ORDEM} aoMudar={setOrdemDaGrelha} /></View> : null}<ContentScroll scrollKey="playlists">{!!loadError&&<Empty icon="alert-circle-outline" title="Playlists unavailable" body={loadError} action={<Button secondary onPress={refresh}>Try again</Button>}/>}{loading ? <Carregando forma="grelha" aoTentar={refresh} /> : items.length || comPasta ? <View style={styles.playlistGrid} onLayout={(e: LayoutChangeEvent) => { const w = e.nativeEvent.layout.width; setLarguraDaGrelha((antes) => (Math.abs(antes - w) > 1 ? w : antes)); }}>{comPasta ? <PastaDosAlbuns albuns={albuns} lado={ladoDoCartao} onPress={() => navigate({ name: 'albuns' })} /> : null}{itensDaGrelha.map((celula) => {
+          if (celula.tipo === 'pasta') {
+            const item = celula;
+            const chave = `pasta:${item.nome}`;
+            return <div key={chave} {...receber(chave, () => largarNaPasta(item.nome))}>
+              <PastaDePlaylists nome={item.nome} capas={item.capas} quantas={item.playlists.length} lado={ladoDoCartao} alvo={alvoDoLargar === chave}
+                onPress={() => navigate({ name: 'pasta-de-playlists', nome: item.nome })}
+                eventos={{ onContextMenu: (e: any) => { e.preventDefault(); setMenuDaPasta({ nome: item.nome, ponto: pontoDoEvento(e) }); } }} />
+            </div>;
+          }
+          const item = celula.playlist;
+          const chave = `playlist:${item.id}`;
+          return <div key={item.id} {...(podeIrParaUmaPasta(item) ? arrastar(item) : {})} {...receber(chave, (e) => largarNaPlaylist(item, e))}
+            style={{ borderRadius: RAIO.cartao, outline: alvoDoLargar === chave ? '2px solid #fff' : undefined, outlineOffset: 4, opacity: arrastada?.id === item.id ? 0.45 : 1 }}>
+            <Pressable ref={refDoAlvo(`cartao-playlist:${item.id}`, alvoDaPlaylist({ id: item.id, nome: item.name })) as any} onPress={() => viajar(retratoDe(RETRATO.playlist(item.id)), () => navigate({ name: 'playlist', id: item.id, title: item.name }))} onContextMenu={((e: any) => { e.preventDefault(); setOndeMenu(pontoDoEvento(e)); setMenuAlvo(item); }) as any} {...marcar('cartao')} style={[styles.playlistCard, { width: ladoDoCartao }]}><AuraDaPlaylist capa={item.artworks[0] ?? null} /><View ref={guardarRetrato(RETRATO.playlist(item.id)) as any} {...marcar('brilho')} style={styles.retratoDoCartao}><PlaylistArtwork artworks={item.artworks} lado={ladoDoCartao} />{item.trackCount > 0 ? <PlayDoCartao aoTocar={() => void tocarSemAbrir(item, 'tocar', notify)} rotulo={`Play ${item.name}`} /> : null}</View><Text numberOfLines={1} style={styles.playlistTitle}>{item.name}</Text><Text numberOfLines={1} style={styles.playlistMeta}>{metaDaPlaylist(item)}</Text></Pressable>
+          </div>;
+        })}</View> : loadError?null:<Empty icon="albums-outline" title="Nothing here yet" body="Bring a playlist over from YouTube or Spotify, or start an empty one and fill it as you go." action={<View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}><Button icon="logo-youtube" secondary onPress={() => navigate({ name: 'import' })}>Import from YouTube</Button><Button icon="musical-notes-outline" secondary onPress={() => navigate({ name: 'spotify-import' })}>Import from Spotify</Button><Button onPress={() => setCreateOpen(true)}>New playlist</Button></View>} />}</ContentScroll></Page>{menuAlvo ? <MenuDeContexto rato={ondeMenu} rotulo={`Options for ${menuAlvo.name}`}
   linhas={menuDaPlaylist({ plataforma: 'pc', onde: 'cartao', temFaixas: menuAlvo.trackCount > 0, minha: !menuAlvo.souColaborador, colaboro: !!menuAlvo.souColaborador, fixada: estaFixado(atalhosFixados, `playlist:${menuAlvo.id}`) })
     .map((a) => ({ id: a.id, rotulo: a.rotulo, icone: a.icone, perigo: a.destrutiva, inicioDeGrupo: a.inicioDeGrupo }))}
-  aoEscolher={(id) => fazerNoCartao(menuAlvo, id as IdDaAcaoDaPlaylist)} aoFechar={() => setMenuAlvo(null)} /> : null}<Dialog open={!!renomear} title="Rename playlist" onClose={() => setRenomear(null)}><View style={{ paddingBottom: 16 }}><Field autoFocus placeholder="Playlist name" value={nomeNovo} onChangeText={setNomeNovo} onSubmitEditing={confirmarNome} /></View><View style={styles.dialogActions}><Button secondary onPress={() => setRenomear(null)}>Cancel</Button><Button onPress={confirmarNome} disabled={!nomeNovo.trim()}>Save</Button></View></Dialog><Dialog open={!!sair} title="Leave playlist?" onClose={() => setSair(null)}><Text style={styles.dialogBody}>You will stop seeing “{sair?.name}”. The owner can add you again.</Text><View style={styles.dialogActions}><Button secondary onPress={() => setSair(null)}>Cancel</Button><Button danger onPress={confirmarSair}>Leave</Button></View></Dialog><Dialog open={!!apagar} title="Delete playlist?" onClose={() => setApagar(null)}><Text style={styles.dialogBody}>“{apagar?.name}” will be deleted. Tracks in your library will not be affected.</Text><View style={styles.dialogActions}><Button secondary onPress={() => setApagar(null)}>Cancel</Button><Button danger onPress={confirmarApagar}>Delete</Button></View></Dialog><Dialog open={createOpen} onClose={() => setCreateOpen(false)} title="New playlist"><Field autoFocus placeholder="Playlist name" value={name} onChangeText={setName} onSubmitEditing={create} /><View style={styles.dialogActions}><Button secondary onPress={() => setCreateOpen(false)}>Cancel</Button><Button onPress={create}>Create</Button></View></Dialog></>;
+  aoEscolher={(id) => fazerNoCartao(menuAlvo, id as IdDaAcaoDaPlaylist)} aoFechar={() => setMenuAlvo(null)} /> : null}{largada ? <MenuDeContexto rato={largada.ponto} rotulo={`${largada.origem.name} on ${largada.alvo.name}`}
+    linhas={[
+      ...(podeIrParaUmaPasta(largada.origem) && podeIrParaUmaPasta(largada.alvo) ? [{ id: 'pasta', rotulo: FRASES_DAS_PASTAS.fazerPasta, icone: 'folder-outline' }] : []),
+      { id: 'juntar', rotulo: FRASES_DAS_PASTAS.juntar(largada.alvo.name), icone: 'git-merge-outline' },
+    ]}
+    aoEscolher={(id) => void fazerAoLargar(id)} aoFechar={() => setLargada(null)} /> : null}
+  {menuDaPasta ? <MenuDeContexto rato={menuDaPasta.ponto} rotulo={`Options for ${menuDaPasta.nome}`}
+    linhas={[
+      { id: 'renomear', rotulo: FRASES_DAS_PASTAS.renomear, icone: 'pencil-outline' },
+      { id: 'desfazer', rotulo: FRASES_DAS_PASTAS.desfazer, icone: 'albums-outline' },
+    ]}
+    aoEscolher={(id) => {
+      const nome = menuDaPasta.nome;
+      if (id === 'renomear') setRenomearPasta({ antes: nome, nome });
+      else void mudarPasta(playlistsDaPasta(items, nome).map((x) => x.id), null, FRASES_DAS_PASTAS.desfeita);
+    }} aoFechar={() => setMenuDaPasta(null)} /> : null}
+  <Dialog open={!!pastaPara} title={FRASES_DAS_PASTAS.mover.replace('…', '')} onClose={() => setPastaPara(null)}>
+    <View style={{ gap: 6, paddingBottom: 12 }}>
+      {pastas.filter((n) => n !== limparNomeDaPasta(pastaPara?.pasta)).map((n) => <Button key={n} secondary icon="folder-outline"
+        onPress={() => { const alvo = pastaPara; setPastaPara(null); if (alvo) void mudarPasta([alvo.id], n, FRASES_DAS_PASTAS.movida(n)); }}>{n}</Button>)}
+      <Field placeholder={FRASES_DAS_PASTAS.nomeDaPasta} value={nomeDaPastaNova} onChangeText={setNomeDaPastaNova}
+        onSubmitEditing={() => { const alvo = pastaPara; const n = limparNomeDaPasta(nomeDaPastaNova); if (alvo && n) { setPastaPara(null); void mudarPasta([alvo.id], n, FRASES_DAS_PASTAS.movida(n)); } }} />
+    </View>
+    <View style={styles.dialogActions}>
+      {limparNomeDaPasta(pastaPara?.pasta) ? <Button secondary onPress={() => { const alvo = pastaPara; setPastaPara(null); if (alvo) void mudarPasta([alvo.id], null, FRASES_DAS_PASTAS.tirada); }}>{FRASES_DAS_PASTAS.tirar}</Button> : null}
+      <Button secondary onPress={() => setPastaPara(null)}>Cancel</Button>
+      <Button disabled={!limparNomeDaPasta(nomeDaPastaNova)} onPress={() => { const alvo = pastaPara; const n = limparNomeDaPasta(nomeDaPastaNova); if (alvo && n) { setPastaPara(null); void mudarPasta([alvo.id], n, FRASES_DAS_PASTAS.movida(n)); } }}>{FRASES_DAS_PASTAS.nova}</Button>
+    </View>
+  </Dialog>
+  <Dialog open={!!renomearPasta} title={FRASES_DAS_PASTAS.renomear.replace('…', '')} onClose={() => setRenomearPasta(null)}>
+    <View style={{ paddingBottom: 16 }}><Field autoFocus placeholder={FRASES_DAS_PASTAS.nomeDaPasta} value={renomearPasta?.nome ?? ''}
+      onChangeText={(nome) => setRenomearPasta((r) => (r ? { ...r, nome } : r))}
+      onSubmitEditing={() => { const r = renomearPasta; const n = limparNomeDaPasta(r?.nome); if (r && n) { setRenomearPasta(null); void mudarPasta(playlistsDaPasta(items, r.antes).map((x) => x.id), n, FRASES_DAS_PASTAS.movida(n)); if (pasta === r.antes) navigate({ name: 'pasta-de-playlists', nome: n }); } }} /></View>
+    <View style={styles.dialogActions}><Button secondary onPress={() => setRenomearPasta(null)}>Cancel</Button>
+      <Button disabled={!limparNomeDaPasta(renomearPasta?.nome)} onPress={() => { const r = renomearPasta; const n = limparNomeDaPasta(r?.nome); if (r && n) { setRenomearPasta(null); void mudarPasta(playlistsDaPasta(items, r.antes).map((x) => x.id), n, FRASES_DAS_PASTAS.movida(n)); if (pasta === r.antes) navigate({ name: 'pasta-de-playlists', nome: n }); } }}>Save</Button></View>
+  </Dialog>
+  <Dialog open={!!renomear} title="Rename playlist" onClose={() => setRenomear(null)}><View style={{ paddingBottom: 16 }}><Field autoFocus placeholder="Playlist name" value={nomeNovo} onChangeText={setNomeNovo} onSubmitEditing={confirmarNome} /></View><View style={styles.dialogActions}><Button secondary onPress={() => setRenomear(null)}>Cancel</Button><Button onPress={confirmarNome} disabled={!nomeNovo.trim()}>Save</Button></View></Dialog><Dialog open={!!sair} title="Leave playlist?" onClose={() => setSair(null)}><Text style={styles.dialogBody}>You will stop seeing “{sair?.name}”. The owner can add you again.</Text><View style={styles.dialogActions}><Button secondary onPress={() => setSair(null)}>Cancel</Button><Button danger onPress={confirmarSair}>Leave</Button></View></Dialog><Dialog open={!!apagar} title="Delete playlist?" onClose={() => setApagar(null)}><Text style={styles.dialogBody}>“{apagar?.name}” will be deleted. Tracks in your library will not be affected.</Text><View style={styles.dialogActions}><Button secondary onPress={() => setApagar(null)}>Cancel</Button><Button danger onPress={confirmarApagar}>Delete</Button></View></Dialog><Dialog open={createOpen} onClose={() => setCreateOpen(false)} title="New playlist"><Field autoFocus placeholder="Playlist name" value={name} onChangeText={setName} onSubmitEditing={create} /><View style={styles.dialogActions}><Button secondary onPress={() => setCreateOpen(false)}>Cancel</Button><Button onPress={create}>Create</Button></View></Dialog></>;
 }
 
 export function PlaylistPage({ id, title, back, share, navigate, abrirPessoas = false, ...props }: { id: string; title: string; back: () => void; share: (target: ShareTarget) => void; navigate: (route: Route) => void; abrirPessoas?: boolean } & CommonPageProps) {

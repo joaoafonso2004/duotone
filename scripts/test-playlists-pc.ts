@@ -61,13 +61,14 @@ caso('o resumo conta as playlists e as colaborativas', () => {
 
 console.log('\na grelha');
 caso('o título leva o resumo, e a barra tem pesquisa e as opções de ordem', () => {
-  assert.match(grelha, /<Page title="Playlists" subtitle=\{items\.length \? resumoDasPlaylists\(items\) : undefined\}/);
+  // 16/11: dentro de uma pasta, o título é o dela.
+  assert.match(grelha, /<Page title=\{pasta \?\? 'Playlists'\} subtitle=\{pasta \? FRASES_DAS_PASTAS\.quantas\(visiveis\.length\) : items\.length \? resumoDasPlaylists\(items\) : undefined\}/);
   assert.match(grelha, /<Field icon="search" placeholder="Search playlists" value=\{consulta\} onChangeText=\{setConsulta\} \/>/);
   assert.match(grelha, /<Chips rotulo="Sort playlists" valor=\{ordemDaGrelha\} opcoes=\{OPCOES_DE_ORDEM\} aoMudar=\{setOrdemDaGrelha\} \/>/);
 });
 caso('a grelha mostra as visíveis (filtradas e ordenadas), e a pesquisa diz "N of M"', () => {
-  assert.match(grelha, /const visiveis = useMemo\(\(\) => ordenarPlaylists\(filtrarPlaylists\(items, consulta\), ordemDaGrelha\), \[items, consulta, ordemDaGrelha\]\);/);
-  assert.match(grelha, /\{visiveis\.map\(\(item\) => <Pressable key=\{item\.id\}/);
+  assert.match(grelha, /const ordenadas = ordenarPlaylists\(filtrarPlaylists\(items, consulta\), ordemDaGrelha\);\n\s+return pasta \? playlistsDaPasta\(ordenadas, pasta\) : ordenadas;/);
+  assert.match(grelha, /\{itensDaGrelha\.map\(\(celula\) => \{/);
   assert.match(grelha, /\{visiveis\.length\} of \{items\.length\}/);
 });
 caso('uma porta só para importar: vai direto à página de importar de qualquer sítio (5/11)', () => {

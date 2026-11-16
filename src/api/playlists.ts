@@ -4,6 +4,7 @@ import { trackKey, upsertTrack, upsertTracks } from './library';
 import type { Playlist, PlaylistTrack, Track } from '../types';
 import { missingProfilePlaylistColumns } from '../lib/profileSchema';
 import { planearMerge } from '../lib/playlistMerge';
+import { limparNomeDaPasta } from '../lib/pastasDePlaylists';
 // Quem mexe nas playlists muda a co-ocorrência: a descoberta tem de a reler.
 import { esquecerAfinidade } from './afinidade';
 import { esquecerAlargada } from '../lib/cacheDaBiblioteca';
@@ -111,8 +112,21 @@ async function lerColaboracoes(eu: string): Promise<{ colaboro: Set<string>; com
   return r;
 }
 
+/**
+ * As pastas (16/11, supabase/pastas-de-playlists.sql) vêm na mesma leitura. Sem
+ * a migração, a coluna não existe: lê-se sem ela, e não se volta a pedir até a
+ * app reabrir (um pedido falhado por leitura seria um pedido a mais por nada).
+ */
+let semPastas = false;
+function faltaAPasta(e: any): boolean {
+  const m = String(e?.message ?? '');
+  return e?.code === '42703' && /pasta/.test(m) || (/playlists\.pasta|'pasta'/.test(m) && /does not exist|Could not find/i.test(m));
+}
+const CAMPOS_DA_LISTA = 'id, name, created_at, owner_id, visible_on_profile, copied_from';
+
 async function lerPlaylistsDe(filtrar: (q: any) => any): Promise<{ lida: { data: any[] | null; error: any }; legacy: boolean }> {
-  let lida = await lerComResumo('id, name, created_at, owner_id, visible_on_profile, copied_from', filtrar);
+  let lida = await lerComResumo(semPastas ? CAMPOS_DA_LISTA : 'id, name, created_at, owner_id, visible_on_profile, copied_from, pasta', filtrar);
+  if (faltaAPasta(lida.error)) { semPastas = true; lida = await lerComResumo(CAMPOS_DA_LISTA, filtrar); }
   // A biblioteca já existia antes da partilha de perfis. Uma migração em falta
   // não pode fazê-la desaparecer; a leitura continua limitada ao próprio dono.
   const legacy = !!missingProfilePlaylistColumns(lida.error);
@@ -145,6 +159,8 @@ export async function listPlaylists(): Promise<Playlist[]> {
     ...resumoDaPlaylist(row),
     visibleOnProfile: minhas.legacy ? undefined : !!row.visible_on_profile,
     copiedFrom: row.copied_from ?? null,
+    // A pasta é só de quem a pôs: numa playlist de outra pessoa, a pasta é a dele.
+    pasta: row.owner_id && row.owner_id !== userId ? null : row.pasta ?? null,
     ownerId: row.owner_id ?? userId,
     souColaborador: !!row.owner_id && row.owner_id !== userId,
     colaborativa: colab.comColaboradores.has(row.id),
@@ -383,6 +399,19 @@ export async function renamePlaylist(id: string, name: string): Promise<void> {
     .update({ name })
     .eq('id', id)
     .eq('owner_id', userId);
+  if (error) throw error;
+}
+
+/**
+ * Põe playlists numa pasta (ou tira, com `null`): só as minhas (16/11). É a
+ * mesma escrita de mudar o nome, e sobe a revisão das playlists: o outro
+ * aparelho vê a pasta na próxima verificação, sem pedidos a mais.
+ */
+export async function definirPasta(ids: readonly string[], pasta: string | null): Promise<void> {
+  const eu = await currentUserId();
+  const minhas = [...new Set(ids)].filter(Boolean);
+  if (!minhas.length) return;
+  const { error } = await supabase.from('playlists').update({ pasta: limparNomeDaPasta(pasta) }).in('id', minhas).eq('owner_id', eu);
   if (error) throw error;
 }
 

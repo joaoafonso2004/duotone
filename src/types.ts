@@ -32,6 +32,8 @@ export interface Playlist {
   souColaborador?: boolean;
   /** Tem colaboradores (minha ou não). */
   colaborativa?: boolean;
+  /** A pasta onde está (16/11, lib/pastasDePlaylists.ts): o nome, ou nada. Só nas minhas. */
+  pasta?: string | null;
 }
 
 export interface PlaylistTrack extends Track {

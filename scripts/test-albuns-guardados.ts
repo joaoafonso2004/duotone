@@ -74,7 +74,7 @@ caso('o menu de um disco: "Save album" ou "Remove from library", antes do "Save 
 
 caso('iPhone: a pasta à cabeça da grelha, o ecrã dos álbuns, o coração e o menu', () => {
   const playlists = ler('src/screens/PlaylistsScreen.tsx');
-  assert.match(playlists, /data=\{albuns\.length \? \[PASTA_DOS_ALBUNS, \.\.\.playlists\] : playlists\}/);
+  assert.match(playlists, /data=\{!pastaAberta && albuns\.length \? \[PASTA_DOS_ALBUNS, \.\.\.celulas\] : celulas\}/);
   assert.match(playlists, /<PastaDosAlbuns albuns=\{albuns\} lado=\{cardSize\} onPress=\{\(\) => navigation\.navigate\('AlbunsGuardados'\)\} \/>/);
   assert.match(playlists, /const semNadaNaGrelha = playlists\.length === 0 && albuns\.length === 0;/, 'só com álbuns, a grelha aparece na mesma');
   const nav = ler('src/navigation/RootNavigator.tsx');

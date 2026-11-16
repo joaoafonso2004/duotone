@@ -13,6 +13,7 @@ export type RotaComNome =
   | { name: 'friend-profile'; userId: string }
   | { name: 'artist'; value: string }
   | { name: 'playlist'; id: string; title: string }
+  | { name: 'pasta-de-playlists'; nome: string }
   | { name: 'mistura'; id: string; titulo: string }
   | { name: 'stats'; userId?: string }
   | { name: 'voces-os-dois'; userId: string; nome?: string }
@@ -36,6 +37,7 @@ export function nomeDaRota(rota: RotaComNome | null | undefined): string {
   const r = rota ?? ROTA_SEM_HISTORICO;
   const nome = r.name === 'artist' ? r.value
     : r.name === 'playlist' ? r.title
+    : r.name === 'pasta-de-playlists' ? r.nome
     : r.name === 'mistura' ? r.titulo
     : NOMES[r.name] ?? 'Back';
   const limpo = (nome ?? '').trim() || NOMES[r.name] || 'Back';

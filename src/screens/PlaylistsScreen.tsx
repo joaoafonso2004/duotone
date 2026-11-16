@@ -1,8 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { menuDaPlaylist, type IdDaAcaoDaPlaylist } from '../lib/menuDaPlaylist';
-import { useFocusEffect, useNavigation, useScrollToTop } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute, useScrollToTop } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   createPlaylist,
+  definirPasta,
   deletePlaylist,
   getPlaylistTracks,
   importSharedPlaylist,
@@ -24,6 +25,10 @@ import {
 import { metaDaPlaylist } from '../lib/playlistColaborativa';
 import { ArtworkCollage } from '../components/ArtworkCollage';
 import { PastaDosAlbuns } from '../components/PastaDosAlbuns';
+import { PastaDePlaylists } from '../components/PastaDePlaylists';
+import {
+  FRASES_DAS_PASTAS, grelhaComPastas, limparNomeDaPasta, nomeDePastaNova, nomesDasPastas, playlistsDaPasta, type ItemDaGrelha,
+} from '../lib/pastasDePlaylists';
 import { carregarAlbunsGuardados, useAlbunsGuardados } from '../state/albunsGuardados';
 import { BottomSheet } from '../components/BottomSheet';
 import { ConfirmSheet } from '../components/ConfirmSheet';
@@ -38,7 +43,7 @@ import { ShareFriendSheet } from '../components/ShareFriendSheet';
 import { YtPlaylistShareSheet } from '../components/YtPlaylistShareSheet';
 import { usePlayer } from '../state/player';
 import { hapticImpact, hapticNotification, ImpactFeedbackStyle } from '../lib/haptics';
-import { avisarRemocao, avisarErro } from '../lib/avisoDeRemocao';
+import { avisarRemocao, avisarErro, avisarFeito } from '../lib/avisoDeRemocao';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import { usePuxarParaAtualizar } from '../components/PuxarParaAtualizar';
@@ -57,7 +62,11 @@ import { useAudioCache } from '../lib/youtubeCache';
 import { legendaSemRede, naCopiaSemRede, type NaCopia } from '../lib/playlistsSemRede';
 
 /** A célula da pasta dos álbuns, à cabeça da grelha (15/11). */
-const PASTA_DOS_ALBUNS = { id: '__pasta-dos-albuns__', pasta: true } as const;
+const PASTA_DOS_ALBUNS = { chave: '__pasta-dos-albuns__', tipo: 'albuns' } as const;
+/** Uma célula da grelha: a pasta dos álbuns, uma pasta de playlists, ou uma playlist. */
+type Celula = typeof PASTA_DOS_ALBUNS
+  | { chave: string; tipo: 'pasta'; pasta: Extract<ItemDaGrelha<Playlist>, { tipo: 'pasta' }> }
+  | { chave: string; tipo: 'playlist'; playlist: Playlist };
 
 export function PlaylistsScreen() {
   // Tocar no separador onde ja se esta volta ao topo (3/10, como no iOS).
@@ -66,6 +75,10 @@ export function PlaylistsScreen() {
   const cab = useCabecalhoQueEncolhe();
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  // Uma pasta aberta (16/11, lib/pastasDePlaylists.ts): o mesmo ecrã, só com as
+  // playlists dela, empurrado por cima das Playlists.
+  const route = useRoute<any>();
+  const pastaAberta = route.name === 'PastaDePlaylists' ? route.params?.nome ?? null : null;
   const insets = useSafeAreaInsets();
   // A barra dos separadores MEDIDA (auditoria 1.3), não um 49 à mão.
   const separadores = useAlturaDosSeparadores();
@@ -116,6 +129,25 @@ export function PlaylistsScreen() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [optionsFor, setOptionsFor] = useState<Playlist | null>(null);
+  // As pastas (16/11): a folha de escolher para onde vai uma playlist, a de uma
+  // pasta (mudar o nome, desfazer), e o nome de uma pasta nova ou mudado.
+  const [pastaPara, setPastaPara] = useState<Playlist | null>(null);
+  const [opcoesDaPasta, setOpcoesDaPasta] = useState<string | null>(null);
+  const [nomeAPedir, setNomeAPedir] = useState<{ para: Playlist } | { renomear: string } | null>(null);
+  const pastas = useMemo(() => nomesDasPastas(playlists), [playlists]);
+  /** Muda a pasta destas playlists: na lista já, no servidor a seguir; se falhar, volta. */
+  const mudarPasta = async (ids: readonly string[], pasta: string | null, aviso: string) => {
+    const antes = new Map(usePlaylists.getState().items.filter((x) => ids.includes(x.id)).map((x) => [x.id, x.pasta ?? null]));
+    const nome = limparNomeDaPasta(pasta);
+    usePlaylists.getState().aplicar((items) => items.map((x) => (ids.includes(x.id) ? { ...x, pasta: nome } : x)));
+    try {
+      await definirPasta(ids, nome);
+      avisarFeito(aviso);
+    } catch (e) {
+      usePlaylists.getState().aplicar((items) => items.map((x) => (antes.has(x.id) ? { ...x, pasta: antes.get(x.id) ?? null } : x)));
+      avisarErro(mensagemDeErro(e, "Couldn't update the folder."));
+    }
+  };
   // As duas partilhas do toque longo (28/9): estavam só no More de dentro.
   const [partilharCom, setPartilharCom] = useState<Playlist | null>(null);
   const [qrDe, setQrDe] = useState<Playlist | null>(null);
@@ -206,6 +238,7 @@ export function PlaylistsScreen() {
     else if (id === 'apagar') setDeleteFor(p);
     else if (id === 'colaboradores') navigation.navigate('PlaylistDetail', { id: p.id, name: p.name, pessoas: true });
     else if (id === 'sair') setSairDe(p);
+    else if (id === 'pasta') setPastaPara(p);
   };
 
   // Sair de uma playlist onde se colabora (7/10).
@@ -243,6 +276,12 @@ export function PlaylistsScreen() {
   };
 
   const cardSize = (W - spacing.xl * 2 - spacing.lg) / 2;
+  // A grelha: as pastas no lugar da primeira playlist delas; numa pasta aberta, só as dela.
+  const celulas = useMemo<Celula[]>(() => (pastaAberta
+    ? playlistsDaPasta(playlists, pastaAberta).map((p) => ({ chave: p.id, tipo: 'playlist' as const, playlist: p }))
+    : grelhaComPastas(playlists).map((i) => (i.tipo === 'pasta'
+      ? { chave: `pasta:${i.nome}`, tipo: 'pasta' as const, pasta: i }
+      : { chave: i.playlist.id, tipo: 'playlist' as const, playlist: i.playlist }))), [playlists, pastaAberta]);
   const bottomPad = separadores + insets.bottom + MINI_PLAYER_HEIGHT + 32;
   // A Daily mix abre no ecrã das prateleiras, que é uma vista sobre a store --
   // ver `state/misturaDoDia.ts`.
@@ -282,9 +321,11 @@ export function PlaylistsScreen() {
   return (
     <Screen
       encolhe={cab}
-      title="Playlists"
-      subtitle={loading?'Loading…':loadError?undefined:`${playlists.length} ${playlists.length === 1 ? 'playlist' : 'playlists'}`}
-      right={offline ? undefined :
+      title={pastaAberta ?? 'Playlists'}
+      subtitle={pastaAberta ? FRASES_DAS_PASTAS.quantas(celulas.length)
+        : loading?'Loading…':loadError?undefined:`${playlists.length} ${playlists.length === 1 ? 'playlist' : 'playlists'}`}
+      onBack={pastaAberta ? () => navigation.goBack() : undefined}
+      right={offline || pastaAberta ? undefined :
         <Pressable
           hitSlop={10}
           onPress={() => setAddMenuOpen(true)}
@@ -328,13 +369,13 @@ export function PlaylistsScreen() {
       ) : (
         <Animated.FlatList
           ref={topo}
-          data={albuns.length ? [PASTA_DOS_ALBUNS, ...playlists] : playlists}
+          data={!pastaAberta && albuns.length ? [PASTA_DOS_ALBUNS, ...celulas] : celulas}
           ListHeaderComponent={<>{avisoDeErro}{offline ? avisoSemRede : null}{linhaDosDownloads}</>}
           refreshControl={puxar}
           onScroll={cab.onScroll}
           scrollEventThrottle={cab.scrollEventThrottle}
           scrollIndicatorInsets={{ top: cab.espaco }}
-          keyExtractor={(p) => p.id}
+          keyExtractor={(c) => c.chave}
           numColumns={2}
           columnWrapperStyle={{ gap: spacing.lg, paddingHorizontal: spacing.xl }}
           contentContainerStyle={{
@@ -343,10 +384,17 @@ export function PlaylistsScreen() {
             paddingTop: cab.espaco + spacing.sm,
           }}
           renderItem={({ item: celula }) => {
-            if ('pasta' in celula) {
+            if (celula.tipo === 'albuns') {
               return <PastaDosAlbuns albuns={albuns} lado={cardSize} onPress={() => navigation.navigate('AlbunsGuardados')} />;
             }
-            const item = celula;
+            if (celula.tipo === 'pasta') {
+              return (
+                <PastaDePlaylists nome={celula.pasta.nome} capas={celula.pasta.capas} quantas={celula.pasta.playlists.length} lado={cardSize}
+                  onPress={() => navigation.push('PastaDePlaylists', { nome: celula.pasta.nome })}
+                  onLongPress={offline ? undefined : () => { hapticImpact(ImpactFeedbackStyle.Medium); setOpcoesDaPasta(celula.pasta.nome); }} />
+              );
+            }
+            const item = celula.playlist;
             const naCopia = copia?.get(item.id);
             return (
             <Pressable
@@ -425,6 +473,64 @@ export function PlaylistsScreen() {
         onClose={() => setQrDe(null)}
         playlistId={qrDe?.id ?? ''}
         playlistName={qrDe?.name ?? ''}
+      />
+
+      {/* Para que pasta vai esta playlist (16/11): as que há, uma nova, ou sair da que tem. */}
+      <TrackActionsSheet
+        visible={!!pastaPara}
+        track={null}
+        onClose={() => setPastaPara(null)}
+        cabecalho={pastaPara ? { titulo: FRASES_DAS_PASTAS.mover.replace('…', ''), subtitulo: pastaPara.name, capas: pastaPara.artworks } : null}
+        actions={pastaPara ? [
+          ...pastas.filter((n) => n !== limparNomeDaPasta(pastaPara.pasta)).map((n) => ({
+            icon: 'folder-outline' as any, label: n,
+            onPress: () => { const p = pastaPara; setPastaPara(null); void mudarPasta([p.id], n, FRASES_DAS_PASTAS.movida(n)); },
+          })),
+          { icon: 'add-circle-outline' as any, label: FRASES_DAS_PASTAS.criar,
+            onPress: () => { const p = pastaPara; setPastaPara(null); setNomeAPedir({ para: p }); } },
+          ...(limparNomeDaPasta(pastaPara.pasta) ? [{ icon: 'remove-circle-outline' as any, label: FRASES_DAS_PASTAS.tirar,
+            onPress: () => { const p = pastaPara; setPastaPara(null); void mudarPasta([p.id], null, FRASES_DAS_PASTAS.tirada); } }] : []),
+        ] : []}
+      />
+
+      {/* Uma pasta (16/11): mudar o nome, ou desfazê-la (as playlists ficam). */}
+      <TrackActionsSheet
+        visible={!!opcoesDaPasta}
+        track={null}
+        onClose={() => setOpcoesDaPasta(null)}
+        cabecalho={opcoesDaPasta ? { titulo: opcoesDaPasta, subtitulo: FRASES_DAS_PASTAS.quantas(playlistsDaPasta(playlists, opcoesDaPasta).length), capas: [] } : null}
+        actions={opcoesDaPasta ? [
+          { icon: 'pencil-outline' as any, label: FRASES_DAS_PASTAS.renomear,
+            onPress: () => { const n = opcoesDaPasta; setOpcoesDaPasta(null); setNomeAPedir({ renomear: n }); } },
+          { icon: 'albums-outline' as any, label: FRASES_DAS_PASTAS.desfazer,
+            onPress: () => {
+              const n = opcoesDaPasta;
+              setOpcoesDaPasta(null);
+              void mudarPasta(playlistsDaPasta(playlists, n).map((x) => x.id), null, FRASES_DAS_PASTAS.desfeita);
+            } },
+        ] : []}
+      />
+
+      <PromptSheet
+        visible={!!nomeAPedir}
+        title={nomeAPedir && 'renomear' in nomeAPedir ? FRASES_DAS_PASTAS.renomear.replace('…', '') : FRASES_DAS_PASTAS.nova}
+        placeholder={FRASES_DAS_PASTAS.nomeDaPasta}
+        initialValue={nomeAPedir && 'renomear' in nomeAPedir ? nomeAPedir.renomear : nomeDePastaNova(pastas)}
+        submitLabel="Save"
+        loading={false}
+        onClose={() => setNomeAPedir(null)}
+        onSubmit={async (texto) => {
+          const pedido = nomeAPedir;
+          const nome = limparNomeDaPasta(texto);
+          if (!pedido || !nome) return;
+          setNomeAPedir(null);
+          if ('renomear' in pedido) {
+            await mudarPasta(playlistsDaPasta(playlists, pedido.renomear).map((x) => x.id), nome, FRASES_DAS_PASTAS.movida(nome));
+            if (pastaAberta && pastaAberta === pedido.renomear) navigation.setParams({ nome } as any);
+          } else {
+            await mudarPasta([pedido.para.id], nome, FRASES_DAS_PASTAS.movida(nome));
+          }
+        }}
       />
 
       <PromptSheet

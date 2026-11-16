@@ -118,6 +118,8 @@ export type PilhaParamList = {
   Playlists: undefined;
   /** Os álbuns guardados (15/11): a grelha que a pasta das Playlists abre. */
   AlbunsGuardados: undefined;
+  /** Uma pasta de playlists (16/11): o ecrã das Playlists, só com as dela. */
+  PastaDePlaylists: { nome: string };
   /** `editar`: abre já na edição (o "Edit playlist" do toque longo, 28/9). */
   PlaylistDetail: { id: string; name: string; editar?: boolean; pessoas?: boolean };
   ImportYouTube: undefined;
@@ -213,6 +215,7 @@ function ecrasDaPilha() {
           última cópia e toca o que está no iPhone. */}
       <Stack.Screen name="PlaylistDetail" component={PlaylistDetailScreen} />
       <Stack.Screen name="AlbunsGuardados" component={AlbunsGuardadosScreen} />
+      <Stack.Screen name="PastaDePlaylists" component={PlaylistsScreen} />
       <Stack.Screen name="LibraryGroup" component={OnlineLibraryGroup} />
       <Stack.Screen name="Prateleira" component={OnlinePrateleira} />
       <Stack.Screen name="FriendProfile" component={FriendProfileScreen} />

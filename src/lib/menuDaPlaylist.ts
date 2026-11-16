@@ -13,7 +13,7 @@
 export type IdDaAcaoDaPlaylist =
   | 'tocar' | 'baralhar' | 'fila'
   | 'partilhar' | 'partilhar-link' | 'fixar'
-  | 'editar' | 'juntar' | 'apagar'
+  | 'editar' | 'juntar' | 'apagar' | 'pasta'
   | 'colaboradores' | 'sair'
   | 'descarregar' | 'cancelar-download' | 'tirar-downloads';
 
@@ -92,6 +92,8 @@ export function menuDaPlaylist(s: SituacaoDaPlaylist): AcaoDaPlaylist[] {
       grupo.push({ id: 'editar', rotulo: s.plataforma === 'ios' ? 'Edit playlist' : 'Rename…', icone: 'pencil-outline' });
     }
     if (s.onde === 'pagina') grupo.push({ id: 'juntar', rotulo: 'Merge another playlist…', icone: 'git-merge-outline' });
+    // As pastas (16/11, lib/pastasDePlaylists.ts): só as minhas mudam de pasta.
+    if (s.minha && s.onde === 'cartao') grupo.push({ id: 'pasta', rotulo: 'Move to folder…', icone: 'folder-outline' });
     grupo.push({ id: 'colaboradores', rotulo: s.minha ? 'Collaborators…' : 'People in this playlist', icone: 'person-add-outline' });
     if (s.minha) grupo.push({ id: 'apagar', rotulo: 'Delete playlist', icone: 'trash-outline', destrutiva: true });
     else grupo.push({ id: 'sair', rotulo: 'Leave playlist', icone: 'exit-outline', destrutiva: true });

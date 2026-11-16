@@ -30,6 +30,8 @@ export type Route =
   | { name: 'import' }
   /** Os álbuns guardados (15/11): a grelha que a pasta das Playlists abre. */
   | { name: 'albuns' }
+  /** Uma pasta de playlists (16/11): a página das Playlists, só com as dela. */
+  | { name: 'pasta-de-playlists'; nome: string }
   | { name: 'stats';userId?:string }
   | { name: 'spotify-import' }
   /** O Library check, que se abre das Definições. */
