@@ -67,6 +67,13 @@ export type Aparencia = {
    * o destaque pela capa, a cor dela só no fundo.
    */
   controlos: 'destaque' | 'branco';
+  /**
+   * A imagem do Poster: fotos do artista (uma por música, `lib/fotosDoPoster.ts`;
+   * sem fotos, a capa) ou sempre a capa. 16/11: "uma imagem top do cantor".
+   */
+  posterImagem: 'artista' | 'capa';
+  /** O Poster a preto e branco, com grão (a maquete do João, 16/11). */
+  posterMono: boolean;
   /** Os botões de baixo do leitor, por ordem. */
   botoes: BotaoDoLeitor[];
   /** A capa 3D a flutuar. */
@@ -88,7 +95,7 @@ export type Aparencia = {
 
 export const PADRAO: Aparencia = {
   fundoApp: 'dark', listas: 'comfortable', rotulos: true,
-  topo: 'marca', titulo: 'centro', barra: 'fina', play: 'cheio', controlos: 'destaque',
+  topo: 'marca', titulo: 'centro', barra: 'fina', play: 'cheio', controlos: 'destaque', posterImagem: 'artista', posterMono: false,
   botoes: ['fila', 'visibilidade', 'eq'], flutuar: true, fundoLeitor: 'capa', brilho: 50,
   titulos: 'padrao', tamanhoDasLetras: 'm', abrirNasLetras: false,
   secoesDaHome: [...SECOES_DA_HOME], escondidasDaHome: [],
@@ -100,7 +107,8 @@ export const PADRAO: Aparencia = {
  * voltavam aos de omissão).
  */
 export const CHAVES_DO_TEMA = [
-  'fundoApp', 'listas', 'rotulos', 'topo', 'titulo', 'barra', 'play', 'controlos', 'flutuar', 'fundoLeitor', 'brilho', 'titulos',
+  'fundoApp', 'listas', 'rotulos', 'topo', 'titulo', 'barra', 'play', 'controlos', 'posterImagem', 'posterMono',
+  'flutuar', 'fundoLeitor', 'brilho', 'titulos',
 ] as const;
 type ChaveDoTema = typeof CHAVES_DO_TEMA[number];
 
@@ -118,10 +126,10 @@ export const TEMAS: readonly Tema[] = [
   { id: 'glow', nome: 'Glow', capa: 'full', campos: {
     ...ASPETO_PADRAO, topo: 'origem', titulo: 'esquerda', barra: 'grossa', brilho: 75,
   } },
-  // A capa por trás de tudo, a dissolver-se na cor dela, e os símbolos brancos
-  // (16/11, a maquete que o João trouxe).
+  // Fotos do artista por trás de tudo, a preto e branco com grão, e os símbolos
+  // brancos (16/11, a maquete que o João trouxe).
   { id: 'poster', nome: 'Poster', capa: 'poster', campos: {
-    ...ASPETO_PADRAO, topo: 'origem', play: 'anel', controlos: 'branco',
+    ...ASPETO_PADRAO, topo: 'origem', play: 'anel', controlos: 'branco', posterImagem: 'artista', posterMono: true,
   } },
   { id: 'oled', nome: 'OLED', capa: 'simple', campos: { ...ASPETO_PADRAO, fundoApp: 'oled', fundoLeitor: 'preto', flutuar: false } },
 ];
@@ -153,7 +161,7 @@ export function alternarBotao(botoes: readonly BotaoDoLeitor[], b: BotaoDoLeitor
   return botoes.length >= MAXIMO_DE_BOTOES ? [...botoes] : [...botoes, b];
 }
 
-type ChaveComValores = Exclude<keyof Aparencia, 'botoes' | 'brilho' | 'rotulos' | 'flutuar' | 'abrirNasLetras' | 'secoesDaHome' | 'escondidasDaHome'>;
+type ChaveComValores = Exclude<keyof Aparencia, 'botoes' | 'brilho' | 'rotulos' | 'flutuar' | 'posterMono' | 'abrirNasLetras' | 'secoesDaHome' | 'escondidasDaHome'>;
 const VALORES: { [K in ChaveComValores]: readonly Aparencia[K][] } = {
   fundoApp: ['dark', 'oled'],
   listas: ['comfortable', 'compact'],
@@ -162,6 +170,7 @@ const VALORES: { [K in ChaveComValores]: readonly Aparencia[K][] } = {
   barra: ['fina', 'grossa'],
   play: ['cheio', 'anel', 'icone'],
   controlos: ['destaque', 'branco'],
+  posterImagem: ['artista', 'capa'],
   fundoLeitor: ['capa', 'cor', 'gradiente', 'preto'],
   titulos: ['padrao', 'serif', 'mono'],
   tamanhoDasLetras: ['p', 'm', 'g'],
@@ -179,6 +188,7 @@ export function lerAparencia(guardado: unknown): Aparencia {
   }
   if (typeof g.rotulos === 'boolean') fora.rotulos = g.rotulos;
   if (typeof g.flutuar === 'boolean') fora.flutuar = g.flutuar;
+  if (typeof g.posterMono === 'boolean') fora.posterMono = g.posterMono;
   if (typeof g.abrirNasLetras === 'boolean') fora.abrirNasLetras = g.abrirNasLetras;
   if (typeof g.brilho === 'number' && Number.isFinite(g.brilho)) fora.brilho = Math.min(100, Math.max(0, Math.round(g.brilho)));
   if (Array.isArray(g.botoes)) {
@@ -356,6 +366,26 @@ export function degradesDoPoster(corHex: string): { topo: Degrade; baixo: Degrad
     topo: { cores: [cor(0.9), cor(0.55), cor(0)], paragens: [0, 0.08, 0.24] },
     baixo: { cores: [cor(0), cor(0.45), cor(0.85), cor(1)], paragens: [0.5, 0.7, 0.88, 1] },
   };
+}
+
+/** Quanto a luz da cor desce a preto e branco: a maquete tinha as bordas quase pretas. */
+export const LUZ_DO_CINZENTO = 0.3;
+
+/**
+ * A cor das bordas do Poster a preto e branco: um cinzento com a luminância da
+ * cor (a relativa, em espaço linear, como o contraste a mede), mais escuro
+ * (\`LUZ_DO_CINZENTO\`). Com a luma em sRGB um castanho dava #717171, e o branco
+ * por cima ficava lavado (harness, 16/11).
+ */
+export function emCinzento(corHex: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(corHex.trim());
+  if (!m) return corHex;
+  const v = parseInt(m[1]!, 16);
+  const lin = (c: number) => { const x = c / 255; return x <= 0.04045 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); };
+  const l = (0.2126 * lin((v >> 16) & 255) + 0.7152 * lin((v >> 8) & 255) + 0.0722 * lin(v & 255)) * LUZ_DO_CINZENTO;
+  const s = l <= 0.0031308 ? l * 12.92 : 1.055 * Math.pow(l, 1 / 2.4) - 0.055;
+  const h = Math.max(0, Math.min(255, Math.round(s * 255))).toString(16).padStart(2, '0').toUpperCase();
+  return `#${h}${h}${h}`;
 }
 
 /** O grafite das folhas com o fundo Dark: neutro, sem o azul do `surfaceHigh` (11/10). */

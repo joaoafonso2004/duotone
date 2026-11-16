@@ -28,6 +28,7 @@ import { useAuth } from '../state/auth';
 import { closePlayerSmoothly, confirmaSwipe } from '../lib/closePlayer';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useCorDoAmbiente } from '../hooks/useCorDoAmbiente';
+import { useFotoDoPoster } from '../hooks/useFotoDoPoster';
 import { displayArtist, tituloDaFaixa, tituloNoLeitor } from '../lib/artistName';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
@@ -61,8 +62,9 @@ import { useShallow } from 'zustand/react/shallow';
 import { useAparencia } from '../state/aparencia';
 import {
   abrirJaNasLetras, destinoDaOrigem, fonteDosTitulos, NOMES_DOS_BOTOES, olhoDaOrigem, ROTULOS_DOS_BOTOES, rotuloDoTemporizador,
-  alturaDoPoster, veuDoLeitor, type BotaoDoLeitor,
+  alturaDoPoster, emCinzento, veuDoLeitor, type BotaoDoLeitor,
 } from '../lib/aparencia';
+import { fotoPequena } from '../lib/fotosDoPoster';
 import { ancoraDoUltimoToque } from '../lib/ultimoToque';
 import { comecarRadioDaMusica } from '../state/radioDaFaixa';
 import { FundoEmGradiente } from './FundoEmGradiente';
@@ -211,6 +213,7 @@ export function PlayerRoot() {
   // botão play, os botões de baixo, o flutuar e o fundo.
   const ap = useAparencia(useShallow((s) => ({
     topo: s.topo, titulo: s.titulo, barra: s.barra, play: s.play, controlos: s.controlos, botoes: s.botoes,
+    posterImagem: s.posterImagem, posterMono: s.posterMono,
     flutuar: s.flutuar, fundoLeitor: s.fundoLeitor, brilho: s.brilho, titulos: s.titulos, abrirNasLetras: s.abrirNasLetras,
   })));
   // Os símbolos do leitor aberto (16/11): na cor do destaque, ou brancos (a cor
@@ -997,9 +1000,13 @@ export function PlayerRoot() {
   }, [current?.source, current?.sourceId, current?.artworkUrl, offline]);
 
   const fundo = desfoqueLeve(artSource, 64);
-  // O Poster (16/11): a cor da capa nas bordas de cima e de baixo. Antes do
-  // `if (!current)`: é um hook. Lê a miniatura pequena, em cache por endereço.
-  const tomDoPoster = useCorDoAmbiente(Platform.OS === 'ios' && estiloDaCapa === 'poster' ? fundo?.uri ?? null : null);
+  // O Poster (16/11): uma foto do artista para esta música (uma por música; sem
+  // fotos, a capa) e a cor dela nas bordas de cima e de baixo. Antes do
+  // `if (!current)`: são hooks. A cor lê-se de uma versão pequena, em cache.
+  const noPoster = Platform.OS === 'ios' && estiloDaCapa === 'poster';
+  const fotoDoPoster = useFotoDoPoster(noPoster && ap.posterImagem === 'artista' ? current : null);
+  const imagemDoPoster = fotoDoPoster ?? artSource;
+  const tomDoPoster = useCorDoAmbiente(noPoster ? (fotoDoPoster ? fotoPequena(fotoDoPoster) : fundo?.uri ?? null) : null);
 
   const onArtError = useCallback(() => {
     // Passa à seguinte sem moldura. A de recurso fica: é a última que há.
@@ -1551,7 +1558,12 @@ export function PlayerRoot() {
             sempre), a cor dela (a mesma imagem tão desfocada que fica só a
             cor), duas cores dela a mexer devagar (FundoEmGradiente), ou preto. */}
         {capaPoster ? (
-          <FundoDoPoster uri={artSource} tom={tomDoPoster} altura={alturaDoPoster(vidFull.y + vidFull.h, H)} />
+          <FundoDoPoster
+            uri={imagemDoPoster}
+            tom={tomDoPoster && ap.posterMono ? emCinzento(tomDoPoster) : tomDoPoster}
+            mono={ap.posterMono}
+            altura={alturaDoPoster(vidFull.y + vidFull.h, H)}
+          />
         ) : <>
         {ap.fundoLeitor === 'preto' ? <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000' }]} />
           : ap.fundoLeitor === 'gradiente' ? <FundoEmGradiente uri={fundo?.uri ?? null} animar={aberto} /> : fundo ? (

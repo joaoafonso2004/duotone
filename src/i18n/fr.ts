@@ -2483,4 +2483,8 @@ export const FR: Readonly<Record<string, string>> = {
   "Accent colour": "Couleur d'accent",
   "White": "Blanc",
   "The artwork is the background and fades into its own colour.": "La pochette devient le fond et se fond dans sa propre couleur.",
+  "Poster image": "Image de l'affiche",
+  "Artist photos": "Photos de l'artiste",
+  "Black and white": "Noir et blanc",
+  "A different photo of the artist for each song, while there are photos. Without them, the artwork.": "Une photo différente de l'artiste pour chaque titre, tant qu'il y en a. Sinon, la pochette.",
 };

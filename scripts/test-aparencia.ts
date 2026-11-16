@@ -6,7 +6,7 @@ import {
   abrirJaNasLetras, alternarBotao, alternarSecao, alturaDaLinha, aplicarTema, BOTOES_DO_LEITOR, capaDoTema, destinoDaOrigem,
   ESTILOS_DA_CAPA, fonteDosTitulos, lerAparencia, MAXIMO_DE_BOTOES, moverSecao, NOMES_DAS_SECOES, olhoDaOrigem, ordemDasSecoes,
   PADRAO, SECOES_DA_HOME, secoesVisiveis, tamanhoDasLetras, TEMAS, temaDe, veuDoLeitor,
-  fundoDasFolhas, GRAFITE_DAS_FOLHAS, NOMES_DOS_BOTOES, rotuloDoTemporizador, alturaDoPoster, degradesDoPoster,
+  fundoDasFolhas, GRAFITE_DAS_FOLHAS, NOMES_DOS_BOTOES, rotuloDoTemporizador, alturaDoPoster, degradesDoPoster, emCinzento,
 } from '../src/lib/aparencia.ts';
 import { coresDoGradiente, contraste, deHex } from '../src/lib/corDaCapa.ts';
 
@@ -51,6 +51,15 @@ const poster = aplicarTema('poster');
 assert.equal(poster.controlos, 'branco', 'o tema Poster: só o fundo tem a cor da capa');
 assert.equal(poster.topo, 'origem');
 assert.equal(poster.play, 'anel');
+assert.equal(poster.posterImagem, 'artista', 'o tema Poster: fotos do artista');
+assert.equal(poster.posterMono, true, 'a preto e branco, como a maquete');
+assert.equal(PADRAO.posterImagem, 'artista', 'o Poster escolhido à mão também começa nas fotos');
+assert.equal(PADRAO.posterMono, false);
+assert.equal(lerAparencia({ posterImagem: 'capa', posterMono: true }).posterImagem, 'capa');
+assert.equal(lerAparencia({ posterMono: true }).posterMono, true);
+assert.equal(lerAparencia({ posterImagem: 'video', posterMono: 'sim' }).posterImagem, 'artista', 'um valor desconhecido cai no de omissão');
+assert.equal(lerAparencia({ posterMono: 'sim' }).posterMono, false);
+assert.equal(temaDe({ ...poster, posterMono: false }, 'poster'), 'custom', 'o Poster a cores já é Custom');
 assert.equal(temaDe(poster, 'poster'), 'poster');
 assert.equal(temaDe(poster, 'floating'), 'custom', 'o Poster com outra capa já não é o Poster');
 assert.equal(temaDe({ ...PADRAO, controlos: 'branco' }), 'custom', 'os controlos brancos à mão passam a Custom');
@@ -70,6 +79,11 @@ assert.equal(d.baixo.cores.at(-1), 'rgba(42,75,124,1)', 'em baixo, cheio: sem ar
 assert.equal(d.topo.cores.length, d.topo.paragens.length);
 assert.equal(d.baixo.cores.length, d.baixo.paragens.length);
 assert.equal(degradesDoPoster('lixo').baixo.cores.at(-1), 'rgba(6,6,8,1)', 'sem cor, o fundo da app');
+// A preto e branco, as bordas em cinzento com a mesma luz.
+assert.equal(emCinzento('#1A0F55'), '#0C0C0C', 'um azul fundo dá quase preto, como a maquete');
+assert.equal(emCinzento('#767676'), '#424242', 'a mais clara que o corDoAmbiente dá (contraste 4,5 com o branco) fica escura');
+assert.equal(emCinzento('#000000'), '#000000');
+assert.equal(emCinzento('lixo'), 'lixo');
 assert.ok(ESTILOS_DA_CAPA.every((e) => e.nome !== 'Vinyl'), 'o vinil saiu (10/10)');
 
 // Os botões de baixo: no máximo quatro, pela ordem em que se ligam.
@@ -226,8 +240,13 @@ assert.match(leitor, /outputRange: \[8, capaInteira \? 0 : 20\]/, 'sem cantos');
 assert.match(leitor, /raio=\{capaFlutuante \? CAPA_FLUTUANTE\.raio : capaInteira \? 0 : 20\}/);
 assert.match(leitor, /sombra: capaFlutuante \? 0 : capaInteira \|\| capaPoster \? 0 :/, 'sem sombra');
 assert.match(leitor, /const capaPoster = Platform\.OS === 'ios' && estiloDaCapaCarregado && estiloDaCapa === 'poster'/, 'o Poster');
-assert.match(leitor, /\{capaPoster \? \(\s*<FundoDoPoster uri=\{artSource\} tom=\{tomDoPoster\} altura=\{alturaDoPoster\(vidFull\.y \+ vidFull\.h, H\)\} \/>/, 'o Poster é o fundo');
-assert.match(leitor, /useCorDoAmbiente\(Platform\.OS === 'ios' && estiloDaCapa === 'poster'/, 'a cor das bordas só se lê com o Poster');
+assert.match(leitor, /\{capaPoster \? \(\s*<FundoDoPoster\s+uri=\{imagemDoPoster\}\s+tom=\{tomDoPoster && ap\.posterMono \? emCinzento\(tomDoPoster\) : tomDoPoster\}\s+mono=\{ap\.posterMono\}\s+altura=\{alturaDoPoster\(vidFull\.y \+ vidFull\.h, H\)\}/, 'o Poster é o fundo');
+assert.match(leitor, /const noPoster = Platform\.OS === 'ios' && estiloDaCapa === 'poster';/, 'a foto e a cor só se procuram com o Poster');
+assert.match(leitor, /useFotoDoPoster\(noPoster && ap\.posterImagem === 'artista' \? current : null\)/, 'a foto do artista só com "Artist photos"');
+assert.match(leitor, /const imagemDoPoster = fotoDoPoster \?\? artSource;/, 'sem foto, a capa');
+assert.match(leitor, /useCorDoAmbiente\(noPoster \? \(fotoDoPoster \? fotoPequena\(fotoDoPoster\) : fundo\?\.uri \?\? null\) : null\)/, 'a cor das bordas vem da imagem que se vê');
+assert.match(ler('src/components/FundoDoPoster.tsx'), /semCor: \{ backgroundColor: '#808080', mixBlendMode: 'saturation' \}/, 'o preto e branco sem módulo nativo');
+assert.match(ler('src/components/FundoDoPoster.tsx'), /\{mono \? <ImagemRN source=\{GRAO\} resizeMode="repeat" style=\{imagem\} \/>/, 'o grão, só na fotografia');
 assert.match(leitor, /frenteTransparente=\{!!capaDaFrente\}/, 'a face da frente transparente');
 assert.match(leitor, /const corDosControlos = ap\.controlos === 'branco' \? colors\.text : theme\.color;/, 'os controlos brancos');
 assert.match(leitor, /\[styles\.playAnel, \{ borderColor: corDosControlos \}\]/, 'o anel do play');

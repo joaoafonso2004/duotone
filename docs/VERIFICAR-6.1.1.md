@@ -1,13 +1,14 @@
 # Verificar a 6.1.1 (só iPhone)
 
-O Poster só foi visto no harness web (o fundo e o Customise com duas capas de teste): o leitor a sério, com a passagem da capa para o fundo, é a primeira vez no iPhone.
+O Poster só foi visto no harness web (fotos reais do TheAudioDB, o preto e branco, o grão e o Customise): o leitor a sério, a passagem da capa para o fundo e a mistura "saturation" no iOS são a primeira vez no iPhone.
 
-1. Customise → Artwork → Poster: a capa enche o leitor por trás do topo, do título e dos controlos; em cima e em baixo dissolve-se na cor dela (não em preto). As linhas Background e Background brightness desaparecem.
-2. Abrir o leitor a partir do mini: a capa voa e, ao pousar, funde-se no fundo sem salto. Fechar a arrastar para baixo: a capa volta a aparecer e desce para o mini.
-3. Saltar de música: a imagem e a cor das bordas mudam juntas, numa passagem curta.
-4. Uma capa a preto e branco: as bordas ficam cinzento-escuro; uma colorida: um tom fundo da cor dela.
-5. Rodar para as letras (deslizar no quadrado ou nos pontos): as letras rodam por cima do fundo; voltar à capa deixa o quadrado transparente outra vez. Dois toques no quadrado gostam da música.
-6. O título e o artista leem-se bem por cima da dissolução, com capas claras e escuras.
-7. Customise → Controls → White: o coração, o anel do play, os pontos e o shuffle/repeat ligados ficam brancos. O mini-player continua na cor do destaque.
-8. Tema Poster: um toque põe a capa Poster, o "Playing from", o anel e os controlos brancos; o tema Duotone repõe tudo.
-9. Com a app em francês: "Affiche", "Commandes", "Couleur d'accent" e "Blanc".
+1. Tema Poster: a foto do artista enche o leitor por trás do topo, do título e dos controlos, a preto e branco com grão; em cima e em baixo dissolve-se num cinzento escuro. Os controlos ficam brancos.
+2. A preto e branco no iPhone: se a foto aparecer a cores, é a mistura "saturation" (o `compositingFilter` da camada) que não pega -- dizer-me.
+3. Várias músicas do mesmo artista grande (Travis Scott, Kendrick Lamar): cada uma com a sua foto; voltar a uma música traz a mesma foto. Um artista português (Dillaz, Plutónio): fica a capa.
+4. A primeira música de um artista novo: começa com a capa e a foto entra numa passagem quando chega. A segunda já abre com a foto.
+5. Abrir o leitor a partir do mini: a capa voa e, ao pousar, desaparece no fundo. Fechar a arrastar para baixo: volta a aparecer e desce para o mini.
+6. Customise → Poster image → Artwork: o fundo passa a ser a capa. Black and white desligado: a foto a cores, com as bordas no tom dela.
+7. Rodar para as letras no quadrado: as letras rodam por cima da foto. Dois toques no quadrado gostam da música.
+8. O título lê-se bem por cima da dissolução, com fotos claras e escuras. O grão não deve sujar a zona dos controlos.
+9. Customise → Controls → White: o coração, o anel do play, os pontos e o shuffle/repeat ligados ficam brancos. O mini-player continua na cor do destaque.
+10. Em francês: "Affiche", "Image de l'affiche", "Photos de l'artiste", "Noir et blanc", "Commandes", "Blanc".

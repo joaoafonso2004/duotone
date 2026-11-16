@@ -3,7 +3,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState } from 'react';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Image as ImagemRN, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
 import { Grupo, Linha, LinhaInterruptor } from '../components/ListaAgrupada';
@@ -11,13 +11,15 @@ import { MenuFlutuante, type Ancora } from '../components/MenuFlutuante';
 import type { PlayerAction } from '../components/PlayerActionsSheet';
 import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import {
-  BOTOES_DO_LEITOR, degradesDoPoster, ESTILOS_DA_CAPA, fonteDosTitulos, MAXIMO_DE_BOTOES, NOMES_DAS_SECOES, NOMES_DOS_BOTOES, TEMAS, veuDoLeitor,
+  BOTOES_DO_LEITOR, degradesDoPoster, emCinzento, ESTILOS_DA_CAPA, fonteDosTitulos, MAXIMO_DE_BOTOES, NOMES_DAS_SECOES, NOMES_DOS_BOTOES, TEMAS, veuDoLeitor,
   type Aparencia, type BotaoDoLeitor, type EstiloDaCapa, type SecaoDaHome,
 } from '../lib/aparencia';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { tituloNoLeitor } from '../lib/artistName';
 import { FundoEmGradiente } from '../components/FundoEmGradiente';
 import { useCorDoAmbiente } from '../hooks/useCorDoAmbiente';
+import { useFotoDoPoster } from '../hooks/useFotoDoPoster';
+import { fotoPequena } from '../lib/fotosDoPoster';
 import { hapticSelection } from '../lib/haptics';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useAparencia, useTemaDaAparencia } from '../state/aparencia';
@@ -38,6 +40,7 @@ const ESCOLHAS = {
   barra: { rotulo: 'Progress bar', icone: 'remove-outline', nomes: ['Thin', 'Thick'], valores: ['fina', 'grossa'] },
   play: { rotulo: 'Play button', icone: 'play-circle-outline', nomes: ['Filled', 'Ring', 'Icon'], valores: ['cheio', 'anel', 'icone'] },
   controlos: { rotulo: 'Controls', icone: 'color-palette-outline', nomes: ['Accent colour', 'White'], valores: ['destaque', 'branco'] },
+  posterImagem: { rotulo: 'Poster image', icone: 'person-outline', nomes: ['Artist photos', 'Artwork'], valores: ['artista', 'capa'] },
   fundoLeitor: {
     rotulo: 'Background', icone: 'image-outline',
     nomes: ['Blurred artwork', 'Artwork colour', 'Gradient', 'Black'], valores: ['capa', 'cor', 'gradiente', 'preto'],
@@ -66,7 +69,7 @@ export function PersonalizarScreen({ navigation }: Props) {
   const cab = useCabecalhoQueEncolhe();
   const ap = useAparencia(useShallow((s) => ({
     fundoApp: s.fundoApp, listas: s.listas, rotulos: s.rotulos, topo: s.topo, titulo: s.titulo, barra: s.barra,
-    play: s.play, controlos: s.controlos, botoes: s.botoes, flutuar: s.flutuar, fundoLeitor: s.fundoLeitor, brilho: s.brilho,
+    play: s.play, controlos: s.controlos, posterImagem: s.posterImagem, posterMono: s.posterMono, botoes: s.botoes, flutuar: s.flutuar, fundoLeitor: s.fundoLeitor, brilho: s.brilho,
     titulos: s.titulos, tamanhoDasLetras: s.tamanhoDasLetras, abrirNasLetras: s.abrirNasLetras,
     secoesDaHome: s.secoesDaHome, escondidasDaHome: s.escondidasDaHome,
   })));
@@ -174,9 +177,15 @@ export function PersonalizarScreen({ navigation }: Props) {
           <LinhaInterruptor icone="pricetag-outline" rotulo="Tab bar labels" valor={ap.rotulos} aoMudar={(v) => mudar('rotulos', v)} />
         </Grupo>
 
-        <Grupo titulo="Now Playing" rodape={capa === 'poster' ? 'The artwork is the background and fades into its own colour.'
+        <Grupo titulo="Now Playing" rodape={capa === 'poster' ? (ap.posterImagem === 'artista'
+          ? 'A different photo of the artist for each song, while there are photos. Without them, the artwork.'
+          : 'The artwork is the background and fades into its own colour.')
           : capa === 'floating' && !ap.flutuar ? 'The 3D artwork stays still.' : null}>
           <Linha icone="square-outline" rotulo="Artwork" valor={nomeDaCapa} chevron aoTocar={setMenuDaCapa} />
+          {capa === 'poster' ? linha('posterImagem') : null}
+          {capa === 'poster' ? (
+            <LinhaInterruptor icone="film-outline" rotulo="Black and white" valor={ap.posterMono} aoMudar={(v) => mudar('posterMono', v)} />
+          ) : null}
           {linha('topo')}
           {linha('titulo')}
           {linha('barra')}
@@ -246,7 +255,11 @@ function PreviaDoLeitor({ ap, capa }: { ap: Aparencia; capa: EstiloDaCapa }) {
   const veu = veuDoLeitor(ap.brilho);
   const uri = arte ? capaParaLista(arte) : null;
   const poster = capa === 'poster';
-  const tom = useCorDoAmbiente(poster ? uri : null) ?? colors.bg;
+  // A mesma foto que o leitor vai mostrar para esta música (a escolha fica guardada).
+  const foto = useFotoDoPoster(poster && ap.posterImagem === 'artista' ? faixa : null);
+  const imagemDoPoster = foto ?? uri;
+  const tomLido = useCorDoAmbiente(poster ? (foto ? fotoPequena(foto) : uri) : null) ?? colors.bg;
+  const tom = ap.posterMono ? emCinzento(tomLido) : tomLido;
   const aoCentro = ap.titulo === 'centro';
   // A capa 3D em pequeno é uma inclinação 2D, e não uma rotação 3D a sério (11/10):
   // no iPhone a metade que roda para trás ficava atrás do fundo desfocado, que
@@ -256,7 +269,7 @@ function PreviaDoLeitor({ ap, capa }: { ap: Aparencia; capa: EstiloDaCapa }) {
     : capa === 'floating' ? styles.previaCapaFlutuante : null;
   return (
     <View style={styles.previa} accessibilityLabel="Preview of Now Playing" accessible>
-      {poster ? <PosterEmPequeno uri={uri} tom={tom} /> : <>
+      {poster ? <PosterEmPequeno uri={imagemDoPoster} tom={tom} mono={ap.posterMono} /> : <>
       {ap.fundoLeitor === 'gradiente' ? <FundoEmGradiente uri={uri} animar />
         : ap.fundoLeitor === 'preto' || !uri ? <View style={[StyleSheet.absoluteFill, { backgroundColor: ap.fundoLeitor === 'preto' ? '#000' : '#1a1a22' }]} />
         : <Image source={{ uri }} style={StyleSheet.absoluteFill} blurRadius={ap.fundoLeitor === 'cor' ? 60 : 18} contentFit="cover" />}
@@ -299,14 +312,16 @@ function PreviaDoLeitor({ ap, capa }: { ap: Aparencia; capa: EstiloDaCapa }) {
   );
 }
 
-/** O Poster em pequeno: a capa até ao título, a dissolver-se na cor dela (`FundoDoPoster`). */
-function PosterEmPequeno({ uri, tom }: { uri: string | null; tom: string }) {
+/** O Poster em pequeno: a imagem até ao título, a dissolver-se na cor dela (`FundoDoPoster`). */
+function PosterEmPequeno({ uri, tom, mono }: { uri: string | null; tom: string; mono: boolean }) {
   const d = degradesDoPoster(tom);
   return (
     <View style={[StyleSheet.absoluteFill, { backgroundColor: tom }]}>
       {uri ? <Image source={{ uri }} style={styles.previaPoster} contentFit="cover" /> : null}
+      {mono && uri ? <View style={[styles.previaPoster, styles.semCor]} /> : null}
       <LinearGradient colors={d.topo.cores} locations={d.topo.paragens} style={styles.previaPoster} />
       <LinearGradient colors={d.baixo.cores} locations={d.baixo.paragens} style={styles.previaPoster} />
+      {mono ? <ImagemRN source={require('../../assets/grao-do-poster.png')} resizeMode="repeat" style={styles.previaPoster} /> : null}
     </View>
   );
 }
@@ -340,6 +355,7 @@ const styles = StyleSheet.create({
   previaFeito: { width: '40%', height: '100%', backgroundColor: colors.text },
   // Até ao título, como no leitor (alturaDoPoster).
   previaPoster: { position: 'absolute', top: 0, left: 0, right: 0, height: 262 },
+  semCor: { backgroundColor: '#808080', mixBlendMode: 'saturation' },
   previaControlos: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', marginTop: 12 },
   previaPlay: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center' },
   previaBotoes: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 12, minHeight: 13 },
