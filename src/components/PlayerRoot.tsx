@@ -27,6 +27,7 @@ import { readLikedSongsCache } from '../lib/likedSongsCache';
 import { useAuth } from '../state/auth';
 import { closePlayerSmoothly, confirmaSwipe } from '../lib/closePlayer';
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import { useCorDoAmbiente } from '../hooks/useCorDoAmbiente';
 import { displayArtist, tituloDaFaixa, tituloNoLeitor } from '../lib/artistName';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
@@ -60,11 +61,12 @@ import { useShallow } from 'zustand/react/shallow';
 import { useAparencia } from '../state/aparencia';
 import {
   abrirJaNasLetras, destinoDaOrigem, fonteDosTitulos, NOMES_DOS_BOTOES, olhoDaOrigem, ROTULOS_DOS_BOTOES, rotuloDoTemporizador,
-  veuDoLeitor, type BotaoDoLeitor,
+  alturaDoPoster, veuDoLeitor, type BotaoDoLeitor,
 } from '../lib/aparencia';
 import { ancoraDoUltimoToque } from '../lib/ultimoToque';
 import { comecarRadioDaMusica } from '../state/radioDaFaixa';
 import { FundoEmGradiente } from './FundoEmGradiente';
+import { FundoDoPoster } from './FundoDoPoster';
 import { lyricsCacheKey, useLyrics } from '../state/lyrics';
 import { rotuloDaOrigem } from '../lib/origemDaFila';
 import { trackKey as chaveDaFaixaNaFila } from '../lib/shuffle';
@@ -208,9 +210,12 @@ export function PlayerRoot() {
   // A personalização (10/10, state/aparencia.ts): o topo, o título, a barra, o
   // botão play, os botões de baixo, o flutuar e o fundo.
   const ap = useAparencia(useShallow((s) => ({
-    topo: s.topo, titulo: s.titulo, barra: s.barra, play: s.play, botoes: s.botoes,
+    topo: s.topo, titulo: s.titulo, barra: s.barra, play: s.play, controlos: s.controlos, botoes: s.botoes,
     flutuar: s.flutuar, fundoLeitor: s.fundoLeitor, brilho: s.brilho, titulos: s.titulos, abrirNasLetras: s.abrirNasLetras,
   })));
+  // Os símbolos do leitor aberto (16/11): na cor do destaque, ou brancos (a cor
+  // da capa fica só no fundo). O mini-player e o aviso de erro seguem o destaque.
+  const corDosControlos = ap.controlos === 'branco' ? colors.text : theme.color;
   // De onde vem a música, para o "Playing from" (o G1). As que a app meteu
   // (rádio, Smart Shuffle) dizem-no, como no PC (`rotuloDaOrigem`).
   const origemDaFila = usePlayer((s) => s.origemDaFila);
@@ -992,6 +997,9 @@ export function PlayerRoot() {
   }, [current?.source, current?.sourceId, current?.artworkUrl, offline]);
 
   const fundo = desfoqueLeve(artSource, 64);
+  // O Poster (16/11): a cor da capa nas bordas de cima e de baixo. Antes do
+  // `if (!current)`: é um hook. Lê a miniatura pequena, em cache por endereço.
+  const tomDoPoster = useCorDoAmbiente(Platform.OS === 'ios' && estiloDaCapa === 'poster' ? fundo?.uri ?? null : null);
 
   const onArtError = useCallback(() => {
     // Passa à seguinte sem moldura. A de recurso fica: é a última que há.
@@ -1123,6 +1131,9 @@ export function PlayerRoot() {
   const capaFlutuante = Platform.OS === 'ios' && estiloDaCapaCarregado && estiloDaCapa === 'floating';
   // "Full" (10/10, personalização): a capa de uma borda à outra, sem cantos nem sombra.
   const capaInteira = Platform.OS === 'ios' && estiloDaCapaCarregado && estiloDaCapa === 'full';
+  // "Poster" (16/11): a capa é o fundo da página (FundoDoPoster). A da frente voa
+  // do mini como sempre e apaga-se ao pousar; o quadrado fica para as letras.
+  const capaPoster = Platform.OS === 'ios' && estiloDaCapaCarregado && estiloDaCapa === 'poster';
 
   // Capa: mini (quadrado 48px, no mini-player) <-> expandido (quadrado GRANDE
   // centrado). Antes era 16:9 (herança do vídeo) — agora que é só áudio, a
@@ -1249,11 +1260,18 @@ export function PlayerRoot() {
     ];
     return {
       vooDaMoldura,
-      sombra: capaFlutuante ? 0 : capaInteira ? 0 : Animated.multiply(
+      sombra: capaFlutuante ? 0 : capaInteira || capaPoster ? 0 : Animated.multiply(
         sombraAnim,
         Animated.multiply(visibilityAnim, anim.interpolate({ inputRange: faixaDoVoo, outputRange: saidaDoVoo(0, 0, 1) })),
       ),
       molduraOpacidade: aberto ? visibilityAnim : Animated.multiply(visibilityAnim, miniFade),
+      // O Poster: a capa da frente voa inteira e apaga-se no último terço do voo,
+      // onde o fundo já é ela. A fechar, volta a aparecer e desce para o mini.
+      capaDaFrente: capaPoster ? anim.interpolate({
+        inputRange: origemDaEntrada ? [-1, 0, 0.65, 1] : [0, 0.65, 1],
+        outputRange: origemDaEntrada ? [1, 1, 1, 0] : [1, 1, 0],
+        extrapolate: 'clamp',
+      }) : null,
       moldura: { borderRadius: animRaio.interpolate({ inputRange: [0, 1], outputRange: [8, capaInteira ? 0 : 20] }) },
       miniTransform: [
         { translateX: reducedMotion ? 0 : dragXVisto },
@@ -1266,7 +1284,7 @@ export function PlayerRoot() {
   const chaveDosNos = [
     origemDaEntrada ? `${origemDaEntrada.x},${origemDaEntrada.y},${origemDaEntrada.largura},${origemDaEntrada.altura}` : '-',
     vidFull.x, vidFull.y, vidFull.w, vidMini.x, vidMini.y, W, H,
-    aberto, reducedMotion, capaFlutuante, capaInteira,
+    aberto, reducedMotion, capaFlutuante, capaInteira, capaPoster,
   ].join('|');
   if (nosRef.current?.chave !== chaveDosNos) nosRef.current = { chave: chaveDosNos, nos: criarNos() };
   const nos = nosRef.current.nos as ReturnType<typeof criarNos>;
@@ -1370,7 +1388,7 @@ export function PlayerRoot() {
         pulsar={saved}
         name={saved ? 'heart' : 'heart-outline'}
         size={22}
-        color={saved ? theme.color : colors.text}
+        color={saved ? corDosControlos : colors.text}
       />
     </Toque>
   );
@@ -1431,7 +1449,7 @@ export function PlayerRoot() {
           accessibilityLabel={showLyrics ? 'Show artwork' : 'Show lyrics'}
           onPress={() => { hapticSelection(); setShowLyrics(!showLyrics); }} style={styles.utilityIconBtn}>
           <Ionicons name={showLyrics ? 'chatbox-ellipses' : 'chatbox-ellipses-outline'} size={22}
-            color={showLyrics ? theme.color : colors.text} />
+            color={showLyrics ? corDosControlos : colors.text} />
           <Text style={styles.utilityIconLabel} numberOfLines={1}>{NOMES_DOS_BOTOES.letras}</Text>
         </Toque>
       );
@@ -1442,7 +1460,7 @@ export function PlayerRoot() {
           <Toque key={b} escala={ESCALA.icone} accessibilityRole="button" accessibilityLabel={NOMES_DOS_BOTOES.temporizador}
             onPress={() => { hapticSelection(); setMenuDoSono(ancoraDoUltimoToque({ largura: W, altura: H })); }}
             style={styles.utilityIconBtn}>
-            <Ionicons name={aContar ? 'moon' : 'moon-outline'} size={21} color={aContar ? theme.color : colors.text} />
+            <Ionicons name={aContar ? 'moon' : 'moon-outline'} size={21} color={aContar ? corDosControlos : colors.text} />
             <Text style={styles.utilityIconLabel} numberOfLines={1}>{rotuloDoTemporizador(sonoRestanteS, sonoNoFim)}</Text>
           </Toque>
         );
@@ -1470,7 +1488,7 @@ export function PlayerRoot() {
             onPress={() => { hapticSelection(); void alternarDownload(current); }}
             style={[styles.utilityIconBtn, !pode && { opacity: 0.4 }]}>
             <Ionicons name={estado === 'descarregada' ? 'checkmark-circle' : estado === 'a-descarregar' ? 'close-circle-outline' : 'arrow-down-circle-outline'}
-              size={22} color={estado === 'descarregada' ? theme.color : colors.text} />
+              size={22} color={estado === 'descarregada' ? corDosControlos : colors.text} />
             <Text style={styles.utilityIconLabel} numberOfLines={1}>{NOMES_DOS_BOTOES.descarregar}</Text>
           </Toque>
         );
@@ -1532,6 +1550,9 @@ export function PlayerRoot() {
         {/* O fundo do leitor (10/10, personalização): a capa desfocada (o de
             sempre), a cor dela (a mesma imagem tão desfocada que fica só a
             cor), duas cores dela a mexer devagar (FundoEmGradiente), ou preto. */}
+        {capaPoster ? (
+          <FundoDoPoster uri={artSource} tom={tomDoPoster} altura={alturaDoPoster(vidFull.y + vidFull.h, H)} />
+        ) : <>
         {ap.fundoLeitor === 'preto' ? <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000' }]} />
           : ap.fundoLeitor === 'gradiente' ? <FundoEmGradiente uri={fundo?.uri ?? null} animar={aberto} /> : fundo ? (
           // Desfocado a partir da miniatura pequena (desfoqueLeve): o mesmo
@@ -1574,6 +1595,7 @@ export function PlayerRoot() {
         {ap.fundoLeitor !== 'preto' && veu.escurecer > 0 ? (
           <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: veu.escurecer }]} />
         ) : null}
+        </>}
 
         {/* cabeçalho — o arrasto para fechar agora é da página toda */}
         <Animated.View
@@ -1666,7 +1688,7 @@ export function PlayerRoot() {
               <View
                 style={[
                   styles.ponto,
-                  showLyrics === paraAsLetras && { backgroundColor: theme.color, opacity: 1 },
+                  showLyrics === paraAsLetras && { backgroundColor: corDosControlos, opacity: 1 },
                   !!legendaDaPassagem && styles.pontoEscondido,
                 ]}
               />
@@ -1812,11 +1834,11 @@ export function PlayerRoot() {
                    * interruptor tem de dizer em que estado esta antes de dizer
                    * que se pode carregar nele.
                    */
-                  color={shuffle ? theme.color : colors.textTertiary}
+                  color={shuffle ? corDosControlos : colors.textTertiary}
                 />
                 {shuffleInteligente && (
                   <View style={{ position: 'absolute', top: 5, right: 4 }}>
-                    <EstrelaInteligente tamanho={7} cor={theme.color} animar={expanded} />
+                    <EstrelaInteligente tamanho={7} cor={corDosControlos} animar={expanded} />
                   </View>
                 )}
               </Toque>
@@ -1837,7 +1859,7 @@ export function PlayerRoot() {
                 accessibilityRole="button"
                 accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
                 onPress={togglePlay}
-                style={[styles.playBtn, ap.play === 'anel' && [styles.playAnel, { borderColor: theme.color }], ap.play === 'icone' && styles.playIcone]}
+                style={[styles.playBtn, ap.play === 'anel' && [styles.playAnel, { borderColor: corDosControlos }], ap.play === 'icone' && styles.playIcone]}
               >
                 {/* `trocar`: play e pause sao o mesmo botao, e cruzam-se no
                     sitio. Nao `pulsar`: quem carrega no play ja esta a olhar
@@ -1898,7 +1920,7 @@ export function PlayerRoot() {
                   name="repeat"
                   size={22}
                   // O mesmo do shuffle, e pela mesma razao.
-                  color={repeatMode === 'off' ? colors.textTertiary : theme.color}
+                  color={repeatMode === 'off' ? colors.textTertiary : corDosControlos}
                 />
                 {repeatMode === 'one' ? (
                   <View style={styles.repeatOneBadge}>
@@ -2183,7 +2205,7 @@ export function PlayerRoot() {
           {current ? (
             <View pointerEvents={aberto ? 'auto' : 'none'} style={[StyleSheet.absoluteFill, { opacity: aberto ? 1 : 0 }]}>
               <CapaDoLeitor
-                track={current} size={vidFull.w} capaFlutuante={capaFlutuante} capaInteira={capaInteira} montagem={montagem.animacao}
+                track={current} size={vidFull.w} capaFlutuante={capaFlutuante} capaInteira={capaInteira} capaDaFrente={nos.capaDaFrente} montagem={montagem.animacao}
                 transicao={transicaoDaCapa.current} artSource={artSource} showLyrics={showLyrics}
                 setShowLyrics={setShowLyrics} setCapaARodar={setCapaARodar} onArtError={onArtError}
                 escurecerCapa={escurecerCapa} aoGostar={aoGostarPelaCapa} aFlutuar={ap.flutuar} aVista={aberto && !filaAberta}
@@ -2322,7 +2344,7 @@ function BarraDoLeitor(props: Pick<React.ComponentProps<typeof ProgressBar>, 'on
  * que ela mostra: as props têm de ficar ESTÁVEIS (`useCallback`, `useMemo`).
  */
 const CapaDoLeitor = React.memo(function CapaDoLeitor({
-  track, size, capaFlutuante, capaInteira, montagem, transicao, artSource, showLyrics, setShowLyrics, setCapaARodar,
+  track, size, capaFlutuante, capaInteira, capaDaFrente, montagem, transicao, artSource, showLyrics, setShowLyrics, setCapaARodar,
   onArtError, escurecerCapa, aoGostar, aFlutuar, aVista,
 }: {
   track: Track;
@@ -2330,6 +2352,12 @@ const CapaDoLeitor = React.memo(function CapaDoLeitor({
   capaFlutuante: boolean;
   /** A capa "Full": sem cantos e sem o fio claro (10/10). */
   capaInteira: boolean;
+  /**
+   * Só com o Poster (16/11): a opacidade da capa da frente (1 a voar, 0 pousada,
+   * por cima do fundo que já é ela). A face fica transparente, e as letras, o
+   * duplo toque e o rodar continuam no quadrado. `null` nos outros estilos.
+   */
+  capaDaFrente: Animated.AnimatedInterpolation<number> | null;
   montagem: AnimacaoDaMontagem;
   transicao: { chave: string; sentido: Sentido } | null;
   artSource: string | null;
@@ -2350,7 +2378,14 @@ const CapaDoLeitor = React.memo(function CapaDoLeitor({
       {(pose3D) => (
         <CapaComLuas size={size} raio={capaFlutuante ? CAPA_FLUTUANTE.raio : capaInteira ? 0 : 20} pose3D={pose3D} capaDaQueSai={artSource} aVista={aVista} letras={showLyrics}>
         <ArtworkLyricsCube track={track} size={size} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar} raio={capaFlutuante ? CAPA_FLUTUANTE.raio : capaInteira ? 0 : 20} aVista={aVista}
-          front={<>{artSource?<CapaComTransicao uri={artSource} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} />{!capaFlutuante && !capaInteira && <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.arestaDaCapa]} />}<DuploToqueParaGostar aoGostar={aoGostar} /></>} pose3D={pose3D} />
+          frenteTransparente={!!capaDaFrente}
+          front={capaDaFrente ? <>
+            <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: capaDaFrente }]}>
+              {artSource ? <CapaComTransicao uri={artSource} onError={onArtError} /> : null}
+              <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} />
+            </Animated.View>
+            <DuploToqueParaGostar aoGostar={aoGostar} />
+          </> : <>{artSource?<CapaComTransicao uri={artSource} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} />{!capaFlutuante && !capaInteira && <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.arestaDaCapa]} />}<DuploToqueParaGostar aoGostar={aoGostar} /></>} pose3D={pose3D} />
         </CapaComLuas>
       )}
     </CapaFlutuante3D>

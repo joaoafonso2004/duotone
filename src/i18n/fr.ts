@@ -2478,4 +2478,9 @@ export const FR: Readonly<Record<string, string>> = {
   "WHEN YOU TAP IT": "QUAND VOUS LA TOUCHEZ",
   "Leave as is": "Ne pas changer",
   "Tap a row to change it. Tap the scene again in your drawer and everything goes back as it was.": "Touchez une ligne pour la changer. Touchez à nouveau la scène dans votre tiroir et tout revient comme avant.",
+  // O Poster e a cor dos controlos no leitor (16/11).
+  "Poster": "Affiche",
+  "Accent colour": "Couleur d'accent",
+  "White": "Blanc",
+  "The artwork is the background and fades into its own colour.": "La pochette devient le fond et se fond dans sa propre couleur.",
 };

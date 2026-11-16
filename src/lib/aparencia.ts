@@ -41,10 +41,11 @@ export const NOMES_DAS_SECOES: Record<SecaoDaHome, string> = {
 };
 
 /** O estilo da capa do leitor (`state/capaIOS.ts`, nas Definições). Repetido aqui para isto ficar sem imports. */
-export type EstiloDaCapa = 'floating' | 'simple' | 'full';
+export type EstiloDaCapa = 'floating' | 'simple' | 'full' | 'poster';
 /** Os estilos da capa, pela ordem dos menus (nas Definições e no Customise). */
 export const ESTILOS_DA_CAPA: readonly { valor: EstiloDaCapa; nome: string }[] = [
   { valor: 'floating', nome: 'Floating 3D' }, { valor: 'simple', nome: 'Simple' }, { valor: 'full', nome: 'Full' },
+  { valor: 'poster', nome: 'Poster' },
 ];
 
 export type Aparencia = {
@@ -60,6 +61,12 @@ export type Aparencia = {
   titulo: 'centro' | 'esquerda';
   barra: 'fina' | 'grossa';
   play: 'cheio' | 'anel' | 'icone';
+  /**
+   * Os símbolos do leitor (o coração, o anel do play, os pontos, o shuffle e o
+   * repeat ligados): na cor do destaque, ou brancos. 16/11, pedido do João: com
+   * o destaque pela capa, a cor dela só no fundo.
+   */
+  controlos: 'destaque' | 'branco';
   /** Os botões de baixo do leitor, por ordem. */
   botoes: BotaoDoLeitor[];
   /** A capa 3D a flutuar. */
@@ -81,7 +88,7 @@ export type Aparencia = {
 
 export const PADRAO: Aparencia = {
   fundoApp: 'dark', listas: 'comfortable', rotulos: true,
-  topo: 'marca', titulo: 'centro', barra: 'fina', play: 'cheio',
+  topo: 'marca', titulo: 'centro', barra: 'fina', play: 'cheio', controlos: 'destaque',
   botoes: ['fila', 'visibilidade', 'eq'], flutuar: true, fundoLeitor: 'capa', brilho: 50,
   titulos: 'padrao', tamanhoDasLetras: 'm', abrirNasLetras: false,
   secoesDaHome: [...SECOES_DA_HOME], escondidasDaHome: [],
@@ -93,11 +100,11 @@ export const PADRAO: Aparencia = {
  * voltavam aos de omissão).
  */
 export const CHAVES_DO_TEMA = [
-  'fundoApp', 'listas', 'rotulos', 'topo', 'titulo', 'barra', 'play', 'flutuar', 'fundoLeitor', 'brilho', 'titulos',
+  'fundoApp', 'listas', 'rotulos', 'topo', 'titulo', 'barra', 'play', 'controlos', 'flutuar', 'fundoLeitor', 'brilho', 'titulos',
 ] as const;
 type ChaveDoTema = typeof CHAVES_DO_TEMA[number];
 
-export type IdDoTema = 'duotone' | 'minimal' | 'glow' | 'oled';
+export type IdDoTema = 'duotone' | 'minimal' | 'glow' | 'poster' | 'oled';
 export type Tema = { id: IdDoTema; nome: string; campos: Pick<Aparencia, ChaveDoTema>; capa: EstiloDaCapa };
 
 const ASPETO_PADRAO = Object.fromEntries(CHAVES_DO_TEMA.map((k) => [k, PADRAO[k]])) as Pick<Aparencia, ChaveDoTema>;
@@ -110,6 +117,11 @@ export const TEMAS: readonly Tema[] = [
   // A capa a toda a largura e o fundo desfocado mais claro (a maquete).
   { id: 'glow', nome: 'Glow', capa: 'full', campos: {
     ...ASPETO_PADRAO, topo: 'origem', titulo: 'esquerda', barra: 'grossa', brilho: 75,
+  } },
+  // A capa por trás de tudo, a dissolver-se na cor dela, e os símbolos brancos
+  // (16/11, a maquete que o João trouxe).
+  { id: 'poster', nome: 'Poster', capa: 'poster', campos: {
+    ...ASPETO_PADRAO, topo: 'origem', play: 'anel', controlos: 'branco',
   } },
   { id: 'oled', nome: 'OLED', capa: 'simple', campos: { ...ASPETO_PADRAO, fundoApp: 'oled', fundoLeitor: 'preto', flutuar: false } },
 ];
@@ -149,6 +161,7 @@ const VALORES: { [K in ChaveComValores]: readonly Aparencia[K][] } = {
   titulo: ['centro', 'esquerda'],
   barra: ['fina', 'grossa'],
   play: ['cheio', 'anel', 'icone'],
+  controlos: ['destaque', 'branco'],
   fundoLeitor: ['capa', 'cor', 'gradiente', 'preto'],
   titulos: ['padrao', 'serif', 'mono'],
   tamanhoDasLetras: ['p', 'm', 'g'],
@@ -315,6 +328,34 @@ export function destinoDaOrigem(alvo: { tipo: string; id?: string | null; nome: 
   if (alvo.tipo === 'artista') return { tipo: 'artista', nome: alvo.nome };
   if (alvo.tipo === 'guardadas') return { tipo: 'gostadas' };
   return null;
+}
+
+/**
+ * O "Poster" (16/11, a maquete que o João trouxe): a capa por trás do topo, do
+ * título e dos controlos. A imagem desce até um pouco abaixo do título (o fim do
+ * quadrado onde as letras rodam, mais o título), nunca menos de metade do ecrã
+ * nem mais de 82%: o resto é a cor da capa, por trás dos controlos.
+ */
+export function alturaDoPoster(fimDoQuadrado: number, alturaDoEcra: number): number {
+  return Math.round(Math.min(alturaDoEcra * 0.82, Math.max(alturaDoEcra * 0.5, fimDoQuadrado + 150)));
+}
+
+type Degrade = { cores: [string, string, ...string[]]; paragens: [number, number, ...number[]] };
+
+/**
+ * Os degradês do Poster, na cor da própria capa (`corDoAmbiente`, "#RRGGBB"):
+ * em cima, por trás das horas e do "Playing from"; em baixo, a imagem a
+ * dissolver-se na cor que fica por trás do título e dos controlos. Era preto
+ * nas duas bordas (a maquete), e o João quis o tom da capa.
+ */
+export function degradesDoPoster(corHex: string): { topo: Degrade; baixo: Degrade } {
+  const m = /^#?([0-9a-f]{6})$/i.exec(corHex.trim());
+  const v = m ? parseInt(m[1]!, 16) : 0x060608;
+  const cor = (a: number) => `rgba(${(v >> 16) & 255},${(v >> 8) & 255},${v & 255},${a})`;
+  return {
+    topo: { cores: [cor(0.9), cor(0.55), cor(0)], paragens: [0, 0.08, 0.24] },
+    baixo: { cores: [cor(0), cor(0.45), cor(0.85), cor(1)], paragens: [0.5, 0.7, 0.88, 1] },
+  };
 }
 
 /** O grafite das folhas com o fundo Dark: neutro, sem o azul do `surfaceHigh` (11/10). */

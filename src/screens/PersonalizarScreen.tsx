@@ -11,12 +11,13 @@ import { MenuFlutuante, type Ancora } from '../components/MenuFlutuante';
 import type { PlayerAction } from '../components/PlayerActionsSheet';
 import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import {
-  BOTOES_DO_LEITOR, ESTILOS_DA_CAPA, fonteDosTitulos, MAXIMO_DE_BOTOES, NOMES_DAS_SECOES, NOMES_DOS_BOTOES, TEMAS, veuDoLeitor,
+  BOTOES_DO_LEITOR, degradesDoPoster, ESTILOS_DA_CAPA, fonteDosTitulos, MAXIMO_DE_BOTOES, NOMES_DAS_SECOES, NOMES_DOS_BOTOES, TEMAS, veuDoLeitor,
   type Aparencia, type BotaoDoLeitor, type EstiloDaCapa, type SecaoDaHome,
 } from '../lib/aparencia';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { tituloNoLeitor } from '../lib/artistName';
 import { FundoEmGradiente } from '../components/FundoEmGradiente';
+import { useCorDoAmbiente } from '../hooks/useCorDoAmbiente';
 import { hapticSelection } from '../lib/haptics';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useAparencia, useTemaDaAparencia } from '../state/aparencia';
@@ -36,6 +37,7 @@ const ESCOLHAS = {
   titulo: { rotulo: 'Title', icone: 'reorder-three-outline', nomes: ['Centred', 'Left'], valores: ['centro', 'esquerda'] },
   barra: { rotulo: 'Progress bar', icone: 'remove-outline', nomes: ['Thin', 'Thick'], valores: ['fina', 'grossa'] },
   play: { rotulo: 'Play button', icone: 'play-circle-outline', nomes: ['Filled', 'Ring', 'Icon'], valores: ['cheio', 'anel', 'icone'] },
+  controlos: { rotulo: 'Controls', icone: 'color-palette-outline', nomes: ['Accent colour', 'White'], valores: ['destaque', 'branco'] },
   fundoLeitor: {
     rotulo: 'Background', icone: 'image-outline',
     nomes: ['Blurred artwork', 'Artwork colour', 'Gradient', 'Black'], valores: ['capa', 'cor', 'gradiente', 'preto'],
@@ -64,7 +66,7 @@ export function PersonalizarScreen({ navigation }: Props) {
   const cab = useCabecalhoQueEncolhe();
   const ap = useAparencia(useShallow((s) => ({
     fundoApp: s.fundoApp, listas: s.listas, rotulos: s.rotulos, topo: s.topo, titulo: s.titulo, barra: s.barra,
-    play: s.play, botoes: s.botoes, flutuar: s.flutuar, fundoLeitor: s.fundoLeitor, brilho: s.brilho,
+    play: s.play, controlos: s.controlos, botoes: s.botoes, flutuar: s.flutuar, fundoLeitor: s.fundoLeitor, brilho: s.brilho,
     titulos: s.titulos, tamanhoDasLetras: s.tamanhoDasLetras, abrirNasLetras: s.abrirNasLetras,
     secoesDaHome: s.secoesDaHome, escondidasDaHome: s.escondidasDaHome,
   })));
@@ -172,17 +174,20 @@ export function PersonalizarScreen({ navigation }: Props) {
           <LinhaInterruptor icone="pricetag-outline" rotulo="Tab bar labels" valor={ap.rotulos} aoMudar={(v) => mudar('rotulos', v)} />
         </Grupo>
 
-        <Grupo titulo="Now Playing" rodape={capa === 'floating' && !ap.flutuar ? 'The 3D artwork stays still.' : null}>
+        <Grupo titulo="Now Playing" rodape={capa === 'poster' ? 'The artwork is the background and fades into its own colour.'
+          : capa === 'floating' && !ap.flutuar ? 'The 3D artwork stays still.' : null}>
           <Linha icone="square-outline" rotulo="Artwork" valor={nomeDaCapa} chevron aoTocar={setMenuDaCapa} />
           {linha('topo')}
           {linha('titulo')}
           {linha('barra')}
           {linha('play')}
+          {linha('controlos')}
           {capa === 'floating' ? (
             <LinhaInterruptor icone="cube-outline" rotulo="Float" valor={ap.flutuar} aoMudar={(v) => mudar('flutuar', v)} />
           ) : null}
-          {linha('fundoLeitor')}
-          {ap.fundoLeitor !== 'preto' ? linha('brilho') : null}
+          {/* Com o Poster o fundo é a capa: o fundo e o brilho não se aplicam. */}
+          {capa !== 'poster' ? linha('fundoLeitor') : null}
+          {capa !== 'poster' && ap.fundoLeitor !== 'preto' ? linha('brilho') : null}
         </Grupo>
 
         <Grupo titulo="Lyrics" rodape={ap.abrirNasLetras ? 'Now Playing opens on the lyrics when the song has them.' : null}>
@@ -237,8 +242,11 @@ function PreviaDoLeitor({ ap, capa }: { ap: Aparencia; capa: EstiloDaCapa }) {
   const faixa = usePlayer((s) => s.current);
   const titulo = faixa ? tituloNoLeitor(faixa) : null;
   const corDoTema = useTheme((s) => s.theme.color);
+  const corDosControlos = ap.controlos === 'branco' ? colors.text : corDoTema;
   const veu = veuDoLeitor(ap.brilho);
   const uri = arte ? capaParaLista(arte) : null;
+  const poster = capa === 'poster';
+  const tom = useCorDoAmbiente(poster ? uri : null) ?? colors.bg;
   const aoCentro = ap.titulo === 'centro';
   // A capa 3D em pequeno é uma inclinação 2D, e não uma rotação 3D a sério (11/10):
   // no iPhone a metade que roda para trás ficava atrás do fundo desfocado, que
@@ -248,6 +256,7 @@ function PreviaDoLeitor({ ap, capa }: { ap: Aparencia; capa: EstiloDaCapa }) {
     : capa === 'floating' ? styles.previaCapaFlutuante : null;
   return (
     <View style={styles.previa} accessibilityLabel="Preview of Now Playing" accessible>
+      {poster ? <PosterEmPequeno uri={uri} tom={tom} /> : <>
       {ap.fundoLeitor === 'gradiente' ? <FundoEmGradiente uri={uri} animar />
         : ap.fundoLeitor === 'preto' || !uri ? <View style={[StyleSheet.absoluteFill, { backgroundColor: ap.fundoLeitor === 'preto' ? '#000' : '#1a1a22' }]} />
         : <Image source={{ uri }} style={StyleSheet.absoluteFill} blurRadius={ap.fundoLeitor === 'cor' ? 60 : 18} contentFit="cover" />}
@@ -255,6 +264,7 @@ function PreviaDoLeitor({ ap, capa }: { ap: Aparencia; capa: EstiloDaCapa }) {
         <LinearGradient colors={['rgba(6,6,8,0.30)', 'rgba(6,6,8,0.72)', 'rgba(6,6,8,0.95)']} style={[StyleSheet.absoluteFill, { opacity: veu.opacidadeDoVeu }]} />
       ) : null}
       {veu.escurecer > 0 && ap.fundoLeitor !== 'preto' ? <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: veu.escurecer }]} /> : null}
+      </>}
 
       <View style={styles.previaTopo}>
         {ap.topo === 'origem' ? (
@@ -265,18 +275,18 @@ function PreviaDoLeitor({ ap, capa }: { ap: Aparencia; capa: EstiloDaCapa }) {
         ) : <Text style={styles.previaMarca}>DUOTONE</Text>}
       </View>
       <View style={styles.previaCapaArea}>
-        {uri ? <Image source={{ uri }} style={[styles.previaCapa, estiloDaCapa]} contentFit="cover" />
+        {poster ? null : uri ? <Image source={{ uri }} style={[styles.previaCapa, estiloDaCapa]} contentFit="cover" />
           : <View style={[styles.previaCapa, estiloDaCapa, { backgroundColor: corDoTema }]} />}
       </View>
       <View style={[styles.previaTitulo, !aoCentro && { alignItems: 'flex-start' }]}>
         <Text numberOfLines={1} style={[styles.previaNome, fonteDosTitulos(ap.titulos)]}>{titulo ?? 'Song title'}</Text>
       </View>
       <View style={[styles.previaBarra, ap.barra === 'grossa' && { height: 6, borderRadius: 3 }]}>
-        <View style={[styles.previaFeito, { backgroundColor: corDoTema }]} />
+        <View style={styles.previaFeito} />
       </View>
       <View style={styles.previaControlos}>
         <Ionicons name="play-skip-back" size={16} color={colors.text} />
-        <View style={[styles.previaPlay, ap.play === 'anel' && { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: corDoTema },
+        <View style={[styles.previaPlay, ap.play === 'anel' && { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: corDosControlos },
           ap.play === 'icone' && { backgroundColor: 'transparent' }]}>
           <Ionicons name="pause" size={ap.play === 'icone' ? 22 : 14} color={ap.play === 'cheio' ? colors.bg : colors.text} />
         </View>
@@ -285,6 +295,18 @@ function PreviaDoLeitor({ ap, capa }: { ap: Aparencia; capa: EstiloDaCapa }) {
       <View style={styles.previaBotoes}>
         {ap.botoes.map((b) => <Ionicons key={b} name={ICONES_DOS_BOTOES[b]} size={13} color={colors.textSecondary} />)}
       </View>
+    </View>
+  );
+}
+
+/** O Poster em pequeno: a capa até ao título, a dissolver-se na cor dela (`FundoDoPoster`). */
+function PosterEmPequeno({ uri, tom }: { uri: string | null; tom: string }) {
+  const d = degradesDoPoster(tom);
+  return (
+    <View style={[StyleSheet.absoluteFill, { backgroundColor: tom }]}>
+      {uri ? <Image source={{ uri }} style={styles.previaPoster} contentFit="cover" /> : null}
+      <LinearGradient colors={d.topo.cores} locations={d.topo.paragens} style={styles.previaPoster} />
+      <LinearGradient colors={d.baixo.cores} locations={d.baixo.paragens} style={styles.previaPoster} />
     </View>
   );
 }
@@ -314,7 +336,10 @@ const styles = StyleSheet.create({
   previaTitulo: { alignItems: 'center', marginBottom: 10 },
   previaNome: { fontSize: 14, fontWeight: '700', color: colors.text },
   previaBarra: { height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.18)', overflow: 'hidden' },
-  previaFeito: { width: '40%', height: '100%' },
+  // Branca, como a do leitor (ProgressBar): a cor do destaque não lhe chega.
+  previaFeito: { width: '40%', height: '100%', backgroundColor: colors.text },
+  // Até ao título, como no leitor (alturaDoPoster).
+  previaPoster: { position: 'absolute', top: 0, left: 0, right: 0, height: 262 },
   previaControlos: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', marginTop: 12 },
   previaPlay: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center' },
   previaBotoes: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 12, minHeight: 13 },

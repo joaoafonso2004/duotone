@@ -42,7 +42,7 @@
  */
 
 /** `full` (10/10, personalização): a capa a toda a largura, sem cantos nem sombra. */
-export type EstiloDaCapaIOS = 'floating' | 'simple' | 'full';
+export type EstiloDaCapaIOS = 'floating' | 'simple' | 'full' | 'poster';
 
 /** Onde estão os cantos da face na referência, em frações do quadrado da capa. */
 export const CANTOS_DA_REFERENCIA = {
@@ -262,6 +262,8 @@ export function interpretarEstiloDaCapa(
   atual: string | null,
   glitchAntigo: string | null,
 ): EstiloDaCapaIOS {
+  // O Poster (16/11): a capa é o fundo do leitor.
+  if (atual === 'poster') return atual;
   if (atual === 'simple' || atual === 'floating' || atual === 'full') return atual;
   return glitchAntigo === 'static' || glitchAntigo === 'off' ? 'simple' : 'floating';
 }

@@ -6,7 +6,7 @@ import {
   abrirJaNasLetras, alternarBotao, alternarSecao, alturaDaLinha, aplicarTema, BOTOES_DO_LEITOR, capaDoTema, destinoDaOrigem,
   ESTILOS_DA_CAPA, fonteDosTitulos, lerAparencia, MAXIMO_DE_BOTOES, moverSecao, NOMES_DAS_SECOES, olhoDaOrigem, ordemDasSecoes,
   PADRAO, SECOES_DA_HOME, secoesVisiveis, tamanhoDasLetras, TEMAS, temaDe, veuDoLeitor,
-  fundoDasFolhas, GRAFITE_DAS_FOLHAS, NOMES_DOS_BOTOES, rotuloDoTemporizador,
+  fundoDasFolhas, GRAFITE_DAS_FOLHAS, NOMES_DOS_BOTOES, rotuloDoTemporizador, alturaDoPoster, degradesDoPoster,
 } from '../src/lib/aparencia.ts';
 import { coresDoGradiente, contraste, deHex } from '../src/lib/corDaCapa.ts';
 
@@ -29,7 +29,7 @@ for (const t of TEMAS) assert.equal(temaDe(aplicarTema(t.id), t.capa), t.id, `${
 assert.equal(temaDe(aplicarTema('glow'), 'simple'), 'custom', 'o Glow com outra capa já não é o Glow');
 assert.equal(capaDoTema('glow'), 'full');
 assert.equal(capaDoTema('duotone'), 'floating', 'o de sempre');
-assert.deepEqual(TEMAS.map((t) => t.id), ['duotone', 'minimal', 'glow', 'oled']);
+assert.deepEqual(TEMAS.map((t) => t.id), ['duotone', 'minimal', 'glow', 'poster', 'oled']);
 const meu = {
   ...PADRAO, botoes: ['letras' as const], tamanhoDasLetras: 'g' as const, abrirNasLetras: true,
   secoesDaHome: moverSecao(PADRAO.secoesDaHome, 'raros', 'topo'), escondidasDaHome: ['decadas' as const],
@@ -42,7 +42,34 @@ assert.equal(comTema.secoesDaHome[0], 'raros', 'a Home fica');
 assert.deepEqual(comTema.escondidasDaHome, ['decadas']);
 assert.equal(temaDe(comTema), 'minimal', 'o que é de uso não conta para o tema');
 assert.equal(comTema.listas, 'compact');
-assert.deepEqual(ESTILOS_DA_CAPA.map((e) => e.valor), ['floating', 'simple', 'full']);
+assert.deepEqual(ESTILOS_DA_CAPA.map((e) => e.valor), ['floating', 'simple', 'full', 'poster']);
+
+// O Poster e a cor dos controlos (16/11, a maquete do João).
+assert.equal(PADRAO.controlos, 'destaque', 'quem não mexe fica com os símbolos na cor do destaque');
+assert.equal(capaDoTema('poster'), 'poster');
+const poster = aplicarTema('poster');
+assert.equal(poster.controlos, 'branco', 'o tema Poster: só o fundo tem a cor da capa');
+assert.equal(poster.topo, 'origem');
+assert.equal(poster.play, 'anel');
+assert.equal(temaDe(poster, 'poster'), 'poster');
+assert.equal(temaDe(poster, 'floating'), 'custom', 'o Poster com outra capa já não é o Poster');
+assert.equal(temaDe({ ...PADRAO, controlos: 'branco' }), 'custom', 'os controlos brancos à mão passam a Custom');
+assert.equal(aplicarTema('duotone', poster).controlos, 'destaque', 'escolher um tema repõe os controlos dele');
+assert.equal(lerAparencia({ controlos: 'branco' }).controlos, 'branco');
+assert.equal(lerAparencia({ controlos: 'roxo' }).controlos, 'destaque', 'um valor desconhecido cai no de omissão');
+// A imagem desce até um pouco abaixo do título, entre metade e 82% do ecrã.
+assert.equal(alturaDoPoster(474, 852), 624);
+assert.equal(alturaDoPoster(800, 852), Math.round(852 * 0.82), 'nunca tapa os controlos de baixo');
+assert.equal(alturaDoPoster(100, 852), 426, 'nunca menos de metade');
+// As bordas na cor da capa: transparente no meio, cheia em baixo (é a mesma que fica por trás dos controlos).
+const d = degradesDoPoster('#2A4B7C');
+assert.equal(d.topo.cores[0], 'rgba(42,75,124,0.9)', 'em cima, o tom da capa (era preto)');
+assert.equal(d.topo.cores.at(-1), 'rgba(42,75,124,0)');
+assert.equal(d.baixo.cores[0], 'rgba(42,75,124,0)');
+assert.equal(d.baixo.cores.at(-1), 'rgba(42,75,124,1)', 'em baixo, cheio: sem aresta com o fundo');
+assert.equal(d.topo.cores.length, d.topo.paragens.length);
+assert.equal(d.baixo.cores.length, d.baixo.paragens.length);
+assert.equal(degradesDoPoster('lixo').baixo.cores.at(-1), 'rgba(6,6,8,1)', 'sem cor, o fundo da app');
 assert.ok(ESTILOS_DA_CAPA.every((e) => e.nome !== 'Vinyl'), 'o vinil saiu (10/10)');
 
 // Os botões de baixo: no máximo quatro, pela ordem em que se ligam.
@@ -197,7 +224,23 @@ assert.match(leitor, /const capaInteira = Platform\.OS === 'ios' && estiloDaCapa
 assert.match(leitor, /\? Math\.min\(W, Math\.max\(96, H - insets\.top - insets\.bottom - HEADER_H - RESERVA_COM_A_CAPA_INTEIRA/, 'a toda a largura');
 assert.match(leitor, /outputRange: \[8, capaInteira \? 0 : 20\]/, 'sem cantos');
 assert.match(leitor, /raio=\{capaFlutuante \? CAPA_FLUTUANTE\.raio : capaInteira \? 0 : 20\}/);
-assert.match(leitor, /sombra: capaFlutuante \? 0 : capaInteira \? 0 :/, 'sem sombra');
+assert.match(leitor, /sombra: capaFlutuante \? 0 : capaInteira \|\| capaPoster \? 0 :/, 'sem sombra');
+assert.match(leitor, /const capaPoster = Platform\.OS === 'ios' && estiloDaCapaCarregado && estiloDaCapa === 'poster'/, 'o Poster');
+assert.match(leitor, /\{capaPoster \? \(\s*<FundoDoPoster uri=\{artSource\} tom=\{tomDoPoster\} altura=\{alturaDoPoster\(vidFull\.y \+ vidFull\.h, H\)\} \/>/, 'o Poster é o fundo');
+assert.match(leitor, /useCorDoAmbiente\(Platform\.OS === 'ios' && estiloDaCapa === 'poster'/, 'a cor das bordas só se lê com o Poster');
+assert.match(leitor, /frenteTransparente=\{!!capaDaFrente\}/, 'a face da frente transparente');
+assert.match(leitor, /const corDosControlos = ap\.controlos === 'branco' \? colors\.text : theme\.color;/, 'os controlos brancos');
+assert.match(leitor, /\[styles\.playAnel, \{ borderColor: corDosControlos \}\]/, 'o anel do play');
+assert.match(leitor, /color=\{saved \? corDosControlos : colors\.text\}/, 'o coração');
+assert.match(leitor, /color=\{shuffle \? corDosControlos : colors\.textTertiary\}/, 'o shuffle');
+assert.match(leitor, /color=\{repeatMode === 'off' \? colors\.textTertiary : corDosControlos\}/, 'o repeat');
+assert.match(leitor, /showLyrics === paraAsLetras && \{ backgroundColor: corDosControlos, opacity: 1 \}/, 'os pontos');
+assert.equal((leitor.match(/theme\.color/g) ?? []).length, 3, 'o destaque: nos controlos (se escolhido), no mini-player e no aviso de erro');
+assert.match(ler('src/lib/capaFlutuante3D.ts'), /atual === 'poster'\) return atual/, 'o Poster guardado lê-se');
+assert.match(ler('src/components/ArtworkLyricsCube.tsx'), /frenteTransparente\?null:<Animated\.View/, 'sem o véu escuro a rodar');
+const fundoDoPoster = ler('src/components/FundoDoPoster.tsx');
+assert.match(fundoDoPoster, /useNativeDriver: true/, 'a passagem da cor no motor nativo');
+assert.match(fundoDoPoster, /degradesDoPoster\(c\)/);
 assert.match(leitor, /fonteDosTitulos\(ap\.titulos\)/, 'a letra do título do leitor');
 assert.match(leitor, /aEsquerda=\{!tituloAoCentro\}/, 'à esquerda, o título vai com o artista (11/10)');
 assert.match(ler('src/components/TextoQueCabe.tsx'), /aEsquerda && styles\.conteudoAEsquerda/, 'o que cabe encosta à esquerda');

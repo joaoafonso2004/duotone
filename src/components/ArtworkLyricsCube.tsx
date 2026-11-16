@@ -32,6 +32,12 @@ type Props={track:Track;size:number;artwork?:string|null;front:React.ReactNode;s
    */
   raio?:number;
   /**
+   * A face da capa sem fundo (o Poster do iPhone, 16/11): a capa é o fundo da
+   * página, e o quadrado só se vê quando roda para as letras. Sem o véu escuro
+   * da frente, que ali seria um quadrado preto a rodar.
+   */
+  frenteTransparente?:boolean;
+  /**
    * A pose da capa 3D do iPhone (CapaFlutuante3D). Com ela, o cubo desenha-se
    * como uma CAIXA de seis faces -- a capa, as letras no verso e quatro laterais
    * com a própria capa -- e o gesto vira a caixa inteira 180° em vez de rodar um
@@ -103,7 +109,7 @@ const LateralDaCaixa=React.memo(function LateralDaCaixa({lado,size,pose3D,virar,
 });
 
 /** Duas faces do mesmo cubo. O motor de áudio vive fora destas transformações. */
-export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,aoRodar,raio=20,pose3D,aVista=true}:Props){
+export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,aoRodar,raio=20,pose3D,aVista=true,frenteTransparente=false}:Props){
   const reduced=useReducedMotion();
   const progress=useRef(new Animated.Value(showLyrics?1:0)).current;
   // Já nasce na face pedida. Uma mola 0 -> 0 marcava o cubo como a rodar e
@@ -274,9 +280,9 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,
     {m?<Animated.View pointerEvents="none" style={[styles.espera,{transform:transformDaFace}]}>
       <Animated.View style={[styles.luz,{opacity:m.luz.opacidade,transform:nos.luz}]} />
     </Animated.View>:null}
-    <Animated.View pointerEvents="none" aria-hidden={showLyrics} accessibilityElementsHidden={showLyrics} importantForAccessibility={showLyrics?'no-hide-descendants':'auto'} style={[styles.face,{borderRadius:raio},frontStyle3D??frontStyle]}>
+    <Animated.View pointerEvents="none" aria-hidden={showLyrics} accessibilityElementsHidden={showLyrics} importantForAccessibility={showLyrics?'no-hide-descendants':'auto'} style={[styles.face,{borderRadius:raio},frenteTransparente&&styles.semFundo,frontStyle3D??frontStyle]}>
       {front}
-      <Animated.View style={[StyleSheet.absoluteFill,{backgroundColor:'#000',opacity:nos.veuDaFrente}]} />
+      {frenteTransparente?null:<Animated.View style={[StyleSheet.absoluteFill,{backgroundColor:'#000',opacity:nos.veuDaFrente}]} />}
     </Animated.View>
     <Animated.View pointerEvents={showLyrics&&!moving?'auto':'none'} aria-hidden={!showLyrics} accessibilityElementsHidden={!showLyrics} importantForAccessibility={showLyrics?'auto':'no-hide-descendants'} style={[styles.face,{borderRadius:raio},lyricsStyle3D??lyricsStyle]}>
       {verso?<ImagemDaCapa source={{uri:verso.uri}} cachePolicy="memory-disk" contentFit="cover" blurRadius={verso.raio} style={[StyleSheet.absoluteFill,{opacity:0.6,transform:[{scale:1.12}]}]} />:null}
@@ -288,6 +294,7 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,
   </View>;
 }
 const styles=StyleSheet.create({
+  semFundo:{backgroundColor:'transparent'},
   face:{position:'absolute',top:0,bottom:0,left:0,right:0,backgroundColor:'#16161d',borderRadius:20,overflow:'hidden',backfaceVisibility:'hidden'},
   fantasma:{position:'absolute',top:0,bottom:0,left:0,right:0,borderWidth:1,borderColor:'rgba(255,255,255,0.9)',backgroundColor:'rgba(255,255,255,0.05)',backfaceVisibility:'hidden'},
   espera:{position:'absolute',top:0,bottom:0,left:0,right:0,backfaceVisibility:'hidden'},
