@@ -43,6 +43,8 @@ export const ROTULOS = {
   privacidade: 'Privacy & terms',
   /** O relato com uma descrição (15/11), que chega ao João (supabase/relatar-problema.sql). */
   relatarProblema: 'Report a problem',
+  /** Uma cópia da biblioteca em JSON e CSV (16/11, lib/exportarBiblioteca.ts). */
+  exportarBiblioteca: 'Export library',
   /** As doações (11/11): o Ko-fi do João, para pagar o servidor. */
   apoiar: 'Support Duotone',
 } as const;

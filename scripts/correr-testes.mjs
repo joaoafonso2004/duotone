@@ -214,6 +214,7 @@ const TESTES = [
   `${TS} scripts/test-download-da-lista.ts`,
   `${TS} scripts/test-relato-do-problema.ts`,
   `${RESOLVER} scripts/test-albuns-guardados.ts`,
+  `${TS} scripts/test-exportar-biblioteca.ts`,
   `${TS} scripts/test-menu-da-playlist.ts`,
   `${RESOLVER} scripts/test-menu-do-lancamento.ts`,
   `${TS} scripts/test-playlist-colaborativa.ts`,

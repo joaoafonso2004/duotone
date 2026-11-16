@@ -19,6 +19,9 @@ import { EVENTO_PROCURAR_ATUALIZACAO } from '../../lib/avisoDeVersao';
 import { checkForUpdate, PORTFOLIO_URL } from '../../lib/updates';
 import { partilharRelatorioDeReproducao } from '../../lib/relatorioDeReproducao';
 import { RelatarProblema } from '../../components/RelatarProblema';
+import { FRASES_DA_EXPORTACAO, nomeDoFicheiro, paraCSV, paraJSON } from '../../lib/exportarBiblioteca';
+import { recolherBiblioteca } from '../../lib/recolherBiblioteca';
+import { guardarExportacao } from '../../lib/guardarExportacao';
 import {
   getGlitchMode, setGlitchMode, type GlitchMode,
   getEffectIntensity, setEffectIntensity, type EffectIntensity,
@@ -72,6 +75,24 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   const [painelAberto, setPainelAberto] = useState(false);
   // "Report a problem" (15/11): a mesma folha do iPhone.
   const [relatoAberto, setRelatoAberto] = useState(false);
+  // Exportar a biblioteca (16/11): no PC saem os dois ficheiros de uma vez.
+  const [aExportar, setAExportar] = useState(false);
+  const exportarBiblioteca = async () => {
+    if (aExportar) return;
+    setAExportar(true);
+    avisarInfo(FRASES_DA_EXPORTACAO.aPreparar);
+    try {
+      const exportacao = await recolherBiblioteca();
+      const agora = new Date(exportacao.exportedAt);
+      await guardarExportacao(nomeDoFicheiro(agora, 'json'), paraJSON(exportacao), 'application/json');
+      await guardarExportacao(nomeDoFicheiro(agora, 'csv'), paraCSV(exportacao), 'text/csv');
+      avisarFeito(FRASES_DA_EXPORTACAO.feito);
+    } catch (e) {
+      avisarErro(mensagemDeErro(e, FRASES_DA_EXPORTACAO.falhou));
+    } finally {
+      setAExportar(false);
+    }
+  };
   useEffect(() => { let vivo = true; void souAdministrador(contaDoPainel).then((v) => { if (vivo) setAdministrador(v); }); return () => { vivo = false; }; }, [contaDoPainel]);
   const [recommendationsOpen,setRecommendationsOpen]=useState(false);
   // Identificar a biblioteca contra um catálogo a sério, como no iPhone. Só
@@ -535,6 +556,13 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                     <Text style={styles.settingDescription}>Find songs saved twice, videos that no longer play and covers that don't load.</Text>
                   </View>
                   <Button secondary onPress={() => navigate({ name: 'library-check' })}>Open</Button>
+                </View>
+                <View style={styles.settingLine}>
+                  <View style={{ flex: 1, paddingRight: ESP.lg }}>
+                    <Text style={styles.settingLabel}>{ROTULOS.exportarBiblioteca}</Text>
+                    <Text style={styles.settingDescription}>A copy of your Liked Songs, playlists and saved albums, as JSON and CSV.</Text>
+                  </View>
+                  <Button secondary onPress={() => void exportarBiblioteca()} ocupado={aExportar} disabled={aExportar}>Export</Button>
                 </View>
                 <ToggleLine label={ROTULOS.atualizarImportadas} description="Playlists you imported from a link pick up the songs added there since, once a day when you open them."
                   value={atualizarImportadas} onChange={(v) => { setAtualizarImportadasEstado(v); void setAtualizarImportadas(v); }} />

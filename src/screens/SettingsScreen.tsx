@@ -1,5 +1,9 @@
 import { PainelDeSaude } from '../components/PainelDeSaude';
 import { RelatarProblema } from '../components/RelatarProblema';
+import { TrackActionsSheet } from '../components/TrackActionsSheet';
+import { FRASES_DA_EXPORTACAO, nomeDoFicheiro, paraCSV, paraJSON } from '../lib/exportarBiblioteca';
+import { recolherBiblioteca } from '../lib/recolherBiblioteca';
+import { guardarExportacao } from '../lib/guardarExportacao';
 import { souAdministrador } from '../api/painelDeSaude';
 import { loadCapaIOS, useCapaIOS } from '../state/capaIOS';
 import { ESTILOS_DA_CAPA } from '../lib/aparencia';
@@ -118,6 +122,24 @@ export function SettingsScreen({ navigation }: Props) {
   const [painelAberto, setPainelAberto] = useState(false);
   // "Report a problem" (15/11, components/RelatarProblema.tsx).
   const [relatoAberto, setRelatoAberto] = useState(false);
+  // Exportar a biblioteca (16/11): escolhe-se o formato, e a folha de partilha guarda-o.
+  const [exportarAberto, setExportarAberto] = useState(false);
+  const [aExportar, setAExportar] = useState(false);
+  const exportarBiblioteca = async (formato: 'json' | 'csv') => {
+    setExportarAberto(false);
+    if (aExportar) return;
+    setAExportar(true);
+    try {
+      const exportacao = await recolherBiblioteca();
+      const agora = new Date(exportacao.exportedAt);
+      if (formato === 'json') await guardarExportacao(nomeDoFicheiro(agora, 'json'), paraJSON(exportacao), 'application/json');
+      else await guardarExportacao(nomeDoFicheiro(agora, 'csv'), paraCSV(exportacao), 'text/csv');
+    } catch (e) {
+      avisarErro(mensagemDeErro(e, FRASES_DA_EXPORTACAO.falhou));
+    } finally {
+      setAExportar(false);
+    }
+  };
   useEffect(() => { let vivo = true; void souAdministrador(contaDoPainel).then((v) => { if (vivo) setAdministrador(v); }); return () => { vivo = false; }; }, [contaDoPainel]);
   const offline=useOfflineMode();
   // O título encolhe ao rolar (3/10, lib/tituloQueEncolhe.ts).
@@ -688,6 +710,7 @@ export function SettingsScreen({ navigation }: Props) {
             aoTocar={aIdentificar ? () => { pararIdentificacao.current = true; } : () => void identificarBiblioteca()}
           />
           <Linha icone="checkmark-done" rotulo={ROTULOS.libraryCheck} chevron aoTocar={() => navigation.navigate('LibraryCheck')} />
+          <Linha icone="download" rotulo={ROTULOS.exportarBiblioteca} chevron aCarregar={aExportar} desativada={offline || aExportar} aoTocar={() => setExportarAberto(true)} />
         </Grupo>
         <Grupo rodape="Playlists you imported from a link pick up the songs added there since, once a day when you open them.">
           <LinhaInterruptor icone="refresh" rotulo={ROTULOS.atualizarImportadas} valor={atualizarImportadas}
@@ -742,6 +765,16 @@ export function SettingsScreen({ navigation }: Props) {
         </Grupo>
         <PainelDeSaude visivel={painelAberto} aoFechar={() => setPainelAberto(false)} />
         <RelatarProblema visible={relatoAberto} onClose={() => setRelatoAberto(false)} />
+        <TrackActionsSheet
+          visible={exportarAberto}
+          track={null}
+          onClose={() => setExportarAberto(false)}
+          cabecalho={{ titulo: FRASES_DA_EXPORTACAO.rotulo, subtitulo: FRASES_DA_EXPORTACAO.descricao, capas: [] }}
+          actions={[
+            { icon: 'grid-outline' as any, label: FRASES_DA_EXPORTACAO.csv, onPress: () => void exportarBiblioteca('csv') },
+            { icon: 'document-text-outline' as any, label: FRASES_DA_EXPORTACAO.json, onPress: () => void exportarBiblioteca('json') },
+          ]}
+        />
       </Animated.ScrollView>
 
       <ConfirmSheet
