@@ -72,6 +72,10 @@ await caso('as escritas saem num lote, e não uma por faixa', () => {
   assert.match(api, /supabase\.from\('track_catalog'\)\.upsert\(linhas, opcoes\)/);
   const guardar = api.slice(api.indexOf('export async function guardarNoCatalogo'), api.indexOf('export async function marcarSemEdicao'));
   assert.doesNotMatch(guardar, /\.upsert\(/, 'o guardarNoCatalogo já não escreve sozinho');
+  // 16/11 (23502 nos logs): no mesmo lote, uma linha sem `sem_edicao` ficava a
+  // null ao lado de uma "sem edição", e a coluna NOT NULL deitava o lote inteiro abaixo.
+  assert.match(guardar, /sem_edicao: faixa\.semEdicao === true,/, 'o sem_edicao vai sempre como booleano');
+  assert.match(guardar, /genero: faixa\.genero \?\? null,\n\s+ano: faixa\.ano \?\? null,/);
   const marcar = api.slice(api.indexOf('export async function marcarSemEdicao'));
   assert.doesNotMatch(marcar.slice(0, marcar.indexOf('\n}\n')), /\.upsert\(/, 'nem o marcarSemEdicao');
 });

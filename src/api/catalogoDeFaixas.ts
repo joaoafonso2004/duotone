@@ -160,9 +160,13 @@ export async function guardarNoCatalogo(
     album: faixa.album,
     artwork_url: faixa.capa,
     prova: faixa.prova,
-    genero: faixa.genero,
-    ano: faixa.ano,
-    sem_edicao: faixa.semEdicao,
+    genero: faixa.genero ?? null,
+    ano: faixa.ano ?? null,
+    // Sempre um booleano (16/11): o `semEdicao` é opcional e vinha vazio. Num
+    // lote com uma linha "sem edição" (que leva `true`), o upsert junta as
+    // colunas de todas e preenche a que falta com null; a coluna é NOT NULL, e
+    // o lote INTEIRO falhava (23502 nos logs, três por hora a 16/11).
+    sem_edicao: faixa.semEdicao === true,
   });
 }
 
