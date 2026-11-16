@@ -27,5 +27,13 @@ assert.equal(buildInfo, v, 'src/lib/buildInfo.ts (APP_VERSION)');
 assert.equal(lock.version, v, 'package-lock.json (topo)');
 assert.equal(lock.packages?.['']?.version, v, 'package-lock.json (packages[""])');
 assert.ok(lock.lockfileVersion >= 1, 'o lock tem lockfileVersion');
+// O npm 11 desta máquina descarta esta entrada opcional, e o npm 10 do CI recusa
+// o lock sem ela ("Missing: typescript@5.9.3"): as builds do iPhone e do Windows
+// morrem no `npm ci`. Já aconteceu três vezes (0065114, 5eecd48, d2c9ba6), e
+// por isso fica aqui, antes do push. Para repor: ver o diff do d2c9ba6.
+if (lock.packages?.['node_modules/@bacons/apple-targets']) {
+  assert.ok(lock.packages['node_modules/@bacons/apple-targets/node_modules/typescript'],
+    'o lock perdeu o typescript opcional do @bacons/apple-targets (o npm 11 tira-o; o npm ci do CI exige-o)');
+}
 
 console.log(`Versão ${v} igual nos quatro sítios, e o lock é válido.`);
