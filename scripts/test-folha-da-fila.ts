@@ -51,7 +51,7 @@ caso('o toque longo já não passa pelo TrackRow, e deslizar não põe na fila',
 caso('a fila só reordena por pressão longa, sem as três barras', () => {
   const fila = ler('src/components/QueueSheet.tsx');
   assert.doesNotMatch(fila, /reorder-three-outline|envolverPega|styles\.pega/);
-  assert.match(fila, /podeArrastar=\{canReorder\}/);
+  assert.match(fila, /podeArrastar=\{canReorder && !aEscolher\}/);
   assert.match(ler('src/screens/PlaylistDetailScreen.tsx'), /envolverPega \? envolverPega\(pega\) : pega/,
     'a pega da edição de uma playlist continua independente');
 });

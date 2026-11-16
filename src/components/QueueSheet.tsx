@@ -145,6 +145,38 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
   // quem pode o que, era dar controlo por uma porta lateral. Tira-se e
   // reordena-se na folha da sessao, que sabe dessas regras.
   const canReorder = !emSessao && !seguido;
+  // Escolher várias (16/11, lib/filaEmLote.ts): tocar numa linha marca-a, e o
+  // "Play next" e o "Remove" agem sobre todas. Pelos índices REAIS da fila,
+  // que mudam com ela: a fila mexeu, a escolha recomeça.
+  const [aEscolher, setAEscolher] = React.useState(false);
+  const [escolhidas, setEscolhidas] = React.useState<ReadonlySet<number>>(new Set());
+  React.useEffect(() => { if (!visible) { setAEscolher(false); setEscolhidas(new Set()); } }, [visible]);
+  React.useEffect(() => { setEscolhidas(new Set()); }, [queue, queueIndex]);
+  const sairDaEscolha = () => { setAEscolher(false); setEscolhidas(new Set()); };
+  const alternarEscolhida = (i: number) => {
+    hapticSelection();
+    setEscolhidas((s) => { const c = new Set(s); if (c.has(i)) c.delete(i); else c.add(i); return c; });
+  };
+  const comDesfazer = (acao: () => number, texto: (n: number) => string, detalhe?: string) => {
+    const foto = usePlayer.getState().fotografiaDaFila();
+    const n = acao();
+    if (n > 0) avisarRemocao({ tipo: 'feito', texto: texto(n), detalhe, desfazer: () => { usePlayer.getState().reporFila(foto); } });
+    return n;
+  };
+  const baralharOutraVez = () => {
+    hapticSelection();
+    comDesfazer(() => usePlayer.getState().baralharProximas(), () => 'Shuffled Up next');
+  };
+  const porEscolhidasASeguir = () => {
+    hapticSelection();
+    comDesfazer(() => usePlayer.getState().porVariasASeguir([...escolhidas]), () => 'Playing next', contarMusicas(escolhidas.size));
+    sairDaEscolha();
+  };
+  const tirarEscolhidas = () => {
+    hapticSelection();
+    comDesfazer(() => usePlayer.getState().tirarVarias([...escolhidas]), (n) => `Removed ${contarMusicas(n)}`, 'from Up next');
+    sairDaEscolha();
+  };
   // Dizer de onde vêm as faixas: se a fila acabou e o rádio a estendeu, o
   // utilizador tem de perceber porque é que continua a tocar.
   const radioActive = usePlayer((s) => s.radioActive);
@@ -369,6 +401,24 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
         </Pressable>
       ) : null}
 
+      {aEscolher ? (
+        <View style={styles.tituloDaFila}>
+          <Text style={[type.caption, { flex: 1, color: colors.text, fontWeight: '600' }]}>
+            {escolhidas.size ? `${escolhidas.size} selected` : 'Select songs'}
+          </Text>
+          <Pressable hitSlop={10} disabled={!escolhidas.size} accessibilityRole="button" accessibilityLabel="Play the selected songs next"
+            onPress={porEscolhidasASeguir} style={styles.acaoDaFila}>
+            <Text style={[styles.irParaSessao, !escolhidas.size && { opacity: 0.4 }]}>Play next</Text>
+          </Pressable>
+          <Pressable hitSlop={10} disabled={!escolhidas.size} accessibilityRole="button" accessibilityLabel="Remove the selected songs"
+            onPress={tirarEscolhidas} style={styles.acaoDaFila}>
+            <Text style={[styles.irParaSessao, !escolhidas.size && { opacity: 0.4 }]}>Remove</Text>
+          </Pressable>
+          <Pressable hitSlop={10} accessibilityRole="button" onPress={() => { hapticSelection(); sairDaEscolha(); }} style={styles.acaoDaFila}>
+            <Text style={[styles.irParaSessao, { color: colors.text }]}>Cancel</Text>
+          </Pressable>
+        </View>
+      ) : (
       <View style={styles.tituloDaFila}>
         <Text style={[type.micro, styles.sectionTitle, { flex: 1, marginBottom: 0 }]}>
           UP NEXT ({upNext.length})
@@ -379,6 +429,18 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
             <Text style={styles.irParaSessao}>Manage</Text>
           </Pressable>
         )}
+        {/* Baralhar outra vez e escolher várias (16/11): só na fila de cada um. */}
+        {canReorder && upNext.length > 1 ? (
+          <Pressable hitSlop={8} accessibilityRole="button" accessibilityLabel="Shuffle again" onPress={baralharOutraVez} style={styles.iconeDaFila}>
+            <Ionicons name="shuffle" size={18} color={colors.textSecondary} />
+          </Pressable>
+        ) : null}
+        {canReorder && upNext.length > 0 ? (
+          <Pressable hitSlop={8} accessibilityRole="button" accessibilityLabel="Select songs"
+            onPress={() => { hapticSelection(); setAEscolher(true); }} style={styles.iconeDaFila}>
+            <Ionicons name="checkmark-circle-outline" size={18} color={colors.textSecondary} />
+          </Pressable>
+        ) : null}
         {/* O Radio ao lado do Clear (5/10): os dois mexem no que vem a seguir.
             Num Jam é o Radio da sala (6/10); a seguir um amigo, ligar deixa de
             o seguir. A pastilha sabe quando não aparece. */}
@@ -408,6 +470,7 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
           </Pressable>
         )}
       </View>
+      )}
       {!emSessao ? <ErroDoRadio/> : null}
 
       {upNext.length > 0 ? (
@@ -441,7 +504,7 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
             return (
               <LinhaArrastavel
                 {...arrasto.propsDaLinha(index)}
-                podeArrastar={canReorder}
+                podeArrastar={canReorder && !aEscolher}
                 // O VoiceOver (A5, 31/10): tocar, mover, tirar, guardar e o menu, no rotor.
                 acessibilidade={{
                   rotulo: `${tituloDaFaixa(item)}, ${displayArtist(item)}`,
@@ -478,7 +541,7 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
               // Deslizar para a esquerda tira a música da fila (26/9). Num Jam
               // a fila é de todos, e com uma linha pegada o dedo é do arrasto.
               <DeslizarParaTirar
-                ativo={!emSessao && arrastar === null}
+                ativo={!emSessao && arrastar === null && !aEscolher}
                 aoTirar={() => {
                   const agora = usePlayer.getState();
                   if (useOuvirJuntos.getState().sessao || agora.queueIndex === realIndex
@@ -493,6 +556,10 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
                 {/* Marca as que vieram do shuffle inteligente: sem isto nao se
                     distingue o que e teu do que a app meteu, e a lista passa a
                     ter musicas que nao te lembras de ter posto. */}
+                {aEscolher ? (
+                  <Ionicons name={escolhidas.has(realIndex) ? 'checkmark-circle' : 'ellipse-outline'} size={22}
+                    color={escolhidas.has(realIndex) ? colors.text : colors.textTertiary} style={{ marginRight: 10 }} />
+                ) : null}
                 {sugeridas.includes(trackKey(item)) && (
                   <View style={{ marginRight: 6, marginLeft: -2 }}>
                     <EstrelaInteligente tamanho={7} />
@@ -505,6 +572,7 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
                     // Por extenso, e não só a estrela de 7 pt (26/9).
                     contextLabel={sugeridas.includes(trackKey(item)) ? 'Smart shuffle pick' : undefined}
                     onPress={() => {
+                      if (aEscolher) { alternarEscolhida(realIndex); return; }
                       // Segurar até pegar na linha e largar sem a mexer não é
                       // um toque (25/10): o arrasto abriu, e a música não toca.
                       if (foraDoTelemovel || seguido || arrasto.acabouDeArrastar()) return;
@@ -514,7 +582,7 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
                     // LinhaArrastavel (Gesture Handler, 3/10).
                   />
                 </View>
-                <View style={styles.actionButtons}>
+                {aEscolher ? null : <View style={styles.actionButtons}>
                   <Pressable
                     ref={(v) => { botoes.current.set(chaves[index], v); }}
                     onPress={() => openActions(item, emSessao ? null : realIndex, false, chaves[index])}
@@ -527,7 +595,7 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
                   >
                     <Ionicons name="ellipsis-horizontal" size={20} color={colors.textSecondary} />
                   </Pressable>
-                </View>
+                </View>}
               </View>
               </DeslizarParaTirar>
               )}
@@ -629,6 +697,9 @@ const styles = StyleSheet.create({
     ...type.caption,
     color: colors.textSecondary,
   },
+  // Os botões da linha "Up next" (16/11): texto ou ícone, sem pílula, com ar entre eles.
+  acaoDaFila: { marginLeft: spacing.md },
+  iconeDaFila: { marginRight: spacing.md, width: 26, height: 26, alignItems: 'center', justifyContent: 'center' },
   emptyText: {
     ...type.caption,
     textAlign: 'center',

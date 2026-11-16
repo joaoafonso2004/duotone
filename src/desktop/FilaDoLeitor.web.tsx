@@ -77,7 +77,28 @@ export function CabecaDaFila({ fila, compacta = false, abas }: {
         <NumeroQueAnda valor={fila.saida ? 0 : fila.upNext.length} />
       </>}
       <View style={{ flex: 1 }} />
+      {/* Várias escolhidas (16/11): o que se faz com elas, no lugar do Save e do Clear. */}
+      {fila.escolhidas.size ? <>
+        <Text style={styles.npFilaLimparTexto}>{`${fila.escolhidas.size} selected`}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Play the selected songs next" onPress={fila.porASeguir}
+          style={({ hovered }: any) => [styles.npFilaLimpar, hovered && { backgroundColor: ESTADO.hover }]}>
+          <Text style={[styles.npFilaLimparTexto, { color: COR.texto }]}>Play next</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Remove the selected songs" onPress={fila.tirarEscolhidas}
+          style={({ hovered }: any) => [styles.npFilaLimpar, hovered && { backgroundColor: ESTADO.hover }]}>
+          <Text style={[styles.npFilaLimparTexto, { color: COR.texto }]}>Remove</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Clear the selection" onPress={fila.largarEscolhidas}
+          style={({ hovered }: any) => [styles.npFilaLimpar, hovered && { backgroundColor: ESTADO.hover }]}>
+          <Ionicons name="close" size={15} color={COR.textoMedio} />
+        </Pressable>
+      </> : <>
       {compacta ? null : <RadioEmTresEstados />}
+      {/* Baralhar outra vez (16/11): só o que vem a seguir; as postas à mão ficam à frente. */}
+      {fila.podeEditar && fila.upNext.length > 1 ? <Pressable accessibilityRole="button" accessibilityLabel="Shuffle again"
+        onPress={fila.baralhar} style={({ hovered }: any) => [styles.npFilaLimpar, hovered && { backgroundColor: ESTADO.hover }]}>
+        <Text style={styles.npFilaLimparTexto}>Shuffle</Text>
+      </Pressable> : null}
       {fila.current || fila.upNext.length ? <Pressable accessibilityRole="button" accessibilityLabel="Save queue as playlist"
         onPress={fila.pedirNome} style={({ hovered }: any) => [styles.npFilaLimpar, hovered && { backgroundColor: ESTADO.hover }]}>
         <Text style={styles.npFilaLimparTexto}>Save</Text>
@@ -89,6 +110,7 @@ export function CabecaDaFila({ fila, compacta = false, abas }: {
           {fila.aConfirmarLimpar ? `Clear ${fila.upNext.length}?` : 'Clear'}
         </Text>
       </Pressable> : null}
+      </>}
     </View>
     {/* No painel (340 px) o Radio não cabe na linha do título com o Save e o
         Clear: fica por baixo, com o Undo ao lado. */}
@@ -144,6 +166,7 @@ export function LinhasDaFila({ fila, compacta = false }: { fila: Fila; compacta?
   const lista = (id: string, entradas: typeof visiveis, base: number, entrada: 'vira' | null) =>
     <FilaArrastavel key={id} entradas={entradas} podeArrastar={fila.podeEditar}
       aoTocar={fila.aoTocar} aoMenu={fila.aoMenu} aoMover={(de, para) => fila.aoMover(de + base, para + base)}
+      escolhidas={fila.escolhidas} aoEscolher={(e, visivel, real) => fila.aoEscolher(e, visivel + base, real)}
       compacta={compacta} saida={fila.saida} entrada={entrada} />;
   return <View ref={refDoAlvo(chave, alvoDaFila()) as any} style={{ minHeight: 56 }}>
     {principal.length ? lista('principal', principal, 0, null) : null}

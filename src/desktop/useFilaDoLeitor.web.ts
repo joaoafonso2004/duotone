@@ -134,6 +134,50 @@ export function useFilaDoLeitor({ more, notify }: Pick<CommonPageProps, 'more' |
       setAGravar(false);
     }
   };
+  // Escolher várias (16/11, lib/filaEmLote.ts): Ctrl (⌘) + clique marca uma,
+  // Shift + clique marca de uma à outra, e um clique simples larga a escolha
+  // (sem tocar, como nas tabelas). Esc também larga. Pelos índices REAIS da
+  // fila: mexida a fila, a escolha recomeça.
+  const [escolhidas, setEscolhidas] = useState<ReadonlySet<number>>(new Set());
+  const ancora = useRef<number | null>(null);
+  useEffect(() => { setEscolhidas(new Set()); ancora.current = null; }, [queue, queueIndex, shuffleOrder, emJam, seguido]);
+  useEffect(() => {
+    if (!escolhidas.size) return;
+    const fugir = (e: KeyboardEvent) => { if (e.key === 'Escape') setEscolhidas(new Set()); };
+    window.addEventListener('keydown', fugir);
+    return () => window.removeEventListener('keydown', fugir);
+  }, [escolhidas]);
+  /** Um clique numa linha: devolve se foi da escolha (e então não toca). */
+  const aoEscolher = (e: { ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean }, visivel: number, real: number): boolean => {
+    if (!podeEditar) return false;
+    const ctrl = !!(e.ctrlKey || e.metaKey);
+    if (!ctrl && !e.shiftKey) {
+      if (!escolhidas.size) return false;
+      setEscolhidas(new Set());
+      return true;
+    }
+    const novo = new Set(escolhidas);
+    if (e.shiftKey && ancora.current != null) {
+      const [a, b] = ancora.current < visivel ? [ancora.current, visivel] : [visivel, ancora.current];
+      for (let i = a; i <= b; i++) { const u = upNext[i]; if (u) novo.add(u.index); }
+    } else {
+      if (novo.has(real)) novo.delete(real); else novo.add(real);
+      ancora.current = visivel;
+    }
+    setEscolhidas(novo);
+    return true;
+  };
+  const comDesfazer = (acao: () => number, texto: (n: number) => string, detalhe?: string) => {
+    const foto = usePlayer.getState().fotografiaDaFila();
+    const n = acao();
+    if (n > 0) avisarRemocao({ tipo: 'feito', texto: texto(n), detalhe, desfazer: () => { usePlayer.getState().reporFila(foto); } });
+    setEscolhidas(new Set());
+    return n;
+  };
+  const baralhar = () => comDesfazer(() => usePlayer.getState().baralharProximas(), () => 'Shuffled Up next');
+  const porASeguir = () => comDesfazer(() => usePlayer.getState().porVariasASeguir([...escolhidas]), () => 'Playing next', contarMusicas(escolhidas.size));
+  const tirarEscolhidas = () => comDesfazer(() => usePlayer.getState().tirarVarias([...escolhidas]), (n) => `Removed ${contarMusicas(n)}`, 'from Up next');
+
   const aoRolar = (e: any) => {
     const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
     if (upNext.length > linhasDaFila && pertoDoFim(contentOffset.y, layoutMeasurement.height, contentSize.height)) {
@@ -148,6 +192,7 @@ export function useFilaDoLeitor({ more, notify }: Pick<CommonPageProps, 'more' |
     /** A fila que a Radio acabou de trazer entra a virar. */
     entrada: (novaDaRadio ? 'vira' : null) as 'vira' | null,
     inicioDoGrupo, aLimpar,
+    escolhidas, aoEscolher, largarEscolhidas: () => setEscolhidas(new Set()), baralhar, porASeguir, tirarEscolhidas,
     aGuardar, setAGuardar, pedirNome, guardar, aGravar,
     anterior, voltar: () => { usePlayer.getState().voltarAFilaAnterior(); },
     notaDoFim: fimDaFila({ emJam: emJam || !!seguido, repeatMode, autoplayRadio: autoplayRadio && !radioParado, vazia: !upNext.length }),

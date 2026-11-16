@@ -40,6 +40,7 @@ import { cacheGet, cacheSet } from '../api/cache';
 import { lerFaixas } from '../lib/cacheDaBiblioteca';
 import { chavesDaMusica, chavesDeTodas } from '../lib/identidadeDaMusica';
 import { aEvitar, lembrarLote, lerMemoriaDoRadio, naoRepetir, ultimoLote, type MemoriaDoRadio } from '../lib/radioSemRepetir';
+import { baralharDepois, chavesLogoASeguir, porLogoASeguir, postasAMaoAFrente, tirarIndices } from '../lib/filaEmLote';
 import { chaveDeArtista, displayArtist } from '../lib/artistName';
 import {
   intervaloDosPontos, ordenarParaInserir, type Proveniencia,
@@ -614,6 +615,16 @@ interface PlayerState {
    * é uma escolha explícita, não o fim natural da fila.
    */
   limparProximas: () => number;
+  /**
+   * Baralha outra vez o que vem a seguir (16/11, lib/filaEmLote.ts): as postas
+   * à mão ficam à frente, e nunca sai a mesma ordem. Devolve quantas mexeram
+   * (0: nada para baralhar, numa Jam, a seguir um amigo).
+   */
+  baralharProximas: () => number;
+  /** Tira várias de uma vez (16/11), pelos índices REAIS da fila. Nunca a que toca; numa Jam, nada. */
+  tirarVarias: (indices: readonly number[]) => number;
+  /** Põe várias logo a seguir à que toca (16/11), pela ordem em que estavam. */
+  porVariasASeguir: (indices: readonly number[]) => number;
   /** Uma cópia da fila, tirada ANTES de uma remoção, para o "Undo" (3/10). */
   fotografiaDaFila: () => FotografiaDaFila;
   /**
@@ -2916,6 +2927,52 @@ export const usePlayer = create<PlayerState>()(
     // O percurso do shuffle guarda chaves; as que saíram deixam de ter faixa.
     if (shuffle) get()._ensureShuffleOrder();
     return proximas.length;
+  },
+
+  baralharProximas: () => {
+    if (ouvirJuntos() || seguindoAmigo()) return 0;
+    const s = get();
+    const proximas = s.upcomingQueue();
+    const fixas = postasAMaoAFrente(proximas, new Set(s.postasAMao), (p) => trackKey(p.track));
+    if (proximas.length - fixas < 2) return 0;
+    if (s.shuffle && s.shuffleOrder.length) {
+      const ordem = get()._ensureShuffleOrder();
+      const atual = s.queue[s.queueIndex] ? trackKey(s.queue[s.queueIndex]) : null;
+      const i = atual ? ordem.indexOf(atual) : -1;
+      if (i < 0) return 0;
+      set({ shuffleOrder: [...ordem.slice(0, i + 1), ...baralharDepois(ordem.slice(i + 1), fixas)] });
+    } else {
+      set({ queue: [...s.queue.slice(0, s.queueIndex + 1), ...baralharDepois(s.queue.slice(s.queueIndex + 1), fixas)] });
+    }
+    return proximas.length - fixas;
+  },
+
+  tirarVarias: (indices) => {
+    if (ouvirJuntos()) return 0;
+    const s = get();
+    const r = tirarIndices(s.queue, s.queueIndex, indices);
+    if (!r.tiradas) return 0;
+    const ficam = new Set(r.queue.map(trackKey));
+    set({ queue: r.queue, queueIndex: r.queueIndex, postasAMao: s.postasAMao.filter((k) => ficam.has(k)) });
+    if (s.shuffle) get()._ensureShuffleOrder();
+    return r.tiradas;
+  },
+
+  porVariasASeguir: (indices) => {
+    if (ouvirJuntos() || seguindoAmigo()) return 0;
+    const s = get();
+    const validos = [...new Set(indices)].filter((i) => i >= 0 && i < s.queue.length && i !== s.queueIndex);
+    if (!validos.length) return 0;
+    if (s.shuffle && s.shuffleOrder.length) {
+      const ordem = get()._ensureShuffleOrder();
+      const atual = s.queue[s.queueIndex] ? trackKey(s.queue[s.queueIndex]) : null;
+      if (!atual) return 0;
+      set({ shuffleOrder: chavesLogoASeguir(ordem, atual, validos.map((i) => trackKey(s.queue[i]))) });
+    } else {
+      const r = porLogoASeguir(s.queue, s.queueIndex, validos);
+      set({ queue: r.queue, queueIndex: r.queueIndex });
+    }
+    return validos.length;
   },
 
   fotografiaDaFila: () => {

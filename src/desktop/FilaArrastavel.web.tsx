@@ -59,6 +59,8 @@ export function FilaArrastavel({
   compacta = false,
   saida = null,
   entrada: entradaDaLista = null,
+  escolhidas,
+  aoEscolher,
 }: {
   entradas: Entrada[];
   /** Num Jam a fila é de todos: não se reordena daqui. */
@@ -77,6 +79,10 @@ export function FilaArrastavel({
   saida?: 'limpar' | 'vira' | null;
   /** A fila nova da Radio: as linhas entram a virar. */
   entrada?: 'vira' | null;
+  /** As escolhidas (16/11), pelos índices reais da fila: pintadas. */
+  escolhidas?: ReadonlySet<number>;
+  /** Um clique com Ctrl/Shift (ou com escolhidas): devolve se foi da escolha, e então não toca. */
+  aoEscolher?: (e: { ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean }, visivel: number, real: number) => boolean;
 }) {
   const sugeridas = usePlayer((s) => s.sugeridas);
   const [arrasto, setArrasto] = useState<Arrasto | null>(null);
@@ -217,11 +223,12 @@ export function FilaArrastavel({
               ignorarClique.current = !!ref.current?.ativo;
               guardar(null);
             }}
-            onClick={() => {
+            onClick={(e: any) => {
               if (ignorarClique.current) {
                 ignorarClique.current = false;
                 return;
               }
+              if (aoEscolher?.(e, i, entrada.index)) return;
               aoTocar(entrada.track);
             }}
             onContextMenu={(e: any) => {
@@ -248,7 +255,7 @@ export function FilaArrastavel({
               borderRadius: 8,
               // A primeira já não vai pintada: com a fila inteira à vista, a
               // linha acesa lia-se como "a que está a tocar", e essa é a capa.
-              background: arrastada ? COR.elevado : undefined,
+              background: arrastada ? COR.elevado : escolhidas?.has(entrada.index) ? 'rgba(255,255,255,.09)' : undefined,
               boxShadow: arrastada ? '0 10px 28px rgba(0,0,0,.55)' : undefined,
               ...(saida || entradaDaLista
                 ? { animationDelay: `${atrasoDaLinha(i, saida ? PASSO_DA_SAIDA_MS : PASSO_DA_ENTRADA_MS)}ms` } : {}),
