@@ -22,6 +22,7 @@ import { useOfflineMode } from '../hooks/useOfflineMode';
 import type { Track } from '../types';
 import type { PlayerAction } from './PlayerActionsSheet';
 import { MenuFlutuante, type Ancora, type FaixaDoMenu } from './MenuFlutuante';
+import { ProvedorDoReferencial, useReferencialDaFolha } from './ReferencialDaFolha';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { ancoraDoUltimoToque } from '../lib/ultimoToque';
 import { AddToPlaylistSheet } from './AddToPlaylistSheet';
@@ -68,6 +69,9 @@ interface Props {
 
 export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nativa = false }: Props) {
   const offline = useOfflineMode();
+  // A fila é uma folha nativa: as âncoras medidas cá dentro contam do topo dela
+  // (16/11, ver ReferencialDaFolha). Este ajuste põe-nas no ecrã.
+  const referencial = useReferencialDaFolha();
   /**
    * A linha escolhida. `atual` separa a que está a TOCAR das outras: numa sessão
    * todas vêm sem índice, e o menu da que toca é o do leitor (sem "Play now"
@@ -173,10 +177,12 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
     hapticSelection();
     garantirGuardadas();
     const daFila = queue;
-    const abrir = (ancora: Ancora) => {
-      setSelection({ track, index, queue: daFila, atual, ancora });
-      setPanel('actions');
-      setMenuAberto(true);
+    const abrir = (medida: Ancora) => {
+      referencial.ajustar(medida, (ancora) => {
+        setSelection({ track, index, queue: daFila, atual, ancora });
+        setPanel('actions');
+        setMenuAberto(true);
+      });
     };
     const reserva = () => ancoraDoUltimoToque({ largura: larguraDoEcra, altura: alturaDoEcra });
     const botao = botoes.current.get(chave);
@@ -541,7 +547,10 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
     <>
     {nativa ? (
       // A folha é do iOS: a pega, as alturas e o fechar a arrastar são dela.
-      <View style={styles.folhaNativa}>{conteudo}</View>
+      <View style={styles.folhaNativa}>
+        <ProvedorDoReferencial value={referencial.ajustar}>{conteudo}</ProvedorDoReferencial>
+        {referencial.sonda}
+      </View>
     ) : (
       <BottomSheet gestureBlocked={arrastar !== null} bloqueioRef={arrasto.bloqueioRef} visible={visible && panel === 'actions'} onClose={onClose}>
         {conteudo}

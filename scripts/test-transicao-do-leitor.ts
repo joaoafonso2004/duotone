@@ -122,10 +122,11 @@ caso('as ligações: 120 Hz, a app de trás, o gesto e a pose', () => {
   const app = JSON.parse(ler('app.json'));
   assert.equal(app.expo.ios.infoPlist.CADisableMinimumFrameDurationOnPhone, true, 'sem a chave o iOS prende a app a 60 Hz');
   const nav = ler('src/navigation/RootNavigator.tsx');
-  // Desde a gaveta da Home (6.0.4) a app de trás também desliza com ela, e o
-  // raio do leitor soma-se ao da gaveta: a escala e o raio continuam lá.
-  assert.match(nav, /borderRadius: gaveta\.raio, transform: \[\{ translateX: gaveta\.deslize \}, \{ scale: escalaDoFundo \}\]/, 'a app de trás recua');
-  assert.match(nav, /raio: Animated\.add\(raioDoFundo,/, 'com o raio do leitor');
+  // Sem zoom por trás do leitor (16/11, João): a app de trás só desliza com a
+  // gaveta, e já não encolhe quando o leitor abre -- encolhida, deixava ver a
+  // gaveta por trás. Continua a escurecer.
+  assert.match(nav, /borderRadius: gaveta\.raio, transform: \[\{ translateX: gaveta\.deslize \}\] \}\}>/, 'a app de trás não encolhe');
+  assert.doesNotMatch(nav, /scale: escalaDoFundo|raioDoFundo/, 'nem ganha o raio do leitor');
   assert.match(nav, /opacity: veuDoFundo/, 'e escurece');
   const leitor = ler('src/components/PlayerRoot.tsx');
   assert.doesNotMatch(leitor, /translateY: dragY|dragY\.setValue/, 'o arrasto já não é só descer a página');

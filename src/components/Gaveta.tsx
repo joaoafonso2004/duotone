@@ -113,13 +113,16 @@ export function Gaveta({ largura, abertura }: { largura: number; abertura: Anima
 
   // A gaveta desliza um pouco com a abertura: parece vir de trás da Home, e não estar parada.
   const paralaxe = useMemo(() => abertura.interpolate({ inputRange: [0, 1], outputRange: [-36, 0] }), [abertura]);
+  // Fechada, não existe (16/11): por trás da app fica o preto de sempre, e
+  // nenhuma transição (o leitor a fechar, um arrasto) a deixa ver de raspão.
+  const presente = useMemo(() => abertura.interpolate({ inputRange: [0, 0.002, 1], outputRange: [0, 1, 1] }), [abertura]);
 
   return (
     <Animated.View
       accessibilityViewIsModal={aberta}
       accessibilityElementsHidden={!aberta}
       importantForAccessibility={aberta ? 'auto' : 'no-hide-descendants'}
-      style={[styles.painel, { width: largura, paddingTop: insets.top + 10, transform: [{ translateX: paralaxe }] }]}
+      style={[styles.painel, { width: largura, paddingTop: insets.top + 10, opacity: presente, transform: [{ translateX: paralaxe }] }]}
     >
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
         <FundoEmGradiente uri={fundo} animar={aberta} />

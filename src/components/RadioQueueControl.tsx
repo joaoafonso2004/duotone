@@ -3,6 +3,7 @@ import { ActivityIndicator, Animated, Easing, Pressable, StyleSheet, Text, View 
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { usePlayer, type TipoDeRadio } from '../state/player';
 import { MenuDoRadio, type AncoraDoMenuDoRadio } from './MenuDoRadio';
+import { useAjustarAncora } from './ReferencialDaFolha';
 import { useCapasDoMix } from '../hooks/useCapasDoMix';
 import { ROTULO_LIGADO } from '../lib/menuDoRadio';
 import { pedirFluidez } from '../state/fluidez';
@@ -145,6 +146,8 @@ export function RadioQueueControl() {
   const capa=usePlayer(s=>s.current?.artworkUrl??null);
   const capasDoMix=useCapasDoMix(radio.menuAberto);
   const pastilha=useRef<View>(null);
+  // Dentro da fila (folha nativa) a medida conta do topo dela: o ajuste põe-na no ecrã (16/11).
+  const ajustarAncora=useAjustarAncora();
   const [ancora,setAncora]=useState<AncoraDoMenuDoRadio|null>(null);
   const reduzido=useReducedMotion();
   // O enchimento (18/10): acende da esquerda para a direita quando liga.
@@ -161,7 +164,9 @@ export function RadioQueueControl() {
     // O menu nasce da pastilha: precisa de saber onde ela está no ecrã. Sem
     // ela (não devia acontecer), liga o Radio de sempre em vez de não fazer nada.
     if(!pastilha.current){radio.escolher('musica');return;}
-    pastilha.current.measureInWindow((x,y,width,height)=>{ setAncora({x,y,width,height}); radio.alternar(); });
+    pastilha.current.measureInWindow((x,y,width,height)=>{
+      ajustarAncora({x,y,width,height},(a)=>{ setAncora(a); radio.alternar(); });
+    });
   };
   if(!radio.visivel)return null;
   return <View style={styles.linha}>

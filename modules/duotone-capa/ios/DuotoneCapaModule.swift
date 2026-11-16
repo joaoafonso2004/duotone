@@ -25,13 +25,31 @@ public class DuotoneCapaModule: Module {
       1
     }
 
+    // A primeira vista é a de omissão do módulo (o recuo); a sonda vai por nome.
     View(DuotoneRecuoView.self) {
       Prop("salto") { (view: DuotoneRecuoView, salto: SaltoDaCapa?) in
         view.aplicar(salto)
       }
     }
+
+    /**
+     * Onde a vista está NO ECRÃ (16/11). Dentro da fila, que é uma folha nativa,
+     * o `measureInWindow` e o toque do React Native contam a partir do topo da
+     * folha, e os menus (que abrem por cima de tudo) nasciam ~1000 px acima do
+     * botão. O UIKit sabe a posição verdadeira.
+     */
+    View(DuotoneSondaView.self) {
+      AsyncFunction("noEcra") { (view: DuotoneSondaView) -> [Double] in
+        guard view.window != nil else { return [] }
+        let r = view.convert(view.bounds, to: nil)
+        return [Double(r.origin.x), Double(r.origin.y), Double(r.size.width), Double(r.size.height)]
+      }.runOnQueue(.main)
+    }
   }
 }
+
+/** Uma vista vazia que só existe para ser medida (ver `noEcra`). */
+final class DuotoneSondaView: ExpoView {}
 
 /** O pedido de um skip: ver `SaltoDaCapa` em src/lib/recuoNoEcra.ts. */
 struct SaltoDaCapa: Record {

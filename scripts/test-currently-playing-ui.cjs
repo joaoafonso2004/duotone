@@ -74,6 +74,8 @@ const mocks = {
   '../hooks/useOfflineMode':{useOfflineMode:()=>offline},
   // O menu da fila é o `MenuFlutuante` compacto das listas (25/10).
   './PlayerActionsSheet':{}, './MenuFlutuante':{MenuFlutuante:'MenuFlutuante'},
+  // Fora da folha nativa, a âncora sai igual e na hora (16/11, ReferencialDaFolha).
+  './ReferencialDaFolha':{ProvedorDoReferencial:'Referencial',useReferencialDaFolha:()=>({sonda:null,ajustar:(a,feito)=>feito(a)})},
   '../lib/capaDoEcraBloqueado':{capaParaLista:()=>null}, '../lib/ultimoToque': carregar('src/lib/ultimoToque.ts'),
   './AddToPlaylistSheet':{AddToPlaylistSheet:'Playlist'}, './ShareFriendSheet':{ShareFriendSheet:'Share'},
   // Guardar a fila como playlist (11/10): o pedido do nome, a API e o nome sugerido (puro).
@@ -191,6 +193,7 @@ async function testRadioControl(){
     '@expo/vector-icons/Ionicons':'Icon','../state/player':{usePlayer},
     // O menu "Songs like this one / Mix" (18/10): aqui só se lhe leem as props.
     './MenuDoRadio':{MenuDoRadio:'MenuDoRadio'},'../hooks/useCapasDoMix':{useCapasDoMix:()=>[]},
+    './ReferencialDaFolha':{useAjustarAncora:()=>(a,feito)=>feito(a)},
     '../lib/menuDoRadio':{ROTULO_LIGADO:{musica:'Radio on',mix:'Mix on'}},
     '../state/fluidez':{pedirFluidez(){}},'../hooks/useReducedMotion':{useReducedMotion:()=>false},
     '../state/connectivity':{useConnectivity},'../state/auth':{useAuth},

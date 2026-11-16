@@ -70,10 +70,31 @@ console.log('\nfora da thread principal, e sem esperar pelo JavaScript');
   check('sem ela (binário antigo), fica o caminho de antes', /if \(RecuoNativo\) return;/.test(capa)
     && /Animated\.timing\(fase, \{ toValue: 1/.test(capa));
   const ponte = ler('modules/duotone-capa/index.ts');
-  check('fora do iPhone e sem o módulo, não há vista nativa', /Platform\.OS === 'ios' && requireOptionalNativeModule\('DuotoneCapa'\)/.test(ponte));
+  check('fora do iPhone e sem o módulo, não há vista nativa', /Platform\.OS === 'ios'\s*\?\s*requireOptionalNativeModule<[\s\S]*?>\('DuotoneCapa'\)/.test(ponte)
+    && /RecuoNativo[^=]*= nativo \? requireNativeView<Props>\('DuotoneCapa'\) : null/.test(ponte));
   const leitor = ler('src/components/PlayerRoot.tsx');
   check('a capa só respira a carregar depois do recuo', /setTimeout\(\(\) => \{\s*loop = Animated\.loop/.test(leitor)
     && /ESPERA_ANTES_DE_RESPIRAR_MS = 700/.test(leitor) && 700 > curvaDoSkip().duracaoMs);
+}
+
+console.log('\nos menus da fila nascem junto ao botão (16/11)');
+{
+  const swift = ler('modules/duotone-capa/ios/DuotoneCapaModule.swift');
+  const recuo = swift.indexOf('View(DuotoneRecuoView.self)'), sonda = swift.indexOf('View(DuotoneSondaView.self)');
+  check('o recuo continua a ser a vista de omissão do módulo (a primeira)', recuo > 0 && sonda > recuo);
+  check('a sonda mede-se pelo UIKit, no ecrã', /AsyncFunction\("noEcra"\)/.test(swift) && /view\.convert\(view\.bounds, to: nil\)/.test(swift)
+    && /\.runOnQueue\(\.main\)/.test(swift));
+  const ponte = ler('modules/duotone-capa/index.ts');
+  check('sem a sonda no binário, não se desenha', /ViewPrototypes\?\.DuotoneCapa_DuotoneSondaView/.test(ponte)
+    && /requireNativeView<ViewProps>\('DuotoneCapa', 'DuotoneSondaView'\)/.test(ponte));
+  const fila = ler('src/components/QueueSheet.tsx');
+  check('a fila põe a sonda dentro da folha e ajusta o menu do "…"', /\{referencial\.sonda\}/.test(fila)
+    && /referencial\.ajustar\(medida, /.test(fila) && /<ProvedorDoReferencial value=\{referencial\.ajustar\}>/.test(fila));
+  const radio = ler('src/components/RadioQueueControl.tsx');
+  check('e o menu do Radio também', /ajustarAncora\(\{x,y,width,height\},/.test(radio));
+  const ref = ler('src/components/ReferencialDaFolha.tsx');
+  check('fora da folha, sem medir, a âncora sai igual e na hora', /const identidade: Ajustar = \(a, feito\) => feito\(a\);/.test(ref)
+    && /if \(!s\?\.noEcra \|\| !vista\?\.measureInWindow\) \{ feito\(a\); return; \}/.test(ref));
 }
 
 if (mau) {

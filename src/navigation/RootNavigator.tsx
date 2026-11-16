@@ -30,7 +30,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import React, { useEffect, useMemo } from 'react';
 import { Animated, StyleSheet, View, ActivityIndicator, useWindowDimensions } from 'react-native';
-import { escalaDoFundo, raioDoFundo, veuDoFundo } from '../state/transicaoDoLeitor';
+import { veuDoFundo } from '../state/transicaoDoLeitor';
 import { Gaveta } from '../components/Gaveta';
 import { BordaDaGaveta, CosturaDaGaveta, VeuDaGaveta } from '../components/BordaDaGaveta';
 import { aberturaVista, larguraDaGaveta, useEcraAtual } from '../state/gaveta';
@@ -423,7 +423,7 @@ export function RootNavigator() {
     return {
       visto,
       deslize: visto.interpolate({ inputRange: [0, 1], outputRange: [0, largura] }),
-      raio: Animated.add(raioDoFundo, visto.interpolate({ inputRange: [0, 1], outputRange: [0, 28] })),
+      raio: visto.interpolate({ inputRange: [0, 1], outputRange: [0, 28] }),
     };
   }, [largura]);
   // Os atalhos do ícone (7/10): Resume, Daily mix, Shuffle Liked Songs.
@@ -468,7 +468,10 @@ export function RootNavigator() {
                 redondos e escurece, e volta para a frente com o gesto de o
                 fechar. O preto à volta é o que se vê entre ela e o ecrã. Ver
                 state/transicaoDoLeitor.ts. */}
-            <Animated.View style={{ flex: 1, overflow: 'hidden', borderRadius: gaveta.raio, transform: [{ translateX: gaveta.deslize }, { scale: escalaDoFundo }] }}>
+            {/* Sem zoom por trás do leitor (16/11, João): a app de trás já não
+                encolhe quando ele abre nem cresce quando fecha -- só escurece
+                (o véu de baixo). Encolhida, deixava ver o que estava por trás. */}
+            <Animated.View style={{ flex: 1, overflow: 'hidden', borderRadius: gaveta.raio, transform: [{ translateX: gaveta.deslize }] }}>
             {/* Imagem de fundo abstrata global (renderizada apenas uma vez na app inteira) */}
             {/* O desfoque vem na PRÓPRIA imagem, calculado uma vez quando ela
                 carrega. Era um BlurView de ecrã inteiro por cima dela: um
