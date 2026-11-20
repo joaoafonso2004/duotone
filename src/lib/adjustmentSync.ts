@@ -119,6 +119,26 @@ export function precisaDeRecuperar(aoVivo:boolean,ultimaLeitura:number,agora:num
   return !aoVivo||agora-ultimaLeitura>=janelaMs;
 }
 
+/**
+ * A rede de segurança com o Realtime ligado (20/11, logs do Supabase acima do teto).
+ *
+ * Os ajustes e os presets reliam cada um a sua tabela de dez em dez minutos com o
+ * canal vivo -- ~230 pedidos por hora na ponta, quase sempre para nada, porque o
+ * que muda chega pelo aviso. Agora perguntam ao "o que mudou?" (`lib/oQueMudou.ts`)
+ * uma vez por meia hora, e só relê quem tem marca nova. A meia hora é a do RELÓGIO
+ * (a fatia), e não a de cada um: os dois temporizadores arrancam juntos, viram de
+ * fatia no mesmo tique e o porteiro junta as duas perguntas num pedido só.
+ * Sem o canal, relê-se de dois em dois minutos, como antes.
+ */
+export const RECUPERACAO_AO_VIVO_MS=30*60_000;
+export function fatiaDaRecuperacao(agora:number):number{
+  return Math.floor(agora/RECUPERACAO_AO_VIVO_MS);
+}
+export function comoRecuperar(aoVivo:boolean,fatiaVista:number,agora:number):'ler'|'perguntar'|'nada'{
+  if(!aoVivo)return 'ler';
+  return fatiaDaRecuperacao(agora)!==fatiaVista?'perguntar':'nada';
+}
+
 /** A tabela inteira relê-se ao arrancar e passado isto; entre elas, só o que mudou. */
 export const LEITURA_INTEIRA_MS=6*60*60_000;
 /**

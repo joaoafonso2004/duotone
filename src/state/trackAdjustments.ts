@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {AppState,Platform} from 'react-native';
 import {create} from 'zustand';
 import {supabase} from '../lib/supabase';
-import {AdjustmentSync,desdeQuandoLer,precisaDeRecuperar,type AdjustmentSnapshot,type AdjustmentStatus} from '../lib/adjustmentSync';
+import {AdjustmentSync,comoRecuperar,desdeQuandoLer,fatiaDaRecuperacao,precisaDeRecuperar,type AdjustmentSnapshot,type AdjustmentStatus} from '../lib/adjustmentSync';
 import {daPersistencia,type AjusteDaFaixa,type MemoriaDeAjustes} from '../lib/equalizer';
 import {lerAjustesRemotos,guardarAjusteRemoto,linhaDoAjuste,eDaOutraPlataforma} from '../api/ajustes';
 import {useConnectivity} from './connectivity';
@@ -54,10 +54,9 @@ export function startTrackAdjustmentSync(userId:string,apply:(values:MemoriaDeAj
   });
   const flush=()=>{if(timer)clearTimeout(timer);timer=setTimeout(()=>{if(online())void engine.sync();},500);};
   // Recuperação (30/9, egress): com o Realtime ligado, as mudanças chegam por
-  // ele, e a tabela inteira só se relê de dez em dez minutos -- ou ao voltar à
-  // janela passados cinco. Sem ele, como antes.
-  const recuperar=(janelaMs:number)=>{if(precisaDeRecuperar(aoVivo,ultimaLeitura,Date.now(),janelaMs))flush();};
-  const aoFocar=()=>recuperar(5*60_000);
+  // ele. Sem ele, relê-se como antes. Com ele, desde 20/11, nem a rede de
+  // segurança nem o foco da janela do PC releem a tabela sem perguntar primeiro
+  // ao "o que mudou?" (ver `comoRecuperar`).
   active={userId,engine,flush};
   for(const [k,v] of Object.entries(early.get(userId)??{}))engine.edit(k,v);early.delete(userId);
   const reconnect=useConnectivity.subscribe(s=>{if(!s.offline)flush();});
@@ -68,23 +67,38 @@ export function startTrackAdjustmentSync(userId:string,apply:(values:MemoriaDeAj
   // (ou um envio que falhou) sincroniza logo, como antes.
   // E antes de reler, o pedido único "o que mudou?" (11/11, `lib/oQueMudou.ts`):
   // se nenhum outro aparelho mexeu nos ajustes, não há nada para ler.
-  const aoVoltar=()=>{
-    if(!precisaDeRecuperar(aoVivo,ultimaLeitura,Date.now(),5*60_000))return;
+  const perguntar=()=>{
     void verificarMudancas(['ajustes']).then(g=>{
       if(stopped||!g.mudou||!online())return;
       void engine.sync().then(()=>{if(!stopped&&useAdjustmentSync.getState().status==='saved')g.confirmar();});
     });
   };
-  const focus=AppState.addEventListener('change',state=>{
-    if(state!=='active')return;
+  const aoVoltar=()=>{
+    if(!precisaDeRecuperar(aoVivo,ultimaLeitura,Date.now(),5*60_000))return;
+    perguntar();
+  };
+  const aoRegressar=()=>{
     const s=useAdjustmentSync.getState().status;
     if(s==='pending'||s==='error')flush();else aoVoltar();
+  };
+  const focus=AppState.addEventListener('change',state=>{
+    if(state!=='active')return;
+    aoRegressar();
   });
+  // O foco da janela do PC (20/11): a mesma regra de voltar à app. Relia a
+  // tabela a cada foco passados cinco minutos, sem perguntar. Esconder a janela
+  // também dispara o `visibilitychange`, e aí não há nada a fazer.
+  const aoFocar=()=>{if(appEstaVisivel())aoRegressar();};
   // Há Realtime e cada edição já agenda um flush. Este intervalo é apenas uma
   // recuperação; 15 s repetia leituras sem alterações e mantinha a app/janela
   // escondida ocupada sem benefício.
   // Só com a app à vista (6/10): no tabuleiro do PC relia o dia todo.
-  const pararIntervalo=intervaloComAppVisivel(()=>recuperar(10*60_000),120000);
+  let fatiaVista=fatiaDaRecuperacao(Date.now());
+  const pararIntervalo=intervaloComAppVisivel(()=>{
+    const agora=Date.now(),como=comoRecuperar(aoVivo,fatiaVista,agora);
+    if(como==='ler')flush();
+    else if(como==='perguntar'){fatiaVista=fatiaDaRecuperacao(agora);perguntar();}
+  },120000);
   const channel=supabase.channel(`track-adjustments:${userId}`).on('postgres_changes',
     {event:'*',schema:'public',table:'user_track_adjustments',filter:`user_id=eq.${userId}`},(payload)=>{
       // O eco da própria escrita não relê nada; o que veio de outro aparelho

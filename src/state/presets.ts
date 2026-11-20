@@ -2,7 +2,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, Platform } from 'react-native';
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
-import { AdjustmentSync, precisaDeRecuperar, type AdjustmentSnapshot, type AdjustmentStatus } from '../lib/adjustmentSync';
+import {
+  AdjustmentSync, comoRecuperar, fatiaDaRecuperacao, precisaDeRecuperar, type AdjustmentSnapshot, type AdjustmentStatus,
+} from '../lib/adjustmentSync';
 import { verificarMudancas } from '../lib/oQueMudou';
 import {
   daPersistenciaDePresets, fundirPresets, type LinhaDosPresets, type MemoriaDePresets,
@@ -101,31 +103,43 @@ export function iniciarPresets(userId: string): () => void {
   for (const [k, l] of Object.entries(antesDeAbrir)) engine.edit(k, l);
   antesDeAbrir = {};
 
-  // Com o Realtime ligado, a tabela só se relê de dez em dez minutos, ou ao
-  // voltar à janela passados cinco -- como os ajustes por faixa (30/9, egress).
-  const recuperar = (janelaMs: number) => {
-    if (precisaDeRecuperar(aoVivo, ultimaLeitura, Date.now(), janelaMs)) flush();
-  };
-  const aoFocar = () => recuperar(5 * 60_000);
+  // Com o Realtime ligado, a tabela não se relê sem perguntar primeiro ao
+  // "o que mudou?" -- nem na rede de segurança nem no foco da janela do PC
+  // (20/11, como os ajustes por faixa; ver `comoRecuperar`). Sem ele, como antes.
   const aoVoltarARede = useConnectivity.subscribe((s) => { if (!s.offline) flush(); });
   // Voltar à app (11/11): no iPhone relia sempre. Agora, com algo por enviar
   // sincroniza logo; senão, passada a janela, pergunta ao pedido único "o que
   // mudou?" (`lib/oQueMudou.ts`) e só relê se outro aparelho mexeu nos presets.
-  const aoVoltar = () => {
-    if (!precisaDeRecuperar(aoVivo, ultimaLeitura, Date.now(), 5 * 60_000)) return;
+  const perguntar = () => {
     void verificarMudancas(['presets']).then((g) => {
       if (parado || !g.mudou || !online()) return;
       void engine.sync().then(() => { if (!parado && estado === 'saved') g.confirmar(); });
     });
   };
+  const aoVoltar = () => {
+    if (!precisaDeRecuperar(aoVivo, ultimaLeitura, Date.now(), 5 * 60_000)) return;
+    perguntar();
+  };
+  const aoRegressar = () => {
+    if (estado === 'pending' || estado === 'error') flush(); else aoVoltar();
+  };
   const aoAbrir = AppState.addEventListener('change', (e) => {
     if (e !== 'active') return;
-    if (estado === 'pending' || estado === 'error') flush(); else aoVoltar();
+    aoRegressar();
   });
+  // O foco da janela do PC segue a regra de voltar à app (20/11).
+  const aoFocar = () => { if (appEstaVisivel()) aoRegressar(); };
   // Rede de segurança; quem avisa na hora é o Realtime. Só com a app à vista
-  // (6/10): no tabuleiro do PC relia de dez em dez minutos o dia todo, e ao
-  // voltar o foco já relê o que passou de cinco.
-  const pararIntervalo = intervaloComAppVisivel(() => recuperar(10 * 60_000), 120000);
+  // (6/10): no tabuleiro do PC relia de dez em dez minutos o dia todo. Com o
+  // canal vivo, uma pergunta por meia hora do relógio, à mesma hora que os
+  // ajustes por faixa: o porteiro junta as duas num pedido.
+  let fatiaVista = fatiaDaRecuperacao(Date.now());
+  const pararIntervalo = intervaloComAppVisivel(() => {
+    const agora = Date.now();
+    const como = comoRecuperar(aoVivo, fatiaVista, agora);
+    if (como === 'ler') flush();
+    else if (como === 'perguntar') { fatiaVista = fatiaDaRecuperacao(agora); perguntar(); }
+  }, 120000);
   const canal = supabase.channel(`eq-presets:${userId}`).on('postgres_changes',
     { event: '*', schema: 'public', table: 'user_eq_presets', filter: `user_id=eq.${userId}` }, (payload) => {
       // O eco da própria escrita não relê nada.

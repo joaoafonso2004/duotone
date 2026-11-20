@@ -542,7 +542,9 @@ async function main() {
   // --- Os ajustes e os presets do EQ não releem com a app escondida -----------
   for (const f of ['src/state/presets.ts', 'src/state/trackAdjustments.ts']) {
     const s = fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
-    assert.match(s, /intervaloComAppVisivel\(\s*\(\)\s*=>\s*recuperar\(10\s*\*\s*60_000\)\s*,\s*120000\)/, `${f}: a recuperação só com a app à vista`);
+    // 20/11: com o canal vivo pergunta ao "o que mudou?" por meia hora do relógio (adjustmentSync.comoRecuperar).
+    assert.match(s, /intervaloComAppVisivel\(\s*\(\)\s*=>\s*\{[\s\S]{0,120}?comoRecuperar\(\s*aoVivo,\s*fatiaVista,\s*agora\s*\)[\s\S]{0,220}?\}\s*,\s*120000\)/, `${f}: a recuperação só com a app à vista`);
+    assert.doesNotMatch(s, /recuperar\(10\s*\*\s*60_000\)/, `${f}: já não relê a tabela de dez em dez minutos com o canal vivo`);
     assert.doesNotMatch(s, /setInterval\(\s*\(\)\s*=>\s*recuperar/, `${f}: sem setInterval a correr no tabuleiro`);
   }
 

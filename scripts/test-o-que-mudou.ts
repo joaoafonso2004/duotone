@@ -184,6 +184,17 @@ await caso('ajustes, presets e favoritos perguntam antes de reler, e só confirm
   assert.match(fav, /void verificarMudancas\(\['prefs'\]\)\.then\(\(g\) => \{/);
   assert.match(fav, /if \(jaLigou\) verSeMudou\(\); else refresh\(\);/, 'a primeira ligação do canal lê como antes');
 });
+await caso('o foco da janela do PC e a rede de segurança também perguntam antes de reler (20/11)', () => {
+  const ajustes = ler('src/state/trackAdjustments.ts');
+  const presets = ler('src/state/presets.ts');
+  const fav = ler('src/state/artistasFavoritos.ts');
+  assert.match(ajustes, /const aoFocar=\(\)=>\{if\(appEstaVisivel\(\)\)aoRegressar\(\);\};/);
+  assert.match(presets, /const aoFocar = \(\) => \{ if \(appEstaVisivel\(\)\) aoRegressar\(\); \};/);
+  assert.match(fav, /window\.addEventListener\('focus', verSeMudou\)/);
+  assert.doesNotMatch(fav, /addEventListener\('focus', refresh\)/, 'os favoritos já não leem a linha inteira a cada foco');
+  assert.match(ajustes, /else if\(como==='perguntar'\)\{fatiaVista=fatiaDaRecuperacao\(agora\);perguntar\(\);\}/);
+  assert.match(presets, /else if \(como === 'perguntar'\) \{ fatiaVista = fatiaDaRecuperacao\(agora\); perguntar\(\); \}/);
+});
 await caso('o Social pergunta pelas mensagens e pelas amizades, e o canal a religar pergunta de fresco', () => {
   const s = ler('src/state/social.ts');
   assert.match(s, /verificarMudancas\(\['mensagens', 'amizades'\], \{ fresco \}\)/);

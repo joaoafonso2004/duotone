@@ -681,6 +681,24 @@ console.log('Perfil: biblioteca anterior à migração, falhas independentes e e
   console.log('Sincronização: o eco não relê, e com Realtime a recuperação espera pela janela.');
 }
 
+// 20/11 (logs do Supabase): com o canal vivo, a rede de segurança dos ajustes e
+// dos presets pergunta ao "o que mudou?" uma vez por meia hora do relógio, e os
+// dois viram de fatia no mesmo instante (o porteiro junta as perguntas).
+{
+  const {comoRecuperar,fatiaDaRecuperacao,RECUPERACAO_AO_VIVO_MS}=ambiente(async()=>{}).carregar('src/lib/adjustmentSync.ts');
+  assert.equal(RECUPERACAO_AO_VIVO_MS,30*60_000);
+  const T=1_800_000_000_000;// múltiplo de 30 min: o início de uma fatia
+  assert.equal(fatiaDaRecuperacao(T),fatiaDaRecuperacao(T+RECUPERACAO_AO_VIVO_MS-1),'a mesma meia hora');
+  assert.equal(fatiaDaRecuperacao(T+RECUPERACAO_AO_VIVO_MS),fatiaDaRecuperacao(T)+1);
+  assert.equal(comoRecuperar(false,fatiaDaRecuperacao(T),T),'ler','sem o canal, relê como antes');
+  assert.equal(comoRecuperar(true,fatiaDaRecuperacao(T),T+29*60_000),'nada','com o canal, na mesma meia hora não faz nada');
+  assert.equal(comoRecuperar(true,fatiaDaRecuperacao(T),T+30*60_000),'perguntar','na meia hora seguinte, pergunta');
+  // Dois aparelhos-parte arrancados em instantes diferentes perguntam no mesmo tique.
+  const a=fatiaDaRecuperacao(T+3*60_000),b=fatiaDaRecuperacao(T+17*60_000);
+  assert.equal(comoRecuperar(true,a,T+30*60_000+1000),comoRecuperar(true,b,T+30*60_000+1000));
+  console.log('Recuperação com o canal vivo: uma pergunta por meia hora, à mesma hora para todos.');
+}
+
 {
   const {acceptsCubeSwipe,cubeDirection,cubeProgress,cubeDestination}=ambiente(async()=>{}).carregar('src/lib/lyricsCubeGesture.ts');
   assert.equal(acceptsCubeSwipe(4,0),false);assert.equal(acceptsCubeSwipe(30,60),false);assert.equal(acceptsCubeSwipe(60,10),true);

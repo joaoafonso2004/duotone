@@ -126,12 +126,14 @@ export function iniciarArtistasFavoritos(userId: string): () => void {
       if (jaLigou) verSeMudou(); else refresh();
       jaLigou = true;
     });
-  if (Platform.OS === 'web') { window.addEventListener('online', refresh); window.addEventListener('focus', refresh); }
+  // O foco da janela do PC (20/11): pergunta ao "o que mudou?" antes de ler a linha
+  // inteira, como ao voltar à app. Lia-a a cada foco passados dois minutos.
+  if (Platform.OS === 'web') { window.addEventListener('online', refresh); window.addEventListener('focus', verSeMudou); }
   refresh();
   return () => {
     alive = false; instance.stop(); if (sync === instance) sync = null;
     app.remove(); void supabase.removeChannel(channel);
-    if (Platform.OS === 'web') { window.removeEventListener('online', refresh); window.removeEventListener('focus', refresh); }
+    if (Platform.OS === 'web') { window.removeEventListener('online', refresh); window.removeEventListener('focus', verSeMudou); }
     useArtistasFavoritos.getState().esquecer();
   };
 }
