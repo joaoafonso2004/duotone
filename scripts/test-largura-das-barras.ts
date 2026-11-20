@@ -9,7 +9,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  LATERAL, PAINEL, ajustar, lateralRecolhida, lerLarguras, limitesDaLateral, limitesDoPainel, teclar,
+  AMIGOS as DIVISAO, LATERAL, PAINEL, ajustar, alturaDosAmigos, fracaoDosAmigos, lateralRecolhida, lerFracaoDosAmigos,
+  lerLarguras, limitesDaLateral, limitesDoPainel, teclar, teclarAmigos,
 } from '../src/lib/largurasDasBarras.ts';
 
 let falhas = 0;
@@ -27,6 +28,7 @@ const STORE = ler('src/desktop/estadoDasBarras.web.ts');
 const NAVEGADOR = ler('src/navigation/RootNavigator.web.tsx');
 const AMIGOS = ler('src/desktop/AmigosNaLateral.web.tsx');
 const ATALHOS = ler('src/desktop/AtalhosNaLateral.web.tsx');
+const SEPARADOR_AMIGOS = ler('src/desktop/SeparadorDosAmigos.web.tsx');
 
 console.log('\nos limites e o ajuste');
 caso('a lateral vai de 200 a 420 px, e nunca mais de 35 % da janela', () => {
@@ -192,6 +194,57 @@ caso('o botão direito, arrastar para um atalho e o "+" continuam na régua (o m
 });
 caso('cada nome que não cabe corta-se numa linha, em qualquer largura', () => {
   assert.ok(/<Text numberOfLines=\{1\} style=\{\[styles\.navText,/.test(CASCA));
+});
+
+console.log('\nos amigos e os atalhos dividem a zona de baixo da lateral (20/11)');
+caso('de origem os amigos ficam com até 45 % da zona e rolam daí para a frente; o título fica', () => {
+  assert.equal(DIVISAO.padrao, 0.45);
+  assert.match(AMIGOS, /const CAIXA = \{ maxHeight: 'var\(--dt-amigos, 45%\)', flexShrink: 1 \} as any;/);
+  assert.equal((AMIGOS.match(/<ScrollView style=\{\{ flexShrink: 1 \}\}/g) ?? []).length, 2, 'a lista larga e a régua rolam');
+  assert.equal((AMIGOS.match(/<SeparadorDosAmigos \/>/g) ?? []).length, 2, 'a pega na lista larga e na régua');
+  assert.ok(AMIGOS.indexOf('FRIENDS</Text>') < AMIGOS.lastIndexOf('<ScrollView'), 'o título fica fora do que rola');
+});
+caso('a fração: os amigos guardam 96 px e os atalhos 120; fora disso fica no limite', () => {
+  assert.equal(fracaoDosAmigos(300, 600), 0.5);
+  assert.equal(fracaoDosAmigos(10, 600), 0.16, 'nunca menos de 96 px de amigos');
+  assert.equal(fracaoDosAmigos(590, 600), 0.8, 'os atalhos ficam com 120 px');
+  assert.equal(fracaoDosAmigos(300, 0), DIVISAO.padrao, 'sem zona medida, a de origem');
+  assert.equal(fracaoDosAmigos(NaN, 600), DIVISAO.padrao);
+  assert.equal(fracaoDosAmigos(100, 150), 0.64, 'numa zona minúscula os amigos ficam com o mínimo deles');
+});
+caso('subir a pega parte de onde ela está; descer com a lista toda à vista não baixa o limite', () => {
+  assert.equal(alturaDosAmigos(180, 270, -40), 140, 'com 3 amigos (180 px) e o limite em 270, subir 40 encolhe logo');
+  assert.equal(alturaDosAmigos(180, 270, 30), 270, 'descer 30 não traz o limite para 210');
+  assert.equal(alturaDosAmigos(180, 270, 120), 300, 'passar do limite sobe-o');
+  assert.equal(alturaDosAmigos(270, 270, 16), 286);
+});
+caso('o teclado: setas para cima e para baixo (16 px, Shift 48), Home e End aos extremos', () => {
+  assert.equal(teclarAmigos(270, 270, 'ArrowUp', false, 600), fracaoDosAmigos(254, 600));
+  assert.equal(teclarAmigos(270, 270, 'ArrowDown', true, 600), fracaoDosAmigos(318, 600));
+  assert.equal(teclarAmigos(270, 270, 'Home', false, 600), 0.16);
+  assert.equal(teclarAmigos(270, 270, 'End', false, 600), 0.8);
+  assert.equal(teclarAmigos(270, 270, 'ArrowLeft', false, 600), null, 'as setas de lado não são dela');
+});
+caso('o que está guardado: só uma fração entre 0 e 1', () => {
+  assert.equal(lerFracaoDosAmigos(0.3), 0.3);
+  for (const lixo of [null, 'x', 0, -1, 2, NaN, {}]) assert.equal(lerFracaoDosAmigos(lixo), DIVISAO.padrao, String(lixo));
+});
+caso('vai pela variável da raiz e guarda-se no aparelho; o duplo clique repõe a de origem', () => {
+  assert.match(STORE, /raiz\.setProperty\('--dt-amigos', `\$\{Math\.round\(useBarras\.getState\(\)\.amigos \* 1000\) \/ 10\}%`\);/);
+  assert.match(STORE, /window\.localStorage\.setItem\(PREFERENCIA_DOS_AMIGOS, JSON\.stringify\(s\.amigos\)\)/);
+  assert.match(STORE, /reporAmigos: \(\) => set\(\{ amigos: AMIGOS\.padrao \}\)/);
+  assert.match(SEPARADOR_AMIGOS, /onDoubleClick=\{repor\}/);
+});
+caso('a pega deitada é um separador a sério, com o cursor de cima para baixo', () => {
+  assert.match(SEPARADOR_AMIGOS, /role="separator" aria-orientation="horizontal" aria-label="Resize friends and pinned" tabIndex=\{0\}/);
+  assert.match(SEPARADOR_AMIGOS, /setPointerCapture\(e\.pointerId\)/);
+  for (const saida of ['onPointerUp={acabar}', 'onPointerCancel={acabar}', 'onLostPointerCapture={acabar}']) assert.ok(SEPARADOR_AMIGOS.includes(saida), saida);
+  assert.match(SEPARADOR_AMIGOS, /raiz\?\.setAttribute\('data-a-redimensionar', 'altura'\)/);
+  assert.match(CASCA, /\[data-dt~="separador"\]\[data-lado="baixo"\]\{ top: auto; left: 0; right: 0; bottom: 0; width: auto; height: 6px; cursor: row-resize; \}/);
+  assert.match(CASCA, /html\[data-a-redimensionar="altura"\], html\[data-a-redimensionar="altura"\] \*\{ cursor: row-resize !important; \}/);
+});
+caso('a percentagem conta na zona que os amigos e os atalhos dividem, e não na lateral toda', () => {
+  assert.match(CASCA, /<View style=\{\{ flex: 1, minHeight: 0 \}\}>\n\s+<AmigosNaLateral [^\n]*\/>\n[^\n]*\n\s+<AtalhosNaLateral [^\n]*\/>\n\s+<\/View>/);
 });
 
 if (falhas) { console.log(`\n${falhas} falha(s)`); process.exit(1); }

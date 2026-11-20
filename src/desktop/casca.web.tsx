@@ -255,6 +255,11 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="separador"]:hover::after, [data-dt~="separador"]:focus-visible::after, [data-dt~="separador"][data-a-arrastar]::after{
       background: rgba(233,234,238,.46); }
     html[data-a-redimensionar], html[data-a-redimensionar] *{ cursor: col-resize !important; user-select: none !important; }
+    /* A pega deitada entre os amigos e os atalhos (20/11, SeparadorDosAmigos.web.tsx): a mesma tira
+       de 6 px, no fundo da caixa dos amigos, com o fio ao meio dela e alinhado com as linhas. */
+    [data-dt~="separador"][data-lado="baixo"]{ top: auto; left: 0; right: 0; bottom: 0; width: auto; height: 6px; cursor: row-resize; }
+    [data-dt~="separador"][data-lado="baixo"]::after{ top: auto; bottom: 2px; left: ${ESP.md}px; right: ${ESP.md}px; width: auto; height: 2px; border-radius: 1px; }
+    html[data-a-redimensionar="altura"], html[data-a-redimensionar="altura"] *{ cursor: row-resize !important; }
     html[data-a-redimensionar] [data-dt~="painel-do-leitor"]{ transition: none !important; }
     /* O fundo do Now Playing: a capa nova entra por cima da anterior. */
     [data-dt~="np-fundo"]{ animation: dt-np-fundo var(--dt-compasso, 700ms) var(--dt-curva) both; }
@@ -933,9 +938,13 @@ export function Sidebar({ route, navigate, notify, voltar, leitorAberto = false 
       <Pressable accessibilityLabel="Settings" {...(compacta ? comDica('Settings', undefined) : {})} onPress={() => navigate({ name: 'settings' })} style={({ hovered }) => [styles.accountDefinicoes, (hovered || active === 'settings') && styles.navHover]}><Ionicons name="settings-outline" size={17} color={active === 'settings' ? COR.texto : COR.textoMedio} /></Pressable>
     </View>
     {compacta ? null : <ProgressoDaImportacao />}
+    {/* A zona que os amigos e os atalhos dividem (20/11): os amigos vão até `--dt-amigos` dela
+        e rolam daí para a frente, e a pega entre os dois muda a divisão (SeparadorDosAmigos). */}
+    <View style={{ flex: 1, minHeight: 0 }}>
     <AmigosNaLateral navigate={navigate} notify={notify} compacta={compacta} />
     {/* O espaço que sobrava por baixo: é do utilizador (26/9). */}
     <AtalhosNaLateral navigate={navigate} notify={notify} compacta={compacta} />
+    </View>
     {menuDasLiked ? <MenuDeContexto rato={menuDasLiked} rotulo="Options for Liked Songs"
       linhas={menuDasGostadas({ semRede }).map((l) => ({ id: l.id, rotulo: l.rotulo, icone: l.icone, motivo: l.motivo }))}
       aoEscolher={(id) => void tocarAsLiked(id)} aoFechar={() => setMenuDasLiked(null)} /> : null}

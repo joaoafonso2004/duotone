@@ -103,7 +103,7 @@ export function AtalhosNaLateral({ navigate, notify, compacta = false }: { navig
             <Ionicons name="add" size={18} color={COR.textoMedio} />
           </Pressable>
         </View>
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ alignItems: 'center', gap: 4, paddingBottom: ESP.md }}>
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center', gap: 4, paddingBottom: ESP.md }}>
           {lista.map((a) => (
             <Pressable key={chaveDoAtalho(a)} onPress={() => abrir(a)}
               {...comDica(`${nomeDoAtalho(a)} · ${subtituloDoAtalho(a, online)}`, undefined, 'atalho')}

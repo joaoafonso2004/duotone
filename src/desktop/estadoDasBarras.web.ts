@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import {
-  LATERAL, PAINEL, ajustar, lateralRecolhida, lerLarguras, limitesDaLateral, limitesDoPainel, type Limites,
+  AMIGOS, LATERAL, PAINEL, ajustar, lateralRecolhida, lerFracaoDosAmigos, lerLarguras, limitesDaLateral, limitesDoPainel, type Limites,
 } from '../lib/largurasDasBarras';
 
 /**
@@ -15,15 +15,20 @@ import {
  * dentro dos limites da janela de agora. Uma janela pequena não estraga a escolha de uma grande.
  */
 const PREFERENCIA = 'duotone:largura-das-barras';
+/** A altura dos amigos na lateral (20/11): uma fração da zona dos amigos e dos atalhos. */
+const PREFERENCIA_DOS_AMIGOS = 'duotone:altura-dos-amigos';
 const LIMITES_DA_ESCOLHA = { minima: LATERAL.minima, maxima: LATERAL.maxima, recolhida: LATERAL.recolhida };
 
 function lerPreferencia() {
   let guardado: unknown = null;
   try { guardado = JSON.parse(window.localStorage.getItem(PREFERENCIA) ?? 'null'); } catch { /* sem armazenamento: os de origem */ }
   const { lateral, painel } = lerLarguras(guardado);
+  let amigos: unknown = null;
+  try { amigos = JSON.parse(window.localStorage.getItem(PREFERENCIA_DOS_AMIGOS) ?? 'null'); } catch { /* idem */ }
   return {
     lateral: ajustar(lateral, LIMITES_DA_ESCOLHA),
     painel: ajustar(painel, { minima: PAINEL.minima, maxima: PAINEL.maxima }),
+    amigos: lerFracaoDosAmigos(amigos),
   };
 }
 
@@ -43,16 +48,23 @@ export const limitesAgora = {
 export const useBarras = create<{
   lateral: number;
   painel: number;
+  /** A fração da zona de baixo da lateral que os amigos podem ocupar (o resto é dos atalhos). */
+  amigos: number;
   definirLateral: (pedida: number) => void;
   definirPainel: (pedida: number) => void;
+  /** Já em fração (`fracaoDosAmigos`): os limites dependem da zona, que só a pega mede. */
+  definirAmigos: (fracao: number) => void;
   reporLateral: () => void;
   reporPainel: () => void;
+  reporAmigos: () => void;
 }>((set) => ({
   ...lerPreferencia(),
   definirLateral: (pedida) => set({ lateral: ajustar(pedida, limitesAgora.lateral()) }),
   definirPainel: (pedida) => set({ painel: ajustar(pedida, limitesAgora.painel()) }),
+  definirAmigos: (fracao) => set({ amigos: lerFracaoDosAmigos(fracao) }),
   reporLateral: () => set({ lateral: LATERAL.padrao }),
   reporPainel: () => set({ painel: PAINEL.padrao }),
+  reporAmigos: () => set({ amigos: AMIGOS.padrao }),
 }));
 
 /** A lateral está na régua de ícones? É o único bit que redesenha alguma coisa ao arrastar. */
@@ -64,6 +76,7 @@ function aplicar(): void {
   const raiz = document.documentElement.style;
   raiz.setProperty('--dt-lateral', `${lateral}px`);
   raiz.setProperty('--dt-painel', `${painel}px`);
+  raiz.setProperty('--dt-amigos', `${Math.round(useBarras.getState().amigos * 1000) / 10}%`);
 }
 
 if (typeof window !== 'undefined') {
@@ -71,6 +84,7 @@ if (typeof window !== 'undefined') {
   useBarras.subscribe((s) => {
     aplicar();
     try { window.localStorage.setItem(PREFERENCIA, JSON.stringify({ lateral: s.lateral, painel: s.painel })); } catch { /* sem armazenamento, continua a funcionar */ }
+    try { window.localStorage.setItem(PREFERENCIA_DOS_AMIGOS, JSON.stringify(s.amigos)); } catch { /* idem */ }
   });
   window.addEventListener('resize', aplicar);
 }

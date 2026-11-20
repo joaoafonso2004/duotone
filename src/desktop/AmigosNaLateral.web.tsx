@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { ICONES } from '../lib/icones';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { sessoesDeAmigos } from '../api/ouvirJuntos';
 import type { Friendship } from '../api/social';
 import { FriendAvatar } from '../components/FriendAvatar';
@@ -17,6 +17,7 @@ import { comDica, marcar } from './ui.web';
 import { ConfirmarRemoverAmigo, MenuDoAmigo } from './MenuDoAmigo.web';
 import { refDoAlvo } from './Arrastar.web';
 import { alvoDoAmigo } from './alvosDeLargar.web';
+import { SeparadorDosAmigos } from './SeparadorDosAmigos.web';
 
 /**
  * Os amigos que estão na app, por baixo da tua conta (26/9, pedido do João:
@@ -28,6 +29,11 @@ import { alvoDoAmigo } from './alvosDeLargar.web';
  * O ▶ mostra-se pelo CSS (`amigo`/`amigo-ouvir`, no casca.web.tsx) e não pelo
  * `hovered` do RNW: é clicável dentro de uma linha clicável, e o hover do pai
  * cai quando o rato entra no filho (ver "O movimento do PC" no CLAUDE.md).
+ *
+ * **Tem um teto** (20/11, o João: "quando tenho muitos amigos online o pinned quase que
+ * desaparece"): a caixa cresce até `--dt-amigos` da zona que divide com os atalhos (45 % de origem)
+ * e daí em diante as linhas rolam por baixo do título, que fica. A pega no fundo dela
+ * (`SeparadorDosAmigos.web.tsx`) muda essa divisão, como as das barras mudam as larguras.
  */
 export function AmigosNaLateral({ navigate, notify, compacta = false }: { navigate: (r: Route) => void; notify: (texto: string) => void;
   /** Na régua de ícones da lateral (31/10): só as caras, com o nome e a música numa legenda. */
@@ -76,102 +82,115 @@ export function AmigosNaLateral({ navigate, notify, compacta = false }: { naviga
   // A régua (31/10): uma cara por amigo, com o ponto verde; o nome e a música ficam na legenda.
   if (compacta) {
     return (
-      <View style={{ alignItems: 'center', paddingTop: ESP.md, paddingBottom: ESP.sm, gap: 6 }}>
-        {visiveis.map((a) => {
-          const faixa = musicaDoAmigo(a);
-          const nome = a.name || a.username;
-          return (
-            <Pressable key={a.friendId}
-              {...comDica(faixa ? `${nome} · ${tituloDaFaixa(faixa)}` : `${nome} · Online`, undefined, 'amigo')}
-              accessibilityLabel={faixa ? `${nome}, listening to ${tituloDaFaixa(faixa)}. Open chat` : `${nome}, online. Open chat`}
-              onPress={() => navigate({ name: 'social', friendId: a.friendId })}
-              onContextMenu={((e: any) => { e.preventDefault(); setMenu({ amigoId: a.friendId, rato: { x: e.clientX, y: e.clientY } }); }) as any}
-              ref={refDoAlvo(`lateral-amigo:${a.friendId}`, alvoDoAmigo({ id: a.friendId, nome })) as any}
-              style={{ width: 44, height: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}>
-              <View style={{ width: 32, height: 32 }}>
-                <FriendAvatar avatarUrl={a.avatarUrl} name={nome} size={32} />
-                <View style={{ position: 'absolute', right: -1, bottom: -1, width: 10, height: 10, borderRadius: 5, backgroundColor: COR.ok, borderWidth: 2, borderColor: COR.painel }} />
-              </View>
-            </Pressable>
-          );
-        })}
+      <View style={[CAIXA, { paddingTop: ESP.md, paddingBottom: ESP.sm }]}>
+        {/* Sem o indicador: na régua de 72 px empurrava as caras para fora do eixo dos ícones. */}
+        <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center', gap: 6 }}>
+          {visiveis.map((a) => {
+            const faixa = musicaDoAmigo(a);
+            const nome = a.name || a.username;
+            return (
+              <Pressable key={a.friendId}
+                {...comDica(faixa ? `${nome} · ${tituloDaFaixa(faixa)}` : `${nome} · Online`, undefined, 'amigo')}
+                accessibilityLabel={faixa ? `${nome}, listening to ${tituloDaFaixa(faixa)}. Open chat` : `${nome}, online. Open chat`}
+                onPress={() => navigate({ name: 'social', friendId: a.friendId })}
+                onContextMenu={((e: any) => { e.preventDefault(); setMenu({ amigoId: a.friendId, rato: { x: e.clientX, y: e.clientY } }); }) as any}
+                ref={refDoAlvo(`lateral-amigo:${a.friendId}`, alvoDoAmigo({ id: a.friendId, nome })) as any}
+                style={{ width: 44, height: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}>
+                <View style={{ width: 32, height: 32 }}>
+                  <FriendAvatar avatarUrl={a.avatarUrl} name={nome} size={32} />
+                  <View style={{ position: 'absolute', right: -1, bottom: -1, width: 10, height: 10, borderRadius: 5, backgroundColor: COR.ok, borderWidth: 2, borderColor: COR.painel }} />
+                </View>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
         {menus}
+        <SeparadorDosAmigos />
       </View>
     );
   }
 
   return (
-    <View style={{ paddingHorizontal: ESP.md, paddingTop: ESP.md, paddingBottom: ESP.sm, gap: 2 }}>
+    <View style={[CAIXA, { paddingHorizontal: ESP.md, paddingTop: ESP.md, paddingBottom: ESP.sm }]}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: ESP.sm, paddingBottom: ESP.sm }}>
         <Text style={{ ...TIPO.micro, color: COR.textoFraco }}>FRIENDS</Text>
         <Text style={{ ...TIPO.micro, color: COR.textoFraco }}>{online} ONLINE</Text>
       </View>
-      {visiveis.map((a) => {
-        // Com a app à frente ou a tocar no bolso (8/11): quem ouve com o ecrã
-        // bloqueado também aparece, com a música e o ponto verde.
-        const faixa = musicaDoAmigo(a);
-        const onde = posicaoDoAmigo(faixa, agora);
-        const nome = a.name || a.username;
-        return (
-          <Pressable
-            key={a.friendId}
-            {...marcar('amigo')}
-            // Sem papel de botão: o ▶ lá dentro é que o é, e um <button> dentro
-            // de outro é HTML inválido (o browser apanhou-o no ensaio de 26/9).
-            accessibilityLabel={faixa ? `${nome}, listening to ${tituloDaFaixa(faixa)}. Open chat` : `${nome}, online. Open chat`}
-            onPress={() => navigate({ name: 'social', friendId: a.friendId })}
-            onContextMenu={((e: any) => { e.preventDefault(); setMenu({ amigoId: a.friendId, rato: { x: e.clientX, y: e.clientY } }); }) as any}
-            // Largar uma música num amigo manda-lha (24/10).
-            ref={refDoAlvo(`lateral-amigo:${a.friendId}`, alvoDoAmigo({ id: a.friendId, nome })) as any}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7, paddingHorizontal: ESP.sm, borderRadius: 8 }}
-          >
-            <View style={{ width: 32, height: 32 }}>
-              <FriendAvatar avatarUrl={a.avatarUrl} name={nome} size={32} />
-              <View style={{ position: 'absolute', right: -1, bottom: -1, width: 10, height: 10, borderRadius: 5, backgroundColor: COR.ok, borderWidth: 2, borderColor: COR.painel }} />
-            </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text numberOfLines={1} style={{ fontFamily: FONT.body, fontSize: 13, fontWeight: '600', color: COR.texto }}>{nome}</Text>
-              {/* Com o rato em cima, o nome que não cabe anda para se ler todo (2/10). */}
+      <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: 2 }}>
+        {visiveis.map((a) => {
+          // Com a app à frente ou a tocar no bolso (8/11): quem ouve com o ecrã
+          // bloqueado também aparece, com a música e o ponto verde.
+          const faixa = musicaDoAmigo(a);
+          const onde = posicaoDoAmigo(faixa, agora);
+          const nome = a.name || a.username;
+          return (
+            <Pressable
+              key={a.friendId}
+              {...marcar('amigo')}
+              // Sem papel de botão: o ▶ lá dentro é que o é, e um <button> dentro
+              // de outro é HTML inválido (o browser apanhou-o no ensaio de 26/9).
+              accessibilityLabel={faixa ? `${nome}, listening to ${tituloDaFaixa(faixa)}. Open chat` : `${nome}, online. Open chat`}
+              onPress={() => navigate({ name: 'social', friendId: a.friendId })}
+              onContextMenu={((e: any) => { e.preventDefault(); setMenu({ amigoId: a.friendId, rato: { x: e.clientX, y: e.clientY } }); }) as any}
+              // Largar uma música num amigo manda-lha (24/10).
+              ref={refDoAlvo(`lateral-amigo:${a.friendId}`, alvoDoAmigo({ id: a.friendId, nome })) as any}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7, paddingHorizontal: ESP.sm, borderRadius: 8 }}
+            >
+              <View style={{ width: 32, height: 32 }}>
+                <FriendAvatar avatarUrl={a.avatarUrl} name={nome} size={32} />
+                <View style={{ position: 'absolute', right: -1, bottom: -1, width: 10, height: 10, borderRadius: 5, backgroundColor: COR.ok, borderWidth: 2, borderColor: COR.painel }} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text numberOfLines={1} style={{ fontFamily: FONT.body, fontSize: 13, fontWeight: '600', color: COR.texto }}>{nome}</Text>
+                {/* Com o rato em cima, o nome que não cabe anda para se ler todo (2/10). */}
+                {faixa ? (
+                  <TextoQueRola
+                    texto={`${tituloDaFaixa(faixa)} · ${displayArtist(faixa)}`}
+                    style={{ ...TIPO.legenda, marginTop: 1, color: COR.textoMedio }}
+                  />
+                ) : (
+                  <Text numberOfLines={1} style={{ ...TIPO.legenda, marginTop: 1, color: COR.textoFraco }}>Online</Text>
+                )}
+                {/* Só o fio (27/9: o João experimentou com os tempos e preferiu
+                    sem eles). Anda por `scaleX` e não por `width` (28/9): com
+                    uma posição nova por segundo a transição nunca pára, e a
+                    largura refazia o layout a cada fotograma -- ~450 vezes por
+                    segundo com 8 amigos, medido; a escala fica no compositor. */}
+                {onde ? (
+                  <View style={{ height: 2, borderRadius: 1, backgroundColor: 'rgba(233,234,238,0.14)', marginTop: 5, overflow: 'hidden' }}>
+                    <View style={{ height: 2, width: '100%', transform: [{ scaleX: Math.round(onde.fracao * 1000) / 1000 }], transformOrigin: 'left', backgroundColor: COR.texto, transition: 'transform 1s linear' } as any} />
+                  </View>
+                ) : null}
+              </View>
               {faixa ? (
-                <TextoQueRola
-                  texto={`${tituloDaFaixa(faixa)} · ${displayArtist(faixa)}`}
-                  style={{ ...TIPO.legenda, marginTop: 1, color: COR.textoMedio }}
-                />
-              ) : (
-                <Text numberOfLines={1} style={{ ...TIPO.legenda, marginTop: 1, color: COR.textoFraco }}>Online</Text>
-              )}
-              {/* Só o fio (27/9: o João experimentou com os tempos e preferiu
-                  sem eles). Anda por `scaleX` e não por `width` (28/9): com
-                  uma posição nova por segundo a transição nunca pára, e a
-                  largura refazia o layout a cada fotograma -- ~450 vezes por
-                  segundo com 8 amigos, medido; a escala fica no compositor. */}
-              {onde ? (
-                <View style={{ height: 2, borderRadius: 1, backgroundColor: 'rgba(233,234,238,0.14)', marginTop: 5, overflow: 'hidden' }}>
-                  <View style={{ height: 2, width: '100%', transform: [{ scaleX: Math.round(onde.fracao * 1000) / 1000 }], transformOrigin: 'left', backgroundColor: COR.texto, transition: 'transform 1s linear' } as any} />
-                </View>
+                <Pressable
+                  {...marcar('amigo-ouvir')}
+                  accessibilityRole="button"
+                  accessibilityLabel={sessoes.has(a.friendId) ? `Join ${nome}'s session` : `Listen along with ${nome}`}
+                  onPress={(e: any) => { e?.stopPropagation?.(); void ouvirComAmigo(a, sessoes.get(a.friendId)); }}
+                  style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: COR.texto, alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <Ionicons name={sessoes.has(a.friendId) ? ICONES.jam : 'play'} size={12} color={COR.fundo} />
+                </Pressable>
               ) : null}
-            </View>
-            {faixa ? (
-              <Pressable
-                {...marcar('amigo-ouvir')}
-                accessibilityRole="button"
-                accessibilityLabel={sessoes.has(a.friendId) ? `Join ${nome}'s session` : `Listen along with ${nome}`}
-                onPress={(e: any) => { e?.stopPropagation?.(); void ouvirComAmigo(a, sessoes.get(a.friendId)); }}
-                style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: COR.texto, alignItems: 'center', justifyContent: 'center' }}
-              >
-                <Ionicons name={sessoes.has(a.friendId) ? ICONES.jam : 'play'} size={12} color={COR.fundo} />
-              </Pressable>
-            ) : null}
+            </Pressable>
+          );
+        })}
+        {resto > 0 ? (
+          <Pressable {...marcar('amigo')} onPress={() => navigate({ name: 'social' })}
+            style={{ paddingVertical: 6, paddingHorizontal: ESP.sm, borderRadius: 8 }}>
+            <Text style={{ fontFamily: FONT.body, fontSize: 12, color: COR.textoFraco }}>{`+${resto} more online`}</Text>
           </Pressable>
-        );
-      })}
-      {resto > 0 ? (
-        <Pressable {...marcar('amigo')} onPress={() => navigate({ name: 'social' })}
-          style={{ paddingVertical: 6, paddingHorizontal: ESP.sm, borderRadius: 8 }}>
-          <Text style={{ fontFamily: FONT.body, fontSize: 12, color: COR.textoFraco }}>{`+${resto} more online`}</Text>
-        </Pressable>
-      ) : null}
+        ) : null}
+      </ScrollView>
       {menus}
+      <SeparadorDosAmigos />
     </View>
   );
 }
+
+/**
+ * A caixa dos amigos: até `--dt-amigos` da zona (uma percentagem da altura dela) e, se a janela
+ * apertar, encolhe antes dos atalhos. O título fica; as linhas rolam.
+ */
+const CAIXA = { maxHeight: 'var(--dt-amigos, 45%)', flexShrink: 1 } as any;

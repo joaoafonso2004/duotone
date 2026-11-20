@@ -79,3 +79,46 @@ export function lerLarguras(guardado: unknown): { lateral: number; painel: numbe
     painel: numero(g.painel, PAINEL.padrao),
   };
 }
+
+/**
+ * A altura dos amigos na lateral (20/11, o João: "quando tenho muitos amigos online o pinned quase
+ * que desaparece"). É uma FRAÇÃO da zona por baixo da conta, a que os amigos e os atalhos dividem:
+ * os amigos crescem até lá e daí para a frente rolam por dentro, e os atalhos ficam com o resto.
+ * Fração e não pixéis porque a janela muda muito de altura (maximizada ou não) e a divisão deve
+ * acompanhá-la. A pega entre os dois (`desktop/SeparadorDosAmigos.web.tsx`) muda-a; os amigos
+ * guardam sempre o título e um amigo à vista, e os atalhos o título e duas linhas.
+ */
+export const AMIGOS = { padrao: 0.45, minimaPx: 96, atalhosPx: 120 } as const;
+
+/** A fração que dá `pedidaPx` de amigos numa zona de `zonaPx`, dentro dos limites. */
+export function fracaoDosAmigos(pedidaPx: number, zonaPx: number): number {
+  if (!Number.isFinite(zonaPx) || zonaPx <= 0 || !Number.isFinite(pedidaPx)) return AMIGOS.padrao;
+  const maxima = Math.max(AMIGOS.minimaPx, zonaPx - AMIGOS.atalhosPx);
+  const px = Math.max(AMIGOS.minimaPx, Math.min(maxima, pedidaPx));
+  return Math.round(Math.min(1, px / zonaPx) * 1000) / 1000;
+}
+
+/**
+ * A altura pedida ao mexer a pega `delta` px (positivo: para baixo). Parte da `borda` -- onde a pega
+ * está de facto -- e não do limite guardado: com poucos amigos a borda fica acima dele, e subir a
+ * pega encolhe logo a lista. Descer com a lista toda à vista não baixa o limite que já havia
+ * (`limitePx`): só o sobe, quando se passa dele.
+ */
+export function alturaDosAmigos(borda: number, limitePx: number, delta: number): number {
+  const pedida = borda + delta;
+  return delta > 0 ? Math.max(limitePx, pedida) : pedida;
+}
+
+/** As setas para cima e para baixo na pega (16 px, com Shift 48); Home e End vão aos extremos. */
+export function teclarAmigos(borda: number, limitePx: number, tecla: string, shift: boolean, zonaPx: number): number | null {
+  if (tecla === 'Home') return fracaoDosAmigos(0, zonaPx);
+  if (tecla === 'End') return fracaoDosAmigos(zonaPx, zonaPx);
+  if (tecla !== 'ArrowUp' && tecla !== 'ArrowDown') return null;
+  const passo = (shift ? PASSO_GRANDE : PASSO) * (tecla === 'ArrowDown' ? 1 : -1);
+  return fracaoDosAmigos(alturaDosAmigos(borda, limitePx, passo), zonaPx);
+}
+
+/** A fração guardada: só um número entre 0 e 1; o resto volta à de origem. */
+export function lerFracaoDosAmigos(guardado: unknown): number {
+  return typeof guardado === 'number' && Number.isFinite(guardado) && guardado > 0 && guardado <= 1 ? guardado : AMIGOS.padrao;
+}
