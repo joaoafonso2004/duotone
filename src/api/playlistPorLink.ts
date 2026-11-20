@@ -10,6 +10,9 @@ import {
   type LinhaDaPlaylist, type PlaylistLida,
 } from '../lib/linkDePlaylist';
 import { MAXIMO_POR_IMPORTACAO, type Dependencias } from '../lib/importacaoPorLink';
+import { lerPlaylistInteira } from '../lib/leitorWebDoSpotify';
+import { comOLeitor } from '../state/leitorPartilhadoDoSpotify';
+import { Platform } from 'react-native';
 
 /**
  * As dependências reais da importação (lib/importacaoPorLink.ts).
@@ -94,6 +97,14 @@ export const dependenciasReais: Dependencias = {
     const r = await fetch(urlDoEmbed(id), { headers: COMO_UM_BROWSER });
     if (!r.ok) return null;
     return lerEmbedDoSpotify(await r.text());
+  },
+  // O resto para lá das 100 do embed (20/11), pelo leitor web: no PC pelo
+  // processo principal, no iPhone pela WebView escondida partilhada.
+  lerSpotifyInteira: async (id) => {
+    const pc = ponte()?.consultarOSpotify;
+    if (pc) return lerPlaylistInteira((nome, variaveis) => pc(nome, variaveis), id, MAXIMO_POR_IMPORTACAO);
+    if (Platform.OS === 'web') return null;
+    return comOLeitor((consultar) => lerPlaylistInteira(consultar, id, MAXIMO_POR_IMPORTACAO));
   },
   lerYouTube: (id) => fetchYouTubePlaylistById(id),
   lerDeezer,

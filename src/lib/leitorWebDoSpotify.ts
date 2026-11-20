@@ -206,6 +206,32 @@ export async function abrirPeloLeitor(consultar: Consultar): Promise<BibliotecaL
 }
 
 /**
+ * Uma playlist pelo link, inteira (20/11). O embed só mostra as primeiras
+ * 100 (`lib/linkDePlaylist.ts`), e o João deu com o corte. O leitor web lê a
+ * playlist às páginas de 100, como na conta, até `maximo`. Também funciona sem
+ * login: um visitante anónimo do open.spotify.com vê as playlists públicas, e
+ * o leitor escondido tira o token dele na mesma.
+ *
+ * O `total` é o que o Spotify diz ter, que pode ser mais do que as linhas
+ * (episódios e ficheiros locais ficam de fora, e o corte no `maximo`).
+ */
+export async function lerPlaylistInteira(
+  consultar: Consultar, id: string, maximo = MAXIMO_DA_CONTA,
+): Promise<{ linhas: LinhaDaPlaylist[]; total: number }> {
+  const uri = `spotify:playlist:${id}`;
+  const linhas: LinhaDaPlaylist[] = [];
+  let total = 0;
+  for (let offset = 0; offset < maximo;) {
+    const pagina = paginaDaPlaylist(await pedir(consultar, 'fetchPlaylist', variaveisDaPlaylist(uri, offset)));
+    total = pagina.total;
+    linhas.push(...pagina.linhas);
+    offset += pagina.itens;
+    if (!pagina.itens || offset >= pagina.total) break;
+  }
+  return { linhas: linhas.slice(0, maximo), total };
+}
+
+/**
  * Os artistas que mais aparecem nas listas lidas, do mais frequente para o
  * menos (11/11): o gosto para as recomendações sai da biblioteca da pessoa, e
  * não do login oficial, que só aceita as cinco contas do painel. Conta o

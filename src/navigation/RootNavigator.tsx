@@ -75,6 +75,7 @@ import { AvisoDeRemocao } from '../components/AvisoDeRemocao';
 import { FolhaDoAmigo } from '../components/FolhaDoAmigo';
 import { AvisoDaReproducao } from '../components/AvisoDaReproducao';
 import { ProgressoDaImportacao } from '../components/ProgressoDaImportacao';
+import { LeitorDoSpotifyPartilhado } from '../components/LeitorDoSpotifyPartilhado';
 import { BoasVindas } from '../components/BoasVindas';
 import { usePlayer } from '../state/player';
 import { closeNotificationOverlays } from '../lib/notificationOverlays';
@@ -574,6 +575,8 @@ export function RootNavigator() {
             <AvisoDaReproducao />
             {/* As playlists a entrar por link, em segundo plano (26/9). */}
             <ProgressoDaImportacao />
+            {/* O leitor do Spotify escondido, só enquanto um link lê para lá das 100 (20/11). */}
+            <LeitorDoSpotifyPartilhado />
             <FaixaSemRede />
             {/* O questionário da primeira vez (26/9): uma vez por conta. */}
             <BoasVindas />

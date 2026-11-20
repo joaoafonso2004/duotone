@@ -39,6 +39,11 @@ export interface FaixaImportada {
 
 export interface Dependencias {
   lerSpotify: (id: string) => Promise<PlaylistLida | null>;
+  /**
+   * A playlist inteira pelo leitor web do Spotify (20/11), para quando o embed
+   * chega às 100. Pode falhar (atira ou dá `null`): fica-se com as do embed.
+   */
+  lerSpotifyInteira?: (id: string) => Promise<{ linhas: LinhaDaPlaylist[]; total: number } | null>;
   lerYouTube: (id: string) => Promise<{ title: string; items: { videoId: string; title: string; channel?: string | null; thumbnail?: string | null }[] }>;
   /** A API pública do Deezer, a playlist inteira (até `MAXIMO_POR_IMPORTACAO`). */
   lerDeezer?: (id: string) => Promise<PlaylistLida | null>;
@@ -93,6 +98,9 @@ export const MAXIMO_DO_EMBED = 100;
  * Spotify mostra 100 e a página do Apple Music 50. O Deezer e o YouTube dão a
  * lista toda. Aqui e não em linkDePlaylist.ts: este módulo corre em Node puro
  * nos testes, e só pode importar tipos.
+ *
+ * As 100 do Spotify só ficam quando o leitor web não consegue ler o resto
+ * (`lerSpotifyInteira`, 20/11).
  */
 export const LIMITE_DO_LINK: Record<LinkDePlaylist['tipo'], number | null> = {
   spotify: MAXIMO_DO_EMBED, apple: 50, youtube: null, deezer: null, 'deezer-curto': null,
@@ -169,6 +177,13 @@ export async function lerPlaylist(link: LinkDePlaylist, deps: Dependencias): Pro
     const p = await deps.lerSpotify(link.id);
     if (!p) throw new ErroDaImportacao('privada-ou-mudou', "Couldn't read that playlist. Make sure it's public.");
     if (!p.faixas.length) throw new ErroDaImportacao('vazia', 'That playlist is empty.');
+    // O embed chegou às 100: pode haver mais. O nome e a capa ficam do embed.
+    if (p.faixas.length >= MAXIMO_DO_EMBED && deps.lerSpotifyInteira) {
+      const inteira = await deps.lerSpotifyInteira(link.id).catch(() => null);
+      if (inteira && inteira.linhas.length >= p.faixas.length) {
+        return leituraDasLinhas('spotify', { ...p, faixas: inteira.linhas, total: inteira.total }, null);
+      }
+    }
     return leituraDasLinhas('spotify', p, MAXIMO_DO_EMBED);
   }
   if (link.tipo === 'deezer' || link.tipo === 'deezer-curto') {

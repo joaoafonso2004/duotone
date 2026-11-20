@@ -1,6 +1,6 @@
 // Importar uma playlist por link (lib/importacaoPorLink.ts), sem rede.
 import assert from 'node:assert/strict';
-import { ErroDaImportacao, importarPorLink, type Dependencias, type Progresso } from '../src/lib/importacaoPorLink.ts';
+import { ErroDaImportacao, importarPorLink, lerPlaylist, type Dependencias, type Progresso } from '../src/lib/importacaoPorLink.ts';
 import { frasesDaImportacao } from '../src/lib/frasesDaImportacao.ts';
 
 let falhas = 0;
@@ -61,6 +61,52 @@ await caso('uma playlist de 100 diz que pode ter sido cortada', async () => {
   const r = await importarPorLink({ tipo: 'spotify', id: 'x' }, deps, () => {});
   assert.equal(r.adicionadas, 100);
   assert.equal(r.cortada, true);
+});
+await caso('Spotify para lá das 100 (20/11): o leitor web lê o resto, e o nome fica o do embed', async () => {
+  const linhas = (n: number) => Array.from({ length: n }, (_, i) => ({ title: `t${i}`, artist: 'X', album: null, durationMs: 1, uri: null }));
+  const pedidos: string[] = [];
+  const base = {
+    lerSpotify: async () => ({ nome: 'Grande', capa: 'capa.jpg', faixas: linhas(100) }),
+    resolver: async (l: unknown[]) => l.map((_, i) => ({ track: faixa(`y${i}`), confident: true })),
+  };
+  const { deps, criadas } = duplo({ ...base, lerSpotifyInteira: async (id) => { pedidos.push(id); return { linhas: linhas(342), total: 342 }; } });
+  const l = await lerPlaylist({ tipo: 'spotify', id: 'abc' }, deps);
+  assert.deepEqual(pedidos, ['abc']);
+  assert.deepEqual({ nome: l.nome, capa: l.capa, total: l.total, cortada: l.cortada, limite: l.limite },
+    { nome: 'Grande', capa: 'capa.jpg', total: 342, cortada: false, limite: null });
+  const r = await importarPorLink({ tipo: 'spotify', id: 'abc' }, deps, () => {});
+  assert.deepEqual({ ad: r.adicionadas, cortada: r.cortada }, { ad: 342, cortada: false });
+  assert.deepEqual(criadas, ['Grande']);
+
+  // Mais de 1000: as primeiras 1000, e diz-se que foi o máximo por importação.
+  const mil = duplo({ ...base, lerSpotifyInteira: async () => ({ linhas: linhas(1000), total: 1530 }) });
+  const lm = await lerPlaylist({ tipo: 'spotify', id: 'abc' }, mil.deps);
+  assert.deepEqual({ total: lm.total, cortada: lm.cortada, limite: lm.limite }, { total: 1000, cortada: true, limite: 1000 });
+
+  // Exatamente 100: o leitor confirma, e já não se diz que foi cortada.
+  const cem = duplo({ ...base, lerSpotifyInteira: async () => ({ linhas: linhas(100), total: 100 }) });
+  const lc = await lerPlaylist({ tipo: 'spotify', id: 'abc' }, cem.deps);
+  assert.deepEqual({ total: lc.total, cortada: lc.cortada }, { total: 100, cortada: false });
+});
+await caso('Spotify: o leitor web falha ou lê menos do que o embed, e ficam as 100 como antes', async () => {
+  const linhas = (n: number) => Array.from({ length: n }, (_, i) => ({ title: `t${i}`, artist: 'X', album: null, durationMs: 1, uri: null }));
+  const lerSpotify = async () => ({ nome: 'Grande', capa: null, faixas: linhas(100) });
+  for (const lerSpotifyInteira of [
+    async () => { throw new Error('desligado'); },
+    async () => null,
+    async () => ({ linhas: linhas(40), total: 342 }),
+  ]) {
+    const { deps } = duplo({ lerSpotify, lerSpotifyInteira });
+    const l = await lerPlaylist({ tipo: 'spotify', id: 'abc' }, deps);
+    assert.deepEqual({ total: l.total, cortada: l.cortada, limite: l.limite }, { total: 100, cortada: true, limite: 100 });
+  }
+});
+await caso('Spotify abaixo das 100: o leitor web nem se abre', async () => {
+  let abriu = false;
+  const { deps } = duplo({ lerSpotifyInteira: async () => { abriu = true; return null; } });
+  const l = await lerPlaylist({ tipo: 'spotify', id: 'abc' }, deps);
+  assert.equal(abriu, false);
+  assert.equal(l.total, 4);
 });
 await caso('YouTube: os vídeos entram todos, sem procurar nada', async () => {
   let procurou = false;

@@ -10,7 +10,8 @@
  * traz no `__NEXT_DATA__` o nome, a capa e as faixas com título, artistas e
  * duração, sem conta nem chave. Medido a 26/9 com seis playlists:
  *
- *  - traz até 100 faixas (uma de ~150 veio com 100);
+ *  - traz até 100 faixas (uma de ~150 veio com 100). Desde 20/11 o resto
+ *    lê-se pelo leitor web (`lerSpotifyInteira` em lib/importacaoPorLink.ts);
  *  - só serve para playlists PÚBLICAS: as Liked Songs do Spotify são privadas,
  *    e a saída é pô-las primeiro numa playlist;
  *  - não é uma API: se o Spotify mudar a página, isto deixa de ler e diz-se.

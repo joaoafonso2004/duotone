@@ -172,6 +172,40 @@ const conta: Conta = {
 
 console.log('leitor web do Spotify: ok');
 
+// ---- uma playlist pelo link, inteira (20/11) -----------------------------------
+{
+  const { lerPlaylistInteira } = await import('../src/lib/leitorWebDoSpotify.ts');
+  const pedidos: any[] = [];
+  const umaPlaylist = (total: number, falha?: 'desligado'): Consultar => async (nome, variaveis: any) => {
+    pedidos.push({ nome, ...variaveis });
+    if (falha && variaveis.offset > 0) return { ok: false, falha };
+    const n = Math.max(0, Math.min(variaveis.limit, total - variaveis.offset));
+    return { ok: true, dados: playlistV2(Array.from({ length: n }, (_, i) => faixa(`F${variaveis.offset + i}`, ['Z'])), total) };
+  };
+
+  const r = await lerPlaylistInteira(umaPlaylist(342), 'abc');
+  assert.equal(r.linhas.length, 342, 'as 342, às páginas de 100');
+  assert.equal(r.total, 342);
+  assert.equal(r.linhas[341].title, 'F341', 'pela ordem');
+  assert.deepEqual(pedidos.map((p) => [p.nome, p.uri, p.offset, p.limit]), [
+    ['fetchPlaylist', 'spotify:playlist:abc', 0, 100], ['fetchPlaylist', 'spotify:playlist:abc', 100, 100],
+    ['fetchPlaylist', 'spotify:playlist:abc', 200, 100], ['fetchPlaylist', 'spotify:playlist:abc', 300, 100],
+  ], 'o link vira o uri do leitor, e pára no total');
+
+  pedidos.length = 0;
+  const grande = await lerPlaylistInteira(umaPlaylist(1530), 'abc', 1000);
+  assert.equal(grande.linhas.length, 1000, 'pára no máximo por importação');
+  assert.equal(grande.total, 1530, 'e diz quantas o Spotify tem');
+  assert.equal(pedidos.length, 10);
+
+  await assert.rejects(lerPlaylistInteira(umaPlaylist(342, 'desligado'), 'abc'),
+    (e: unknown) => e instanceof ErroDoLeitor && e.tipo === 'desligado', 'uma falha a meio chega a quem lê');
+
+  const vazia = await lerPlaylistInteira(async () => ({ ok: true, dados: { playlistV2: { content: { items: [], totalCount: 0 } } } }), 'abc');
+  assert.deepEqual(vazia, { linhas: [], total: 0 }, 'uma resposta sem itens não fica às voltas');
+  console.log('playlist inteira pelo link: ok');
+}
+
 // ---- o gosto a partir da biblioteca (11/11) ------------------------------------
 {
   const { artistasPorFrequencia } = await import('../src/lib/leitorWebDoSpotify.ts');
