@@ -1509,6 +1509,7 @@ export const FR: Readonly<Record<string, string>> = {
   "Reset equalizer": "Réinitialiser l'égaliseur",
   "Reset password": "Réinitialiser le mot de passe",
   "Reset playback speed to normal": "Remettre la vitesse de lecture à la normale",
+  "Resize friends and pinned": "Redimensionner les amis et les épinglés",
   "Resize the queue panel": "Redimensionner le panneau de la file",
   "Resize the sidebar": "Redimensionner la barre latérale",
   "Restore": "Restaurer",
