@@ -210,6 +210,7 @@ function MotorDeAudio({ track, aoFalhar }: { track: Track; aoFalhar: (sourceId: 
   // Trocar de faixa: da cache se lá estiver; senão resolve, regista e toca.
   useEffect(() => {
     let cancelado = false;
+    let vigia: ReturnType<typeof setTimeout> | undefined;
     const g = oGrafo();
     const a = g.audio;
     const st = usePlayer.getState();
@@ -221,6 +222,10 @@ function MotorDeAudio({ track, aoFalhar }: { track: Track; aoFalhar: (sourceId: 
       const id = track.sourceId;
       const t0 = performance.now();
       marca = { id, t0, origem: '?', resolvido: null };
+      // Uma música pedida que nunca chega a "playing" (nem a erro) também fica no registo.
+      vigia = setTimeout(() => {
+        if (marca?.id === id && usePlayer.getState().isPlaying) registarNaCasca(`motor: ${id} sem som aos 12 s (${marca.origem}${marca.resolvido != null ? `, resolver ${marca.resolvido} ms` : ''})`);
+      }, 12_000);
       let caminho: string | null = null;
       try { caminho = (await p.audioNaCache(id))?.caminho ?? null; } catch { caminho = null; }
       if (caminho && marca?.id === id) marca.origem = 'cache';
@@ -252,7 +257,7 @@ function MotorDeAudio({ track, aoFalhar }: { track: Track; aoFalhar: (sourceId: 
       // Só para o diagnóstico (registarNaFila): a pessoa não vê isto, a faixa toca pelo IFrame.
       aoFalhar(track.sourceId, String(e));
     });
-    return () => { cancelado = true; };
+    return () => { cancelado = true; clearTimeout(vigia); };
   }, [track.sourceId, aoFalhar]);
 
   // A velocidade escolhida (fora de Jam e sem seguir ninguém: esses vão para o IFrame).
@@ -282,6 +287,11 @@ function MotorDoPcTauri({ track }: { track: Track }) {
     setRecurso((antes) => (antes.has(sourceId) ? antes : new Set(antes).add(sourceId)));
   }, []);
   const soDeAudio = !emJam && !aSeguir && !crossfade && !recurso.has(track.sourceId);
+  // Porque é que esta faixa vai pelo IFrame (21/11: uma audição inteira sem rasto no registo).
+  const porque = emJam ? 'Jam' : aSeguir ? 'a seguir um amigo' : crossfade ? 'crossfade ligado' : recurso.has(track.sourceId) ? 'falhou antes' : null;
+  useEffect(() => {
+    if (porque) registarNaCasca(`motor: ${track.sourceId} pelo IFrame (${porque})`);
+  }, [track.sourceId, porque]);
   return soDeAudio ? <MotorDeAudio track={track} aoFalhar={aoFalhar} /> : <YouTubePlayerView track={track} />;
 }
 
