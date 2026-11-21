@@ -54,6 +54,7 @@ import { saveToLibrary, removeFromLibrary, checkIsSaved } from '../api/library';
 import { hapticImpact, hapticNotification, hapticSelection } from '../lib/haptics';
 import { setRepeatMode as persistRepeatMode } from '../lib/prefs';
 import { savedKey, useSaved } from '../state/saved';
+import { garantirGuardadas } from '../lib/guardarFaixa';
 import { contextoDaRecomendacaoAtual, usePlayer } from '../state/player';
 import { usePontoNaBarra } from '../state/refrao';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
@@ -945,11 +946,16 @@ export function PlayerRoot() {
       // Do conjunto local (11/11): é o mesmo que pinta os corações das listas.
       // Perguntar ao servidor a cada música eram até 88 pedidos por hora numa
       // conta (os logs do Supabase com a app pública). O id da BD só faz falta
-      // para tirar, e aí pede-se (`saveCurrentToLibrary`). Só se pergunta ao
-      // servidor enquanto o conjunto ainda não chegou.
+      // para tirar, e aí pede-se (`saveCurrentToLibrary`).
+      // Com o conjunto ainda por ler (20/11): lê-se ele, uma vez, em vez de
+      // perguntar ao servidor a cada música. Ninguém o lia no arranque, e um
+      // iPhone que só tocasse ficava a fazer um GET ao library_tracks por
+      // faixa (62 numa hora, nos logs de 20/11). Quando chega, o efeito de
+      // baixo acende o coração.
       const guardadas=useSaved.getState();
-      if(guardadas.loaded){setSaved(guardadas.keys.has(savedKey(current)));setDbTrackId(null);}
-      else checkIsSaved(current.source,current.sourceId).then(res=>{if(active){setSaved(res.saved);setDbTrackId(res.trackId);}});
+      setDbTrackId(null);
+      if(guardadas.loaded)setSaved(guardadas.keys.has(savedKey(current)));
+      else{setSaved(false);garantirGuardadas();}
     }
     return()=>{active=false;};
   },[current?.source,current?.sourceId,offline,offlineId]);

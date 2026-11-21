@@ -111,9 +111,11 @@ await caso('o id de cada faixa fica no aparelho, e um recusado esquece-se (11/11
 });
 
 console.log('\no coração do leitor do iPhone');
-await caso('vem do conjunto local; o servidor só enquanto ele não chegou, e o id só ao tirar (11/11)', () => {
+await caso('vem do conjunto local, que se lê uma vez se faltar (20/11); o id só ao tirar', () => {
   const p = ler('src/components/PlayerRoot.tsx');
-  assert.match(p, /if\(guardadas\.loaded\)\{setSaved\(guardadas\.keys\.has\(savedKey\(current\)\)\);setDbTrackId\(null\);\}\n\s+else checkIsSaved\(/);
+  assert.match(p, /if\(guardadas\.loaded\)setSaved\(guardadas\.keys\.has\(savedKey\(current\)\)\);\n\s+else\{setSaved\(false\);garantirGuardadas\(\);\}/);
+  assert.doesNotMatch(p, /else checkIsSaved\(current\.source/, 'já não pergunta ao servidor a cada música');
+  assert.match(p, /return useSaved\.subscribe\(\(s, p\) => \{\n\s+const agora = s\.keys\.has\(chave\);/, 'o coração acende quando o conjunto chega');
   assert.match(p, /if \(!idToRemove\) \{\n\s+const res = await checkIsSaved\(current\.source, current\.sourceId\);/, 'tirar pede o id quando falta');
 });
 

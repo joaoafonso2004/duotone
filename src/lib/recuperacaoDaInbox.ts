@@ -28,10 +28,14 @@ export const TIQUES_SEM_REALTIME = 4;
  */
 export const TIQUES_SEM_REALTIME_ESCONDIDA = 20;
 /**
- * Com Realtime e a app à frente: uma a cada quinze minutos (eram cinco; 6/10,
- * os logs do Supabase -- um PC com a janela à vista lia o dia inteiro).
+ * Com Realtime e a app à frente: uma a cada 35 minutos (eram cinco até 6/10 e
+ * quinze até 20/11, os logs do Supabase). Com o canal ligado, a atualização
+ * inteira do Social já corre de 30 em 30 min e lê a inbox -- o que põe este
+ * contador a zero --, por isso a de quinze era uma segunda leitura da mesma
+ * coisa (~8 pedidos por hora por aparelho à vista). Com 35 fica só como rede
+ * para quando a atualização inteira não corre.
  */
-export const TIQUES_COM_REALTIME = 60;
+export const TIQUES_COM_REALTIME = 140;
 
 export interface MomentoDaInbox {
   /** O canal do Realtime está `SUBSCRIBED`. */

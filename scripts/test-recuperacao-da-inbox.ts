@@ -23,11 +23,13 @@ assert.equal(TIQUE_DA_INBOX_MS * TIQUES_SEM_REALTIME_ESCONDIDA, 5 * 60_000);
 assert.equal(deveRelerAInbox({ ...base, visivel: false, tiques: TIQUES_SEM_REALTIME }), false, 'escondida, não de minuto a minuto');
 assert.equal(deveRelerAInbox({ ...base, visivel: false, tiques: TIQUES_SEM_REALTIME_ESCONDIDA }), true, 'escondida e sem canal, de 5 em 5 min');
 
-// Com Realtime: quinze minutos com a app à frente, nunca escondida.
-assert.equal(TIQUE_DA_INBOX_MS * TIQUES_COM_REALTIME, 15 * 60_000);
+// Com Realtime: 35 minutos com a app à frente, nunca escondida (20/11): depois
+// dos 30 da atualização inteira do Social, que lê a inbox e põe o contador a zero.
+assert.equal(TIQUE_DA_INBOX_MS * TIQUES_COM_REALTIME, 35 * 60_000);
+assert.ok(TIQUE_DA_INBOX_MS * TIQUES_COM_REALTIME > 30 * 60_000, 'passa da atualização inteira de 30 min');
 const aoVivo = { ...base, aoVivo: true };
 assert.equal(deveRelerAInbox({ ...aoVivo, tiques: TIQUES_COM_REALTIME - 1 }), false, 'com Realtime não se lê a cada minuto');
-assert.equal(deveRelerAInbox({ ...aoVivo, tiques: TIQUES_COM_REALTIME }), true, 'com Realtime, a rede de quinze minutos');
+assert.equal(deveRelerAInbox({ ...aoVivo, tiques: TIQUES_COM_REALTIME }), true, 'com Realtime, a rede de 35 minutos');
 assert.equal(deveRelerAInbox({ ...aoVivo, visivel: false, tiques: 10_000 }), false,
   'escondida e com Realtime, quem avisa é ele: o tabuleiro do PC não lê o dia todo');
 
