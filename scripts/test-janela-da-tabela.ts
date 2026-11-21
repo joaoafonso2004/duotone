@@ -111,7 +111,8 @@ caso('as linhas são memorizadas: mudar de música ou de janela não redesenha a
 caso('o índice é o da lista inteira (o número, o teclado, o arrastar)', () => {
   assert.match(tabela, /const index = janela\.inicio \+ k;/);
   assert.match(ui, /const marca = entrar \? marcar\('fila', 'entra'\) : marcar\('fila'\);/);
-  assert.match(ui, /dataSet=\{\{ \.\.\.marca\.dataSet, i: String\(index\) \}\}/);
+  // O `data-yt` ao lado (21/11: o motor do Tauri resolve a linha com o rato parado) não muda o índice.
+  assert.match(ui, /dataSet=\{\{ \.\.\.marca\.dataSet, i: String\(index\)(, \.\.\.faixaDoRato\(track\))? \}\}/);
 });
 caso('reordenar a arrastar conta com as linhas que ficaram de fora em cima', () => {
   assert.match(ui, /function alvoDaOrdem\(lista: string, aoMover: \(de: number, para: number\) => void, primeira: \(\) => number\): Alvo/);
