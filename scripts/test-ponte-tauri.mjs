@@ -49,7 +49,7 @@ const permissoes = new Set(capacidade.permissions);
 for (const c of comandos) {
   assert.ok(declarados.has(c), `"${c}" não está no AppManifest do desktop/build.rs`);
   assert.ok(permissoes.has(`allow-${c.replace(/_/g, '-')}`), `"allow-${c.replace(/_/g, '-')}" não está na capability`);
-  assert.match(main, new RegExp(`(?:ponte|rede|audio|saude|mini|arranque|barra)::${c}\\b`), `"${c}" não está no generate_handler do main.rs`);
+  assert.match(main, new RegExp(`(?:ponte|rede|audio|saude|mini|arranque|barra|notificacoes)::${c}\\b`), `"${c}" não está no generate_handler do main.rs`);
 }
 // A capability nunca aceita curingas na origem (a ponte existe no frame do YouTube).
 for (const url of capacidade.remote.urls) assert.match(url, /^http:\/\/localhost:\d+(\/\*)?$/, `origem larga demais: ${url}`);

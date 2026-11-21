@@ -30,7 +30,6 @@ use windows::Win32::Graphics::Gdi::{CreateBitmap, CreateDIBSection, DeleteObject
 use windows::Win32::Storage::EnhancedStorage::PKEY_Title;
 use windows::Win32::System::Com::StructuredStorage::PROPVARIANT;
 use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER};
-use windows::Win32::System::Registry::{RegGetValueW, HKEY_CURRENT_USER, RRF_RT_REG_DWORD};
 use windows::Win32::System::Variant::VT_LPWSTR;
 use windows::Win32::UI::HiDpi::{GetDpiForWindow, GetSystemMetricsForDpi};
 use windows::Win32::UI::Shell::Common::{IObjectArray, IObjectCollection};
@@ -40,7 +39,7 @@ use windows::Win32::UI::Shell::{
     ShellLink, TaskbarList, THBF_DISABLED, THBF_ENABLED, THBN_CLICKED, THB_FLAGS, THB_ICON, THB_TOOLTIP, THUMBBUTTON,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateIconIndirect, RegisterWindowMessageW, HICON, ICONINFO, SM_CXSMICON, WM_COMMAND, WM_DPICHANGED, WM_SETTINGCHANGE, WM_THEMECHANGED,
+    CreateIconIndirect, DestroyIcon, FlashWindowEx, RegisterWindowMessageW, FLASHWINFO, FLASHW_STOP, FLASHW_TRAY, HICON, ICONINFO, SM_CXSMICON, WM_COMMAND, WM_DPICHANGED, WM_SETTINGCHANGE, WM_THEMECHANGED,
 };
 
 /// O argumento com que a lista de saltos abre a app (ou a segunda instância).
@@ -154,6 +153,60 @@ fn desenhar_icone(nome: &str, lado: usize, cor: [u8; 3]) -> Vec<u8> {
     buf
 }
 
+/// O número das mensagens por ler (`electron/messageBadge.cjs`): um círculo vermelho
+/// de 32 px com os algarismos brancos, "99+" acima de 99. BGRA de alfa direto.
+fn desenhar_por_ler(n: u32) -> (Vec<u8>, String) {
+    const LADO: usize = 32;
+    fn algarismo(c: char) -> [&'static str; 5] {
+        match c {
+            '0' => ["111", "101", "101", "101", "111"],
+            '1' => ["010", "110", "010", "010", "111"],
+            '2' => ["111", "001", "111", "100", "111"],
+            '3' => ["111", "001", "111", "001", "111"],
+            '4' => ["101", "101", "111", "001", "001"],
+            '5' => ["111", "100", "111", "001", "111"],
+            '6' => ["111", "100", "111", "101", "111"],
+            '7' => ["111", "001", "010", "010", "010"],
+            '8' => ["111", "101", "111", "101", "111"],
+            '9' => ["111", "101", "111", "001", "111"],
+            _ => ["000", "010", "111", "010", "000"], // o "+"
+        }
+    }
+    let rotulo = if n > 99 { "99+".to_string() } else { n.to_string() };
+    let escala = if rotulo.len() > 2 { 2 } else { 3 };
+    let mut buf = vec![0u8; LADO * LADO * 4];
+    let mut pixel = |x: usize, y: usize, bgra: [u8; 4]| {
+        if x < LADO && y < LADO {
+            buf[(y * LADO + x) * 4..][..4].copy_from_slice(&bgra);
+        }
+    };
+    for y in 0..LADO {
+        for x in 0..LADO {
+            let a = (16.0 - (x as f64 - 15.5).hypot(y as f64 - 15.5)).clamp(0.0, 1.0);
+            let a = (255.0 * a).round() as u8;
+            if a > 0 {
+                pixel(x, y, [72, 64, 225, a]);
+            }
+        }
+    }
+    let largura = (rotulo.len() * 4 - 1) * escala;
+    let (esquerda, topo) = ((LADO - largura) / 2, (LADO - 5 * escala) / 2);
+    for (n, c) in rotulo.chars().enumerate() {
+        for (y, linha) in algarismo(c).iter().enumerate() {
+            for (x, ligado) in linha.chars().enumerate() {
+                if ligado == '1' {
+                    for dy in 0..escala {
+                        for dx in 0..escala {
+                            pixel(esquerda + (n * 4 + x) * escala + dx, topo + y * escala + dy, [255, 255, 255, 255]);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    (buf, rotulo)
+}
+
 /// Ícones claros numa barra escura, escuros numa clara.
 fn cor_dos_icones(barra_escura: bool) -> [u8; 3] {
     if barra_escura { [255, 255, 255] } else { [32, 32, 36] }
@@ -167,8 +220,10 @@ struct Estado {
     /// Os botões já estão no botão da barra de agora (volta a falso a cada `TaskbarButtonCreated`).
     postos: bool,
     acao_pendente: Option<&'static str>,
+    /// As mensagens por ler (o número no ícone da barra).
+    por_ler: u32,
 }
-static ESTADO: Mutex<Estado> = Mutex::new(Estado { a_tocar: false, tem_faixa: false, postos: false, acao_pendente: None });
+static ESTADO: Mutex<Estado> = Mutex::new(Estado { a_tocar: false, tem_faixa: false, postos: false, acao_pendente: None, por_ler: 0 });
 static APP: OnceLock<AppHandle> = OnceLock::new();
 static BOTAO_CRIADO: OnceLock<u32> = OnceLock::new();
 /// Os ids dos três botões (longe dos do menu, que também chegam por WM_COMMAND).
@@ -189,20 +244,7 @@ fn hwnd(janela: &WebviewWindow) -> Option<HWND> {
 
 /// A barra do Windows está escura? (`SystemUsesLightTheme`: 1 é clara.)
 fn barra_escura() -> bool {
-    let mut valor = 0u32;
-    let mut tamanho = 4u32;
-    let r = unsafe {
-        RegGetValueW(
-            HKEY_CURRENT_USER,
-            &HSTRING::from(r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"),
-            &HSTRING::from("SystemUsesLightTheme"),
-            RRF_RT_REG_DWORD,
-            None,
-            Some((&mut valor as *mut u32).cast()),
-            Some(&mut tamanho),
-        )
-    };
-    !(r.is_ok() && valor == 1)
+    crate::chaves::ler_dword(r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "SystemUsesLightTheme") != Some(1)
 }
 
 /// O ícone do botão, feito uma vez por forma, tema e tamanho (e nunca destruído:
@@ -211,7 +253,13 @@ unsafe fn icone(nome: &'static str, escura: bool, lado: i32) -> Option<HICON> {
     if let Some(h) = ICONES.with(|c| c.borrow().get(&(nome, escura, lado)).copied()) {
         return Some(h);
     }
-    let pixeis = desenhar_icone(nome, lado as usize, cor_dos_icones(escura));
+    let h = hicon_de(&desenhar_icone(nome, lado as usize, cor_dos_icones(escura)), lado)?;
+    ICONES.with(|c| c.borrow_mut().insert((nome, escura, lado), h));
+    Some(h)
+}
+
+/// Um HICON de um quadrado BGRA de alfa direto, `lado` x `lado`.
+unsafe fn hicon_de(pixeis: &[u8], lado: i32) -> Option<HICON> {
     let info = BITMAPINFO {
         bmiHeader: BITMAPINFOHEADER {
             biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
@@ -233,9 +281,7 @@ unsafe fn icone(nome: &'static str, escura: bool, lado: i32) -> Option<HICON> {
     let h = CreateIconIndirect(&ICONINFO { fIcon: true.into(), xHotspot: 0, yHotspot: 0, hbmMask: mascara, hbmColor: cor });
     let _ = DeleteObject(cor.into());
     let _ = DeleteObject(mascara.into());
-    let h = h.ok()?;
-    ICONES.with(|c| c.borrow_mut().insert((nome, escura, lado), h));
-    Some(h)
+    h.ok()
 }
 
 unsafe fn taskbar() -> Option<ITaskbarList3> {
@@ -284,10 +330,75 @@ unsafe fn por_botoes(h: HWND) {
     }
 }
 
+/// Põe (ou tira) o número das mensagens por ler no ícone da barra. Só na thread da janela.
+unsafe fn por_numero(h: HWND) {
+    let n = estado().por_ler;
+    let Some(lista) = taskbar() else { return };
+    let r = if n == 0 {
+        lista.SetOverlayIcon(h, HICON::default(), &HSTRING::new())
+    } else {
+        let (pixeis, _) = desenhar_por_ler(n);
+        let Some(icone) = hicon_de(&pixeis, 32) else { return };
+        // A barra fica com uma cópia (como no Chromium): o nosso destrói-se já.
+        let r = lista.SetOverlayIcon(h, icone, &HSTRING::from(format!("{n} unread messages")));
+        let _ = DestroyIcon(icone);
+        r
+    };
+    if let Err(e) = r {
+        crate::registo::linha(&format!("barra: o número das mensagens falhou ({e})"));
+    }
+}
+
+/// Pisca o botão da barra (4 vezes, e fica aceso), ou para (o `flashFrame` do Electron).
+fn piscar(janela: &WebviewWindow, ligar: bool) {
+    let Some(h) = hwnd(janela) else { return };
+    let info = FLASHWINFO {
+        cbSize: std::mem::size_of::<FLASHWINFO>() as u32,
+        hwnd: h,
+        dwFlags: if ligar { FLASHW_TRAY } else { FLASHW_STOP },
+        uCount: if ligar { 4 } else { 0 },
+        dwTimeout: 0,
+    };
+    unsafe {
+        let _ = FlashWindowEx(&info);
+    }
+}
+
+/// A janela ganhou o foco: deixa de piscar.
+pub fn parar_de_piscar(janela: &WebviewWindow) {
+    piscar(janela, false);
+}
+
+/// As mensagens por ler (`setMessageAttention`): o número quando muda; pisca quando
+/// chega uma com `atencao` e a janela não tem o foco; sem nenhuma, para.
+pub fn mensagens_por_ler(app: &AppHandle, janela: &WebviewWindow, n: u32, atencao: bool) {
+    let mudou = {
+        let mut e = estado();
+        let mudou = e.por_ler != n;
+        e.por_ler = n;
+        mudou && e.postos // sem botão na barra, o TaskbarButtonCreated põe-no
+    };
+    if mudou {
+        if let Some(h) = hwnd(janela) {
+            let h = h.0 as usize;
+            let _ = app.run_on_main_thread(move || unsafe { por_numero(HWND(h as *mut _)) });
+        }
+    }
+    if n == 0 || janela.is_focused().unwrap_or(false) {
+        piscar(janela, false);
+    } else if atencao {
+        piscar(janela, true);
+    }
+}
+
 unsafe extern "system" fn subclasse(h: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM, _id: usize, _dados: usize) -> LRESULT {
     if Some(&msg) == BOTAO_CRIADO.get() {
         estado().postos = false;
         por_botoes(h);
+        // O número das mensagens também se perde com o botão da barra.
+        if estado().por_ler > 0 {
+            por_numero(h);
+        }
     } else if msg == WM_COMMAND && ((wparam.0 >> 16) & 0xffff) as u32 == THBN_CLICKED {
         let indice = (wparam.0 & 0xffff) as u32;
         if (ID_BASE..ID_BASE + 3).contains(&indice) {
@@ -460,5 +571,25 @@ mod testes {
             assert_eq!(alfa(&pausa, lado, lado * 5 / 16, lado / 2), 255, "e as barras cheias");
         }
         assert_eq!(&desenhar_icone("tocar", 16, cor_dos_icones(false))[(8 * 16 + 7) * 4..][..3], &[36, 32, 32], "BGRA, escuro na barra clara");
+    }
+
+    #[test]
+    fn o_numero_das_mensagens_e_o_do_electron() {
+        let px = |buf: &[u8], x: usize, y: usize| <[u8; 4]>::try_from(&buf[(y * 32 + x) * 4..][..4]).unwrap();
+        assert_eq!(desenhar_por_ler(7).1, "7");
+        assert_eq!(desenhar_por_ler(42).1, "42");
+        assert_eq!(desenhar_por_ler(100).1, "99+");
+        let (um, _) = desenhar_por_ler(1);
+        assert_eq!(um.len(), 32 * 32 * 4);
+        assert_eq!(px(&um, 0, 0)[3], 0, "canto fora do círculo");
+        assert_eq!(px(&um, 3, 15), [72, 64, 225, 255], "o vermelho do Electron (BGRA)");
+        // O "1" (3 px por ponto, centrado): a coluna do meio é branca.
+        assert_eq!(px(&um, 16, 16), [255, 255, 255, 255]);
+        // A borda suaviza: alfa a meio caminho.
+        let borda = px(&um, 15, 0)[3];
+        assert!(borda > 0 && borda < 255, "alfa {borda}");
+        // Três algarismos cabem (escala 2).
+        let (cheio, _) = desenhar_por_ler(150);
+        assert!(cheio.chunks_exact(4).filter(|p| p == &[255, 255, 255, 255]).count() > 40);
     }
 }

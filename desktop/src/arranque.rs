@@ -16,11 +16,7 @@ use std::path::Path;
 
 use serde_json::{json, Value};
 use tauri::{AppHandle, Manager, WebviewWindow};
-use windows::core::HSTRING;
-use windows::Win32::Foundation::{ERROR_FILE_NOT_FOUND, ERROR_SUCCESS};
-use windows::Win32::System::Registry::{
-    RegDeleteKeyValueW, RegGetValueW, RegSetKeyValueW, HKEY_CURRENT_USER, REG_BINARY, REG_SZ, RRF_RT_REG_BINARY, RRF_RT_REG_SZ,
-};
+use crate::chaves::{apagar, escrever, escrever_texto, ler_texto, ler_valor, REG_BINARY, RRF_RT_REG_BINARY};
 
 pub const ARGUMENTO: &str = "--duotone-auto-start";
 const RUN: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
@@ -64,44 +60,7 @@ fn ligado(valor: Option<&str>, aprovado: Option<&[u8]>, esperado: &str) -> bool 
     aponta && aprovado
 }
 
-// --- o registo (HKCU), com a subchave por parâmetro para os testes não tocarem no Run ---
-
-fn ler_valor(subchave: &str, nome: &str, tipo: windows::Win32::System::Registry::REG_ROUTINE_FLAGS) -> Option<Vec<u8>> {
-    let (sub, nome) = (HSTRING::from(subchave), HSTRING::from(nome));
-    let mut tamanho = 0u32;
-    unsafe {
-        if RegGetValueW(HKEY_CURRENT_USER, &sub, &nome, tipo, None, None, Some(&mut tamanho)) != ERROR_SUCCESS || tamanho == 0 {
-            return None;
-        }
-        let mut dados = vec![0u8; tamanho as usize];
-        if RegGetValueW(HKEY_CURRENT_USER, &sub, &nome, tipo, None, Some(dados.as_mut_ptr().cast()), Some(&mut tamanho)) != ERROR_SUCCESS {
-            return None;
-        }
-        dados.truncate(tamanho as usize);
-        Some(dados)
-    }
-}
-
-fn ler_texto(subchave: &str, nome: &str) -> Option<String> {
-    let dados = ler_valor(subchave, nome, RRF_RT_REG_SZ)?;
-    let largos: Vec<u16> = dados.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).take_while(|&c| c != 0).collect();
-    Some(String::from_utf16_lossy(&largos))
-}
-
-fn escrever(subchave: &str, nome: &str, tipo: u32, dados: &[u8]) -> Result<(), String> {
-    let r = unsafe { RegSetKeyValueW(HKEY_CURRENT_USER, &HSTRING::from(subchave), &HSTRING::from(nome), tipo, Some(dados.as_ptr().cast()), dados.len() as u32) };
-    if r == ERROR_SUCCESS { Ok(()) } else { Err(format!("registo: erro {}", r.0)) }
-}
-
-fn escrever_texto(subchave: &str, nome: &str, texto: &str) -> Result<(), String> {
-    let dados: Vec<u8> = texto.encode_utf16().chain(std::iter::once(0)).flat_map(u16::to_le_bytes).collect();
-    escrever(subchave, nome, REG_SZ.0, &dados)
-}
-
-fn apagar(subchave: &str, nome: &str) -> Result<(), String> {
-    let r = unsafe { RegDeleteKeyValueW(HKEY_CURRENT_USER, &HSTRING::from(subchave), &HSTRING::from(nome)) };
-    if r == ERROR_SUCCESS || r == ERROR_FILE_NOT_FOUND { Ok(()) } else { Err(format!("registo: erro {}", r.0)) }
-}
+// --- o registo (HKCU, `chaves.rs`), com a subchave por parâmetro para os testes não tocarem no Run ---
 
 /// Está ligado no registo para este nome e esta linha de comando?
 fn ligado_no_registo(run: &str, aprovado: &str, nome: &str, esperado: &str) -> bool {
@@ -236,7 +195,8 @@ mod testes {
     /// Escreve e lê no registo a sério, mas numa chave de teste (nunca no Run).
     #[test]
     fn ida_e_volta_no_registo() {
-        use windows::Win32::System::Registry::RegDeleteTreeW;
+        use windows::core::HSTRING;
+        use windows::Win32::System::Registry::{RegDeleteTreeW, HKEY_CURRENT_USER};
         let base = format!(r"Software\DuotoneTesteDoArranque{}", std::process::id());
         let (run, aprovado) = (format!(r"{base}\Run"), format!(r"{base}\Aprovado"));
         let nome = "com.joao.duotone.desktop.teste";

@@ -11,7 +11,9 @@ mod arranque;
 mod audio;
 mod barra;
 mod canal;
+mod chaves;
 mod mini;
+mod notificacoes;
 mod ponte;
 mod rede;
 mod registo;
@@ -144,7 +146,7 @@ fn main() {
             registo_da_pagina,
             ponte::janela_minimizar, ponte::janela_alternar_maximizar, ponte::janela_fechar, ponte::janela_maximizada,
             ponte::fechar_para_tabuleiro_ler, ponte::fechar_para_tabuleiro_definir,
-            arranque::arranque_ler, arranque::arranque_definir, barra::barra_estado, barra::barra_tirar_acao, ponte::saude_ler, ponte::segundos_sem_interacao, saude::diagnostico_recursos,
+            arranque::arranque_ler, arranque::arranque_definir, barra::barra_estado, barra::barra_tirar_acao, notificacoes::notificacao_mensagem, notificacoes::notificacao_por_ler, ponte::saude_ler, ponte::segundos_sem_interacao, saude::diagnostico_recursos,
             mini::mini_alternar, mini::mini_esta_aberto, mini::mini_estado, mini::mini_modo_limpo,
             mini::mini_pronto, mini::mini_pega, mini::mini_lista, mini::mini_ignorar_rato, mini::mini_comando,
             rede::yt_pesquisa, rede::ytmusic_pesquisa, rede::yt_mix, rede::yt_refrao, rede::ytmusic_artista, rede::ytmusic_radio, rede::ytmusic_letra,
@@ -168,6 +170,12 @@ fn main() {
                     _ => {}
                 }
                 return;
+            }
+            // Com o foco, o botão da barra deixa de piscar (as mensagens por ler, F5).
+            if let WindowEvent::Focused(true) = evento {
+                if let Some(j) = janela.app_handle().get_webview_window("main") {
+                    barra::parar_de_piscar(&j);
+                }
             }
             if matches!(evento, WindowEvent::Resized(_) | WindowEvent::Focused(_)) {
                 avisar_estado_da_janela(janela.app_handle());
@@ -225,6 +233,8 @@ fn main() {
             webview::configurar(&janela);
             // A barra de tarefas (F5): a subclasse antes do 1.º botão na barra, e a lista de saltos.
             barra::instalar(app.handle(), &janela);
+            // O nome e o ícone do AUMID, sem os quais o Windows não mostra os toasts.
+            notificacoes::preparar(app.handle());
             // A app instalada liga o arranque com o Windows na 1.ª abertura (na Preview, nada).
             arranque::aplicar_de_origem(app.handle());
             // A amostra dos recursos com a janela escondida, uma vez por minuto (F8).

@@ -48,6 +48,10 @@
     estadoDaBarra: (estado) => { pedir('barra_estado', { estado }).catch(() => {}); },
     tirarAcaoDaBarra: () => pedir('barra_tirar_acao', {}),
     onAcaoDaBarra: (listener) => ouvir('barra:acao', () => listener()),
+    // F5, as mensagens (desktop/src/notificacoes.rs): o toast com clique, o número na barra e o piscar.
+    notifyMessage: (message) => { pedir('notificacao_mensagem', { mensagem: message }).catch(() => {}); },
+    setUnreadMessages: (count, attention) => { pedir('notificacao_por_ler', { count, attention }).catch(() => {}); },
+    onNotificationClick: (listener) => ouvir('notificacao:abrir', (conversa) => listener(conversa)),
     // F8: a memória e o CPU da casca e dos processos do WebView2, para o relatório.
     lerRecursos: () => pedir('diagnostico_recursos', {}),
     segundosSemInteracao: () => invoke('segundos_sem_interacao'),
