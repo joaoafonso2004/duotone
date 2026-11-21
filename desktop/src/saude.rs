@@ -193,12 +193,64 @@ fn amostrar(processos: &[(u32, &'static str, &'static str)]) -> Vec<Value> {
     }).collect()
 }
 
-/// `lerRecursos`: a casca e os processos do WebView2, com o estado da janela.
-#[tauri::command]
-pub async fn diagnostico_recursos(janela: WebviewWindow) -> Result<Value, String> {
-    if janela.label() != "main" {
-        return Err("Pedido inválido.".into());
+fn estado_da_janela(janela: &WebviewWindow) -> &'static str {
+    if !janela.is_visible().unwrap_or(true) { "hidden" } else if janela.is_minimized().unwrap_or(false) { "minimized" } else { "visible" }
+}
+
+/// Os processos da app: a casca e os do WebView2. Bloqueia até 3 s à espera da
+/// thread da janela, por isso NUNCA se chama nela.
+fn processos_da_app(janela: &WebviewWindow) -> Vec<(u32, &'static str, &'static str)> {
+    let mut todos: Vec<(u32, &'static str, &'static str)> = vec![(std::process::id(), "Shell", "duotone-desktop")];
+    if let Ok(rx) = pedir_processos_do_webview(janela) {
+        let do_webview = rx.recv_timeout(Duration::from_secs(3)).unwrap_or_default();
+        todos.extend(do_webview.into_iter().map(|(pid, k)| (pid, nome_do_tipo(k), if k == 0 { "WebView2" } else { "" })));
     }
+    todos
+}
+
+/// A última amostra com a janela escondida ou minimizada (o `amostraEscondida`
+/// do Electron): uma vez por minuto, com o CPU MÉDIO desse minuto.
+static ESCONDIDA: Mutex<Option<Value>> = Mutex::new(None);
+
+fn hora_utc() -> String {
+    let s = agora() / 1000 % 86_400;
+    format!("{:02}:{:02}:{:02} UTC", s / 3600, s / 60 % 60, s % 60)
+}
+
+pub fn vigiar_escondida(app: tauri::AppHandle) {
+    use tauri::Manager;
+    std::thread::spawn(move || {
+        let mut antes: std::collections::HashMap<u32, u64> = Default::default();
+        let mut quando = std::time::Instant::now();
+        loop {
+            std::thread::sleep(Duration::from_secs(60));
+            let Some(janela) = app.get_webview_window("main") else { continue };
+            let estado = estado_da_janela(&janela);
+            let processos = processos_da_app(&janela);
+            let decorrido_100ns = quando.elapsed().as_nanos() as f64 / 100.0;
+            quando = std::time::Instant::now();
+            let nucleos = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1) as f64;
+            let mb = |b: u64| (b as f64 / 1_048_576.0 * 10.0).round() / 10.0;
+            let mut novos = std::collections::HashMap::new();
+            let mut amostra = Vec::new();
+            for (pid, tipo, nome) in processos {
+                let Some(m) = medir(pid) else { continue };
+                if estado != "visible" {
+                    let cpu = antes.get(&pid).map(|a| m.cpu_100ns.saturating_sub(*a) as f64 / (decorrido_100ns * nucleos) * 100.0).unwrap_or(0.0);
+                    amostra.push(json!({ "tipo": tipo, "nome": nome, "cpu": (cpu * 10.0).round() / 10.0, "memoriaMB": mb(m.memoria), "privadaMB": mb(m.privada) }));
+                }
+                novos.insert(pid, m.cpu_100ns);
+            }
+            antes = novos;
+            if !amostra.is_empty() {
+                *ESCONDIDA.lock().unwrap_or_else(|e| e.into_inner()) = Some(json!({ "em": hora_utc(), "janela": estado, "processos": amostra, "youtube": [] }));
+            }
+        }
+    });
+}
+
+/// Pede à thread da janela a lista dos processos do WebView2 (`GetProcessInfos`).
+fn pedir_processos_do_webview(janela: &WebviewWindow) -> Result<std::sync::mpsc::Receiver<Vec<(u32, i32)>>, String> {
     let (tx, rx) = std::sync::mpsc::channel::<Vec<(u32, i32)>>();
     janela.with_webview(move |w| unsafe {
         use webview2_com::Microsoft::Web::WebView2::Win32::*;
@@ -223,14 +275,21 @@ pub async fn diagnostico_recursos(janela: WebviewWindow) -> Result<Value, String
         }
         let _ = tx.send(lista);
     }).map_err(|e| e.to_string())?;
-    let estado = if !janela.is_visible().unwrap_or(true) { "hidden" } else if janela.is_minimized().unwrap_or(false) { "minimized" } else { "visible" };
-    let processos = tauri::async_runtime::spawn_blocking(move || {
-        let do_webview = rx.recv_timeout(Duration::from_secs(3)).unwrap_or_default();
-        let mut todos: Vec<(u32, &'static str, &'static str)> = vec![(std::process::id(), "Shell", "duotone-desktop")];
-        todos.extend(do_webview.into_iter().map(|(pid, k)| (pid, nome_do_tipo(k), if k == 0 { "WebView2" } else { "" })));
-        amostrar(&todos)
-    }).await.map_err(|e| e.to_string())?;
-    Ok(json!({ "janela": estado, "processos": processos, "youtube": [] }))
+    Ok(rx)
+}
+
+/// `lerRecursos`: a casca e os processos do WebView2, com o estado da janela e a
+/// última amostra escondida.
+#[tauri::command]
+pub async fn diagnostico_recursos(janela: WebviewWindow) -> Result<Value, String> {
+    if janela.label() != "main" {
+        return Err("Pedido inválido.".into());
+    }
+    let estado = estado_da_janela(&janela);
+    let processos = tauri::async_runtime::spawn_blocking(move || amostrar(&processos_da_app(&janela)))
+        .await.map_err(|e| e.to_string())?;
+    let escondida = ESCONDIDA.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    Ok(json!({ "janela": estado, "processos": processos, "youtube": [], "escondida": escondida }))
 }
 
 #[cfg(test)]

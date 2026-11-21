@@ -189,6 +189,8 @@ fn main() {
                 })
                 .build()?;
             webview::configurar(&janela);
+            // A amostra dos recursos com a janela escondida, uma vez por minuto (F8).
+            saude::vigiar_escondida(app.handle().clone());
             if let Err(e) = criar_tabuleiro(app) {
                 registo::linha(&format!("tabuleiro falhou: {e}"));
             }
