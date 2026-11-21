@@ -35,7 +35,7 @@ assert.match(ponte, /if \(window\.top !== window \|\| location\.origin !== '__OR
 // só corre dentro de um frame do YouTube posto pela app, e não chama a ponte.
 const webview = ler('desktop/src/webview.rs');
 const doFrame = webview.slice(webview.indexOf('pub fn script_do_frame_do_youtube'), webview.indexOf('pub fn configurar'));
-assert.match(main, /\.initialization_script\(&webview::script_do_frame_do_youtube\(\)\)/, 'o script do frame do YouTube não entra na janela');
+assert.match(main, /\.initialization_script\(&?webview::script_do_frame_do_youtube\(\)\)/, 'o script do frame do YouTube não entra na janela');
 assert.match(doFrame, /window\.top === window \|\|/, 'o script do frame tem de sair no frame principal');
 assert.match(doFrame, /ancestorOrigins/, 'o script do frame tem de conferir que o frame é da app');
 assert.match(doFrame, /preservesPitch = false/);
@@ -49,7 +49,7 @@ const permissoes = new Set(capacidade.permissions);
 for (const c of comandos) {
   assert.ok(declarados.has(c), `"${c}" não está no AppManifest do desktop/build.rs`);
   assert.ok(permissoes.has(`allow-${c.replace(/_/g, '-')}`), `"allow-${c.replace(/_/g, '-')}" não está na capability`);
-  assert.match(main, new RegExp(`(?:ponte|rede|audio|saude|mini)::${c}\\b`), `"${c}" não está no generate_handler do main.rs`);
+  assert.match(main, new RegExp(`(?:ponte|rede|audio|saude|mini|arranque)::${c}\\b`), `"${c}" não está no generate_handler do main.rs`);
 }
 // A capability nunca aceita curingas na origem (a ponte existe no frame do YouTube).
 for (const url of capacidade.remote.urls) assert.match(url, /^http:\/\/localhost:\d+(\/\*)?$/, `origem larga demais: ${url}`);

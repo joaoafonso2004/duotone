@@ -8,7 +8,7 @@
     "allow-registo-da-pagina",
     "allow-janela-minimizar", "allow-janela-alternar-maximizar", "allow-janela-fechar", "allow-janela-maximizada",
     "allow-fechar-para-tabuleiro-ler", "allow-fechar-para-tabuleiro-definir",
-    "allow-arranque-ler", "allow-saude-ler", "allow-segundos-sem-interacao", "allow-diagnostico-recursos",
+    "allow-arranque-ler", "allow-arranque-definir", "allow-saude-ler", "allow-segundos-sem-interacao", "allow-diagnostico-recursos",
     "allow-mini-alternar", "allow-mini-esta-aberto", "allow-mini-estado", "allow-mini-modo-limpo",
     "allow-mini-pronto", "allow-mini-pega", "allow-mini-lista", "allow-mini-ignorar-rato", "allow-mini-comando",
     "allow-yt-pesquisa", "allow-ytmusic-pesquisa", "allow-yt-mix", "allow-yt-refrao", "allow-ytmusic-artista", "allow-ytmusic-radio", "allow-ytmusic-letra",

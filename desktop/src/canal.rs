@@ -11,6 +11,9 @@ use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONERROR, MB_OK};
 
 pub const IDENTIFICADOR: &str = "com.joao.duotone.desktop.preview";
 pub const PORTA: u16 = 18082;
+/// A Preview não faz o que só a app instalada faz (ligar o arranque com o Windows
+/// de origem, por exemplo). Muda com o IDENTIFICADOR na F9.
+pub const E_A_PREVIEW: bool = true;
 
 pub fn definir_aumid() {
     unsafe {

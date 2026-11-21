@@ -168,7 +168,7 @@ pub fn comando_valido(c: &Value) -> Option<Value> {
     match tipo {
         "procurar" => {
             let ms = c.get("ms")?.as_f64()?;
-            (ms.is_finite() && ms >= 0.0 && ms < 24.0 * 3_600_000.0).then(|| json!({ "tipo": "procurar", "ms": arred(ms) as u64 }))
+            (ms.is_finite() && (0.0..24.0 * 3_600_000.0).contains(&ms)).then(|| json!({ "tipo": "procurar", "ms": arred(ms) as u64 }))
         }
         "tocar-da-fila" => {
             let chave = c.get("chave")?.as_str().filter(|s| !s.is_empty() && s.chars().count() <= 300)?;
@@ -374,7 +374,7 @@ pub fn abrir(app: &AppHandle) {
         .focusable(false)
         .focused(false)
         .visible(false)
-        .initialization_script(&script())
+        .initialization_script(script())
         .on_new_window(|_, _| tauri::webview::NewWindowResponse::Deny)
         .on_navigation(crate::webview::navegacao_da_app)
         .on_page_load(|j, carga| {

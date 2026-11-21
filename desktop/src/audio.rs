@@ -59,7 +59,9 @@ pub fn fonte_para_servir(id: &str) -> Result<Fonte, u16> {
 /// 1.º bocado chegou a levar 980 ms só em cabeçalhos). Poucos e em memória: o
 /// mais antigo sai primeiro, e cada um serve uma vez, ao mesmo URL.
 const ADIANTADOS_MAX: usize = 6;
-static ADIANTADOS: LazyLock<Mutex<Vec<(String, String, Vec<u8>)>>> = LazyLock::new(|| Mutex::new(Vec::new()));
+/// (id, url, bytes)
+type Adiantado = (String, String, Vec<u8>);
+static ADIANTADOS: LazyLock<Mutex<Vec<Adiantado>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 static A_ADIANTAR: LazyLock<Mutex<std::collections::HashSet<String>>> = LazyLock::new(|| Mutex::new(Default::default()));
 
 pub fn guardar_adiantado(id: &str, url: &str, bytes: Vec<u8>) {

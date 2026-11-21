@@ -39,8 +39,9 @@
   const ponte = {
     platform: 'win32',
     discordApplicationId: '1547625164328538133',
+    // F5, o arranque com o Windows (desktop/src/arranque.rs). Na Preview nunca se liga sozinho.
     getStartup: () => invoke('arranque_ler'),
-    setStartup: () => Promise.reject(new Error('Disponível na aplicação instalada no Windows.')),
+    setStartup: (enabled, mode) => pedir('arranque_definir', { enabled, mode }),
     lerSaude: () => invoke('saude_ler'),
     // F8: a memória e o CPU da casca e dos processos do WebView2, para o relatório.
     lerRecursos: () => pedir('diagnostico_recursos', {}),

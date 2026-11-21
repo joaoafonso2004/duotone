@@ -7,6 +7,7 @@
 // Duotone instalada sem lhe tocar. A identidade de produção entra na F9.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod arranque;
 mod audio;
 mod canal;
 mod mini;
@@ -21,6 +22,10 @@ use std::{path::PathBuf, sync::Mutex};
 
 use serde_json::json;
 use tauri::{webview::PageLoadEvent, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+
+/// Já se mostrou a janela no arranque? Uma página recarregada (a saúde, F8) não a
+/// volta a mostrar: escondida no tabuleiro, fica escondida (o `ready-to-show` era `once`).
+static JA_ABRIU: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// O último estado dito à página, para só avisar quando muda.
 static ESTADO_DA_JANELA: Mutex<(Option<bool>, Option<&'static str>)> = Mutex::new((None, None));
@@ -134,7 +139,7 @@ fn main() {
             registo_da_pagina,
             ponte::janela_minimizar, ponte::janela_alternar_maximizar, ponte::janela_fechar, ponte::janela_maximizada,
             ponte::fechar_para_tabuleiro_ler, ponte::fechar_para_tabuleiro_definir,
-            ponte::arranque_ler, ponte::saude_ler, ponte::segundos_sem_interacao, saude::diagnostico_recursos,
+            arranque::arranque_ler, arranque::arranque_definir, ponte::saude_ler, ponte::segundos_sem_interacao, saude::diagnostico_recursos,
             mini::mini_alternar, mini::mini_esta_aberto, mini::mini_estado, mini::mini_modo_limpo,
             mini::mini_pronto, mini::mini_pega, mini::mini_lista, mini::mini_ignorar_rato, mini::mini_comando,
             rede::yt_pesquisa, rede::ytmusic_pesquisa, rede::yt_mix, rede::yt_refrao, rede::ytmusic_artista, rede::ytmusic_radio, rede::ytmusic_letra,
@@ -182,9 +187,9 @@ fn main() {
                 .background_color(tauri::window::Color(9, 9, 13, 255))
                 .initialization_script(webview::SCRIPT_DO_ARRANQUE)
                 // A ponte `window.duotoneDesktop` (F2), antes de qualquer script da app.
-                .initialization_script(&ponte::script())
+                .initialization_script(ponte::script())
                 // O tom acompanha a velocidade também no IFrame de recurso (o "slowed" do Electron).
-                .initialization_script(&webview::script_do_frame_do_youtube())
+                .initialization_script(webview::script_do_frame_do_youtube())
                 // Links para fora no browser; a janela da app nunca sai da origem dela.
                 .on_new_window(|url, _| {
                     webview::abrir_fora(&url);
@@ -195,10 +200,17 @@ fn main() {
                     webview::abrir_fora(url);
                     false
                 })
-                // Mostra-se no primeiro desenho da página, como o `ready-to-show`.
+                // Mostra-se no primeiro desenho da página, como o `ready-to-show`, menos
+                // quando o Windows a abriu com "Start in: System tray" (F5).
                 .on_page_load(|janela, carga| {
                     if carga.event() == PageLoadEvent::Finished {
-                        let _ = janela.show();
+                        if !JA_ABRIU.swap(true, std::sync::atomic::Ordering::SeqCst) {
+                            if arranque::fica_no_tabuleiro(janela.app_handle()) {
+                                registo::linha("arranque com o Windows: fica no tabuleiro");
+                            } else {
+                                let _ = janela.show();
+                            }
+                        }
                         // Uma página recarregada começa sem saber: volta a dizer-se tudo.
                         *ESTADO_DA_JANELA.lock().unwrap() = (None, None);
                         avisar_estado_da_janela(janela.app_handle());
@@ -206,6 +218,8 @@ fn main() {
                 })
                 .build()?;
             webview::configurar(&janela);
+            // A app instalada liga o arranque com o Windows na 1.ª abertura (na Preview, nada).
+            arranque::aplicar_de_origem(app.handle());
             // A amostra dos recursos com a janela escondida, uma vez por minuto (F8).
             saude::vigiar_escondida(app.handle().clone());
             if let Err(e) = criar_tabuleiro(app) {

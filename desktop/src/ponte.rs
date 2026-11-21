@@ -89,13 +89,6 @@ pub fn fechar_para_tabuleiro_definir(app: AppHandle, janela: WebviewWindow, enab
     Ok(enabled)
 }
 
-/// Como na app não instalada do Electron: o arranque com o Windows não existe ainda (F5).
-#[tauri::command]
-pub fn arranque_ler(janela: WebviewWindow) -> Result<Value, String> {
-    da_janela_principal(&janela)?;
-    Ok(json!({ "available": false, "enabled": false, "mode": "tray" }))
-}
-
 /// Os incidentes da casca e do WebView2 (F8, `saude.rs`), que se apagam ao ler.
 #[tauri::command]
 pub fn saude_ler(janela: WebviewWindow) -> Result<Value, String> {
