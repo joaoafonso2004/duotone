@@ -12,9 +12,10 @@
  *
  * O mesmo contrato com a store que o `YouTubePlayerView.web.tsx`:
  * `registerYtControls`, `_setProgress`, `_setBuffering`, `_setActiveBackend`,
- * `_onYtStateChange` e `setError`. O que este motor ainda não faz (crossfade,
- * Jam, seguir um amigo) continua no IFrame: o `MotorDoPc` escolhe por faixa, e
- * uma falha (resolução, HLS, erro do `<audio>`) passa ESSA faixa ao IFrame.
+ * `_onYtStateChange` e `setError`. O crossfade é dele desde 21/11 (duas vozes,
+ * ver `MotorDeAudio`). O que ainda não faz (Jam, seguir um amigo) continua no
+ * IFrame: o `MotorDoPc` escolhe por faixa, e uma falha (resolução, HLS, erro do
+ * `<audio>`) passa ESSA faixa ao IFrame.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { aquecerResolvedor, definirFetchDoYouTube, definirSondaDaCascata, resolveYouTubeStream } from '../api/ytstream';
@@ -25,6 +26,13 @@ import { useSeguirAmigo } from '../state/seguirAmigo';
 import { volumeParaOMotor } from '../lib/curvaDoVolume';
 import { abafoDoRefrao } from '../state/refrao';
 import { registarNaFila } from '../lib/playbackDiagnostics';
+import {
+  ANTECEDENCIA_DO_PC_S, decorridoDaPassagem, deveComecarCrossfade, devePrepararSeguinte, seguemNoMesmoDisco,
+  volumesDoCrossfade, type ContextoDoCrossfade,
+} from '../lib/crossfade';
+import { anunciarPassagem, desfazerPassagem } from '../state/passagemAVista';
+import { aoTocar as ajusteAoTocar, chaveDaFaixa } from '../lib/equalizer';
+import { arredondar as arredondarRate } from '../lib/playbackRate';
 import type { Track } from '../types';
 
 const ponte = (): any => (typeof window !== 'undefined' ? (window as any).duotoneDesktop : undefined);
@@ -78,34 +86,42 @@ export async function aquecerOMotor(): Promise<void> {
 }
 
 // ------------------------------------------------------------------ o grafo
-// UM `<audio>` e UM grafo para a vida da página: o `createMediaElementSource`
-// só pode ser chamado uma vez por elemento. É o grafo do `EQ_INSTALAR` do main.cjs.
-type Grafo = { ctx: AudioContext; audio: HTMLAudioElement; filtros: BiquadFilterNode[]; margem: GainNode; limitador: DynamicsCompressorNode };
+// DUAS vozes (dois `<audio>`, cada uma com o seu fader) e UM grafo para a vida da
+// página: o `createMediaElementSource` só pode ser chamado uma vez por elemento.
+// Os faders entram no grafo do `EQ_INSTALAR` do main.cjs. A voz ATIVA é a que
+// fala com a loja; a outra prepara a seguinte para o crossfade.
+type Voz = { audio: HTMLAudioElement; fader: GainNode; id: string | null };
+type Grafo = { ctx: AudioContext; vozes: [Voz, Voz]; ativa: 0 | 1; filtros: BiquadFilterNode[]; margem: GainNode; limitador: DynamicsCompressorNode };
 let grafo: Grafo | null = null;
 function oGrafo(): Grafo {
   if (grafo) return grafo;
   const ctx = new AudioContext();
-  const audio = new Audio();
-  audio.preload = 'auto';
-  // O tom acompanha a velocidade (o "slowed" soa a fita mais lenta, não a time-stretch).
-  (audio as any).preservesPitch = false;
-  const fonte = ctx.createMediaElementSource(audio);
   const bandas = [105, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 10000];
   const tipos: BiquadFilterType[] = ['lowshelf', 'peaking', 'peaking', 'peaking', 'peaking', 'peaking', 'peaking', 'peaking', 'peaking', 'highshelf'];
-  let no: AudioNode = fonte;
   const filtros = bandas.map((f, i) => {
     const b = ctx.createBiquadFilter();
     b.type = tipos[i]; b.frequency.value = f; b.Q.value = 1; b.gain.value = 0;
-    no.connect(b); no = b;
     return b;
   });
+  filtros.reduce((antes, b) => { antes.connect(b); return b; });
   const margem = ctx.createGain();
   margem.gain.value = 1;
   const limitador = ctx.createDynamicsCompressor();
   limitador.threshold.value = -0.1; limitador.knee.value = 0; limitador.ratio.value = 1;
   limitador.attack.value = 0.003; limitador.release.value = 0.15;
-  no.connect(margem); margem.connect(limitador); limitador.connect(ctx.destination);
-  grafo = { ctx, audio, filtros, margem, limitador };
+  filtros[filtros.length - 1].connect(margem); margem.connect(limitador); limitador.connect(ctx.destination);
+  const voz = (ganho: number): Voz => {
+    const audio = new Audio();
+    audio.preload = 'auto';
+    // O tom acompanha a velocidade (o "slowed" soa a fita mais lenta, não a time-stretch).
+    (audio as any).preservesPitch = false;
+    const fader = ctx.createGain();
+    fader.gain.value = ganho;
+    ctx.createMediaElementSource(audio).connect(fader);
+    fader.connect(filtros[0]);
+    return { audio, fader, id: null };
+  };
+  grafo = { ctx, vozes: [voz(1), voz(0)], ativa: 0, filtros, margem, limitador };
   // A ponte (ponte.js) manda o EQ e o tom para aqui.
   (window as any).__duotoneMotor = {
     aplicarEqualizador: async (ajuste: any) => {
@@ -121,11 +137,56 @@ function oGrafo(): Grafo {
       return { ok: true, margem: comp };
     },
     naoEsticarOTempo: async () => {
-      (grafo!.audio as any).preservesPitch = false;
-      return { ok: true, agora: false, rate: grafo!.audio.playbackRate };
+      for (const v of grafo!.vozes) (v.audio as any).preservesPitch = false;
+      return { ok: true, agora: false, rate: ativa(grafo!).audio.playbackRate };
     },
   };
   return grafo;
+}
+const ativa = (g: Grafo): Voz => g.vozes[g.ativa];
+const emEspera = (g: Grafo): Voz => g.vozes[g.ativa === 0 ? 1 : 0];
+
+/** O fader de uma voz num valor, já, sem nada agendado. */
+function faderEm(g: Grafo, v: Voz, valor: number): void {
+  const t = g.ctx.currentTime;
+  v.fader.gain.cancelScheduledValues(t);
+  v.fader.gain.setValueAtTime(valor, t);
+}
+
+/** Cala uma voz e larga o que tinha carregado (a memória e a ligação ao googlevideo). */
+function largarVoz(g: Grafo, v: Voz): void {
+  faderEm(g, v, 0);
+  v.id = null;
+  try { v.audio.pause(); } catch { /* já parada */ }
+  if (v.audio.getAttribute('src')) {
+    v.audio.removeAttribute('src');
+    try { v.audio.load(); } catch { /* nada carregado */ }
+  }
+}
+
+/**
+ * A passagem agendada no relógio do áudio (o desenho do plano): a curva de igual
+ * potência do `lib/crossfade.ts`, do ponto onde a passagem vai até ao fim. Sem
+ * temporizadores a degraus, e o mesmo com a janela escondida. `velocidade`: a da
+ * que sai, porque o fade conta-se em segundos de MÚSICA.
+ */
+const PONTOS_DA_CURVA = 64;
+function agendarPassagem(g: Grafo, decorrido: number, fade: number, velocidade: number): void {
+  const x0 = Math.min(1, Math.max(0, decorrido / fade));
+  const segundos = Math.max(0.05, (fade - Math.max(0, decorrido)) / Math.max(0.25, velocidade));
+  const sai = new Float32Array(PONTOS_DA_CURVA);
+  const entra = new Float32Array(PONTOS_DA_CURVA);
+  for (let i = 0; i < PONTOS_DA_CURVA; i++) {
+    const x = x0 + (1 - x0) * (i / (PONTOS_DA_CURVA - 1));
+    const v = volumesDoCrossfade(x * fade, fade, 1, 1);
+    sai[i] = v.sai;
+    entra[i] = v.entra;
+  }
+  const t = g.ctx.currentTime;
+  for (const [voz, curva] of [[ativa(g), sai], [emEspera(g), entra]] as const) {
+    voz.fader.gain.cancelScheduledValues(t);
+    voz.fader.gain.setValueCurveAtTime(curva, t, segundos);
+  }
 }
 
 /** Uma linha no registo da casca (`%LOCALAPPDATA%\<id>\logs\duotone.log`): as medidas do motor. */
@@ -140,33 +201,211 @@ const volumeDoMotor = (vol: number): number => {
   return (v > 0 ? Math.max(1, Math.round(v * abafoDoRefrao())) : 0) / 100;
 };
 
-/** O motor de uma faixa. `aoFalhar` passa-a ao IFrame. */
-function MotorDeAudio({ track, aoFalhar }: { track: Track; aoFalhar: (sourceId: string, porque: string) => void }) {
+/** A velocidade com que uma faixa VAI tocar (a dela, ou o padrão): a conta do `playTrack`. */
+function velocidadeDaFaixa(t: Track): number {
+  const st = usePlayer.getState();
+  return arredondarRate(ajusteAoTocar(st.ajustesPorFaixa, chaveDaFaixa(t), { rate: st.padraoRate, ganhos: st.padraoGanhos }).rate) || 1;
+}
+
+/**
+ * O caminho de uma faixa para o `<audio>`: da cache se estiver inteira, senão
+ * resolvida e registada na casca. `t0` só na faixa que se mede (a do clique).
+ */
+async function caminhoDaFaixa(id: string, t0: number | null): Promise<string> {
+  const p = ponte();
+  let caminho: string | null = null;
+  try { caminho = (await p.audioNaCache(id))?.caminho ?? null; } catch { caminho = null; }
+  if (caminho) {
+    if (t0 != null && marca?.id === id) marca.origem = 'cache';
+    return caminho;
+  }
+  const s = await resolveYouTubeStream(id, 'high', false, 'opus');
+  if (t0 != null && marca?.id === id) { marca.origem = 'rede'; marca.resolvido = Math.round(performance.now() - t0); }
+  if (s.isHls || !s.contentLength) throw new Error('sem ficheiro de áudio (HLS)');
+  const mime = s.formato === 'opus' ? 'audio/webm; codecs="opus"' : 'audio/mp4; codecs="mp4a.40.2"';
+  return String(await p.registarAudio(id, s.url, s.contentLength, mime));
+}
+
+/** A passagem acabou e pediu o `ended`: a fila tem isto para trocar para a preparada. */
+const ESPERA_PELA_ENTREGA_MS = 3000;
+
+type Seguinte = { sourceId: string; pronta: boolean; rate: number; falhou?: boolean };
+
+/**
+ * O motor de uma faixa. `aoFalhar` passa-a ao IFrame.
+ *
+ * O CROSSFADE (21/11), porta do do IFrame (`YouTubePlayerView.web.tsx`) com as
+ * MESMAS decisões (`lib/crossfade.ts`): perto do fim a seguinte prepara-se
+ * calada na voz em espera (`ANTECEDENCIA_DO_PC_S`); na janela da passagem os
+ * faders cruzam-se pela curva de igual potência; no fim a fila avança pelo
+ * `ended` de sempre e, quando a loja muda para a preparada, os papéis trocam-se
+ * sem carregar nada.
+ * - Só a voz ativa fala com a loja (posição, a tocar, fim, erros).
+ * - Seguinte à mão com a preparada pronta: troca-se na hora (cortar). Outra
+ *   faixa: a preparada cala-se.
+ * - Pausa a meio: a que entra fica parada onde ia, e a passagem recomeça pela
+ *   posição. Seek para trás: aborta, e a preparada volta ao 0.
+ * - Sem crossfade num Jam nem a seguir um amigo: esses tocam pelo IFrame.
+ */
+function MotorDeAudio({ track, aoFalhar, recurso }: { track: Track; aoFalhar: (sourceId: string, porque: string) => void; recurso: ReadonlySet<string> }) {
   const faixaRef = useRef(track);
   faixaRef.current = track;
+  const recursoRef = useRef(recurso);
+  recursoRef.current = recurso;
   const aCarregarRef = useRef(false);
   const ultimoProgressoRef = useRef(0);
+  /** A faixa preparada na voz em espera; `pronta` quando já pode soar. */
+  const seguinteRef = useRef<Seguinte | null>(null);
+  /** Há uma passagem a decorrer (a duração do fade dela). */
+  const passagemRef = useRef<{ fade: number } | null>(null);
+  /** A passagem acabou e pediu o `ended`; à espera que a loja mude de faixa. */
+  const entregaRef = useRef<{ deQual: string } | null>(null);
 
-  // Os eventos do `<audio>` e os controlos: uma vez por montagem.
+  const progresso = React.useCallback((forcar = false) => {
+    const agora = Date.now();
+    if (!forcar && agora - ultimoProgressoRef.current < (document.hidden ? 5000 : 1000)) return;
+    ultimoProgressoRef.current = agora;
+    const a = ativa(oGrafo()).audio;
+    const duracao = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : (faixaRef.current.durationSeconds || 0);
+    usePlayer.getState()._setProgress(a.currentTime * 1000, duracao * 1000);
+  }, []);
+
+  /** A que entrava cala-se e para; a que sai volta ao seu nível. `rebobinar`: a preparada volta ao 0. */
+  const abortarPassagem = React.useCallback((rebobinar: boolean) => {
+    const g = oGrafo();
+    if (passagemRef.current) desfazerPassagem();
+    passagemRef.current = null;
+    const e = emEspera(g);
+    faderEm(g, e, 0);
+    try { e.audio.pause(); } catch { /* já parada */ }
+    if (rebobinar) { try { e.audio.currentTime = 0; } catch { /* sem metadados */ } }
+    faderEm(g, ativa(g), 1);
+  }, []);
+
+  /** A preparada deixou de servir (outra faixa, fila mexida): calada e largada. */
+  const largarSeguinte = React.useCallback(() => {
+    const g = oGrafo();
+    if (!seguinteRef.current && !passagemRef.current && !entregaRef.current && !emEspera(g).id) return;
+    if (passagemRef.current) desfazerPassagem();
+    passagemRef.current = null;
+    seguinteRef.current = null;
+    entregaRef.current = null;
+    largarVoz(g, emEspera(g));
+    faderEm(g, ativa(g), 1);
+  }, []);
+
+  /** Carrega a seguinte na voz em espera, calada. Uma falha não se repete: a vez dela vai pelo caminho de sempre. */
+  const prepararSeguinte = React.useCallback((t: Track) => {
+    const g = oGrafo();
+    const prep: Seguinte = { sourceId: t.sourceId, pronta: false, rate: velocidadeDaFaixa(t) };
+    seguinteRef.current = prep;
+    void caminhoDaFaixa(t.sourceId, null).then((caminho) => {
+      if (seguinteRef.current !== prep) return;
+      const e = emEspera(g);
+      faderEm(g, e, 0);
+      e.id = prep.sourceId;
+      e.audio.src = caminho;
+      e.audio.playbackRate = prep.rate;
+      (e.audio as any).preservesPitch = false;
+      e.audio.volume = volumeDoMotor(usePlayer.getState().volume);
+      e.audio.load();
+    }).catch((err: unknown) => {
+      if (seguinteRef.current !== prep) return;
+      prep.falhou = true;
+      registarNaCasca(`motor: ${prep.sourceId} sem crossfade, não se preparou (${String(err)})`);
+    });
+  }, []);
+
+  /** A passagem chegou ao fim: a fila avança pelo `ended` de sempre. */
+  const terminarPassagem = React.useCallback(() => {
+    if (!passagemRef.current) return;
+    passagemRef.current = null;
+    const g = oGrafo();
+    const deQual = faixaRef.current.sourceId;
+    // Antes da pausa: o "pause" da que sai não é uma pausa da pessoa.
+    entregaRef.current = { deQual };
+    faderEm(g, emEspera(g), 1);
+    const sai = ativa(g);
+    faderEm(g, sai, 0);
+    try { sai.audio.pause(); } catch { /* já parada */ }
+    usePlayer.getState()._onYtStateChange('ended');
+    // Rede de segurança: a fila não avançou para a preparada.
+    setTimeout(() => {
+      const e = entregaRef.current;
+      if (!e || e.deQual !== deQual || faixaRef.current.sourceId !== deQual) return;
+      registarNaCasca(`motor: ${deQual} a fila não avançou para a preparada`);
+      largarSeguinte();
+    }, ESPERA_PELA_ENTREGA_MS);
+  }, [largarSeguinte]);
+
+  /** O crossfade, a cada `timeupdate` da voz ativa (~4 por segundo, também escondida). */
+  const cuidarDaPassagem = React.useCallback((posicao: number, duracao: number) => {
+    const g = oGrafo();
+    const st = usePlayer.getState();
+    // Sem crossfade, ou longe do fim, não há nada a decidir (são ~4 leituras por segundo).
+    const fade = st.crossfadeSegundos ?? 0;
+    if (!passagemRef.current && !seguinteRef.current && (fade <= 0 || (duracao > 0 && duracao - posicao > fade + ANTECEDENCIA_DO_PC_S + 2))) return;
+    const seguinte = st.proximaFaixaParaOMotor();
+    const prep = seguinteRef.current;
+    // A seguinte mudou (fila mexida, shuffle, repeat): a preparada já não serve.
+    if (prep && !passagemRef.current && !entregaRef.current && prep.sourceId !== seguinte?.sourceId) largarSeguinte();
+    const c: ContextoDoCrossfade = {
+      duracaoDoFade: fade,
+      duracaoSegundos: duracao > 0 ? duracao : null,
+      posicaoSegundos: posicao,
+      // Uma seguinte que já falhou neste motor vai pelo IFrame: não se prepara aqui.
+      temFaixaSeguinte: !!seguinte && seguinte.source === 'youtube' && !recursoRef.current.has(seguinte.sourceId),
+      repeatUma: st.repeatMode === 'one',
+      backendNativo: true,
+      seguinteCarregada: !!seguinteRef.current?.pronta,
+      aDecorrer: !!passagemRef.current,
+      // Duas faixas do mesmo disco entram uma na outra sem fade (24/10).
+      mesmoDisco: seguemNoMesmoDisco(faixaRef.current, seguinte),
+    };
+    const passagem = passagemRef.current;
+    if (passagem) {
+      const decorrido = decorridoDaPassagem({ ...c, duracaoDoFade: passagem.fade });
+      if (decorrido < -0.5 || c.repeatUma) { abortarPassagem(true); return; }
+      if (decorrido >= passagem.fade) terminarPassagem();
+      return;
+    }
+    if (entregaRef.current || !st.isPlaying) return;
+    if (seguinte && !seguinteRef.current && devePrepararSeguinte(c, ANTECEDENCIA_DO_PC_S)) prepararSeguinte(seguinte);
+    if (seguinte && deveComecarCrossfade(c)) {
+      const e = emEspera(g);
+      const rate = seguinteRef.current?.rate ?? 1;
+      const velocidade = ativa(g).audio.playbackRate || 1;
+      passagemRef.current = { fade: c.duracaoDoFade };
+      // A velocidade DELA, e não a da que sai.
+      e.audio.playbackRate = rate;
+      (e.audio as any).preservesPitch = false;
+      e.audio.volume = volumeDoMotor(st.volume);
+      agendarPassagem(g, decorridoDaPassagem(c), c.duracaoDoFade, velocidade);
+      void g.ctx.resume().catch(() => {});
+      e.audio.play().catch(() => abortarPassagem(true));
+      // As Duas luas (C9): daqui em diante andam sozinhas, o motor só diz se a desfaz.
+      anunciarPassagem({ de: faixaRef.current.sourceId, para: seguinte, comecaEm: Date.now(), duracaoMs: (c.duracaoDoFade * 1000) / velocidade, automix: null });
+    }
+  }, [abortarPassagem, largarSeguinte, prepararSeguinte, terminarPassagem]);
+  const cuidarRef = useRef(cuidarDaPassagem);
+  cuidarRef.current = cuidarDaPassagem;
+
+  // Os eventos das duas vozes e os controlos: uma vez por montagem. Só a ativa fala com a loja.
   useEffect(() => {
     ligarOFetch();
     const g = oGrafo();
-    const a = g.audio;
     const st = usePlayer.getState();
+    const daAtiva = (ev: Event) => ev.target === ativa(g).audio;
     st.registerYtControls({
-      play: () => { void g.ctx.resume(); a.play().catch(() => {}); },
-      pause: () => a.pause(),
-      seek: (ms: number) => { try { a.currentTime = ms / 1000; } catch { /* sem metadados ainda */ } },
-      setVolume: (vol: number) => { a.volume = volumeDoMotor(vol); },
+      play: () => { void g.ctx.resume(); ativa(g).audio.play().catch(() => {}); },
+      // A pausa suspende a passagem: a que entra fica parada onde ia.
+      // Primeiro cala, depois repõe os faders: ao contrário, a que sai subia um instante antes de parar.
+      pause: () => { ativa(g).audio.pause(); if (passagemRef.current) abortarPassagem(false); },
+      seek: (ms: number) => { try { ativa(g).audio.currentTime = ms / 1000; } catch { /* sem metadados ainda */ } },
+      setVolume: (vol: number) => { for (const v of g.vozes) v.audio.volume = volumeDoMotor(vol); },
     });
-    const progresso = (forcar = false) => {
-      const agora = Date.now();
-      if (!forcar && agora - ultimoProgressoRef.current < (document.hidden ? 5000 : 1000)) return;
-      ultimoProgressoRef.current = agora;
-      const duracao = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : (faixaRef.current.durationSeconds || 0);
-      usePlayer.getState()._setProgress(a.currentTime * 1000, duracao * 1000);
-    };
-    const aoTocar = () => {
+    const aoTocar = (ev: Event) => {
+      if (!daAtiva(ev)) return;
       const m = marca;
       if (m && m.id === faixaRef.current.sourceId) {
         marca = null;
@@ -177,67 +416,117 @@ function MotorDeAudio({ track, aoFalhar }: { track: Track; aoFalhar: (sourceId: 
       s.setError(null); s._setBuffering(false); s._setActiveBackend('native'); s._onYtStateChange('playing');
       progresso(true);
     };
-    const aoPausar = () => { if (!aCarregarRef.current && !a.ended) usePlayer.getState()._onYtStateChange('paused'); progresso(true); };
-    const aoAcabar = () => usePlayer.getState()._onYtStateChange('ended');
-    const aoEsperar = () => usePlayer.getState()._setBuffering(true);
-    const aoTempo = () => progresso();
-    const aoErro = () => {
-      if (!a.src) return;
-      const codigo = a.error?.code ?? 0;
-      aoFalhar(faixaRef.current.sourceId, `audio error ${codigo}`);
+    const aoPausar = (ev: Event) => {
+      if (!daAtiva(ev)) return;
+      const a = ativa(g).audio;
+      if (!aCarregarRef.current && !a.ended && !entregaRef.current) usePlayer.getState()._onYtStateChange('paused');
+      progresso(true);
     };
-    a.addEventListener('playing', aoTocar);
-    a.addEventListener('pause', aoPausar);
-    a.addEventListener('ended', aoAcabar);
-    a.addEventListener('waiting', aoEsperar);
-    a.addEventListener('timeupdate', aoTempo);
-    a.addEventListener('error', aoErro);
+    const aoAcabar = (ev: Event) => {
+      if (!daAtiva(ev)) return;
+      // O fim da que sai, a meio de uma passagem, é o fim da passagem, e não um
+      // segundo `ended`, que saltava uma faixa.
+      if (passagemRef.current || entregaRef.current) { terminarPassagem(); return; }
+      usePlayer.getState()._onYtStateChange('ended');
+    };
+    const aoEsperar = (ev: Event) => { if (daAtiva(ev)) usePlayer.getState()._setBuffering(true); };
+    const aoTempo = (ev: Event) => {
+      if (!daAtiva(ev)) return;
+      progresso();
+      const a = ativa(g).audio;
+      const duracao = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : (faixaRef.current.durationSeconds || 0);
+      cuidarRef.current(a.currentTime, duracao);
+    };
+    const aoPoderTocar = (ev: Event) => {
+      const e = emEspera(g);
+      const prep = seguinteRef.current;
+      if (ev.target === e.audio && prep && !prep.falhou && e.id === prep.sourceId) prep.pronta = true;
+    };
+    const aoErro = (ev: Event) => {
+      const v = g.vozes.find((x) => x.audio === ev.target);
+      if (!v || !v.audio.getAttribute('src')) return;
+      if (v === ativa(g)) { aoFalhar(faixaRef.current.sourceId, `audio error ${v.audio.error?.code ?? 0}`); return; }
+      // A preparada falhou: esquece-se, e quando chegar a vez dela vai pelo caminho de sempre.
+      const prep = seguinteRef.current;
+      if (prep) { prep.falhou = true; prep.pronta = false; }
+      if (passagemRef.current) abortarPassagem(false);
+      registarNaCasca(`motor: ${v.id ?? '?'} sem crossfade, a preparada deu erro ${v.audio.error?.code ?? 0}`);
+      largarVoz(g, v);
+    };
+    const eventos: [string, (ev: Event) => void][] = [
+      ['playing', aoTocar], ['pause', aoPausar], ['ended', aoAcabar], ['waiting', aoEsperar],
+      ['timeupdate', aoTempo], ['canplay', aoPoderTocar], ['error', aoErro],
+    ];
+    for (const v of g.vozes) for (const [nome, f] of eventos) v.audio.addEventListener(nome, f);
     return () => {
-      a.removeEventListener('playing', aoTocar);
-      a.removeEventListener('pause', aoPausar);
-      a.removeEventListener('ended', aoAcabar);
-      a.removeEventListener('waiting', aoEsperar);
-      a.removeEventListener('timeupdate', aoTempo);
-      a.removeEventListener('error', aoErro);
+      for (const v of g.vozes) for (const [nome, f] of eventos) v.audio.removeEventListener(nome, f);
       // O motor sai (o IFrame vai tocar esta faixa, ou a casca desmontou): cala-se.
+      if (passagemRef.current) desfazerPassagem();
+      passagemRef.current = null;
+      seguinteRef.current = null;
+      entregaRef.current = null;
       aCarregarRef.current = true;
-      a.pause();
-      a.removeAttribute('src');
-      a.load();
+      for (const v of g.vozes) largarVoz(g, v);
     };
-  }, [aoFalhar]);
+  }, [aoFalhar, abortarPassagem, terminarPassagem, progresso]);
 
-  // Trocar de faixa: da cache se lá estiver; senão resolve, regista e toca.
+  // Trocar de faixa.
   useEffect(() => {
     let cancelado = false;
     let vigia: ReturnType<typeof setTimeout> | undefined;
     const g = oGrafo();
-    const a = g.audio;
     const st = usePlayer.getState();
+    const id = track.sourceId;
+
+    // CAMINHO CURTO: a faixa que entra é a preparada (o fim de uma passagem, ou
+    // um "seguinte" à mão perto do fim). Trocam-se os papéis, sem carregar nada.
+    const prep = seguinteRef.current;
+    const e = emEspera(g);
+    if (prep?.pronta && !prep.falhou && prep.sourceId === id && e.id === id) {
+      const sai = ativa(g);
+      g.ativa = g.ativa === 0 ? 1 : 0;
+      seguinteRef.current = null;
+      passagemRef.current = null;
+      entregaRef.current = null;
+      marca = null;
+      // A que sai PARA e larga o que tinha, em vez de ficar com a música inteira na memória.
+      largarVoz(g, sai);
+      faderEm(g, e, 1);
+      e.audio.volume = volumeDoMotor(st.volume);
+      e.audio.playbackRate = st.playbackRate || 1;
+      aCarregarRef.current = false;
+      st.setError(null);
+      st._setBuffering(false);
+      st._setActiveBackend('native');
+      if (st.isPlaying || st.autoplayOnLoad) {
+        void g.ctx.resume().catch(() => {});
+        if (e.audio.paused) e.audio.play().catch(() => {});
+        // A voz que entrou já estava a tocar: não vai mandar outro "playing".
+        st._onYtStateChange('playing');
+      }
+      progresso(true);
+      return;
+    }
+
+    // Outra faixa qualquer: a preparada cala-se, e a voz ativa carrega esta.
+    largarSeguinte();
+    const voz = ativa(g);
+    const a = voz.audio;
+    faderEm(g, voz, 1);
     aCarregarRef.current = true;
     st._setBuffering(true);
     st._setActiveBackend('resolving');
     (async () => {
-      const p = ponte();
-      const id = track.sourceId;
       const t0 = performance.now();
       marca = { id, t0, origem: '?', resolvido: null };
       // Uma música pedida que nunca chega a "playing" (nem a erro) também fica no registo.
       vigia = setTimeout(() => {
         if (marca?.id === id && usePlayer.getState().isPlaying) registarNaCasca(`motor: ${id} sem som aos 12 s (${marca.origem}${marca.resolvido != null ? `, resolver ${marca.resolvido} ms` : ''})`);
       }, 12_000);
-      let caminho: string | null = null;
-      try { caminho = (await p.audioNaCache(id))?.caminho ?? null; } catch { caminho = null; }
-      if (caminho && marca?.id === id) marca.origem = 'cache';
-      if (!caminho) {
-        const s = await resolveYouTubeStream(id, 'high', false, 'opus');
-        if (marca?.id === id) { marca.origem = 'rede'; marca.resolvido = Math.round(performance.now() - t0); }
-        if (s.isHls || !s.contentLength) throw new Error('sem ficheiro de áudio (HLS)');
-        const mime = s.formato === 'opus' ? 'audio/webm; codecs="opus"' : 'audio/mp4; codecs="mp4a.40.2"';
-        caminho = String(await p.registarAudio(id, s.url, s.contentLength, mime));
-      }
+      const caminho = await caminhoDaFaixa(id, t0);
       if (cancelado) return;
       const agora = usePlayer.getState();
+      voz.id = id;
       a.src = caminho;
       a.playbackRate = agora.playbackRate || 1;
       (a as any).preservesPitch = false;
@@ -252,47 +541,46 @@ function MotorDeAudio({ track, aoFalhar }: { track: Track; aoFalhar: (sourceId: 
         aCarregarRef.current = false;
         st._setBuffering(false);
       }
-    })().catch((e: unknown) => {
+    })().catch((err: unknown) => {
       if (cancelado) return;
       // Só para o diagnóstico (registarNaFila): a pessoa não vê isto, a faixa toca pelo IFrame.
-      aoFalhar(track.sourceId, String(e));
+      aoFalhar(id, String(err));
     });
     return () => { cancelado = true; clearTimeout(vigia); };
-  }, [track.sourceId, aoFalhar]);
+  }, [track.sourceId, aoFalhar, largarSeguinte, progresso]);
 
   // A velocidade escolhida (fora de Jam e sem seguir ninguém: esses vão para o IFrame).
   const velocidade = usePlayer((s) => s.playbackRate);
   useEffect(() => {
     const g = oGrafo();
-    g.audio.playbackRate = velocidade || 1;
-    (g.audio as any).preservesPitch = false;
+    ativa(g).audio.playbackRate = velocidade || 1;
+    for (const v of g.vozes) (v.audio as any).preservesPitch = false;
   }, [velocidade]);
 
   return null;
 }
 
 /**
- * Que motor toca esta faixa. O só de áudio, salvo:
- * - num Jam, a seguir um amigo ou com crossfade (ainda só o IFrame os sabe fazer);
+ * Que motor toca esta faixa. O só de áudio (também com crossfade, desde 21/11), salvo:
+ * - num Jam ou a seguir um amigo (ainda só o IFrame os sabe fazer);
  * - numa faixa em que ele já falhou nesta sessão (vai pelo IFrame, como hoje).
  */
 function MotorDoPcTauri({ track }: { track: Track }) {
   const emJam = useOuvirJuntos((s) => !!s.sessao);
   const aSeguir = useSeguirAmigo((s) => s.ritmo != null);
-  const crossfade = usePlayer((s) => (s.crossfadeSegundos ?? 0) > 0);
   const [recurso, setRecurso] = useState<ReadonlySet<string>>(() => new Set());
   const aoFalhar = React.useCallback((sourceId: string, porque: string) => {
     registarNaFila(`${sourceId}: motor só de áudio falhou (${porque}); toca pelo IFrame`);
     registarNaCasca(`motor: ${sourceId} FALHOU (${porque}), vai pelo IFrame`);
     setRecurso((antes) => (antes.has(sourceId) ? antes : new Set(antes).add(sourceId)));
   }, []);
-  const soDeAudio = !emJam && !aSeguir && !crossfade && !recurso.has(track.sourceId);
+  const soDeAudio = !emJam && !aSeguir && !recurso.has(track.sourceId);
   // Porque é que esta faixa vai pelo IFrame (21/11: uma audição inteira sem rasto no registo).
-  const porque = emJam ? 'Jam' : aSeguir ? 'a seguir um amigo' : crossfade ? 'crossfade ligado' : recurso.has(track.sourceId) ? 'falhou antes' : null;
+  const porque = emJam ? 'Jam' : aSeguir ? 'a seguir um amigo' : recurso.has(track.sourceId) ? 'falhou antes' : null;
   useEffect(() => {
     if (porque) registarNaCasca(`motor: ${track.sourceId} pelo IFrame (${porque})`);
   }, [track.sourceId, porque]);
-  return soDeAudio ? <MotorDeAudio track={track} aoFalhar={aoFalhar} /> : <YouTubePlayerView track={track} />;
+  return soDeAudio ? <MotorDeAudio track={track} aoFalhar={aoFalhar} recurso={recurso} /> : <YouTubePlayerView track={track} />;
 }
 
 /** O motor do PC: no Electron é o `YouTubePlayerView` de sempre, sem mais nada. */
