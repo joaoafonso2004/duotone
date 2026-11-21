@@ -85,8 +85,55 @@ function ligarOFetch(): void {
 export async function aquecerOMotor(): Promise<void> {
   if (!haMotorSoDeAudio()) return;
   ligarOFetch();
+  ligarResolverComORato();
   await aquecerResolvedor();
   try { await ponte()?.aquecerLigacoes?.(); } catch { /* uma conveniência */ }
+}
+
+// ------------------------------------------------------------- o rato parado
+/**
+ * Resolver antes do clique (o desenho do plano: "a linha com o rato parado").
+ * A resolução é a maior parte do tempo até ao som numa música nova (352 a 904
+ * ms a 21/11); com o rato parado em cima de uma linha ou de um cartão
+ * (`data-yt`, ver `faixaDoRato` no ui.web.tsx), resolve-se já, e o clique
+ * encontra o endereço na memória do `ytstream.ts`.
+ * - Só com o rato PARADO (`RATO_PARADO_MS`): passar por cima de uma lista não pede nada.
+ * - Nunca a que toca, nem uma que já está inteira no disco, e cada uma uma vez por sessão.
+ * - Um teto por minuto: em casa o PC e o iPhone partilham o IP (o bloqueio de 16/10).
+ */
+const RATO_PARADO_MS = 250;
+const RESOLUCOES_DO_RATO_POR_MINUTO = 4;
+let ratoLigado = false;
+function ligarResolverComORato(): void {
+  if (ratoLigado || typeof document === 'undefined') return;
+  ratoLigado = true;
+  let alvo: string | null = null;
+  let temporizador: ReturnType<typeof setTimeout> | undefined;
+  const feitas: number[] = [];
+  const vistos = new Set<string>();
+  document.addEventListener('pointerover', (ev) => {
+    const el = (ev.target as Element | null)?.closest?.('[data-yt]');
+    const id = el?.getAttribute('data-yt') ?? null;
+    if (id === alvo) return;
+    alvo = id;
+    clearTimeout(temporizador);
+    if (!id || vistos.has(id) || id === usePlayer.getState().current?.sourceId) return;
+    temporizador = setTimeout(() => {
+      if (alvo !== id || document.hidden) return;
+      const agora = Date.now();
+      while (feitas.length && agora - feitas[0] > 60_000) feitas.shift();
+      if (feitas.length >= RESOLUCOES_DO_RATO_POR_MINUTO) return;
+      vistos.add(id);
+      if (vistos.size > 300) vistos.delete(vistos.values().next().value as string);
+      void (async () => {
+        try { if (await ponte()?.audioNaCache?.(id)) return; } catch { /* sem casca: resolve na mesma */ }
+        feitas.push(Date.now());
+        const t0 = performance.now();
+        await resolveYouTubeStream(id, 'high', false, 'opus');
+        registarNaCasca(`motor: ${id} resolvido com o rato parado em ${Math.round(performance.now() - t0)} ms`);
+      })().catch(() => { /* o clique resolve como sempre */ });
+    }, RATO_PARADO_MS);
+  }, { passive: true });
 }
 
 // ------------------------------------------------------------------ o grafo

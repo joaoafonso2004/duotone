@@ -76,6 +76,12 @@ const SEM_CHAVES: string[] = [];
  * e se uma marca existir só de um dos lados (`scripts/test-animacoes-do-pc.ts`).
  */
 export const marcar = (...nomes: string[]) => ({ dataSet: { dt: nomes.join(' ') } } as any);
+/**
+ * O id da música no DOM (`data-yt`), nas linhas e nos cartões: o motor só de
+ * áudio do Tauri resolve a que tem o rato parado em cima, antes do clique
+ * (`resolverComORato` no motorDeAudio.web.tsx). No Electron ninguém o lê.
+ */
+export const faixaDoRato = (t: Track): Record<string, string> => (t.source === 'youtube' ? { yt: t.sourceId } : {});
 
 /**
  * A legenda de um botão de ícone (20/10, `desktop/useDicas.web.ts`): o nome que
@@ -645,7 +651,7 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto, gr
       <View style={ui.grelhaDeCapas} onLayout={(e) => setLarguraDaGrelha(e.nativeEvent.layout.width)}>
         {tracks.map((t) => (
           <P key={`${t.source}:${t.sourceId}`}
-            {...marcar('cartao')}
+            dataSet={{ ...marcar('cartao').dataSet, ...faixaDoRato(t) }}
             onPointerDown={((e: any) => comecarArrasto(e, t)) as any}
             onPress={() => onPlay(t, tracks, contexto?.(t), { tipo: 'prateleira', nome: titulo })}
             onContextMenu={((e: any) => { e.preventDefault(); onMore?.(t, contexto?.(t)); }) as any}
@@ -686,7 +692,7 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto, gr
       contentContainerStyle={{ gap: ESP.lg, paddingRight: ESP.xxxl }}>
       {tracks.map((t) => (
         <P key={`${t.source}:${t.sourceId}`}
-          {...marcar('cartao')}
+          dataSet={{ ...marcar('cartao').dataSet, ...faixaDoRato(t) }}
           // Num carrossel, puxar para o lado desliza-o: a música só se pega puxando para cima ou para baixo.
           onPointerDown={((e: any) => comecarArrasto(e, t, {}, { soVertical: true })) as any}
           onPress={() => { if (arrastou.current) return; onPlay(t, tracks, contexto?.(t), { tipo: 'prateleira', nome: titulo }); }}
@@ -1360,7 +1366,7 @@ const LinhaDaTabela = React.memo(function LinhaDaTabela({ track, index, aTocar, 
         if (event?.ctrlKey || event?.metaKey || event?.shiftKey) return;
         comecarArrasto(event, track, { lista: listKey, indice: index });
       }) as any}
-      dataSet={{ ...marca.dataSet, i: String(index) }}
+      dataSet={{ ...marca.dataSet, i: String(index), ...faixaDoRato(track) }}
       {...({ 'aria-selected': escolhida } as any)}
       style={({ hovered, pressed, focused }: any) => [ui.trackRow, plain && ui.trackRowPlain, (hovered || focused) && ui.trackHover, escolhida && ui.trackEscolhida, pressed && ui.pressed]}>
       {/* O número, o ▶ e as barrinhas ocupam o MESMO lugar: quem troca entre
