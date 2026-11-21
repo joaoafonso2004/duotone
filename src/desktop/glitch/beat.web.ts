@@ -102,6 +102,10 @@ const ATAQUES_GUARDADOS = 64;
 const SILENCIO_QUE_RECOMECA_MS = 3000;
 
 async function pedirFluxo(): Promise<MediaStream> {
+  // Na casca Tauri o som vem do próprio motor só de áudio (21/11), sem captura
+  // do ecrã e sem esperar por um gesto (`fluxoDoSom` no motorDeAudio.web.tsx).
+  const doMotor = (window as any).__duotoneMotor?.fluxoDoSom?.() as MediaStream | undefined;
+  if (doMotor?.getAudioTracks().length) return doMotor;
   const md = navigator.mediaDevices as any;
   if (!md?.getDisplayMedia) throw new Error('sem getDisplayMedia');
   // So queremos som. Ha ambientes em que o getDisplayMedia recusa um pedido

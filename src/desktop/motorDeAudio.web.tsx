@@ -95,7 +95,11 @@ export async function aquecerOMotor(): Promise<void> {
 // Os faders entram no grafo do `EQ_INSTALAR` do main.cjs. A voz ATIVA é a que
 // fala com a loja; a outra prepara a seguinte para o crossfade.
 type Voz = { audio: HTMLAudioElement; fader: GainNode; id: string | null };
-type Grafo = { ctx: AudioContext; vozes: [Voz, Voz]; ativa: 0 | 1; filtros: BiquadFilterNode[]; margem: GainNode; limitador: DynamicsCompressorNode };
+type Grafo = {
+  ctx: AudioContext; vozes: [Voz, Voz]; ativa: 0 | 1; filtros: BiquadFilterNode[]; margem: GainNode; limitador: DynamicsCompressorNode;
+  /** A saída para o glitch, criada no primeiro pedido (`fluxoDoSom`). */
+  destino?: MediaStreamAudioDestinationNode;
+};
 let grafo: Grafo | null = null;
 function oGrafo(): Grafo {
   if (grafo) return grafo;
@@ -143,6 +147,20 @@ function oGrafo(): Grafo {
     naoEsticarOTempo: async () => {
       for (const v of grafo!.vozes) (v.audio as any).preservesPitch = false;
       return { ok: true, agora: false, rate: ativa(grafo!).audio.playbackRate };
+    },
+    /**
+     * O som do motor para o glitch (`glitch/beat.web.ts`), em vez da captura do
+     * ecrã do Electron, que o Tauri não tem: o que sai do limitador, já com o EQ.
+     * O nó só nasce no primeiro pedido, e cada pedido leva uma CÓPIA da pista:
+     * o glitch para-a ao sair, e a original continua para o pedido seguinte.
+     */
+    fluxoDoSom: (): MediaStream => {
+      const g = grafo!;
+      if (!g.destino) {
+        g.destino = g.ctx.createMediaStreamDestination();
+        g.limitador.connect(g.destino);
+      }
+      return g.destino.stream.clone();
     },
   };
   return grafo;
