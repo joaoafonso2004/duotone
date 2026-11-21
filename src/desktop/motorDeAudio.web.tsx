@@ -18,7 +18,7 @@
  * `<audio>`) passa ESSA faixa ao IFrame.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { aquecerResolvedor, definirFetchDoYouTube, definirSondaDaCascata, resolveYouTubeStream } from '../api/ytstream';
+import { aquecerResolvedor, criarRenovacao, definirFetchDoYouTube, definirSondaDaCascata, resolveYouTubeStream } from '../api/ytstream';
 import { YouTubePlayerView } from '../components/YouTubePlayerView';
 import { usePlayer } from '../state/player';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
@@ -223,8 +223,14 @@ async function caminhoDaFaixa(id: string, t0: number | null): Promise<string> {
   if (t0 != null && marca?.id === id) { marca.origem = 'rede'; marca.resolvido = Math.round(performance.now() - t0); }
   if (s.isHls || !s.contentLength) throw new Error('sem ficheiro de áudio (HLS)');
   const mime = s.formato === 'opus' ? 'audio/webm; codecs="opus"' : 'audio/mp4; codecs="mp4a.40.2"';
+  registados.set(id, { tamanho: s.contentLength, mime, formato: s.formato === 'opus' ? 'opus' : 'aac' });
   return String(await p.registarAudio(id, s.url, s.contentLength, mime));
 }
+
+/** O que se registou na casca por faixa: a renovação volta a registar o MESMO ficheiro com outro URL. */
+const registados = new Map<string, { tamanho: number; mime: string; formato: 'opus' | 'aac' }>();
+/** Quantas renovações uma faixa tem direito por vez que toca (a 1.ª com identidade nova, a 2.ª a resolver de novo). */
+const RENOVACOES_POR_FAIXA = 2;
 
 /** A passagem acabou e pediu o `ended`: a fila tem isto para trocar para a preparada. */
 const ESPERA_PELA_ENTREGA_MS = 3000;
@@ -254,6 +260,8 @@ function MotorDeAudio({ track, aoFalhar, recurso }: { track: Track; aoFalhar: (s
   recursoRef.current = recurso;
   const aCarregarRef = useRef(false);
   const ultimoProgressoRef = useRef(0);
+  /** As renovações da faixa que toca (zeram quando muda de faixa: é outro id). */
+  const renovacaoRef = useRef<{ id: string; vezes: number; renovar: (() => Promise<string | null>) | null } | null>(null);
   /** A faixa preparada na voz em espera; `pronta` quando já pode soar. */
   const seguinteRef = useRef<Seguinte | null>(null);
   /** Há uma passagem a decorrer (a duração do fade dela). */
@@ -308,7 +316,7 @@ function MotorDeAudio({ track, aoFalhar, recurso }: { track: Track; aoFalhar: (s
       e.audio.playbackRate = prep.rate;
       (e.audio as any).preservesPitch = false;
       e.audio.volume = volumeDoMotor(usePlayer.getState().volume);
-      e.audio.load();
+      // Sem `load()`: pôr o `src` já carrega, e o `load()` repunha a velocidade a 1.
     }).catch((err: unknown) => {
       if (seguinteRef.current !== prep) return;
       prep.falhou = true;
@@ -396,6 +404,41 @@ function MotorDeAudio({ track, aoFalhar, recurso }: { track: Track; aoFalhar: (s
     const g = oGrafo();
     const st = usePlayer.getState();
     const daAtiva = (ev: Event) => ev.target === ativa(g).audio;
+    /**
+     * A renovação no 403 (21/11). O googlevideo cortou o URL (a meio, ou já à
+     * partida, agora que não há sonda): a casca responde 403 até haver outro.
+     * Renova-se como no iPhone (`criarRenovacao`: a 1.ª com identidade nova),
+     * regista-se o MESMO ficheiro com o URL novo e retoma-se no mesmo segundo.
+     * Só se isso falhar é que a faixa passa ao IFrame.
+     */
+    const renovarOuFalhar = async (v: Voz, codigo: number) => {
+      const id = faixaRef.current.sourceId;
+      const reg = registados.get(id);
+      const r = renovacaoRef.current?.id === id ? renovacaoRef.current : (renovacaoRef.current = { id, vezes: 0, renovar: null });
+      if (!reg || v.id !== id || r.vezes >= RENOVACOES_POR_FAIXA) { aoFalhar(id, `audio error ${codigo}`); return; }
+      r.vezes += 1;
+      const pos = v.audio.currentTime || 0;
+      const tocava = usePlayer.getState().isPlaying;
+      registarNaCasca(`motor: ${id} erro ${codigo} aos ${pos.toFixed(1)} s, a renovar (${r.vezes}.ª)`);
+      usePlayer.getState()._setBuffering(true);
+      try {
+        r.renovar ??= criarRenovacao(id, 'high', reg.formato);
+        const url = await r.renovar();
+        if (!url) throw new Error('sem URL do mesmo formato');
+        if (faixaRef.current.sourceId !== id || ativa(g) !== v) return;
+        const caminho = String(await ponte().registarAudio(id, url, reg.tamanho, reg.mime));
+        aCarregarRef.current = true;
+        // Outro endereço para o `<audio>` (o mesmo `src` não recarregava); a casca ignora o `?`.
+        v.audio.src = `${caminho}?v=${Date.now()}`;
+        v.audio.playbackRate = usePlayer.getState().playbackRate || 1;
+        (v.audio as any).preservesPitch = false;
+        if (pos > 0) v.audio.addEventListener('loadedmetadata', () => { try { v.audio.currentTime = pos; } catch { /* fica no início */ } }, { once: true });
+        if (tocava) await v.audio.play();
+        registarNaCasca(`motor: ${id} renovado, retoma aos ${pos.toFixed(1)} s`);
+      } catch (err: unknown) {
+        if (faixaRef.current.sourceId === id) aoFalhar(id, `audio error ${codigo}; renovação: ${String(err)}`);
+      }
+    };
     st.registerYtControls({
       play: () => { void g.ctx.resume(); ativa(g).audio.play().catch(() => {}); },
       // A pausa suspende a passagem: a que entra fica parada onde ia.
@@ -445,7 +488,7 @@ function MotorDeAudio({ track, aoFalhar, recurso }: { track: Track; aoFalhar: (s
     const aoErro = (ev: Event) => {
       const v = g.vozes.find((x) => x.audio === ev.target);
       if (!v || !v.audio.getAttribute('src')) return;
-      if (v === ativa(g)) { aoFalhar(faixaRef.current.sourceId, `audio error ${v.audio.error?.code ?? 0}`); return; }
+      if (v === ativa(g)) { void renovarOuFalhar(v, v.audio.error?.code ?? 0); return; }
       // A preparada falhou: esquece-se, e quando chegar a vez dela vai pelo caminho de sempre.
       const prep = seguinteRef.current;
       if (prep) { prep.falhou = true; prep.pronta = false; }

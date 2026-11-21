@@ -38,6 +38,29 @@ pub struct Fonte {
     pub url: String,
     pub tamanho: u64,
     pub mime: String,
+    /// O googlevideo recusou este URL (403 a meio, ou já à partida). Até a página
+    /// registar outro, o servidor responde 403 logo: sem isto o Chromium voltava a
+    /// pedir o mesmo intervalo, e o erro do `<audio>` (que dispara a renovação na
+    /// página) demorava.
+    pub expirada: bool,
+}
+
+/// O que servir para um id registado: a fonte, ou o estado HTTP a responder.
+pub fn fonte_para_servir(id: &str) -> Result<Fonte, u16> {
+    match FONTES.lock().unwrap().get(id) {
+        None => Err(404),
+        Some(f) if f.expirada => Err(403),
+        Some(f) => Ok(f.clone()),
+    }
+}
+
+/// O googlevideo recusou `url`: marca a fonte, se ainda for essa (a página pode já ter renovado).
+pub fn marcar_expirada(id: &str, url: &str) {
+    if let Some(f) = FONTES.lock().unwrap().get_mut(id) {
+        if f.url == url {
+            f.expirada = true;
+        }
+    }
 }
 
 static FONTES: LazyLock<Mutex<HashMap<String, Fonte>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
@@ -83,7 +106,7 @@ pub fn validar(id: &str, url: &str, tamanho: u64, mime: &str) -> Result<Fonte, S
     if !(mime.starts_with("audio/webm") || mime.starts_with("audio/mp4")) {
         return Err("tipo inválido".into());
     }
-    Ok(Fonte { url: url.to_string(), tamanho, mime: mime.to_string() })
+    Ok(Fonte { url: url.to_string(), tamanho, mime: mime.to_string(), expirada: false })
 }
 
 /// `Range: bytes=N-` ou `bytes=N-M` contra o tamanho. `None` = sem Range; `Err` = 416.
@@ -117,6 +140,7 @@ pub fn proximo_bocado(pos: u64, fim: u64, primeiro: bool) -> (u64, u64) {
 /// Lê do googlevideo aos bocados e, se começou no 0, copia para um ficheiro temporário
 /// que passa a cache quando chega ao fim.
 struct DoGooglevideo {
+    id: String,
     fonte: Fonte,
     pos: u64,
     fim: u64,
@@ -138,7 +162,7 @@ impl DoGooglevideo {
         } else {
             None
         };
-        Self { fonte, pos: inicio, fim, primeiro: true, buffer: Vec::new(), lido: 0, copia }
+        Self { id: id.to_string(), fonte, pos: inicio, fim, primeiro: true, buffer: Vec::new(), lido: 0, copia }
     }
 
     fn encher(&mut self) -> io::Result<()> {
@@ -150,6 +174,10 @@ impl DoGooglevideo {
         let estado = r.status().as_u16();
         if estado != 206 && estado != 200 {
             crate::registo::linha(&format!("áudio: googlevideo HTTP {estado} no byte {a}"));
+            // Um 4xx não passa com outra tentativa ao mesmo URL: a página tem de renovar.
+            if (400..500).contains(&estado) {
+                marcar_expirada(&self.id, &self.fonte.url);
+            }
             return Err(io::Error::other(format!("googlevideo HTTP {estado}")));
         }
         self.buffer = r.bytes().map_err(io::Error::other)?.to_vec();
@@ -230,7 +258,10 @@ pub fn responder(caminho: &str, range: Option<&str>) -> tiny_http::ResponseBox {
             }
         };
     }
-    let Some(fonte) = FONTES.lock().unwrap().get(id).cloned() else { return vazio(404) };
+    let fonte = match fonte_para_servir(id) {
+        Ok(f) => f,
+        Err(estado) => return vazio(estado),
+    };
     let total = fonte.tamanho;
     let tipo = fonte.mime.split(';').next().unwrap_or("audio/webm").to_string();
     match intervalo(range, total) {
@@ -331,5 +362,23 @@ mod testes {
         assert!(validar("dQw4w9WgXcQ", bom, 0, "audio/webm").is_err());
         assert!(validar("dQw4w9WgXcQ", bom, MAX_AUDIO + 1, "audio/webm").is_err());
         assert!(validar("dQw4w9WgXcQ", bom, 10, "video/mp4").is_err(), "só áudio");
+    }
+
+    #[test]
+    fn a_fonte_recusada_responde_403_ate_se_renovar() {
+        let id = "expiradaXyZ";
+        let velho = "https://rr1---sn-abc.googlevideo.com/videoplayback?id=velho";
+        let novo = "https://rr2---sn-abc.googlevideo.com/videoplayback?id=novo";
+        assert_eq!(fonte_para_servir(id).err(), Some(404));
+        FONTES.lock().unwrap().insert(id.into(), validar(id, velho, 1000, "audio/webm").unwrap());
+        assert!(fonte_para_servir(id).is_ok());
+        marcar_expirada(id, velho);
+        assert_eq!(fonte_para_servir(id).err(), Some(403), "recusada: 403 logo");
+        // A renovação regista outro URL: volta a servir-se.
+        FONTES.lock().unwrap().insert(id.into(), validar(id, novo, 1000, "audio/webm").unwrap());
+        assert!(fonte_para_servir(id).is_ok());
+        // Um 403 atrasado do URL antigo não estraga o novo.
+        marcar_expirada(id, velho);
+        assert!(fonte_para_servir(id).is_ok());
     }
 }
