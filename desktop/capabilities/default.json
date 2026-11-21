@@ -1,0 +1,7 @@
+{
+  "identifier": "default",
+  "description": "Só a janela principal, e só a origem da app (o servidor local). Nunca curingas: a ponte do Tauri existe também dentro do frame do YouTube e é esta lista que o trava.",
+  "windows": ["main"],
+  "remote": { "urls": ["http://localhost:18082/*", "http://localhost:18082"] },
+  "permissions": ["core:default", "allow-registo-da-pagina"]
+}

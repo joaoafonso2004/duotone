@@ -1,0 +1,8 @@
+{
+  "productName": "Duotone Preview",
+  "version": "0.1.0",
+  "identifier": "com.joao.duotone.desktop.preview",
+  "build": { "frontendDist": "web" },
+  "app": { "windows": [], "security": { "csp": null } },
+  "bundle": { "active": false }
+}
