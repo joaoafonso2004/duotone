@@ -23,7 +23,9 @@ const doTauri = [...bloco.matchAll(/^ {4}(\w+):/gm)].map((m) => m[1]);
 
 assert.ok(doElectron.size > 40, `o preload tem ${doElectron.size} chaves: a leitura falhou`);
 assert.ok(doTauri.length > 5, 'a ponte do Tauri tem de ter chaves');
-for (const chave of doTauri) assert.ok(doElectron.has(chave), `"${chave}" não existe no preload do Electron (erro de nome?)`);
+// As que só existem no Tauri: o motor só de áudio (decidido a 21/11: não entra no Electron).
+const SO_DO_TAURI = new Set(['pedirAoInnerTube', 'registarAudio', 'audioNaCache']);
+for (const chave of doTauri) assert.ok(doElectron.has(chave) || SO_DO_TAURI.has(chave), `"${chave}" não existe no preload do Electron (erro de nome?)`);
 assert.equal(new Set(doTauri).size, doTauri.length, 'chave repetida na ponte');
 
 // Só no frame principal e na origem da app: a ponte corre em todos os frames.
@@ -37,10 +39,10 @@ const permissoes = new Set(capacidade.permissions);
 for (const c of comandos) {
   assert.ok(declarados.has(c), `"${c}" não está no AppManifest do desktop/build.rs`);
   assert.ok(permissoes.has(`allow-${c.replace(/_/g, '-')}`), `"allow-${c.replace(/_/g, '-')}" não está na capability`);
-  assert.match(main, new RegExp(`(?:ponte|rede)::${c}\\b`), `"${c}" não está no generate_handler do main.rs`);
+  assert.match(main, new RegExp(`(?:ponte|rede|audio)::${c}\\b`), `"${c}" não está no generate_handler do main.rs`);
 }
 // A capability nunca aceita curingas na origem (a ponte existe no frame do YouTube).
 for (const url of capacidade.remote.urls) assert.match(url, /^http:\/\/localhost:\d+(\/\*)?$/, `origem larga demais: ${url}`);
 
 const faltam = [...doElectron].filter((k) => !doTauri.includes(k));
-console.log(`Ponte Tauri: ${doTauri.length} de ${doElectron.size} chaves do preload, ${comandos.length} comandos declarados, autorizados e registados. Por fazer: ${faltam.length}.`);
+console.log(`Ponte Tauri: ${doTauri.filter((k) => doElectron.has(k)).length} de ${doElectron.size} chaves do preload (mais ${doTauri.filter((k) => SO_DO_TAURI.has(k)).length} só do Tauri), ${comandos.length} comandos declarados, autorizados e registados. Por fazer: ${faltam.length}.`);

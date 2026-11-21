@@ -63,6 +63,11 @@
     lerEmbedDoSpotify: (id) => pedir('spotify_embed', { id }),
     lerPlaylistDaApple: (url) => pedir('apple_playlist', { url }),
     resolverLinkDoDeezer: (url) => pedir('deezer_link', { url }),
+    // F4, só no Tauri (decidido a 21/11): o motor só de áudio.
+    // O resolvedor (ytstream.ts) fala com o InnerTube por aqui; o áudio serve-se em /audio/<id>.
+    pedirAoInnerTube: (url, corpo, cabecalhos) => pedir('innertube_pedir', { url, corpo, cabecalhos }),
+    registarAudio: (id, url, tamanho, mime) => pedir('audio_registar', { id, url, tamanho, mime }),
+    audioNaCache: (id) => pedir('audio_na_cache', { id }),
     aliviarMemoria: () => {},
     atualizacaoAutomatica: true,
     procurarAtualizacao: () => Promise.resolve({ estado: 'atual' }),

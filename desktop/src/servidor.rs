@@ -153,6 +153,16 @@ impl Servidor {
 
 fn atender(servidor: Arc<Servidor>, escuta: tiny_http::Server) {
     for pedido in escuta.incoming_requests() {
+        // O áudio do motor (audio.rs): cada pedido numa thread, porque lê da rede
+        // enquanto entrega, e o `<audio>` abre vários (um salto é outro pedido).
+        if pedido.url().starts_with("/audio/") {
+            let range = pedido.headers().iter().find(|h| h.field.equiv("Range")).map(|h| h.value.as_str().to_string());
+            thread::spawn(move || {
+                let resposta = crate::audio::responder(pedido.url(), range.as_deref());
+                let _ = pedido.respond(resposta);
+            });
+            continue;
+        }
         let inm = pedido.headers().iter().find(|h| h.field.equiv("If-None-Match")).map(|h| h.value.as_str().to_string());
         let r = servidor.servir(pedido.url(), inm.as_deref());
         let mut resposta = tiny_http::Response::from_data(r.corpo).with_status_code(r.estado);

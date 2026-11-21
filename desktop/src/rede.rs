@@ -333,8 +333,45 @@ pub async fn spotify_embed(janela: WebviewWindow, id: String) -> Result<Value, S
     Ok(json!(r.text().await.map_err(|e| e.to_string())?))
 }
 
+re!(INNERTUBE_DO_MOTOR, r"^https://www\.youtube\.com/youtubei/v1/(player|visitor_id)(\?[\w=&%.-]{0,200})?$");
+const CABECALHOS_DO_MOTOR: &[&str] = &["content-type", "x-youtube-client-name", "x-youtube-client-version", "origin", "accept-language", "user-agent", "x-goog-visitor-id"];
+
+pub fn innertube_do_motor_valido(url: &str) -> bool {
+    INNERTUBE_DO_MOTOR.is_match(url)
+}
+
+/// O resolvedor do motor (o `ytstream.ts`, partilhado com o iPhone) fala com o
+/// InnerTube por aqui: só o `player` e o `visitor_id`, só POST, e só os cabeçalhos
+/// que ele usa. Devolve o estado e o corpo; quem interpreta é o `ytstream.ts`.
+#[tauri::command]
+pub async fn innertube_pedir(janela: WebviewWindow, url: String, corpo: String, cabecalhos: Vec<(String, String)>) -> Result<Value, String> {
+    da_janela_principal(&janela)?;
+    if !innertube_do_motor_valido(&url) || corpo.len() > 64 * 1024 || cabecalhos.len() > 16 {
+        return Err("Pedido invalido.".into());
+    }
+    let mut p = CLIENTE.post(&url).body(corpo).timeout(Duration::from_secs(20));
+    for (k, v) in &cabecalhos {
+        if !CABECALHOS_DO_MOTOR.contains(&k.to_ascii_lowercase().as_str()) {
+            return Err(format!("Cabecalho recusado: {k}"));
+        }
+        p = p.header(k.as_str(), v.as_str());
+    }
+    let r = p.send().await.map_err(|e| e.to_string())?;
+    let estado = r.status().as_u16();
+    Ok(json!({ "status": estado, "corpo": r.text().await.unwrap_or_default() }))
+}
+
 #[cfg(test)]
 mod testes {
+    #[test]
+    fn o_innertube_do_motor_so_aceita_player_e_visitor_id() {
+        assert!(super::innertube_do_motor_valido("https://www.youtube.com/youtubei/v1/player?prettyPrint=false"));
+        assert!(super::innertube_do_motor_valido("https://www.youtube.com/youtubei/v1/visitor_id?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8&prettyPrint=false"));
+        assert!(!super::innertube_do_motor_valido("https://www.youtube.com/youtubei/v1/search"));
+        assert!(!super::innertube_do_motor_valido("https://www.youtube.com.evil.com/youtubei/v1/player"));
+        assert!(!super::innertube_do_motor_valido("https://www.youtube.com/youtubei/v1/player/../search"));
+    }
+
     use super::*;
 
     #[test]

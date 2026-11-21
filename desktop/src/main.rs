@@ -7,6 +7,7 @@
 // Duotone instalada sem lhe tocar. A identidade de produção entra na F9.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod audio;
 mod canal;
 mod ponte;
 mod rede;
@@ -61,6 +62,8 @@ fn main() {
     // barra de tarefas por este id (o Tauri não o faz sozinho).
     canal::definir_aumid();
     registo::linha(&format!("arranque {} (porta {})", canal::IDENTIFICADOR, canal::PORTA));
+    // A cache do áudio poda-se só aqui, no arranque (no iPhone, podar a meio fazia cair a app).
+    audio::podar_cache();
 
     tauri::Builder::default()
         // Primeiro plugin: uma segunda instância sai aqui, antes de abrir a porta.
@@ -78,6 +81,7 @@ fn main() {
             ponte::arranque_ler, ponte::saude_ler, ponte::segundos_sem_interacao,
             rede::yt_pesquisa, rede::ytmusic_pesquisa, rede::yt_mix, rede::yt_refrao, rede::ytmusic_artista, rede::ytmusic_radio, rede::ytmusic_letra,
             rede::catalogo_pedir, rede::supabase_pedir, rede::spotify_embed, rede::apple_playlist, rede::deezer_link,
+            rede::innertube_pedir, audio::audio_registar, audio::audio_na_cache,
         ])
         .on_window_event(|janela, evento| {
             if matches!(evento, WindowEvent::Resized(_) | WindowEvent::Focused(_)) {
