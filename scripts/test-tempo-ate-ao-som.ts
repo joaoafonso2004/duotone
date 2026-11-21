@@ -37,6 +37,11 @@ assert.match(texto, /\[cache\] Cali Girl -- already on the phone/);
 assert.match(texto, /resolve 0\.9s, queue 1\.6s, download 0\.7s \(3\.1 MB\)/);
 
 assert.match(textoDoTempoAteAoSom([]), /no songs measured yet/, 'sem medidas, diz o que fazer');
+// O motor do PC (21/11): o disco é "este computador", e a rede é só a resolução.
+const doPc = textoDoTempoAteAoSom([a('Cali Girl', 120, 'cache'), a('crush', 620, 'stream', { resolverMs: 410 })], 'already on this computer');
+assert.match(doPc, /\[cache\] Cali Girl -- already on this computer/);
+assert.match(doPc, /\[stream\] crush -- resolve 0\.4s, then streamed/);
+assert.doesNotMatch(doPc, /queue/);
 assert.equal(resumir([a('x', 100, 'cache')]).faseMaisLenta, null, 'só cache: não há fase lenta');
 
 console.log('Tempo até ao primeiro som: passou.');

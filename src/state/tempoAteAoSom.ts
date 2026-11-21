@@ -39,10 +39,14 @@ export function ligarTempoAteAoSom(): void {
 }
 
 /** Chamado pelo leitor no primeiro som de uma faixa pedida. */
-export function anotarPrimeiroSom(videoId: string, titulo: string, origem: string, totalMs: number, pedidaEm = Date.now() - totalMs): void {
+export function anotarPrimeiroSom(
+  videoId: string, titulo: string, origem: string, totalMs: number, pedidaEm = Date.now() - totalMs,
+  /** A resolução medida por quem chama (o par do PC usa-a); aqui só quando o arranque não a tem. */
+  resolverMedido: number | null = null,
+): void {
   const arranque = arranqueAtual();
   const resolverMs = arranque && arranque.videoId === videoId && arranque.resolverInicioEm && arranque.resolverFimEm
-    ? Math.max(0, arranque.resolverFimEm - arranque.resolverInicioEm) : null;
+    ? Math.max(0, arranque.resolverFimEm - arranque.resolverInicioEm) : resolverMedido;
   const d = origem === 'cache' ? undefined : vistos.get(videoId);
   // Um download que o Smart Cache começou ANTES do pedido só conta a partir do
   // pedido: o tempo de antes não foi espera de ninguém (revisão do Codex).

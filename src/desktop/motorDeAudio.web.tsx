@@ -33,6 +33,10 @@ import {
 import { anunciarPassagem, desfazerPassagem } from '../state/passagemAVista';
 import { aoTocar as ajusteAoTocar, chaveDaFaixa } from '../lib/equalizer';
 import { arredondar as arredondarRate } from '../lib/playbackRate';
+import { anotarPrimeiroSom } from '../state/tempoAteAoSom';
+import { primeiraNota } from '../lib/tocarEnquantoDescarrega';
+import { registar as registarEvento } from '../lib/eventos';
+import { tituloDaFaixa } from '../lib/artistName';
 import type { Track } from '../types';
 
 const ponte = (): any => (typeof window !== 'undefined' ? (window as any).duotoneDesktop : undefined);
@@ -457,7 +461,13 @@ function MotorDeAudio({ track, aoFalhar, recurso }: { track: Track; aoFalhar: (s
       const m = marca;
       if (m && m.id === faixaRef.current.sourceId) {
         marca = null;
-        registarNaCasca(`motor: ${m.id} som aos ${Math.round(performance.now() - m.t0)} ms (${m.origem}${m.resolvido != null ? `, resolver ${m.resolvido} ms` : ''})`);
+        const ms = Math.round(performance.now() - m.t0);
+        registarNaCasca(`motor: ${m.id} som aos ${ms} ms (${m.origem}${m.resolvido != null ? `, resolver ${m.resolvido} ms` : ''})`);
+        // O "time to first sound" do relatório do PC, e o mesmo evento que o IFrame manda ('embed').
+        const origem = m.origem === 'cache' ? 'cache' : 'stream';
+        anotarPrimeiroSom(m.id, tituloDaFaixa(faixaRef.current), origem, ms, Date.now() - ms, m.resolvido);
+        const medida = primeiraNota(Date.now() - ms, Date.now(), origem);
+        if (medida) registarEvento('primeira_nota', medida);
       }
       aCarregarRef.current = false;
       const s = usePlayer.getState();

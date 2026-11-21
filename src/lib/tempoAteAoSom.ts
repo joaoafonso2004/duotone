@@ -80,7 +80,7 @@ export function resumir(lista: readonly Arranque[]): Resumo {
 const s = (ms: number | null) => (ms === null ? '-' : `${(ms / 1000).toFixed(1)}s`);
 
 /** A secção do relatório de reprodução. */
-export function textoDoTempoAteAoSom(lista: readonly Arranque[]): string {
+export function textoDoTempoAteAoSom(lista: readonly Arranque[], noAparelho = 'already on the phone'): string {
   // Medido no primeiro avanço da posição, que chega de segundo a segundo:
   // cada tempo pode passar do real até 1 s (revisão do Codex). Os que
   // falharam e as passagens do crossfade não entram.
@@ -94,9 +94,13 @@ export function textoDoTempoAteAoSom(lista: readonly Arranque[]): string {
   if (r.faseMaisLenta) linhas.push(`slowest part when not ready: ${r.faseMaisLenta}`);
   for (const a of lista) {
     const quando = new Date(a.em).toISOString().slice(11, 19);
+    // O motor do PC toca enquanto chega (21/11): não há fila nem download inteiro, só a resolução.
+    const soResolver = a.filaMs === null && a.downloadMs === null && a.mb === null && a.resolverMs !== null;
     const partes = a.origem === 'cache'
-      ? 'already on the phone'
-      : `resolve ${s(a.resolverMs)}, queue ${s(a.filaMs)}, download ${s(a.downloadMs)}${a.mb !== null ? ` (${a.mb} MB)` : ''}${a.comecadaAntes ? ', started early by Smart Cache' : ''}`;
+      ? noAparelho
+      : soResolver
+        ? `resolve ${s(a.resolverMs)}, then streamed`
+        : `resolve ${s(a.resolverMs)}, queue ${s(a.filaMs)}, download ${s(a.downloadMs)}${a.mb !== null ? ` (${a.mb} MB)` : ''}${a.comecadaAntes ? ', started early by Smart Cache' : ''}`;
     linhas.push(`  ${quando} ${s(a.totalMs)} [${a.origem}] ${a.titulo.slice(0, 40)} -- ${partes}`);
   }
   return linhas.join('\n');

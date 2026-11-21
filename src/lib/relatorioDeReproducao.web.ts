@@ -7,6 +7,8 @@ import { textoDoSupabase } from './pedidosAoSupabase';
 import { textoDosRecursos } from './recursosDaApp';
 import { textoDasMigracoes } from './migracoes';
 import { verificarMigracoes } from '../api/migracoes';
+import { arranquesMedidos } from '../state/tempoAteAoSom';
+import { textoDoTempoAteAoSom } from './tempoAteAoSom';
 
 /**
  * O relatório de reprodução do PC. Vivia dentro das Definições
@@ -20,7 +22,9 @@ import { verificarMigracoes } from '../api/migracoes';
  */
 
 export function plataformaDoRelatorio(): string {
-  return `windows (${navigator.userAgent.includes('Electron') ? 'app' : 'browser'})`;
+  // A casca Tauri (21/11) não diz "Electron" no userAgent: sem isto saía "browser".
+  const casca = (window as any).__TAURI_INTERNALS__ ? 'tauri' : navigator.userAgent.includes('Electron') ? 'app' : 'browser';
+  return `windows (${casca})`;
 }
 
 export async function textoDoRelatorioDeReproducao(): Promise<string> {
@@ -41,7 +45,9 @@ export async function textoDoRelatorioDeReproducao(): Promise<string> {
     + `\n${textoDoTrabalhoDeMetadados()}\n`
     + `\n${textoDoTrabalhoLocal()}\n`
     + `\n${textoDosPedidos()}\n`
-    + `\n${textoDoSupabase()}\n`;
+    + `\n${textoDoSupabase()}\n`
+    // Do pedido ao som, pelo motor só de áudio da casca Tauri (21/11). No Electron fica vazio.
+    + ((window as any).__TAURI_INTERNALS__ ? `\n${textoDoTempoAteAoSom(arranquesMedidos(), 'already on this computer')}\n` : '');
 }
 
 /** "Save playback report": no PC, um ficheiro .txt nas transferências. */
