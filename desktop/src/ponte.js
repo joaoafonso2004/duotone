@@ -74,6 +74,8 @@
     aplicarEqualizador: (ajuste) => (window.__duotoneMotor ? window.__duotoneMotor.aplicarEqualizador(ajuste) : Promise.resolve({ ok: false, porque: 'sem motor só de áudio' })),
     naoEsticarOTempo: () => (window.__duotoneMotor ? window.__duotoneMotor.naoEsticarOTempo() : Promise.resolve({ ok: false, porque: 'sem motor só de áudio' })),
     registarAudio: (id, url, tamanho, mime) => pedir('audio_registar', { id, url, tamanho, mime }),
+    // O 1.º bocado buscado antes do clique (o rato parado em cima da música).
+    adiantarAudio: (id, url, tamanho, mime) => pedir('audio_adiantar', { id, url, tamanho, mime }),
     audioNaCache: (id) => pedir('audio_na_cache', { id }),
     aliviarMemoria: () => {},
     atualizacaoAutomatica: true,

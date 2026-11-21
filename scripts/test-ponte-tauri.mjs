@@ -24,7 +24,7 @@ const doTauri = [...bloco.matchAll(/^ {4}(\w+):/gm)].map((m) => m[1]);
 assert.ok(doElectron.size > 40, `o preload tem ${doElectron.size} chaves: a leitura falhou`);
 assert.ok(doTauri.length > 5, 'a ponte do Tauri tem de ter chaves');
 // As que só existem no Tauri: o motor só de áudio (decidido a 21/11: não entra no Electron).
-const SO_DO_TAURI = new Set(['pedirAoInnerTube', 'aquecerLigacoes', 'sondarAudio', 'registarAudio', 'audioNaCache']);
+const SO_DO_TAURI = new Set(['pedirAoInnerTube', 'aquecerLigacoes', 'sondarAudio', 'registarAudio', 'adiantarAudio', 'audioNaCache']);
 for (const chave of doTauri) assert.ok(doElectron.has(chave) || SO_DO_TAURI.has(chave), `"${chave}" não existe no preload do Electron (erro de nome?)`);
 assert.equal(new Set(doTauri).size, doTauri.length, 'chave repetida na ponte');
 

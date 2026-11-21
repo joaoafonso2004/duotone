@@ -130,7 +130,7 @@ fn main() {
             ponte::arranque_ler, ponte::saude_ler, ponte::segundos_sem_interacao,
             rede::yt_pesquisa, rede::ytmusic_pesquisa, rede::yt_mix, rede::yt_refrao, rede::ytmusic_artista, rede::ytmusic_radio, rede::ytmusic_letra,
             rede::catalogo_pedir, rede::supabase_pedir, rede::spotify_embed, rede::apple_playlist, rede::deezer_link,
-            rede::innertube_pedir, rede::innertube_aquecer, rede::googlevideo_sondar, audio::audio_registar, audio::audio_na_cache,
+            rede::innertube_pedir, rede::innertube_aquecer, rede::googlevideo_sondar, audio::audio_registar, audio::audio_adiantar, audio::audio_na_cache,
         ])
         .on_window_event(|janela, evento| {
             // O fechar do Windows (Alt+F4, a barra de tarefas) faz o mesmo que o X da app.

@@ -130,8 +130,15 @@ function ligarResolverComORato(): void {
         try { if (await ponte()?.audioNaCache?.(id)) return; } catch { /* sem casca: resolve na mesma */ }
         feitas.push(Date.now());
         const t0 = performance.now();
-        await resolveYouTubeStream(id, 'high', false, 'opus');
+        const s = await resolveYouTubeStream(id, 'high', false, 'opus');
         registarNaCasca(`motor: ${id} resolvido com o rato parado em ${Math.round(performance.now() - t0)} ms`);
+        // E o 1.º bocado (256 KB) já para a memória da casca: o clique não espera
+        // pelo googlevideo (21/11: até 980 ms só em cabeçalhos). Regista-se como o
+        // clique registaria, para a renovação saber o ficheiro.
+        if (s.isHls || !s.contentLength) return;
+        const mime = s.formato === 'opus' ? 'audio/webm; codecs="opus"' : 'audio/mp4; codecs="mp4a.40.2"';
+        registados.set(id, { tamanho: s.contentLength, mime, formato: s.formato === 'opus' ? 'opus' : 'aac' });
+        await ponte()?.adiantarAudio?.(id, s.url, s.contentLength, mime);
       })().catch(() => { /* o clique resolve como sempre */ });
     }, RATO_PARADO_MS);
   }, { passive: true });
@@ -663,9 +670,12 @@ function MotorDeAudio({ track, aoFalhar, recurso }: { track: Track; aoFalhar: (s
     faderEm(g, voz, 1);
     st._setBuffering(true);
     st._setActiveBackend('resolving');
+    // Só se mede o que se pediu para tocar: uma sessão restaurada em pausa contava
+    // até alguém carregar em play (21/11: "som aos 932 652 ms").
+    const aMedir = st.isPlaying || st.autoplayOnLoad;
     (async () => {
       const t0 = performance.now();
-      marca = { id, t0, origem: '?', resolvido: null };
+      marca = aMedir ? { id, t0, origem: '?', resolvido: null } : null;
       // Uma música pedida que nunca chega a "playing" (nem a erro) também fica no registo.
       vigia = setTimeout(() => {
         if (marca?.id === id && usePlayer.getState().isPlaying) registarNaCasca(`motor: ${id} sem som aos 12 s (${marca.origem}${marca.resolvido != null ? `, resolver ${marca.resolvido} ms` : ''})`);

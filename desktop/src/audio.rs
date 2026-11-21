@@ -54,6 +54,33 @@ pub fn fonte_para_servir(id: &str) -> Result<Fonte, u16> {
     }
 }
 
+/// Os 1.ºs bocados adiantados (21/11): a página pede-os com o rato parado em
+/// cima de uma música, e o clique toca daqui sem esperar pelo googlevideo (o
+/// 1.º bocado chegou a levar 980 ms só em cabeçalhos). Poucos e em memória: o
+/// mais antigo sai primeiro, e cada um serve uma vez, ao mesmo URL.
+const ADIANTADOS_MAX: usize = 6;
+static ADIANTADOS: LazyLock<Mutex<Vec<(String, String, Vec<u8>)>>> = LazyLock::new(|| Mutex::new(Vec::new()));
+static A_ADIANTAR: LazyLock<Mutex<std::collections::HashSet<String>>> = LazyLock::new(|| Mutex::new(Default::default()));
+
+pub fn guardar_adiantado(id: &str, url: &str, bytes: Vec<u8>) {
+    let mut lista = ADIANTADOS.lock().unwrap();
+    lista.retain(|(i, _, _)| i != id);
+    lista.push((id.to_string(), url.to_string(), bytes));
+    while lista.len() > ADIANTADOS_MAX {
+        lista.remove(0);
+    }
+}
+
+pub fn tirar_adiantado(id: &str, url: &str) -> Option<Vec<u8>> {
+    let mut lista = ADIANTADOS.lock().unwrap();
+    let i = lista.iter().position(|(i, u, _)| i == id && u == url)?;
+    Some(lista.remove(i).2)
+}
+
+fn ja_adiantado(id: &str, url: &str) -> bool {
+    ADIANTADOS.lock().unwrap().iter().any(|(i, u, _)| i == id && u == url)
+}
+
 /// O googlevideo recusou `url`: marca a fonte, se ainda for essa (a página pode já ter renovado).
 pub fn marcar_expirada(id: &str, url: &str) {
     if let Some(f) = FONTES.lock().unwrap().get_mut(id) {
@@ -168,6 +195,21 @@ impl DoGooglevideo {
     fn encher(&mut self) -> io::Result<()> {
         let (a, b) = proximo_bocado(self.pos, self.fim, self.primeiro);
         self.primeiro = false;
+        // O 1.º bocado já adiantado (o rato parado em cima da música): sai da memória.
+        if a == 0 {
+            if let Some(bytes) = tirar_adiantado(&self.id, &self.fonte.url).filter(|v| v.len() as u64 == b + 1) {
+                crate::registo::linha(&format!("áudio: 1.º bocado de {} KB da memória (adiantado)", bytes.len() / 1024));
+                self.buffer = bytes;
+                self.lido = 0;
+                self.pos += self.buffer.len() as u64;
+                if let Some((f, _, _)) = self.copia.as_mut() {
+                    if f.write_all(&self.buffer).is_err() {
+                        self.copia = None;
+                    }
+                }
+                return Ok(());
+            }
+        }
         let t0 = std::time::Instant::now();
         let r = CLIENTE.get(&self.fonte.url).header("Range", format!("bytes={a}-{b}")).send().map_err(io::Error::other)?;
         let cabecalhos_ms = t0.elapsed().as_millis();
@@ -314,6 +356,46 @@ pub fn audio_registar(janela: WebviewWindow, id: String, url: String, tamanho: u
     Ok(format!("/audio/{id}"))
 }
 
+/// O rato parado em cima de uma música já resolvida: regista-a e vai buscar o 1.º
+/// bocado em segundo plano. Não espera por nada; uma falha só deixa o clique ir à
+/// rede como sempre (e um 4xx marca a fonte, para a renovação).
+#[tauri::command]
+pub fn audio_adiantar(janela: WebviewWindow, id: String, url: String, tamanho: u64, mime: String) -> Result<(), String> {
+    if janela.label() != "main" {
+        return Err("Pedido inválido.".into());
+    }
+    let fonte = validar(&id, &url, tamanho, &mime)?;
+    FONTES.lock().unwrap().insert(id.clone(), fonte);
+    if na_cache(&id).is_some() || ja_adiantado(&id, &url) || !A_ADIANTAR.lock().unwrap().insert(id.clone()) {
+        return Ok(());
+    }
+    std::thread::spawn(move || {
+        let fim = PRIMEIRO_BOCADO.min(tamanho) - 1;
+        let t0 = std::time::Instant::now();
+        let resposta = CLIENTE.get(&url).header("Range", format!("bytes=0-{fim}")).send();
+        match resposta {
+            Ok(r) if r.status().as_u16() == 206 || r.status().as_u16() == 200 => {
+                if let Ok(bytes) = r.bytes() {
+                    if bytes.len() as u64 == fim + 1 {
+                        crate::registo::linha(&format!("áudio: 1.º bocado de {id} adiantado em {} ms", t0.elapsed().as_millis()));
+                        guardar_adiantado(&id, &url, bytes.to_vec());
+                    }
+                }
+            }
+            Ok(r) => {
+                let estado = r.status().as_u16();
+                crate::registo::linha(&format!("áudio: adiantar {id}: googlevideo HTTP {estado}"));
+                if (400..500).contains(&estado) {
+                    marcar_expirada(&id, &url);
+                }
+            }
+            Err(_) => {}
+        }
+        A_ADIANTAR.lock().unwrap().remove(&id);
+    });
+    Ok(())
+}
+
 /// Está inteira no disco? Então toca já, sem resolver nada.
 #[tauri::command]
 pub fn audio_na_cache(janela: WebviewWindow, id: String) -> Result<Value, String> {
@@ -362,6 +444,21 @@ mod testes {
         assert!(validar("dQw4w9WgXcQ", bom, 0, "audio/webm").is_err());
         assert!(validar("dQw4w9WgXcQ", bom, MAX_AUDIO + 1, "audio/webm").is_err());
         assert!(validar("dQw4w9WgXcQ", bom, 10, "video/mp4").is_err(), "só áudio");
+    }
+
+    #[test]
+    fn os_adiantados_servem_uma_vez_ao_mesmo_url() {
+        let (url, outro) = ("https://rr1---sn-a.googlevideo.com/v?a=1", "https://rr1---sn-a.googlevideo.com/v?a=2");
+        guardar_adiantado("adiantadoA1", url, vec![1, 2, 3]);
+        assert_eq!(tirar_adiantado("adiantadoA1", outro), None, "outro URL (renovado) não serve");
+        assert_eq!(tirar_adiantado("adiantadoA1", url), Some(vec![1, 2, 3]));
+        assert_eq!(tirar_adiantado("adiantadoA1", url), None, "só uma vez");
+        // Só os últimos ADIANTADOS_MAX ficam.
+        for i in 0..ADIANTADOS_MAX + 2 {
+            guardar_adiantado(&format!("adiantadoB{i}"), url, vec![i as u8]);
+        }
+        assert_eq!(tirar_adiantado("adiantadoB0", url), None, "o mais antigo saiu");
+        assert!(tirar_adiantado(&format!("adiantadoB{}", ADIANTADOS_MAX + 1), url).is_some());
     }
 
     #[test]
