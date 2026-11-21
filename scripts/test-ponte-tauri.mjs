@@ -31,6 +31,16 @@ assert.equal(new Set(doTauri).size, doTauri.length, 'chave repetida na ponte');
 // Só no frame principal e na origem da app: a ponte corre em todos os frames.
 assert.match(ponte, /if \(window\.top !== window \|\| location\.origin !== '__ORIGEM__'/);
 
+// O "slowed" no IFrame de recurso (21/11): o script do frame do YouTube entra na janela,
+// só corre dentro de um frame do YouTube posto pela app, e não chama a ponte.
+const webview = ler('desktop/src/webview.rs');
+const doFrame = webview.slice(webview.indexOf('pub fn script_do_frame_do_youtube'), webview.indexOf('pub fn configurar'));
+assert.match(main, /\.initialization_script\(&webview::script_do_frame_do_youtube\(\)\)/, 'o script do frame do YouTube não entra na janela');
+assert.match(doFrame, /window\.top === window \|\|/, 'o script do frame tem de sair no frame principal');
+assert.match(doFrame, /ancestorOrigins/, 'o script do frame tem de conferir que o frame é da app');
+assert.match(doFrame, /preservesPitch = false/);
+assert.doesNotMatch(doFrame, /__TAURI|invoke/, 'o script do frame do YouTube não fala com a casca');
+
 // Cada comando chamado: declarado no build.rs, autorizado na capability, registado no main.rs.
 const comandos = [...new Set([...ponte.matchAll(/(?:invoke|pedir)\('([a-z_]+)'/g)].map((m) => m[1]))];
 assert.ok(comandos.length > 0);

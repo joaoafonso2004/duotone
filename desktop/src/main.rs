@@ -108,6 +108,8 @@ fn main() {
                 .initialization_script(webview::SCRIPT_DO_ARRANQUE)
                 // A ponte `window.duotoneDesktop` (F2), antes de qualquer script da app.
                 .initialization_script(&ponte::script())
+                // O tom acompanha a velocidade também no IFrame de recurso (o "slowed" do Electron).
+                .initialization_script(&webview::script_do_frame_do_youtube())
                 // Mostra-se no primeiro desenho da página, como o `ready-to-show`.
                 .on_page_load(|janela, carga| {
                     if carga.event() == PageLoadEvent::Finished {

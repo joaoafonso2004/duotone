@@ -21,6 +21,31 @@ pub const SCRIPT_DO_ARRANQUE: &str = r#"(() => {
   });
 })();"#;
 
+/// O "slowed" no IFrame de recurso (crossfade, Jam, seguir um amigo, falhas).
+/// O Electron põe o `preservesPitch = false` no `<video>` do frame do YouTube por
+/// fora (`PRESERVAR_TOM` no main.cjs); no Tauri não se injeta num frame já
+/// aberto, e o `naoEsticarOTempo` da ponte só chegava ao `<audio>` do motor: a
+/// 21/11 o João ouviu o lento ESTICADO (o tom igual) em vez de slowed (o tom a
+/// descer, como uma fita). Este script corre só nesse frame, sem ponte nem
+/// comandos: em cada vídeo que carrega, toca ou muda de velocidade, o tom
+/// acompanha a velocidade.
+pub fn script_do_frame_do_youtube() -> String {
+    r#"(() => {
+  if (window.top === window || !/(^|\.)youtube(-nocookie)?\.com$/.test(location.hostname)) return;
+  const pai = location.ancestorOrigins && location.ancestorOrigins[location.ancestorOrigins.length - 1];
+  if (pai !== '__ORIGEM__') return;
+  const tom = (e) => {
+    const v = e.target;
+    if (v instanceof HTMLMediaElement && v.preservesPitch !== false) {
+      v.preservesPitch = false;
+      v.webkitPreservesPitch = false;
+    }
+  };
+  for (const ev of ['loadstart', 'loadedmetadata', 'play', 'playing', 'ratechange']) document.addEventListener(ev, tom, true);
+})();"#
+        .replace("__ORIGEM__", &format!("http://localhost:{}", crate::canal::PORTA))
+}
+
 pub fn configurar(janela: &tauri::WebviewWindow) {
     let feito = janela.with_webview(|w| unsafe {
         use webview2_com::Microsoft::Web::WebView2::Win32::*;
