@@ -1,0 +1,59 @@
+// A ponte `window.duotoneDesktop` da casca Tauri: o mesmo contrato do
+// `electron/preload.cjs` (tipos em `src/desktop/electron.d.ts`), sobre o
+// `invoke` do Tauri. Corre em TODOS os frames (wry >= 0.51), por isso só se monta
+// no frame principal e na origem da app; noutro frame (o do YouTube) não faz nada,
+// e a ACL do Tauri recusa-lhe os comandos na mesma.
+//
+// O que ainda não existe na casca fica DE FORA (undefined): o renderer usa a ponte
+// com `?.` e trata a falta como "não há". Cada fase acrescenta o seu bocado.
+// O `scripts/test-ponte-tauri.mjs` confere que cada chave daqui existe no preload.
+(() => {
+  if (window.top !== window || location.origin !== '__ORIGEM__' || window.duotoneDesktop) return;
+  const invoke = (comando, args) => window.__TAURI_INTERNALS__.invoke(comando, args);
+  const ouvintes = new Map();
+  const ouvir = (nome, f) => {
+    if (!ouvintes.has(nome)) ouvintes.set(nome, new Set());
+    ouvintes.get(nome).add(f);
+    return () => ouvintes.get(nome).delete(f);
+  };
+  // O Rust chama isto (webview.eval) para entregar um acontecimento à página.
+  Object.defineProperty(window, '__duotoneEvento', {
+    value: (nome, dados) => { for (const f of ouvintes.get(nome) || []) { try { f(dados); } catch (e) { console.error(e); } } },
+  });
+
+  // A visibilidade da janela vem do Rust (prova P3: o WebView2 diz sempre "visible"
+  // com a janela escondida). O que a app já faz com o `visibilitychange` (parar o
+  // glitch, aliviar a memória, espaçar sincronizações) passa a obedecer.
+  let visibilidade = 'visible';
+  Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => visibilidade });
+  Object.defineProperty(document, 'hidden', { configurable: true, get: () => visibilidade !== 'visible' });
+  ouvir('janela:visibilidade', (estado) => {
+    const nova = estado === 'visible' ? 'visible' : 'hidden';
+    if (nova === visibilidade) return;
+    visibilidade = nova;
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+
+  const ponte = {
+    platform: 'win32',
+    discordApplicationId: '1547625164328538133',
+    getStartup: () => invoke('arranque_ler'),
+    setStartup: () => Promise.reject(new Error('Disponível na aplicação instalada no Windows.')),
+    lerSaude: () => invoke('saude_ler'),
+    segundosSemInteracao: () => invoke('segundos_sem_interacao'),
+    minimize: () => { void invoke('janela_minimizar'); },
+    toggleMaximize: () => { void invoke('janela_alternar_maximizar'); },
+    close: () => { void invoke('janela_fechar'); },
+    getCloseToTray: () => invoke('fechar_para_tabuleiro_ler'),
+    setCloseToTray: (enabled) => invoke('fechar_para_tabuleiro_definir', { enabled: enabled === true }),
+    isMaximized: () => invoke('janela_maximizada'),
+    onMaximizedChange: (listener) => ouvir('janela:maximizada', (v) => listener(Boolean(v))),
+    aliviarMemoria: () => {},
+    atualizacaoAutomatica: true,
+    procurarAtualizacao: () => Promise.resolve({ estado: 'atual' }),
+    descargaDaAtualizacao: () => Promise.resolve(null),
+    onDescargaDaAtualizacao: () => () => {},
+    onProgressoDaAtualizacao: () => () => {},
+  };
+  Object.defineProperty(window, 'duotoneDesktop', { value: Object.freeze(ponte) });
+})();

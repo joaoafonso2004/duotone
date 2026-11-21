@@ -314,6 +314,7 @@ const TESTES = [
   'scripts/test-api-regressions.mjs',
   'scripts/check-desktop-integration.mjs',
   'scripts/test-servidor-local.mjs',
+  'scripts/test-ponte-tauri.mjs',
   'scripts/test-segunda-instancia.mjs',
   'scripts/test-saude-electron.mjs',
   'scripts/test-atualizacao-windows.mjs',

@@ -44,6 +44,7 @@ test-*.mjs
 !scripts/test-atalhos.mjs
 !scripts/test-mini-leitor.mjs
 !scripts/test-servidor-local.mjs
+!scripts/test-ponte-tauri.mjs
 !scripts/test-pares-de-plataforma.mjs
 !scripts/test-duotone-connect-sql.mjs
 !scripts/test-limpar-fantasmas-sql.mjs

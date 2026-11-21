@@ -8,13 +8,34 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod canal;
+mod ponte;
 mod registo;
 mod servidor;
 mod webview;
 
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Mutex};
 
-use tauri::{webview::PageLoadEvent, Manager, WebviewUrl, WebviewWindowBuilder};
+use serde_json::json;
+use tauri::{webview::PageLoadEvent, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+
+/// O último estado dito à página, para só avisar quando muda.
+static ESTADO_DA_JANELA: Mutex<(Option<bool>, Option<&'static str>)> = Mutex::new((None, None));
+
+/// Maximizada? Visível, minimizada ou escondida? Dito à página quando muda.
+fn avisar_estado_da_janela(app: &tauri::AppHandle) {
+    let Some(janela) = app.get_webview_window("main") else { return };
+    let maximizada = janela.is_maximized().unwrap_or(false);
+    let visibilidade = if !janela.is_visible().unwrap_or(true) || janela.is_minimized().unwrap_or(false) { "hidden" } else { "visible" };
+    let mut estado = ESTADO_DA_JANELA.lock().unwrap();
+    if estado.0 != Some(maximizada) {
+        estado.0 = Some(maximizada);
+        ponte::entregar(&janela, "janela:maximizada", json!(maximizada));
+    }
+    if estado.1 != Some(visibilidade) {
+        estado.1 = Some(visibilidade);
+        ponte::entregar(&janela, "janela:visibilidade", json!(visibilidade));
+    }
+}
 
 /// A página regista o arranque e os erros (o script em webview.rs). Só texto, cortado.
 #[tauri::command]
@@ -34,6 +55,7 @@ fn pasta_da_web() -> PathBuf {
 
 fn main() {
     registo::instalar_panico();
+    ponte::marcar_inicio();
     // Antes de qualquer janela: o Windows encontra o atalho afixado e agrupa a
     // barra de tarefas por este id (o Tauri não o faz sozinho).
     canal::definir_aumid();
@@ -48,7 +70,17 @@ fn main() {
                 let _ = j.set_focus();
             }
         }))
-        .invoke_handler(tauri::generate_handler![registo_da_pagina])
+        .invoke_handler(tauri::generate_handler![
+            registo_da_pagina,
+            ponte::janela_minimizar, ponte::janela_alternar_maximizar, ponte::janela_fechar, ponte::janela_maximizada,
+            ponte::fechar_para_tabuleiro_ler, ponte::fechar_para_tabuleiro_definir,
+            ponte::arranque_ler, ponte::saude_ler, ponte::segundos_sem_interacao,
+        ])
+        .on_window_event(|janela, evento| {
+            if matches!(evento, WindowEvent::Resized(_) | WindowEvent::Focused(_)) {
+                avisar_estado_da_janela(janela.app_handle());
+            }
+        })
         .setup(|app| {
             let web = pasta_da_web();
             registo::linha(&format!("web em {}", web.display()));
@@ -67,10 +99,15 @@ fn main() {
                 .visible(false)
                 .background_color(tauri::window::Color(9, 9, 13, 255))
                 .initialization_script(webview::SCRIPT_DO_ARRANQUE)
+                // A ponte `window.duotoneDesktop` (F2), antes de qualquer script da app.
+                .initialization_script(&ponte::script())
                 // Mostra-se no primeiro desenho da página, como o `ready-to-show`.
                 .on_page_load(|janela, carga| {
                     if carga.event() == PageLoadEvent::Finished {
                         let _ = janela.show();
+                        // Uma página recarregada começa sem saber: volta a dizer-se tudo.
+                        *ESTADO_DA_JANELA.lock().unwrap() = (None, None);
+                        avisar_estado_da_janela(janela.app_handle());
                     }
                 })
                 .build()?;
