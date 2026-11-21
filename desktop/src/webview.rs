@@ -68,8 +68,18 @@ pub fn abrir_fora(url: &tauri::Url) {
     }
 }
 
+/// As teclas do modo limpo, pelo código virtual do Windows.
+fn tecla_do_modo_limpo(codigo: u32) -> Option<&'static str> {
+    match codigo {
+        0x7A => Some("F11"),   // VK_F11
+        0x1B => Some("Escape"), // VK_ESCAPE
+        _ => None,
+    }
+}
+
 pub fn configurar(janela: &tauri::WebviewWindow) {
-    let feito = janela.with_webview(|w| unsafe {
+    let (para_o_ecra, para_as_teclas) = (janela.clone(), janela.clone());
+    let feito = janela.with_webview(move |w| unsafe {
         use webview2_com::Microsoft::Web::WebView2::Win32::*;
         use windows::core::Interface;
         let Ok(nucleo) = w.controller().CoreWebView2() else { return };
@@ -161,6 +171,41 @@ pub fn configurar(janela: &tauri::WebviewWindow) {
         }));
         let mut ficha_da_saude = 0i64;
         let _ = nucleo.add_ProcessFailed(&falhou, &mut ficha_da_saude);
+
+        // O ecrã inteiro da página (o modo limpo, F11). O WebView2 só avisa: é a
+        // janela que tem de ir a ecrã inteiro, o que o Electron fazia sozinho. Sem
+        // isto, a capa enchia a janela mas a barra do Windows ficava à vista.
+        let ecra = webview2_com::ContainsFullScreenElementChangedEventHandler::create(Box::new(move |nucleo, _| {
+            let Some(n) = nucleo else { return Ok(()) };
+            let mut cheio = windows::core::BOOL(0);
+            n.ContainsFullScreenElement(&mut cheio)?;
+            let _ = para_o_ecra.set_fullscreen(cheio.as_bool());
+            Ok(())
+        }));
+        let mut ficha_do_ecra = 0i64;
+        let _ = nucleo.add_ContainsFullScreenElementChanged(&ecra, &mut ficha_do_ecra);
+
+        // O F11 e o Esc chegam à página mesmo com o foco dentro de um frame (o do
+        // YouTube de recurso), como o `before-input-event` do Electron. A tecla
+        // NÃO se consome: o Esc continua a fechar diálogos. Presa, só conta a 1.ª.
+        let teclas = webview2_com::AcceleratorKeyPressedEventHandler::create(Box::new(move |_, args| {
+            let Some(args) = args else { return Ok(()) };
+            let mut tipo = COREWEBVIEW2_KEY_EVENT_KIND::default();
+            args.KeyEventKind(&mut tipo)?;
+            if tipo != COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN && tipo != COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN {
+                return Ok(());
+            }
+            let mut estado = COREWEBVIEW2_PHYSICAL_KEY_STATUS::default();
+            args.PhysicalKeyStatus(&mut estado)?;
+            let mut tecla = 0u32;
+            args.VirtualKey(&mut tecla)?;
+            if let (false, Some(nome)) = (estado.WasKeyDown.as_bool(), tecla_do_modo_limpo(tecla)) {
+                crate::ponte::entregar(&para_as_teclas, "modo-limpo:tecla", serde_json::json!(nome));
+            }
+            Ok(())
+        }));
+        let mut ficha_das_teclas = 0i64;
+        let _ = w.controller().add_AcceleratorKeyPressed(&teclas, &mut ficha_das_teclas);
     });
     if let Err(e) = feito {
         crate::registo::linha(&format!("WebView2 sem configurar: {e}"));
@@ -170,6 +215,14 @@ pub fn configurar(janela: &tauri::WebviewWindow) {
 #[cfg(test)]
 mod testes {
     use super::*;
+
+    #[test]
+    fn as_teclas_do_modo_limpo() {
+        assert_eq!(tecla_do_modo_limpo(0x7A), Some("F11"));
+        assert_eq!(tecla_do_modo_limpo(0x1B), Some("Escape"));
+        assert_eq!(tecla_do_modo_limpo(0x7B), None, "o F12 não");
+        assert_eq!(tecla_do_modo_limpo(0x0D), None);
+    }
 
     #[test]
     fn a_janela_so_navega_dentro_da_app() {

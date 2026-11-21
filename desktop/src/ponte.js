@@ -48,6 +48,8 @@
     estadoDaBarra: (estado) => { pedir('barra_estado', { estado }).catch(() => {}); },
     tirarAcaoDaBarra: () => pedir('barra_tirar_acao', {}),
     onAcaoDaBarra: (listener) => ouvir('barra:acao', () => listener()),
+    // F5, o F11 e o Esc do modo limpo, vistos pela casca (desktop/src/webview.rs).
+    onTeclaDoModoLimpo: (listener) => ouvir('modo-limpo:tecla', (tecla) => listener(String(tecla))),
     // F5, as mensagens (desktop/src/notificacoes.rs): o toast com clique, o número na barra e o piscar.
     notifyMessage: (message) => { pedir('notificacao_mensagem', { mensagem: message }).catch(() => {}); },
     setUnreadMessages: (count, attention) => { pedir('notificacao_por_ler', { count, attention }).catch(() => {}); },
