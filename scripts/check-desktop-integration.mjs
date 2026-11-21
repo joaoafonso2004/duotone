@@ -76,9 +76,9 @@ const contexto = vm.createContext({
   // do Discord, que tem os seus proprios testes. A conta do Spotify tambem
   // (scripts/test-conta-do-spotify.cjs): aqui so se confere que se liga.
   // Os módulos da atualização, dos atalhos, do mini leitor, do arranque com o
-  // Windows e do menu do texto são puros (sem
+  // Windows, do menu do texto e do servidor local são puros (sem
   // `electron`): entram os verdadeiros.
-  require: (id) => id === './messageBadge.cjs' ? require('../electron/messageBadge.cjs') : id === './saude.cjs' ? { criarSaude: (o) => { captura.saude = o; return saudeDupla; } } : id === './atualizacao.cjs' ? require('../electron/atualizacao.cjs') : id === './atalhos.cjs' ? require('../electron/atalhos.cjs') : id === './miniLeitor.cjs' ? require('../electron/miniLeitor.cjs') : id === './barraDeTarefas.cjs' ? require('../electron/barraDeTarefas.cjs') : id === './arranqueComWindows.cjs' ? require('../electron/arranqueComWindows.cjs') : id === './menuDoTexto.cjs' ? require('../electron/menuDoTexto.cjs') : id === './sessaoDeMedia.cjs' ? require('../electron/sessaoDeMedia.cjs'): id === './contaDoSpotify.cjs' ? {
+  require: (id) => id === './servidorLocal.cjs' ? require('../electron/servidorLocal.cjs') : id === './messageBadge.cjs' ? require('../electron/messageBadge.cjs') : id === './saude.cjs' ? { criarSaude: (o) => { captura.saude = o; return saudeDupla; } } : id === './atualizacao.cjs' ? require('../electron/atualizacao.cjs') : id === './atalhos.cjs' ? require('../electron/atalhos.cjs') : id === './miniLeitor.cjs' ? require('../electron/miniLeitor.cjs') : id === './barraDeTarefas.cjs' ? require('../electron/barraDeTarefas.cjs') : id === './arranqueComWindows.cjs' ? require('../electron/arranqueComWindows.cjs') : id === './menuDoTexto.cjs' ? require('../electron/menuDoTexto.cjs') : id === './sessaoDeMedia.cjs' ? require('../electron/sessaoDeMedia.cjs'): id === './contaDoSpotify.cjs' ? {
     configurar() { captura.spotifyConfigurado = true; },
     ligada: async () => false, entrar: async () => false, sair: async () => {},
     consultar: async (nome) => { captura.consultaDoSpotify = nome; return { ok: true, dados: {} }; },

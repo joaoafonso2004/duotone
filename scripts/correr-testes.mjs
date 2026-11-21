@@ -313,6 +313,7 @@ const TESTES = [
   `${TS} scripts/test-presenca-ativa.ts`,
   'scripts/test-api-regressions.mjs',
   'scripts/check-desktop-integration.mjs',
+  'scripts/test-servidor-local.mjs',
   'scripts/test-segunda-instancia.mjs',
   'scripts/test-saude-electron.mjs',
   'scripts/test-atualizacao-windows.mjs',

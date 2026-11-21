@@ -210,61 +210,13 @@ ipcMain.on('notification:message', (event, message) => {
 let localServers = [];
 const SERVER_PORT = 18081;
 
-function resolverFicheiroLocal(reqUrl, webRoot) {
-  let urlPath;
-  try {
-    urlPath = decodeURIComponent((reqUrl || '/').split('?')[0]);
-  } catch {
-    return { status: 400 };
-  }
-  const safeUrlPath = (urlPath === '/' ? '/index.html' : urlPath).replace(/^[/\\]+/, '');
-  const filePath = path.resolve(webRoot, safeUrlPath);
-  const relative = path.relative(webRoot, filePath);
-  if (relative.startsWith('..') || path.isAbsolute(relative)) return { status: 403 };
-  return { status: 200, filePath };
-}
+// O que cada pedido recebe (ficheiro, tipo, ETag e cache) vive em
+// electron/servidorLocal.cjs; aqui ficam as portas.
+const { resolverFicheiroLocal, servirFicheiros } = require('./servidorLocal.cjs');
 
 function startLocalServer() {
   const webRoot = path.resolve(__dirname, '..', 'dist-web');
-  const servir = (req, res) => {
-    const resolved = resolverFicheiroLocal(req.url, webRoot);
-    if (resolved.status !== 200) {
-      res.statusCode = resolved.status;
-      res.end(resolved.status === 400 ? 'Bad Request' : 'Forbidden');
-      return;
-    }
-    const filePath = resolved.filePath;
-    
-    fs.readFile(filePath, (err, data) => {
-      if (err) {
-        fs.readFile(path.resolve(webRoot, 'index.html'), (err2, data2) => {
-          if (err2) {
-            res.statusCode = 404;
-            res.end('Not Found');
-          } else {
-            res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-            res.end(data2);
-          }
-        });
-      } else {
-        const ext = path.extname(filePath).toLowerCase();
-        let contentType = 'application/octet-stream';
-        if (ext === '.html') contentType = 'text/html; charset=utf-8';
-        else if (ext === '.js') contentType = 'application/javascript; charset=utf-8';
-        else if (ext === '.css') contentType = 'text/css; charset=utf-8';
-        else if (ext === '.json') contentType = 'application/json; charset=utf-8';
-        else if (ext === '.png') contentType = 'image/png';
-        else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
-        else if (ext === '.gif') contentType = 'image/gif';
-        else if (ext === '.webp') contentType = 'image/webp';
-        else if (ext === '.svg') contentType = 'image/svg+xml; charset=utf-8';
-        else if (ext === '.ico') contentType = 'image/x-icon';
-        
-        res.writeHead(200, { 'Content-Type': contentType });
-        res.end(data);
-      }
-    });
-  };
+  const servir = servirFicheiros(webRoot);
 
   // Duas escutas de loopback, nao uma. O bind era so em 127.0.0.1 mas a janela
   // carrega `localhost` -- e em Windows o localhost resolve muitas vezes para
