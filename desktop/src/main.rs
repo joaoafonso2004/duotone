@@ -8,6 +8,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod arranque;
+mod atualizacao;
 mod audio;
 mod barra;
 mod canal;
@@ -146,7 +147,7 @@ fn main() {
             registo_da_pagina,
             ponte::janela_minimizar, ponte::janela_alternar_maximizar, ponte::janela_fechar, ponte::janela_maximizada,
             ponte::fechar_para_tabuleiro_ler, ponte::fechar_para_tabuleiro_definir,
-            arranque::arranque_ler, arranque::arranque_definir, barra::barra_estado, barra::barra_tirar_acao, notificacoes::notificacao_mensagem, notificacoes::notificacao_por_ler, ponte::saude_ler, ponte::segundos_sem_interacao, saude::diagnostico_recursos,
+            arranque::arranque_ler, arranque::arranque_definir, barra::barra_estado, barra::barra_tirar_acao, notificacoes::notificacao_mensagem, notificacoes::notificacao_por_ler, atualizacao::atualizacao_procurar, atualizacao::atualizacao_descarga, atualizacao::atualizacao_instalar, ponte::saude_ler, ponte::segundos_sem_interacao, saude::diagnostico_recursos,
             mini::mini_alternar, mini::mini_esta_aberto, mini::mini_estado, mini::mini_modo_limpo,
             mini::mini_pronto, mini::mini_pega, mini::mini_lista, mini::mini_ignorar_rato, mini::mini_comando,
             rede::yt_pesquisa, rede::ytmusic_pesquisa, rede::yt_mix, rede::yt_refrao, rede::ytmusic_artista, rede::ytmusic_radio, rede::ytmusic_letra,
@@ -176,12 +177,20 @@ fn main() {
                 if let Some(j) = janela.app_handle().get_webview_window("main") {
                     barra::parar_de_piscar(&j);
                 }
+                // Voltar à app adianta a procura de atualizações (no máximo 1 por minuto, F9).
+                atualizacao::retomar();
             }
             if matches!(evento, WindowEvent::Resized(_) | WindowEvent::Focused(_)) {
                 avisar_estado_da_janela(janela.app_handle());
             }
         })
         .setup(|app| {
+            // Uma versão nova descarregada da última vez instala-se ANTES da janela (F9).
+            atualizacao::preparar(app.handle());
+            if atualizacao::instalar_pendente_ao_abrir() {
+                app.handle().exit(0);
+                return Ok(());
+            }
             let web = pasta_da_web();
             registo::linha(&format!("web em {}", web.display()));
             if let Err(e) = servidor::arrancar(web, canal::PORTA) {
@@ -218,7 +227,14 @@ fn main() {
                 .on_page_load(|janela, carga| {
                     if carga.event() == PageLoadEvent::Finished {
                         if !JA_ABRIU.swap(true, std::sync::atomic::Ordering::SeqCst) {
-                            if arranque::fica_no_tabuleiro(janela.app_handle()) {
+                            // Reaberta pelo instalador de uma atualização feita sozinha (F9):
+                            // volta como estava, sem se pôr à frente de ninguém.
+                            if let Some(como) = atualizacao::tirar_reabrir() {
+                                registo::linha(&format!("atualização: reaberta {como}"));
+                                if como == "minimizada" {
+                                    let _ = janela.minimize();
+                                }
+                            } else if arranque::fica_no_tabuleiro(janela.app_handle()) {
                                 registo::linha("arranque com o Windows: fica no tabuleiro");
                             } else {
                                 let _ = janela.show();
@@ -235,6 +251,8 @@ fn main() {
             barra::instalar(app.handle(), &janela);
             // O nome e o ícone do AUMID, sem os quais o Windows não mostra os toasts.
             notificacoes::preparar(app.handle());
+            // O relógio das atualizações: 5 s depois de abrir, depois de 15 em 15 min (F9).
+            atualizacao::iniciar(app.handle());
             // A app instalada liga o arranque com o Windows na 1.ª abertura (na Preview, nada).
             arranque::aplicar_de_origem(app.handle());
             // A amostra dos recursos com a janela escondida, uma vez por minuto (F8).

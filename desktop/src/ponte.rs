@@ -100,13 +100,18 @@ pub fn saude_ler(janela: WebviewWindow) -> Result<Value, String> {
 #[tauri::command]
 pub fn segundos_sem_interacao(janela: WebviewWindow) -> Result<u64, String> {
     da_janela_principal(&janela)?;
+    segundos_sem_uso().ok_or_else(|| "sem medida".into())
+}
+
+/// Segundos desde o último rato ou teclado (também a regra de instalar já, F9).
+pub fn segundos_sem_uso() -> Option<u64> {
     use windows::Win32::System::SystemInformation::GetTickCount;
     use windows::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
     let mut info = LASTINPUTINFO { cbSize: std::mem::size_of::<LASTINPUTINFO>() as u32, dwTime: 0 };
     unsafe {
         if !GetLastInputInfo(&mut info).as_bool() {
-            return Err("sem medida".into());
+            return None;
         }
-        Ok((GetTickCount().wrapping_sub(info.dwTime) / 1000) as u64)
+        Some((GetTickCount().wrapping_sub(info.dwTime) / 1000) as u64)
     }
 }

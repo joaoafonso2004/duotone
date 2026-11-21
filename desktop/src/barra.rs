@@ -225,9 +225,14 @@ struct Estado {
 }
 static ESTADO: Mutex<Estado> = Mutex::new(Estado { a_tocar: false, tem_faixa: false, postos: false, acao_pendente: None, por_ler: 0 });
 static APP: OnceLock<AppHandle> = OnceLock::new();
+/// Desde quando nada toca (nada a tocar): a atualização só se instala sozinha
+/// passados dez minutos parada (F9, `atualizacao.rs`). Começa parada no arranque.
+static PARADA_DESDE: Mutex<Option<std::time::Instant>> = Mutex::new(None);
 static BOTAO_CRIADO: OnceLock<u32> = OnceLock::new();
 /// Os ids dos três botões (longe dos do menu, que também chegam por WM_COMMAND).
 const ID_BASE: u32 = 0x4D00;
+const WM_POWERBROADCAST: u32 = 0x0218;
+const PBT_APMRESUMEAUTOMATIC: usize = 0x0012;
 
 thread_local! {
     static TASKBAR: RefCell<Option<ITaskbarList3>> = const { RefCell::new(None) };
@@ -412,6 +417,9 @@ unsafe extern "system" fn subclasse(h: HWND, msg: u32, wparam: WPARAM, lparam: L
             }
             return LRESULT(0);
         }
+    } else if msg == WM_POWERBROADCAST && wparam.0 == PBT_APMRESUMEAUTOMATIC {
+        // O PC acordou: a procura de atualizações adianta-se (F9), como o `resume` do Electron.
+        crate::atualizacao::retomar();
     } else if (msg == WM_SETTINGCHANGE || msg == WM_THEMECHANGED || msg == WM_DPICHANGED) && estado().postos {
         // O tema da barra ou a escala do monitor mudaram: os ícones refazem-se.
         por_botoes(h);
@@ -452,6 +460,7 @@ unsafe fn por_lista_de_saltos() -> windows::core::Result<()> {
 /// a ação dos argumentos e a lista de saltos.
 pub fn instalar(app: &AppHandle, janela: &WebviewWindow) {
     let _ = APP.set(app.clone());
+    *PARADA_DESDE.lock().unwrap_or_else(|e| e.into_inner()) = Some(std::time::Instant::now());
     estado().acao_pendente = acao_dos_argumentos(&std::env::args().collect::<Vec<_>>());
     let _ = BOTAO_CRIADO.set(unsafe { RegisterWindowMessageW(&HSTRING::from("TaskbarButtonCreated")) });
     let Some(h) = hwnd(janela) else { return };
@@ -490,6 +499,14 @@ pub fn barra_estado(app: AppHandle, janela: WebviewWindow, estado: Value) -> Res
         if e.a_tocar == a_tocar && e.tem_faixa == tem_faixa {
             return Ok(());
         }
+        if e.a_tocar != a_tocar {
+            let mut parada = PARADA_DESDE.lock().unwrap_or_else(|e| e.into_inner());
+            if a_tocar {
+                *parada = None;
+            } else if parada.is_none() {
+                *parada = Some(std::time::Instant::now());
+            }
+        }
         e.a_tocar = a_tocar;
         e.tem_faixa = tem_faixa;
         if !e.postos {
@@ -500,6 +517,13 @@ pub fn barra_estado(app: AppHandle, janela: WebviewWindow, estado: Value) -> Res
     let h = h.0 as usize;
     let _ = app.run_on_main_thread(move || unsafe { por_botoes(HWND(h as *mut _)) });
     Ok(())
+}
+
+/// A tocar? E há quanto tempo está parada (nada se está a tocar)?
+pub fn a_tocar_e_parada() -> (bool, Option<std::time::Duration>) {
+    let a_tocar = estado().a_tocar;
+    let parada = PARADA_DESDE.lock().unwrap_or_else(|e| e.into_inner()).map(|t| t.elapsed());
+    (a_tocar, if a_tocar { None } else { parada })
 }
 
 /// A ação da lista de saltos à espera, ou nada (tirada uma vez só).

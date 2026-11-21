@@ -14,6 +14,13 @@ pub const PORTA: u16 = 18082;
 /// A Preview não faz o que só a app instalada faz (ligar o arranque com o Windows
 /// de origem, por exemplo). Muda com o IDENTIFICADOR na F9.
 pub const E_A_PREVIEW: bool = true;
+/// O canal das atualizações (F9, `atualizacao.rs`): a entrada de `apps.duotone` no
+/// versions.json, o prefixo da tag e o instalador do release. A Preview tem o seu
+/// e NUNCA corre o instalador da Duotone (Electron). Na de produção: "windows",
+/// "win-v", "Duotone-Setup.exe" (os de hoje). Mudam com o IDENTIFICADOR.
+pub const ATUALIZACAO_ENTRADA: &str = "windowsPreview";
+pub const ATUALIZACAO_TAG: &str = "win-preview-v";
+pub const ATUALIZACAO_INSTALADOR: &str = "Duotone-Preview-Setup.exe";
 
 pub fn definir_aumid() {
     unsafe {

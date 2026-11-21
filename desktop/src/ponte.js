@@ -99,11 +99,15 @@
     adiantarAudio: (id, url, tamanho, mime) => pedir('audio_adiantar', { id, url, tamanho, mime }),
     audioNaCache: (id) => pedir('audio_na_cache', { id }),
     aliviarMemoria: () => {},
+    // F9, as atualizações (desktop/src/atualizacao.rs): de onde e o quê decide a casca.
+    // A Preview só aceita o canal dela; sem ele no versions.json, está sempre atual.
+    instalarAtualizacao: () => pedir('atualizacao_instalar', {}),
     atualizacaoAutomatica: true,
-    procurarAtualizacao: () => Promise.resolve({ estado: 'atual' }),
-    descargaDaAtualizacao: () => Promise.resolve(null),
-    onDescargaDaAtualizacao: () => () => {},
-    onProgressoDaAtualizacao: () => () => {},
+    procurarAtualizacao: () => pedir('atualizacao_procurar', {}),
+    descargaDaAtualizacao: () => pedir('atualizacao_descarga', {}),
+    onDescargaDaAtualizacao: (listener) => ouvir('atualizacao:descarga', (d) => listener(d && typeof d === 'object'
+      ? { versao: String(d.versao), fracao: Math.max(0, Math.min(1, Number(d.fracao) || 0)) } : null)),
+    onProgressoDaAtualizacao: (listener) => ouvir('atualizacao:progresso', (p) => listener(Math.max(0, Math.min(1, Number(p) || 0)))),
   };
   Object.defineProperty(window, 'duotoneDesktop', { value: Object.freeze(ponte) });
 })();
