@@ -27,7 +27,7 @@ import { volumeParaOMotor } from '../lib/curvaDoVolume';
 import { abafoDoRefrao } from '../state/refrao';
 import { registarNaFila } from '../lib/playbackDiagnostics';
 import {
-  ANTECEDENCIA_DO_PC_S, decorridoDaPassagem, deveComecarCrossfade, devePrepararSeguinte, seguemNoMesmoDisco,
+  ANTECEDENCIA_DO_PC_S, decorridoDaPassagem, deveComecarCrossfade, devePrepararSeguinte, podeCrossfade, seguemNoMesmoDisco,
   volumesDoCrossfade, type ContextoDoCrossfade,
 } from '../lib/crossfade';
 import { anunciarPassagem, desfazerPassagem } from '../state/passagemAVista';
@@ -320,7 +320,7 @@ function MotorDeAudio({ track, aoFalhar, recurso }: { track: Track; aoFalhar: (s
     }).catch((err: unknown) => {
       if (seguinteRef.current !== prep) return;
       prep.falhou = true;
-      registarNaCasca(`motor: ${prep.sourceId} sem crossfade, não se preparou (${String(err)})`);
+      registarNaCasca(`motor: ${prep.sourceId} a seguinte não se preparou (${String(err)})`);
     });
   }, []);
 
@@ -350,9 +350,10 @@ function MotorDeAudio({ track, aoFalhar, recurso }: { track: Track; aoFalhar: (s
   const cuidarDaPassagem = React.useCallback((posicao: number, duracao: number) => {
     const g = oGrafo();
     const st = usePlayer.getState();
-    // Sem crossfade, ou longe do fim, não há nada a decidir (são ~4 leituras por segundo).
+    // Longe do fim não há nada a decidir (são ~4 leituras por segundo).
     const fade = st.crossfadeSegundos ?? 0;
-    if (!passagemRef.current && !seguinteRef.current && (fade <= 0 || (duracao > 0 && duracao - posicao > fade + ANTECEDENCIA_DO_PC_S + 2))) return;
+    const longe = duracao > 0 ? duracao - posicao > Math.max(0, fade) + ANTECEDENCIA_DO_PC_S + 2 : fade <= 0;
+    if (!passagemRef.current && !seguinteRef.current && longe) return;
     const seguinte = st.proximaFaixaParaOMotor();
     const prep = seguinteRef.current;
     // A seguinte mudou (fila mexida, shuffle, repeat): a preparada já não serve.
@@ -378,7 +379,11 @@ function MotorDeAudio({ track, aoFalhar, recurso }: { track: Track; aoFalhar: (s
       return;
     }
     if (entregaRef.current || !st.isPlaying) return;
-    if (seguinte && !seguinteRef.current && devePrepararSeguinte(c, ANTECEDENCIA_DO_PC_S)) prepararSeguinte(seguinte);
+    // Sem passagem possível (crossfade desligado, o mesmo disco, uma faixa curta)
+    // a seguinte prepara-se na mesma: no `ended` troca-se de voz sem carregar
+    // nada, e a música seguinte entra logo (21/11; num disco ao vivo, sem buraco).
+    const semPassagem = !podeCrossfade(c) && c.temFaixaSeguinte && !c.repeatUma && posicao > 0 && duracao > 0 && duracao - posicao <= ANTECEDENCIA_DO_PC_S;
+    if (seguinte && !seguinteRef.current && (devePrepararSeguinte(c, ANTECEDENCIA_DO_PC_S) || semPassagem)) prepararSeguinte(seguinte);
     if (seguinte && deveComecarCrossfade(c)) {
       const e = emEspera(g);
       const rate = seguinteRef.current?.rate ?? 1;
