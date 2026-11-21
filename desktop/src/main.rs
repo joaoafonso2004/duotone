@@ -167,6 +167,16 @@ fn main() {
                 .initialization_script(&ponte::script())
                 // O tom acompanha a velocidade também no IFrame de recurso (o "slowed" do Electron).
                 .initialization_script(&webview::script_do_frame_do_youtube())
+                // Links para fora no browser; a janela da app nunca sai da origem dela.
+                .on_new_window(|url, _| {
+                    webview::abrir_fora(&url);
+                    tauri::webview::NewWindowResponse::Deny
+                })
+                .on_navigation(|url| {
+                    if webview::navegacao_da_app(url) { return true; }
+                    webview::abrir_fora(url);
+                    false
+                })
                 // Mostra-se no primeiro desenho da página, como o `ready-to-show`.
                 .on_page_load(|janela, carga| {
                     if carga.event() == PageLoadEvent::Finished {

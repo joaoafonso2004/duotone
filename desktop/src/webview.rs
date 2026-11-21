@@ -46,6 +46,28 @@ pub fn script_do_frame_do_youtube() -> String {
         .replace("__ORIGEM__", &format!("http://localhost:{}", crate::canal::PORTA))
 }
 
+/// A janela principal só navega dentro da app (o `will-navigate` do Electron).
+pub fn navegacao_da_app(url: &tauri::Url) -> bool {
+    let origem = format!("http://localhost:{}", crate::canal::PORTA);
+    url.as_str() == "about:blank" || url.origin().ascii_serialization() == origem
+}
+
+/// Links para fora (F5): o `window.open` da app (Privacy, Donations, o site) e uma
+/// navegação para fora abrem no browser por omissão, como o `shell.openExternal`
+/// do Electron. Só http(s): nunca `file:`, `ms-settings:` nem outro protocolo.
+pub fn abrir_fora(url: &tauri::Url) {
+    if !matches!(url.scheme(), "http" | "https") {
+        crate::registo::linha(&format!("link recusado ({}:)", url.scheme()));
+        return;
+    }
+    use windows::core::{w, HSTRING};
+    use windows::Win32::UI::Shell::ShellExecuteW;
+    use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+    unsafe {
+        ShellExecuteW(None, w!("open"), &HSTRING::from(url.as_str()), None, None, SW_SHOWNORMAL);
+    }
+}
+
 pub fn configurar(janela: &tauri::WebviewWindow) {
     let feito = janela.with_webview(|w| unsafe {
         use webview2_com::Microsoft::Web::WebView2::Win32::*;
@@ -94,5 +116,20 @@ pub fn configurar(janela: &tauri::WebviewWindow) {
     });
     if let Err(e) = feito {
         crate::registo::linha(&format!("WebView2 sem configurar: {e}"));
+    }
+}
+
+#[cfg(test)]
+mod testes {
+    use super::*;
+
+    #[test]
+    fn a_janela_so_navega_dentro_da_app() {
+        let url = |s: &str| tauri::Url::parse(s).unwrap();
+        assert!(navegacao_da_app(&url(&format!("http://localhost:{}/index.html", crate::canal::PORTA))));
+        assert!(navegacao_da_app(&url("about:blank")));
+        assert!(!navegacao_da_app(&url("http://localhost:1/index.html")), "outra porta é outra origem");
+        assert!(!navegacao_da_app(&url("https://duotone.example/privacy")));
+        assert!(!navegacao_da_app(&url(&format!("http://localhost.evil.com:{}/", crate::canal::PORTA))));
     }
 }
