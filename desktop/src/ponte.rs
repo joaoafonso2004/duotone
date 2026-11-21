@@ -96,11 +96,11 @@ pub fn arranque_ler(janela: WebviewWindow) -> Result<Value, String> {
     Ok(json!({ "available": false, "enabled": false, "mode": "tray" }))
 }
 
-/// Os incidentes da casca (F8 traz os do WebView2). Por agora: nenhum.
+/// Os incidentes da casca e do WebView2 (F8, `saude.rs`), que se apagam ao ler.
 #[tauri::command]
 pub fn saude_ler(janela: WebviewWindow) -> Result<Value, String> {
     da_janela_principal(&janela)?;
-    Ok(json!({ "incidentes": [], "processoComecouEm": INICIO.get().copied().unwrap_or(0) }))
+    Ok(crate::saude::ler(INICIO.get().copied().unwrap_or(0)))
 }
 
 /// Segundos sem rato nem teclado no sistema inteiro (a presença dos amigos).

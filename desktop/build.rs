@@ -6,7 +6,7 @@ fn main() {
         "registo_da_pagina",
         "janela_minimizar", "janela_alternar_maximizar", "janela_fechar", "janela_maximizada",
         "fechar_para_tabuleiro_ler", "fechar_para_tabuleiro_definir",
-        "arranque_ler", "saude_ler", "segundos_sem_interacao",
+        "arranque_ler", "saude_ler", "segundos_sem_interacao", "diagnostico_recursos",
         "yt_pesquisa", "ytmusic_pesquisa", "yt_mix", "yt_refrao", "ytmusic_artista", "ytmusic_radio", "ytmusic_letra",
         "catalogo_pedir", "supabase_pedir", "spotify_embed", "apple_playlist", "deezer_link",
         "innertube_pedir", "innertube_aquecer", "googlevideo_sondar", "audio_registar", "audio_adiantar", "audio_na_cache",

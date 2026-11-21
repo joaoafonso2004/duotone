@@ -12,6 +12,7 @@ mod canal;
 mod ponte;
 mod rede;
 mod registo;
+mod saude;
 mod servidor;
 mod webview;
 
@@ -127,7 +128,7 @@ fn main() {
             registo_da_pagina,
             ponte::janela_minimizar, ponte::janela_alternar_maximizar, ponte::janela_fechar, ponte::janela_maximizada,
             ponte::fechar_para_tabuleiro_ler, ponte::fechar_para_tabuleiro_definir,
-            ponte::arranque_ler, ponte::saude_ler, ponte::segundos_sem_interacao,
+            ponte::arranque_ler, ponte::saude_ler, ponte::segundos_sem_interacao, saude::diagnostico_recursos,
             rede::yt_pesquisa, rede::ytmusic_pesquisa, rede::yt_mix, rede::yt_refrao, rede::ytmusic_artista, rede::ytmusic_radio, rede::ytmusic_letra,
             rede::catalogo_pedir, rede::supabase_pedir, rede::spotify_embed, rede::apple_playlist, rede::deezer_link,
             rede::innertube_pedir, rede::innertube_aquecer, rede::googlevideo_sondar, audio::audio_registar, audio::audio_adiantar, audio::audio_na_cache,

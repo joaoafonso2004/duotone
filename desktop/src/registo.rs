@@ -23,6 +23,9 @@ pub fn instalar_panico() {
     let anterior = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         linha(&format!("PÂNICO: {info}"));
+        // E um incidente para a saúde (F8), como o `erroDoPrincipal` do Electron.
+        let mensagem: String = info.to_string().chars().take(300).collect();
+        crate::saude::registar(serde_json::json!({ "tipo": "principal", "fatal": false, "onde": "rust", "nome": "panic", "mensagem": mensagem }));
         anterior(info);
     }));
 }

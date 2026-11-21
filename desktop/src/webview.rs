@@ -131,6 +131,36 @@ pub fn configurar(janela: &tauri::WebviewWindow) {
         }));
         let mut ficha = 0i64;
         let _ = nucleo.add_WebResourceRequested(&manipulador, &mut ficha);
+
+        // A saúde (F8): um processo do WebView2 que morre fica nos incidentes, e a
+        // página que morre recarrega-se (no máximo 3 vezes em 5 min, `saude.rs`),
+        // como o `render-process-gone` do Electron. Presa: só se regista, como lá.
+        let falhou = webview2_com::ProcessFailedEventHandler::create(Box::new(|nucleo, args| {
+            let Some(args) = args else { return Ok(()) };
+            let mut tipo = COREWEBVIEW2_PROCESS_FAILED_KIND::default();
+            args.ProcessFailedKind(&mut tipo)?;
+            let mut codigo = 0i32;
+            if let Ok(a2) = args.cast::<ICoreWebView2ProcessFailedEventArgs2>() {
+                let _ = a2.ExitCode(&mut codigo);
+            }
+            if tipo == COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED {
+                if crate::saude::renderer_morreu("render-process-exited", codigo) {
+                    if let Some(n) = nucleo {
+                        let _ = n.Reload();
+                    }
+                }
+            } else if tipo == COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_UNRESPONSIVE {
+                crate::saude::registar(serde_json::json!({ "tipo": "bloqueio", "fatal": false, "onde": "janela", "motivo": "unresponsive" }));
+            } else if tipo == COREWEBVIEW2_PROCESS_FAILED_KIND_GPU_PROCESS_EXITED {
+                crate::saude::registar(serde_json::json!({ "tipo": "gpu", "fatal": false, "onde": "gpu", "motivo": "gpu-process-exited", "codigo": codigo }));
+            } else if tipo == COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED {
+                crate::saude::registar(serde_json::json!({ "tipo": "renderer", "fatal": true, "onde": "browser", "motivo": "browser-process-exited", "codigo": codigo }));
+                crate::registo::linha(&format!("saúde: o WebView2 morreu ({codigo})"));
+            }
+            Ok(())
+        }));
+        let mut ficha_da_saude = 0i64;
+        let _ = nucleo.add_ProcessFailed(&falhou, &mut ficha_da_saude);
     });
     if let Err(e) = feito {
         crate::registo::linha(&format!("WebView2 sem configurar: {e}"));

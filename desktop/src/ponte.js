@@ -42,6 +42,8 @@
     getStartup: () => invoke('arranque_ler'),
     setStartup: () => Promise.reject(new Error('Disponível na aplicação instalada no Windows.')),
     lerSaude: () => invoke('saude_ler'),
+    // F8: a memória e o CPU da casca e dos processos do WebView2, para o relatório.
+    lerRecursos: () => pedir('diagnostico_recursos', {}),
     segundosSemInteracao: () => invoke('segundos_sem_interacao'),
     minimize: () => { void invoke('janela_minimizar'); },
     toggleMaximize: () => { void invoke('janela_alternar_maximizar'); },
