@@ -77,6 +77,20 @@ import { classificar, consolidar, sinalDoErro, type TipoFalha } from '../lib/pla
 import { codecPreferido, type Codec } from '../lib/codecDeAudio';
 
 const PLAYER_ENDPOINT = 'https://www.youtube.com/youtubei/v1/player';
+/**
+ * O `fetch` do resolvedor. No iPhone é o de sempre (o global, resolvido em cada
+ * chamada, por isso os duplos dos testes continuam a apanhá-lo). A casca Tauri do
+ * PC troca-o (`definirFetchDoYouTube`): lá o InnerTube e o googlevideo recusam a
+ * página por CORS e os pedidos passam pelo Rust. Mexe só nos quatro pedidos deste
+ * ficheiro; mais nada muda no iPhone.
+ */
+export type FetchDoYouTube = (url: string, init?: RequestInit) => Promise<Response>;
+const fetchDeSempre: FetchDoYouTube = (url, init) => fetch(url, init);
+let fetchDoYouTube: FetchDoYouTube = fetchDeSempre;
+export function definirFetchDoYouTube(f: FetchDoYouTube | null): void {
+  fetchDoYouTube = f ?? fetchDeSempre;
+}
+
 const VISITOR_ENDPOINT = 'https://www.youtube.com/youtubei/v1/visitor_id';
 // Chave só para o cliente WEB (usada em getVisitorData). Android/iOS não a usam.
 const WEB_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
@@ -418,7 +432,7 @@ async function getVisitorData(): Promise<string | null> {
 
 /** Um `visitorData` acabado de pedir, sem cache nenhuma. */
 async function pedirVisitorData(): Promise<string | null> {
-  const res = await fetch(`${VISITOR_ENDPOINT}?key=${WEB_KEY}&prettyPrint=false`, {
+  const res = await fetchDoYouTube(`${VISITOR_ENDPOINT}?key=${WEB_KEY}&prettyPrint=false`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Origin: 'https://www.youtube.com' },
     body: JSON.stringify({
@@ -574,7 +588,7 @@ async function requestPlayer(
     ? `${PLAYER_ENDPOINT}?key=${client.apiKey}&prettyPrint=false`
     : `${PLAYER_ENDPOINT}?prettyPrint=false`;
 
-  const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+  const res = await fetchDoYouTube(url, { method: 'POST', headers, body: JSON.stringify(body) });
 
   if (!res.ok) {
     const erro: any = new Error(`InnerTube HTTP ${res.status} (${client.clientName})`);
@@ -596,7 +610,7 @@ async function requestPlayer(
  */
 async function pickAudioOnlyHls(masterUrl: string, preferLowBitrate: boolean): Promise<string | null> {
   try {
-    const res = await fetch(masterUrl);
+    const res = await fetchDoYouTube(masterUrl);
     if (!res.ok) return null;
     const text = await res.text();
     const medias = text
@@ -621,7 +635,7 @@ async function pickAudioOnlyHls(masterUrl: string, preferLowBitrate: boolean): P
  * como bom. Devolve o status HTTP (0 se a rede falhou). Pede só 2 bytes. */
 async function probeMediaUrl(url: string): Promise<number> {
   try {
-    const res = await fetch(url, { headers: { Range: 'bytes=0-1' } });
+    const res = await fetchDoYouTube(url, { headers: { Range: 'bytes=0-1' } });
     return res.status;
   } catch {
     return 0;

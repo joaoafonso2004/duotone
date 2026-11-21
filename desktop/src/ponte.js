@@ -66,6 +66,12 @@
     // F4, só no Tauri (decidido a 21/11): o motor só de áudio.
     // O resolvedor (ytstream.ts) fala com o InnerTube por aqui; o áudio serve-se em /audio/<id>.
     pedirAoInnerTube: (url, corpo, cabecalhos) => pedir('innertube_pedir', { url, corpo, cabecalhos }),
+    sondarAudio: (url) => pedir('googlevideo_sondar', { url }),
+    // O EQ e o tom vivem no grafo do motor só de áudio (MotorDeAudio.web.tsx),
+    // que se regista em window.__duotoneMotor. Com o IFrame de recurso a tocar
+    // não há onde os pôr no Tauri (não se injeta no frame do YouTube): diz-se a verdade.
+    aplicarEqualizador: (ajuste) => (window.__duotoneMotor ? window.__duotoneMotor.aplicarEqualizador(ajuste) : Promise.resolve({ ok: false, porque: 'sem motor só de áudio' })),
+    naoEsticarOTempo: () => (window.__duotoneMotor ? window.__duotoneMotor.naoEsticarOTempo() : Promise.resolve({ ok: false, porque: 'sem motor só de áudio' })),
     registarAudio: (id, url, tamanho, mime) => pedir('audio_registar', { id, url, tamanho, mime }),
     audioNaCache: (id) => pedir('audio_na_cache', { id }),
     aliviarMemoria: () => {},

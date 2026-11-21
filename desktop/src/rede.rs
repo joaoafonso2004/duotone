@@ -361,6 +361,21 @@ pub async fn innertube_pedir(janela: WebviewWindow, url: String, corpo: String, 
     Ok(json!({ "status": estado, "corpo": r.text().await.unwrap_or_default() }))
 }
 
+/// A sonda de 2 bytes do `ytstream.ts` (o `probeMediaUrl`): o CDN aceita o URL?
+/// Só https do googlevideo. Devolve o estado HTTP, ou 0 se a rede falhou.
+#[tauri::command]
+pub async fn googlevideo_sondar(janela: WebviewWindow, url: String) -> Result<u16, String> {
+    da_janela_principal(&janela)?;
+    let u = reqwest::Url::parse(&url).map_err(|_| "URL invalido")?;
+    if u.scheme() != "https" || !u.host_str().unwrap_or("").ends_with(".googlevideo.com") {
+        return Err("Pedido invalido.".into());
+    }
+    match CLIENTE.get(u).header("Range", "bytes=0-1").timeout(Duration::from_secs(10)).send().await {
+        Ok(r) => Ok(r.status().as_u16()),
+        Err(_) => Ok(0),
+    }
+}
+
 #[cfg(test)]
 mod testes {
     #[test]

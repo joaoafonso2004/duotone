@@ -16,7 +16,9 @@ import { useReducedMotion } from '../hooks/useReducedMotion';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, PanResponder, Pressable, ScrollView, Text, View } from 'react-native';
-import { YouTubePlayerView } from '../components/YouTubePlayerView';
+// O motor do PC (motorDeAudio.web.tsx): no Electron é o YouTubePlayerView de sempre;
+// na casca Tauri, o motor só de áudio com o IFrame de recurso.
+import { MotorDoPc } from './motorDeAudio.web';
 import { BarreiraDeErros } from '../components/BarreiraDeErros';
 import { modoDeShuffle, rotuloDoModo } from '../lib/smartShuffle';
 import { useAuth } from '../state/auth';
@@ -1196,7 +1198,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
   return <div data-dt="entrada-da-barra"><div>
     <V ref={refDoAlvo('barra-do-leitor', p.current ? alvoDaBarra() : null)} style={[styles.player,{opacity:p.closeGain*Math.max(0.2,1-dragX/swipeWidth.current),transform:[{translateX:reducedMotion?0:dragX+(1-p.closeGain)*180}]}]}>
     {/* O motor: se rebentar, volta a montar sozinho e retoma a faixa. */}
-    <BarreiraDeErros onde="leitor" discreta><YouTubePlayerView track={p.current} /></BarreiraDeErros>
+    <BarreiraDeErros onde="leitor" discreta><MotorDoPc track={p.current} /></BarreiraDeErros>
     <View style={styles.playerTrack} {...dragClose.panHandlers} onLayout={e=>{swipeWidth.current=e.nativeEvent.layout.width;}}>
       <Pressable
         style={styles.playerTrackLink}

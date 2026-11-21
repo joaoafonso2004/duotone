@@ -11,6 +11,6 @@
     "allow-arranque-ler", "allow-saude-ler", "allow-segundos-sem-interacao",
     "allow-yt-pesquisa", "allow-ytmusic-pesquisa", "allow-yt-mix", "allow-yt-refrao", "allow-ytmusic-artista", "allow-ytmusic-radio", "allow-ytmusic-letra",
     "allow-catalogo-pedir", "allow-supabase-pedir", "allow-spotify-embed", "allow-apple-playlist", "allow-deezer-link",
-    "allow-innertube-pedir", "allow-audio-registar", "allow-audio-na-cache"
+    "allow-innertube-pedir", "allow-googlevideo-sondar", "allow-audio-registar", "allow-audio-na-cache"
   ]
 }
