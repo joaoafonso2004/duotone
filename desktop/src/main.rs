@@ -55,6 +55,61 @@ fn pasta_da_web() -> PathBuf {
     exe.parent().and_then(|p| p.parent()).and_then(|p| p.parent()).map(|p| p.join("dist-web")).unwrap_or_else(|| PathBuf::from("dist-web"))
 }
 
+/// Esconde a janela no tabuleiro (o X, com "fechar para o tabuleiro"): a música continua.
+pub fn esconder_no_tabuleiro(app: &tauri::AppHandle) {
+    if let Some(j) = app.get_webview_window("main") {
+        let _ = j.hide();
+    }
+    avisar_estado_da_janela(app);
+}
+
+/// Volta a mostrar a janela (o ícone do tabuleiro, ou abrir a app outra vez).
+fn mostrar_janela(app: &tauri::AppHandle) {
+    if let Some(j) = app.get_webview_window("main") {
+        let _ = j.unminimize();
+        let _ = j.show();
+        let _ = j.set_focus();
+    }
+    avisar_estado_da_janela(app);
+}
+
+/// O ícone do tabuleiro (F5), como o `createTray` do Electron: "Open Duotone" e
+/// "Quit" no menu; um clique mostra ou esconde a janela. O mini leitor entra na F6.
+fn criar_tabuleiro(app: &tauri::App) -> tauri::Result<()> {
+    use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+    use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+    let Some(icone) = app.default_window_icon().cloned() else {
+        registo::linha("tabuleiro: sem ícone, fica sem tabuleiro");
+        return Ok(());
+    };
+    let abrir = MenuItem::with_id(app, "abrir", "Open Duotone", true, None::<&str>)?;
+    let separador = PredefinedMenuItem::separator(app)?;
+    let sair = MenuItem::with_id(app, "sair", "Quit", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&abrir, &separador, &sair])?;
+    TrayIconBuilder::with_id("principal")
+        .icon(icone)
+        .tooltip("Duotone")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, evento| match evento.id().as_ref() {
+            "abrir" => mostrar_janela(app),
+            "sair" => {
+                registo::linha("sair pelo tabuleiro");
+                app.exit(0);
+            }
+            _ => {}
+        })
+        .on_tray_icon_event(|tabuleiro, evento| {
+            if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = evento {
+                let app = tabuleiro.app_handle();
+                let visivel = app.get_webview_window("main").map(|j| j.is_visible().unwrap_or(false) && !j.is_minimized().unwrap_or(false)).unwrap_or(false);
+                if visivel { esconder_no_tabuleiro(app) } else { mostrar_janela(app) }
+            }
+        })
+        .build(app)?;
+    Ok(())
+}
+
 fn main() {
     registo::instalar_panico();
     ponte::marcar_inicio();
@@ -67,13 +122,7 @@ fn main() {
 
     tauri::Builder::default()
         // Primeiro plugin: uma segunda instância sai aqui, antes de abrir a porta.
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            if let Some(j) = app.get_webview_window("main") {
-                let _ = j.unminimize();
-                let _ = j.show();
-                let _ = j.set_focus();
-            }
-        }))
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| mostrar_janela(app)))
         .invoke_handler(tauri::generate_handler![
             registo_da_pagina,
             ponte::janela_minimizar, ponte::janela_alternar_maximizar, ponte::janela_fechar, ponte::janela_maximizada,
@@ -84,6 +133,14 @@ fn main() {
             rede::innertube_pedir, rede::innertube_aquecer, rede::googlevideo_sondar, audio::audio_registar, audio::audio_na_cache,
         ])
         .on_window_event(|janela, evento| {
+            // O fechar do Windows (Alt+F4, a barra de tarefas) faz o mesmo que o X da app.
+            if let WindowEvent::CloseRequested { api, .. } = evento {
+                if janela.label() == "main" && ponte::fecha_para_o_tabuleiro(janela.app_handle()) {
+                    api.prevent_close();
+                    esconder_no_tabuleiro(janela.app_handle());
+                    return;
+                }
+            }
             if matches!(evento, WindowEvent::Resized(_) | WindowEvent::Focused(_)) {
                 avisar_estado_da_janela(janela.app_handle());
             }
@@ -121,6 +178,9 @@ fn main() {
                 })
                 .build()?;
             webview::configurar(&janela);
+            if let Err(e) = criar_tabuleiro(app) {
+                registo::linha(&format!("tabuleiro falhou: {e}"));
+            }
             Ok(())
         })
         .run(tauri::generate_context!())

@@ -46,13 +46,17 @@ pub fn janela_alternar_maximizar(janela: WebviewWindow) -> Result<(), String> {
     if janela.is_maximized().unwrap_or(false) { janela.unmaximize() } else { janela.maximize() }.map_err(|e| e.to_string())
 }
 
-/// Fechar. Até haver tabuleiro (F5) fecha a app de vez, mesmo com "fechar para o
-/// tabuleiro" ligado: escondida sem ícone, ninguém a voltava a encontrar.
+/// O X da barra da app. Com "fechar para o tabuleiro" (o normal) esconde-se e a
+/// música continua; o ícone do tabuleiro (F5, `main.rs`) volta a mostrá-la.
 #[tauri::command]
 pub fn janela_fechar(app: AppHandle, janela: WebviewWindow) -> Result<(), String> {
     da_janela_principal(&janela)?;
-    crate::registo::linha("fechar (sem tabuleiro ainda: a app sai)");
-    app.exit(0);
+    if fecha_para_o_tabuleiro(&app) {
+        crate::esconder_no_tabuleiro(&app);
+    } else {
+        crate::registo::linha("fechar: a app sai");
+        app.exit(0);
+    }
     Ok(())
 }
 
@@ -63,14 +67,18 @@ pub fn janela_maximizada(janela: WebviewWindow) -> Result<bool, String> {
 }
 
 /// O `windows-window.json` de sempre: `{ closeToTray }`, ligado por omissão.
+pub fn fecha_para_o_tabuleiro(app: &AppHandle) -> bool {
+    ficheiro_da_janela(app)
+        .and_then(|f| fs::read_to_string(f).ok())
+        .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+        .and_then(|v| v["closeToTray"].as_bool())
+        .unwrap_or(true)
+}
+
 #[tauri::command]
 pub fn fechar_para_tabuleiro_ler(app: AppHandle, janela: WebviewWindow) -> Result<bool, String> {
     da_janela_principal(&janela)?;
-    let valor = ficheiro_da_janela(&app)
-        .and_then(|f| fs::read_to_string(f).ok())
-        .and_then(|t| serde_json::from_str::<Value>(&t).ok())
-        .and_then(|v| v["closeToTray"].as_bool());
-    Ok(valor.unwrap_or(true))
+    Ok(fecha_para_o_tabuleiro(&app))
 }
 
 #[tauri::command]
