@@ -37,6 +37,7 @@ import { anotarPrimeiroSom } from '../state/tempoAteAoSom';
 import { primeiraNota } from '../lib/tocarEnquantoDescarrega';
 import { registar as registarEvento } from '../lib/eventos';
 import { tituloDaFaixa } from '../lib/artistName';
+import { posicaoDeArranque } from '../lib/handoff';
 import type { Track } from '../types';
 
 const ponte = (): any => (typeof window !== 'undefined' ? (window as any).duotoneDesktop : undefined);
@@ -329,6 +330,8 @@ function MotorDeAudio({ track, aoFalhar, recurso }: { track: Track; aoFalhar: (s
   recursoRef.current = recurso;
   const aCarregarRef = useRef(false);
   const ultimoProgressoRef = useRef(0);
+  /** A 1.ª faixa desta montagem: só ela retoma a posição guardada (a sessão restaurada). */
+  const primeiraCargaRef = useRef(true);
   /** As renovações da faixa que toca (zeram quando muda de faixa: é outro id). */
   const renovacaoRef = useRef<{ id: string; vezes: number; renovar: (() => Promise<string | null>) | null } | null>(null);
   /** A faixa preparada na voz em espera; `pronta` quando já pode soar. */
@@ -341,8 +344,12 @@ function MotorDeAudio({ track, aoFalhar, recurso }: { track: Track; aoFalhar: (s
   const progresso = React.useCallback((forcar = false) => {
     const agora = Date.now();
     if (!forcar && agora - ultimoProgressoRef.current < (document.hidden ? 5000 : 1000)) return;
+    const voz = ativa(oGrafo());
+    // Só a posição da faixa ATUAL: enquanto a nova resolve, a voz ainda tem a anterior
+    // (21/11, o João: a música nova começava nos 10 s em que a outra ia).
+    if (voz.id !== faixaRef.current.sourceId) return;
     ultimoProgressoRef.current = agora;
-    const a = ativa(oGrafo()).audio;
+    const a = voz.audio;
     const duracao = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : (faixaRef.current.durationSeconds || 0);
     usePlayer.getState()._setProgress(a.currentTime * 1000, duracao * 1000);
   }, []);
@@ -554,7 +561,7 @@ function MotorDeAudio({ track, aoFalhar, recurso }: { track: Track; aoFalhar: (s
     };
     const aoEsperar = (ev: Event) => { if (daAtiva(ev)) usePlayer.getState()._setBuffering(true); };
     const aoTempo = (ev: Event) => {
-      if (!daAtiva(ev)) return;
+      if (!daAtiva(ev) || ativa(g).id !== faixaRef.current.sourceId) return;
       progresso();
       const a = ativa(g).audio;
       const duracao = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : (faixaRef.current.durationSeconds || 0);
@@ -568,7 +575,12 @@ function MotorDeAudio({ track, aoFalhar, recurso }: { track: Track; aoFalhar: (s
     const aoErro = (ev: Event) => {
       const v = g.vozes.find((x) => x.audio === ev.target);
       if (!v || !v.audio.getAttribute('src')) return;
-      if (v === ativa(g)) { void renovarOuFalhar(v, v.audio.error?.code ?? 0); return; }
+      if (v === ativa(g)) {
+        // Um erro da anterior, a chegar enquanto a nova resolve, não é da nova.
+        if (v.id !== faixaRef.current.sourceId) return;
+        void renovarOuFalhar(v, v.audio.error?.code ?? 0);
+        return;
+      }
       // A preparada falhou: esquece-se, e quando chegar a vez dela vai pelo caminho de sempre.
       const prep = seguinteRef.current;
       if (prep) { prep.falhou = true; prep.pronta = false; }
@@ -635,8 +647,20 @@ function MotorDeAudio({ track, aoFalhar, recurso }: { track: Track; aoFalhar: (s
     largarSeguinte();
     const voz = ativa(g);
     const a = voz.audio;
-    faderEm(g, voz, 1);
+    // A posição a retomar decide-se JÁ, antes de qualquer evento da anterior a
+    // poder mudar: a guardada só na 1.ª carga desta montagem (o arranque da app),
+    // e o "Continue here" pela retoma do handoff, como no IFrame.
+    const primeira = primeiraCargaRef.current;
+    primeiraCargaRef.current = false;
+    const guardada = primeira && st.current?.sourceId === id && st.positionMs > 1500 ? st.positionMs : null;
+    const retoma = posicaoDeArranque(st.retomaDoHandoff, id);
+    if (retoma != null) usePlayer.setState({ retomaDoHandoff: null });
+    const inicio = (retoma ?? guardada ?? 0) / 1000;
+    // A anterior para já, e a voz deixa de ser dela: não toca por cima nem escreve a posição.
     aCarregarRef.current = true;
+    voz.id = null;
+    try { a.pause(); } catch { /* já parada */ }
+    faderEm(g, voz, 1);
     st._setBuffering(true);
     st._setActiveBackend('resolving');
     (async () => {
@@ -655,7 +679,6 @@ function MotorDeAudio({ track, aoFalhar, recurso }: { track: Track; aoFalhar: (s
       (a as any).preservesPitch = false;
       a.volume = volumeDoMotor(agora.volume);
       // Uma posição guardada (o arranque da app, o "Continue here") retoma-se.
-      const inicio = agora.positionMs > 1500 && agora.current?.sourceId === id ? agora.positionMs / 1000 : 0;
       if (inicio > 0) a.addEventListener('loadedmetadata', () => { try { a.currentTime = inicio; } catch { /* fica no início */ } }, { once: true });
       if (agora.isPlaying || agora.autoplayOnLoad) {
         try { await g.ctx.resume(); } catch { /* sem gesto ainda */ }
