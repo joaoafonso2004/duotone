@@ -49,10 +49,27 @@ const permissoes = new Set(capacidade.permissions);
 for (const c of comandos) {
   assert.ok(declarados.has(c), `"${c}" não está no AppManifest do desktop/build.rs`);
   assert.ok(permissoes.has(`allow-${c.replace(/_/g, '-')}`), `"allow-${c.replace(/_/g, '-')}" não está na capability`);
-  assert.match(main, new RegExp(`(?:ponte|rede|audio|saude)::${c}\\b`), `"${c}" não está no generate_handler do main.rs`);
+  assert.match(main, new RegExp(`(?:ponte|rede|audio|saude|mini)::${c}\\b`), `"${c}" não está no generate_handler do main.rs`);
 }
 // A capability nunca aceita curingas na origem (a ponte existe no frame do YouTube).
 for (const url of capacidade.remote.urls) assert.match(url, /^http:\/\/localhost:\d+(\/\*)?$/, `origem larga demais: ${url}`);
+
+// A ponte do mini leitor (F6, desktop/src/ponteMini.js) contra o electron/preloadMini.cjs.
+const preloadMini = ler('electron/preloadMini.cjs');
+const ponteMini = ler('desktop/src/ponteMini.js');
+const doElectronMini = new Set([...preloadMini.matchAll(/^ {2}(\w+):/gm)].map((m) => m[1]));
+const blocoMini = ponteMini.slice(ponteMini.indexOf('window.duotoneMini = Object.freeze({'));
+const doTauriMini = [...blocoMini.matchAll(/^ {4}(\w+):/gm)].map((m) => m[1]);
+assert.ok(doElectronMini.size >= 10, `o preloadMini tem ${doElectronMini.size} chaves: a leitura falhou`);
+assert.deepEqual([...doTauriMini].sort(), [...doElectronMini].sort(), 'a ponte do mini tem as mesmas chaves do preloadMini');
+assert.match(ponteMini, /if \(window\.top !== window \|\| location\.origin !== '__ORIGEM__' \|\| !\/\[\?&\]janela=mini\\b\/\.test\(location\.search\)/, 'a ponte do mini só na janela do mini');
+const comandosMini = [...new Set([...ponteMini.matchAll(/pedir\('([a-z_]+)'/g)].map((m) => m[1]))];
+for (const c of comandosMini) {
+  assert.ok(declarados.has(c), `"${c}" (mini) não está no AppManifest`);
+  assert.ok(permissoes.has(`allow-${c.replace(/_/g, '-')}`), `"allow-${c.replace(/_/g, '-')}" (mini) não está na capability`);
+  assert.match(main, new RegExp(`mini::${c}\\b`), `"${c}" (mini) não está no generate_handler`);
+}
+assert.ok(capacidade.windows.includes('mini'), 'a capability tem de incluir a janela do mini');
 
 const faltam = [...doElectron].filter((k) => !doTauri.includes(k));
 console.log(`Ponte Tauri: ${doTauri.filter((k) => doElectron.has(k)).length} de ${doElectron.size} chaves do preload (mais ${doTauri.filter((k) => SO_DO_TAURI.has(k)).length} só do Tauri), ${comandos.length} comandos declarados, autorizados e registados. Por fazer: ${faltam.length}.`);

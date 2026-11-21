@@ -76,6 +76,13 @@
     aplicarEqualizador: (ajuste) => (window.__duotoneMotor ? window.__duotoneMotor.aplicarEqualizador(ajuste) : Promise.resolve({ ok: false, porque: 'sem motor só de áudio' })),
     naoEsticarOTempo: () => (window.__duotoneMotor ? window.__duotoneMotor.naoEsticarOTempo() : Promise.resolve({ ok: false, porque: 'sem motor só de áudio' })),
     registarAudio: (id, url, tamanho, mime) => pedir('audio_registar', { id, url, tamanho, mime }),
+    // F6, o mini leitor (desktop/src/mini.rs): esta janela publica o resumo e recebe os comandos.
+    alternarMiniLeitor: () => { pedir('mini_alternar', {}).catch(() => {}); },
+    miniLeitorAberto: () => pedir('mini_esta_aberto', {}),
+    onMiniLeitorAberto: (listener) => ouvir('mini:aberto', (v) => listener(Boolean(v))),
+    publicarNoMiniLeitor: (resumo) => { pedir('mini_estado', { resumo }).catch(() => {}); },
+    onComandoDoMiniLeitor: (listener) => ouvir('mini:comando', (c) => listener(c)),
+    miniLeitorNoModoLimpo: (ligado) => { pedir('mini_modo_limpo', { ligado: ligado === true }).catch(() => {}); },
     // O 1.º bocado buscado antes do clique (o rato parado em cima da música).
     adiantarAudio: (id, url, tamanho, mime) => pedir('audio_adiantar', { id, url, tamanho, mime }),
     audioNaCache: (id) => pedir('audio_na_cache', { id }),

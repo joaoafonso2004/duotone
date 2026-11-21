@@ -9,6 +9,7 @@
 
 mod audio;
 mod canal;
+mod mini;
 mod ponte;
 mod rede;
 mod registo;
@@ -37,6 +38,9 @@ fn avisar_estado_da_janela(app: &tauri::AppHandle) {
     if estado.1 != Some(visibilidade) {
         estado.1 = Some(visibilidade);
         ponte::entregar(&janela, "janela:visibilidade", json!(visibilidade));
+        drop(estado);
+        // O botão do mini ao lado do X mostra o que faz (F6).
+        mini::avisar_janela(app);
     }
 }
 
@@ -65,7 +69,7 @@ pub fn esconder_no_tabuleiro(app: &tauri::AppHandle) {
 }
 
 /// Volta a mostrar a janela (o ícone do tabuleiro, ou abrir a app outra vez).
-fn mostrar_janela(app: &tauri::AppHandle) {
+pub fn mostrar_janela(app: &tauri::AppHandle) {
     if let Some(j) = app.get_webview_window("main") {
         let _ = j.unminimize();
         let _ = j.show();
@@ -86,7 +90,8 @@ fn criar_tabuleiro(app: &tauri::App) -> tauri::Result<()> {
     let abrir = MenuItem::with_id(app, "abrir", "Open Duotone", true, None::<&str>)?;
     let separador = PredefinedMenuItem::separator(app)?;
     let sair = MenuItem::with_id(app, "sair", "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&abrir, &separador, &sair])?;
+    let mini_leitor = MenuItem::with_id(app, "mini", "Mini player", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&abrir, &mini_leitor, &separador, &sair])?;
     TrayIconBuilder::with_id("principal")
         .icon(icone)
         .tooltip("Duotone")
@@ -94,6 +99,7 @@ fn criar_tabuleiro(app: &tauri::App) -> tauri::Result<()> {
         .show_menu_on_left_click(false)
         .on_menu_event(|app, evento| match evento.id().as_ref() {
             "abrir" => mostrar_janela(app),
+            "mini" => mini::alternar(app),
             "sair" => {
                 registo::linha("sair pelo tabuleiro");
                 app.exit(0);
@@ -129,6 +135,8 @@ fn main() {
             ponte::janela_minimizar, ponte::janela_alternar_maximizar, ponte::janela_fechar, ponte::janela_maximizada,
             ponte::fechar_para_tabuleiro_ler, ponte::fechar_para_tabuleiro_definir,
             ponte::arranque_ler, ponte::saude_ler, ponte::segundos_sem_interacao, saude::diagnostico_recursos,
+            mini::mini_alternar, mini::mini_esta_aberto, mini::mini_estado, mini::mini_modo_limpo,
+            mini::mini_pronto, mini::mini_pega, mini::mini_lista, mini::mini_ignorar_rato, mini::mini_comando,
             rede::yt_pesquisa, rede::ytmusic_pesquisa, rede::yt_mix, rede::yt_refrao, rede::ytmusic_artista, rede::ytmusic_radio, rede::ytmusic_letra,
             rede::catalogo_pedir, rede::supabase_pedir, rede::spotify_embed, rede::apple_playlist, rede::deezer_link,
             rede::innertube_pedir, rede::innertube_aquecer, rede::googlevideo_sondar, audio::audio_registar, audio::audio_adiantar, audio::audio_na_cache,
@@ -141,6 +149,15 @@ fn main() {
                     esconder_no_tabuleiro(janela.app_handle());
                     return;
                 }
+            }
+            // O mini (F6): o fim de um arrasto conta-se dos `Moved`, e fechado avisa a principal.
+            if janela.label() == "mini" {
+                match evento {
+                    WindowEvent::Moved(_) => mini::movido(janela.app_handle()),
+                    WindowEvent::Destroyed => mini::fechado(janela.app_handle()),
+                    _ => {}
+                }
+                return;
             }
             if matches!(evento, WindowEvent::Resized(_) | WindowEvent::Focused(_)) {
                 avisar_estado_da_janela(janela.app_handle());
