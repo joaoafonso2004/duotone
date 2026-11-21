@@ -12,17 +12,19 @@
  *
  * O mesmo contrato com a store que o `YouTubePlayerView.web.tsx`:
  * `registerYtControls`, `_setProgress`, `_setBuffering`, `_setActiveBackend`,
- * `_onYtStateChange` e `setError`. O crossfade é dele desde 21/11 (duas vozes,
- * ver `MotorDeAudio`). O que ainda não faz (Jam, seguir um amigo) continua no
- * IFrame: o `MotorDoPc` escolhe por faixa, e uma falha (resolução, HLS, erro do
- * `<audio>`) passa ESSA faixa ao IFrame.
+ * `_onYtStateChange` e `setError`. O crossfade (duas vozes), a Jam e seguir um
+ * amigo são dele desde 21/11 (ver `MotorDeAudio`). Uma falha (resolução, HLS,
+ * erro do `<audio>` sem renovação possível) passa ESSA faixa ao IFrame.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { aquecerResolvedor, criarRenovacao, definirFetchDoYouTube, definirSondaDaCascata, resolveYouTubeStream } from '../api/ytstream';
 import { YouTubePlayerView } from '../components/YouTubePlayerView';
 import { usePlayer } from '../state/player';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
-import { useSeguirAmigo } from '../state/seguirAmigo';
+import { ritmoDeQuemSigo, useSeguirAmigo } from '../state/seguirAmigo';
+import { velocidadeNaSessao } from '../lib/jam';
+import { acertoNoPrimeiroSom, posicaoDaSalaParaFaixa } from '../lib/arranqueDaSala';
+import { TOLERANCIA_MS } from '../lib/sincronizacao';
 import { volumeParaOMotor } from '../lib/curvaDoVolume';
 import { abafoDoRefrao } from '../state/refrao';
 import { registarNaFila } from '../lib/playbackDiagnostics';
@@ -278,6 +280,30 @@ const volumeDoMotor = (vol: number): number => {
   return (v > 0 ? Math.max(1, Math.round(v * abafoDoRefrao())) : 0) / 100;
 };
 
+// ------------------------------------------------------------------ a sala
+// A Jam e seguir um amigo (21/11, antes iam pelo IFrame): as MESMAS regras do
+// `YouTubePlayerView.web.tsx`. A correção do desvio é da loja (pelo `seek` e
+// pela posição a 1 Hz), por isso aqui fica só o que é do motor.
+
+/** Uma Jam ou um amigo seguido: a música e a posição são da sala. */
+function emSala(): boolean {
+  const s = useSeguirAmigo.getState();
+  return !!useOuvirJuntos.getState().sessao || !!s.seguindo || s.ritmo != null;
+}
+/** A posição da sala para esta faixa, só com a sala a tocar. */
+function posicaoNaSala(faixa: Pick<Track, 'source' | 'sourceId'>): number | null {
+  const j = useOuvirJuntos.getState();
+  if (!j.sessao?.aTocar) return null;
+  return posicaoDaSalaParaFaixa(faixa, j.sessao, j.posicaoAgora);
+}
+/** A velocidade do motor: a do amigo seguido, 1x numa Jam, senão a escolhida. */
+function velocidadeDoMotor(): number {
+  return ritmoDeQuemSigo() ?? velocidadeNaSessao(usePlayer.getState().playbackRate || 1, !!useOuvirJuntos.getState().sessao);
+}
+/** Uma faixa da sala fica calada no máximo isto à espera do primeiro som, e volta 250 ms depois do acerto. */
+const PRAZO_DO_ALINHAMENTO_MS = 10_000;
+const SOM_DEPOIS_DO_ACERTO_MS = 250;
+
 /** A velocidade com que uma faixa VAI tocar (a dela, ou o padrão): a conta do `playTrack`. */
 function velocidadeDaFaixa(t: Track): number {
   const st = usePlayer.getState();
@@ -361,6 +387,26 @@ function MotorDeAudio({ track, aoFalhar, recurso }: { track: Track; aoFalhar: (s
     usePlayer.getState()._setProgress(a.currentTime * 1000, duracao * 1000);
   }, []);
 
+  /**
+   * Uma faixa da sala a carregar CALADA (o `alinharRef` do IFrame, 15/10 e
+   * 20/10): começa já na posição da sala, sem som, e ao primeiro "a tocar"
+   * acerta o que a sala andou entretanto; só então se ouve. Nunca fica calada
+   * mais de `PRAZO_DO_ALINHAMENTO_MS`, e solta-se ao trocar de faixa e ao sair da Jam.
+   */
+  const alinharRef = useRef<{ id: string; prazo: ReturnType<typeof setTimeout> | undefined; saltou: boolean } | null>(null);
+  const soltarAlinhamento = React.useCallback(() => {
+    const a = alinharRef.current;
+    if (!a) return;
+    clearTimeout(a.prazo);
+    alinharRef.current = null;
+    if (!passagemRef.current) faderEm(oGrafo(), ativa(oGrafo()), 1);
+  }, []);
+  const comecarAlinhamento = React.useCallback((voz: Voz, id: string) => {
+    if (alinharRef.current) clearTimeout(alinharRef.current.prazo);
+    faderEm(oGrafo(), voz, 0);
+    alinharRef.current = { id, saltou: false, prazo: setTimeout(soltarAlinhamento, PRAZO_DO_ALINHAMENTO_MS) };
+  }, [soltarAlinhamento]);
+
   /** A que entrava cala-se e para; a que sai volta ao seu nível. `rebobinar`: a preparada volta ao 0. */
   const abortarPassagem = React.useCallback((rebobinar: boolean) => {
     const g = oGrafo();
@@ -433,6 +479,12 @@ function MotorDeAudio({ track, aoFalhar, recurso }: { track: Track; aoFalhar: (s
   const cuidarDaPassagem = React.useCallback((posicao: number, duracao: number) => {
     const g = oGrafo();
     const st = usePlayer.getState();
+    // Numa Jam ou a seguir um amigo não há crossfade nem seguinte preparada: a
+    // música seguinte é da sala (como no IFrame).
+    if (emSala()) {
+      if (seguinteRef.current || passagemRef.current) largarSeguinte();
+      return;
+    }
     // Longe do fim não há nada a decidir (são ~4 leituras por segundo).
     const fade = st.crossfadeSegundos ?? 0;
     const longe = duracao > 0 ? duracao - posicao > Math.max(0, fade) + ANTECEDENCIA_DO_PC_S + 2 : fade <= 0;
@@ -518,7 +570,7 @@ function MotorDeAudio({ track, aoFalhar, recurso }: { track: Track; aoFalhar: (s
         aCarregarRef.current = true;
         // Outro endereço para o `<audio>` (o mesmo `src` não recarregava); a casca ignora o `?`.
         v.audio.src = `${caminho}?v=${Date.now()}`;
-        v.audio.playbackRate = usePlayer.getState().playbackRate || 1;
+        v.audio.playbackRate = velocidadeDoMotor();
         (v.audio as any).preservesPitch = false;
         if (pos > 0) v.audio.addEventListener('loadedmetadata', () => { try { v.audio.currentTime = pos; } catch { /* fica no início */ } }, { once: true });
         if (tocava) await v.audio.play();
@@ -547,6 +599,27 @@ function MotorDeAudio({ track, aoFalhar, recurso }: { track: Track; aoFalhar: (s
         anotarPrimeiroSom(m.id, tituloDaFaixa(faixaRef.current), origem, ms, Date.now() - ms, m.resolvido);
         const medida = primeiraNota(Date.now() - ms, Date.now(), origem);
         if (medida) registarEvento('primeira_nota', medida);
+      }
+      // O primeiro som de uma faixa da sala (ver `alinharRef`): acerta-se com a
+      // sala ainda calado, e o som volta logo a seguir.
+      const alinhar = alinharRef.current;
+      if (alinhar && alinhar.id === faixaRef.current.sourceId) {
+        if (!alinhar.saltou) {
+          const a = ativa(g).audio;
+          const motorMs = a.currentTime * 1000;
+          const para = acertoNoPrimeiroSom(posicaoNaSala(faixaRef.current), motorMs, TOLERANCIA_MS);
+          if (para != null) {
+            alinhar.saltou = true;
+            try { a.currentTime = para / 1000; } catch { /* fica onde está */ }
+            registarNaFila(`${alinhar.id}: Jam aligned on first sound (PC motor, muted) ${(motorMs / 1000).toFixed(2)}s -> ${(para / 1000).toFixed(2)}s`);
+            clearTimeout(alinhar.prazo);
+            alinhar.prazo = setTimeout(soltarAlinhamento, SOM_DEPOIS_DO_ACERTO_MS);
+          } else {
+            soltarAlinhamento();
+          }
+        } else {
+          soltarAlinhamento();
+        }
       }
       aCarregarRef.current = false;
       const s = usePlayer.getState();
@@ -608,9 +681,11 @@ function MotorDeAudio({ track, aoFalhar, recurso }: { track: Track; aoFalhar: (s
       seguinteRef.current = null;
       entregaRef.current = null;
       aCarregarRef.current = true;
+      if (alinharRef.current) clearTimeout(alinharRef.current.prazo);
+      alinharRef.current = null;
       for (const v of g.vozes) largarVoz(g, v);
     };
-  }, [aoFalhar, abortarPassagem, terminarPassagem, progresso]);
+  }, [aoFalhar, abortarPassagem, terminarPassagem, progresso, soltarAlinhamento]);
 
   // Trocar de faixa.
   useEffect(() => {
@@ -635,7 +710,7 @@ function MotorDeAudio({ track, aoFalhar, recurso }: { track: Track; aoFalhar: (s
       largarVoz(g, sai);
       faderEm(g, e, 1);
       e.audio.volume = volumeDoMotor(st.volume);
-      e.audio.playbackRate = st.playbackRate || 1;
+      e.audio.playbackRate = velocidadeDoMotor();
       aCarregarRef.current = false;
       st.setError(null);
       st._setBuffering(false);
@@ -652,6 +727,7 @@ function MotorDeAudio({ track, aoFalhar, recurso }: { track: Track; aoFalhar: (s
 
     // Outra faixa qualquer: a preparada cala-se, e a voz ativa carrega esta.
     largarSeguinte();
+    soltarAlinhamento();
     const voz = ativa(g);
     const a = voz.audio;
     // A posição a retomar decide-se JÁ, antes de qualquer evento da anterior a
@@ -685,11 +761,16 @@ function MotorDeAudio({ track, aoFalhar, recurso }: { track: Track; aoFalhar: (s
       const agora = usePlayer.getState();
       voz.id = id;
       a.src = caminho;
-      a.playbackRate = agora.playbackRate || 1;
+      // Depois do `src` (que repõe a velocidade a 1): 1x numa Jam, a do amigo seguido.
+      a.playbackRate = velocidadeDoMotor();
       (a as any).preservesPitch = false;
       a.volume = volumeDoMotor(agora.volume);
-      // Uma posição guardada (o arranque da app, o "Continue here") retoma-se.
-      if (inicio > 0) a.addEventListener('loadedmetadata', () => { try { a.currentTime = inicio; } catch { /* fica no início */ } }, { once: true });
+      // Numa Jam a tocar: já na posição da sala (lida agora, depois de resolver),
+      // e calada até ao primeiro som. Senão, a posição guardada ou o "Continue here".
+      const naSala = posicaoNaSala(faixaRef.current);
+      if (naSala != null) comecarAlinhamento(voz, id);
+      const comeco = naSala != null ? naSala / 1000 : inicio;
+      if (comeco > 0) a.addEventListener('loadedmetadata', () => { try { a.currentTime = comeco; } catch { /* fica no início */ } }, { once: true });
       if (agora.isPlaying || agora.autoplayOnLoad) {
         try { await g.ctx.resume(); } catch { /* sem gesto ainda */ }
         await a.play();
@@ -703,39 +784,41 @@ function MotorDeAudio({ track, aoFalhar, recurso }: { track: Track; aoFalhar: (s
       aoFalhar(id, String(err));
     });
     return () => { cancelado = true; clearTimeout(vigia); };
-  }, [track.sourceId, aoFalhar, largarSeguinte, progresso]);
+  }, [track.sourceId, aoFalhar, largarSeguinte, progresso, soltarAlinhamento, comecarAlinhamento]);
 
-  // A velocidade escolhida (fora de Jam e sem seguir ninguém: esses vão para o IFrame).
-  const velocidade = usePlayer((s) => s.playbackRate);
+  // A velocidade: a escolhida; 1x numa Jam; a do amigo seguido (como no IFrame).
+  const velocidadeEscolhida = usePlayer((s) => s.playbackRate);
+  const emJam = useOuvirJuntos((s) => !!s.sessao);
+  const ritmoSeguido = useSeguirAmigo((s) => s.ritmo);
+  const velocidade = ritmoSeguido ?? velocidadeNaSessao(velocidadeEscolhida || 1, emJam);
   useEffect(() => {
     const g = oGrafo();
-    ativa(g).audio.playbackRate = velocidade || 1;
+    ativa(g).audio.playbackRate = velocidade;
     for (const v of g.vozes) (v.audio as any).preservesPitch = false;
   }, [velocidade]);
+  // Sair da Jam a meio de um arranque calado devolve o som logo.
+  useEffect(() => { if (!emJam) soltarAlinhamento(); }, [emJam, soltarAlinhamento]);
 
   return null;
 }
 
 /**
- * Que motor toca esta faixa. O só de áudio (também com crossfade, desde 21/11), salvo:
- * - num Jam ou a seguir um amigo (ainda só o IFrame os sabe fazer);
- * - numa faixa em que ele já falhou nesta sessão (vai pelo IFrame, como hoje).
+ * Que motor toca esta faixa. O só de áudio (com crossfade, na Jam e a seguir um
+ * amigo, desde 21/11), salvo numa faixa em que ele já falhou nesta sessão: essa
+ * vai pelo IFrame, como hoje.
  */
 function MotorDoPcTauri({ track }: { track: Track }) {
-  const emJam = useOuvirJuntos((s) => !!s.sessao);
-  const aSeguir = useSeguirAmigo((s) => s.ritmo != null);
   const [recurso, setRecurso] = useState<ReadonlySet<string>>(() => new Set());
   const aoFalhar = React.useCallback((sourceId: string, porque: string) => {
     registarNaFila(`${sourceId}: motor só de áudio falhou (${porque}); toca pelo IFrame`);
     registarNaCasca(`motor: ${sourceId} FALHOU (${porque}), vai pelo IFrame`);
     setRecurso((antes) => (antes.has(sourceId) ? antes : new Set(antes).add(sourceId)));
   }, []);
-  const soDeAudio = !emJam && !aSeguir && !recurso.has(track.sourceId);
+  const soDeAudio = !recurso.has(track.sourceId);
   // Porque é que esta faixa vai pelo IFrame (21/11: uma audição inteira sem rasto no registo).
-  const porque = emJam ? 'Jam' : aSeguir ? 'a seguir um amigo' : recurso.has(track.sourceId) ? 'falhou antes' : null;
   useEffect(() => {
-    if (porque) registarNaCasca(`motor: ${track.sourceId} pelo IFrame (${porque})`);
-  }, [track.sourceId, porque]);
+    if (!soDeAudio) registarNaCasca(`motor: ${track.sourceId} pelo IFrame (falhou antes)`);
+  }, [track.sourceId, soDeAudio]);
   return soDeAudio ? <MotorDeAudio track={track} aoFalhar={aoFalhar} recurso={recurso} /> : <YouTubePlayerView track={track} />;
 }
 
