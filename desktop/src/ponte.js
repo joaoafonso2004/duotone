@@ -43,6 +43,11 @@
     getStartup: () => invoke('arranque_ler'),
     setStartup: (enabled, mode) => pedir('arranque_definir', { enabled, mode }),
     lerSaude: () => invoke('saude_ler'),
+    // F5, a barra de tarefas (desktop/src/barra.rs): os botões da miniatura e a lista de saltos.
+    onAtalho: (listener) => ouvir('atalho', (acao) => listener(String(acao))),
+    estadoDaBarra: (estado) => { pedir('barra_estado', { estado }).catch(() => {}); },
+    tirarAcaoDaBarra: () => pedir('barra_tirar_acao', {}),
+    onAcaoDaBarra: (listener) => ouvir('barra:acao', () => listener()),
     // F8: a memória e o CPU da casca e dos processos do WebView2, para o relatório.
     lerRecursos: () => pedir('diagnostico_recursos', {}),
     segundosSemInteracao: () => invoke('segundos_sem_interacao'),

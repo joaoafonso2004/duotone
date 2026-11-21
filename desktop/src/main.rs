@@ -9,6 +9,7 @@
 
 mod arranque;
 mod audio;
+mod barra;
 mod canal;
 mod mini;
 mod ponte;
@@ -134,12 +135,16 @@ fn main() {
 
     tauri::Builder::default()
         // Primeiro plugin: uma segunda instância sai aqui, antes de abrir a porta.
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| mostrar_janela(app)))
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            mostrar_janela(app);
+            // A lista de saltos com a app aberta (F5): a ação fica à espera da página.
+            barra::pedir_acao(app, &argv);
+        }))
         .invoke_handler(tauri::generate_handler![
             registo_da_pagina,
             ponte::janela_minimizar, ponte::janela_alternar_maximizar, ponte::janela_fechar, ponte::janela_maximizada,
             ponte::fechar_para_tabuleiro_ler, ponte::fechar_para_tabuleiro_definir,
-            arranque::arranque_ler, arranque::arranque_definir, ponte::saude_ler, ponte::segundos_sem_interacao, saude::diagnostico_recursos,
+            arranque::arranque_ler, arranque::arranque_definir, barra::barra_estado, barra::barra_tirar_acao, ponte::saude_ler, ponte::segundos_sem_interacao, saude::diagnostico_recursos,
             mini::mini_alternar, mini::mini_esta_aberto, mini::mini_estado, mini::mini_modo_limpo,
             mini::mini_pronto, mini::mini_pega, mini::mini_lista, mini::mini_ignorar_rato, mini::mini_comando,
             rede::yt_pesquisa, rede::ytmusic_pesquisa, rede::yt_mix, rede::yt_refrao, rede::ytmusic_artista, rede::ytmusic_radio, rede::ytmusic_letra,
@@ -218,6 +223,8 @@ fn main() {
                 })
                 .build()?;
             webview::configurar(&janela);
+            // A barra de tarefas (F5): a subclasse antes do 1.º botão na barra, e a lista de saltos.
+            barra::instalar(app.handle(), &janela);
             // A app instalada liga o arranque com o Windows na 1.ª abertura (na Preview, nada).
             arranque::aplicar_de_origem(app.handle());
             // A amostra dos recursos com a janela escondida, uma vez por minuto (F8).
