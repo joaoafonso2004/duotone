@@ -9,6 +9,7 @@
 
 mod canal;
 mod ponte;
+mod rede;
 mod registo;
 mod servidor;
 mod webview;
@@ -75,6 +76,8 @@ fn main() {
             ponte::janela_minimizar, ponte::janela_alternar_maximizar, ponte::janela_fechar, ponte::janela_maximizada,
             ponte::fechar_para_tabuleiro_ler, ponte::fechar_para_tabuleiro_definir,
             ponte::arranque_ler, ponte::saude_ler, ponte::segundos_sem_interacao,
+            rede::yt_pesquisa, rede::ytmusic_pesquisa, rede::yt_mix, rede::yt_refrao, rede::ytmusic_artista, rede::ytmusic_radio, rede::ytmusic_letra,
+            rede::catalogo_pedir, rede::supabase_pedir, rede::spotify_embed, rede::apple_playlist, rede::deezer_link,
         ])
         .on_window_event(|janela, evento| {
             if matches!(evento, WindowEvent::Resized(_) | WindowEvent::Focused(_)) {

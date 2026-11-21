@@ -8,6 +8,8 @@
     "allow-registo-da-pagina",
     "allow-janela-minimizar", "allow-janela-alternar-maximizar", "allow-janela-fechar", "allow-janela-maximizada",
     "allow-fechar-para-tabuleiro-ler", "allow-fechar-para-tabuleiro-definir",
-    "allow-arranque-ler", "allow-saude-ler", "allow-segundos-sem-interacao"
+    "allow-arranque-ler", "allow-saude-ler", "allow-segundos-sem-interacao",
+    "allow-yt-pesquisa", "allow-ytmusic-pesquisa", "allow-yt-mix", "allow-yt-refrao", "allow-ytmusic-artista", "allow-ytmusic-radio", "allow-ytmusic-letra",
+    "allow-catalogo-pedir", "allow-supabase-pedir", "allow-spotify-embed", "allow-apple-playlist", "allow-deezer-link"
   ]
 }

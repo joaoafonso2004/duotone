@@ -10,6 +10,8 @@
 (() => {
   if (window.top !== window || location.origin !== '__ORIGEM__' || window.duotoneDesktop) return;
   const invoke = (comando, args) => window.__TAURI_INTERNALS__.invoke(comando, args);
+  // Os pedidos de rede (F3): um erro do Rust chega como texto; a página espera um Error.
+  const pedir = (comando, args) => invoke(comando, args).catch((e) => { throw new Error(String(e)); });
   const ouvintes = new Map();
   const ouvir = (nome, f) => {
     if (!ouvintes.has(nome)) ouvintes.set(nome, new Set());
@@ -48,6 +50,19 @@
     setCloseToTray: (enabled) => invoke('fechar_para_tabuleiro_definir', { enabled: enabled === true }),
     isMaximized: () => invoke('janela_maximizada'),
     onMaximizedChange: (listener) => ouvir('janela:maximizada', (v) => listener(Boolean(v))),
+    // F3: os pedidos sem CORS (desktop/src/rede.rs), com as validações do main.cjs.
+    pesquisarNoYouTube: (pedido) => pedir('yt_pesquisa', { pedido }),
+    pesquisarCancoes: (pedido) => pedir('ytmusic_pesquisa', { pedido }),
+    lerMixDoYouTube: (pedido) => pedir('yt_mix', { pedido }),
+    lerRefraoDoYouTube: (pedido) => pedir('yt_refrao', { pedido }),
+    lerArtistaDoYtMusic: (pedido) => pedir('ytmusic_artista', { pedido }),
+    lerRadioDoYtMusic: (pedido) => pedir('ytmusic_radio', { pedido }),
+    lerLetraDoYtMusic: (pedido) => pedir('ytmusic_letra', { pedido }),
+    pedirAoCatalogo: (caminho) => pedir('catalogo_pedir', { caminho }),
+    pedirAoSupabase: (pedido) => pedir('supabase_pedir', { pedido }),
+    lerEmbedDoSpotify: (id) => pedir('spotify_embed', { id }),
+    lerPlaylistDaApple: (url) => pedir('apple_playlist', { url }),
+    resolverLinkDoDeezer: (url) => pedir('deezer_link', { url }),
     aliviarMemoria: () => {},
     atualizacaoAutomatica: true,
     procurarAtualizacao: () => Promise.resolve({ estado: 'atual' }),

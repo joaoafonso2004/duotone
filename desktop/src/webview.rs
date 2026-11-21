@@ -46,6 +46,26 @@ pub fn configurar(janela: &tauri::WebviewWindow) {
         if let Ok(s6) = s.cast::<ICoreWebView2Settings6>() {
             let _ = s6.SetIsSwipeNavigationEnabled(false);
         }
+        // As capas e as fotos do Google vão SEM Referer (30/9 no Electron): com o da
+        // app, o servidor delas responde 429 ao fim de poucas imagens. Só imagens e só
+        // esses anfitriões; o resto (o IFrame do YouTube precisa do Referer) não muda.
+        for filtro in [windows::core::w!("https://*.googleusercontent.com/*"), windows::core::w!("https://*.ggpht.com/*")] {
+            let _ = nucleo.AddWebResourceRequestedFilter(filtro, COREWEBVIEW2_WEB_RESOURCE_CONTEXT_IMAGE);
+        }
+        let manipulador = webview2_com::WebResourceRequestedEventHandler::create(Box::new(|_, args| {
+            let Some(args) = args else { return Ok(()) };
+            let pedido = args.Request()?;
+            let mut uri = windows::core::PWSTR::null();
+            pedido.Uri(&mut uri)?;
+            let endereco = webview2_com::take_pwstr(uri);
+            // O wry também recebe acontecimentos daqui (os protocolos dele): só as capas.
+            if endereco.contains(".googleusercontent.com/") || endereco.contains(".ggpht.com/") {
+                let _ = pedido.Headers()?.RemoveHeader(windows::core::w!("Referer"));
+            }
+            Ok(())
+        }));
+        let mut ficha = 0i64;
+        let _ = nucleo.add_WebResourceRequested(&manipulador, &mut ficha);
     });
     if let Err(e) = feito {
         crate::registo::linha(&format!("WebView2 sem configurar: {e}"));

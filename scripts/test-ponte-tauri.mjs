@@ -30,14 +30,14 @@ assert.equal(new Set(doTauri).size, doTauri.length, 'chave repetida na ponte');
 assert.match(ponte, /if \(window\.top !== window \|\| location\.origin !== '__ORIGEM__'/);
 
 // Cada comando chamado: declarado no build.rs, autorizado na capability, registado no main.rs.
-const comandos = [...new Set([...ponte.matchAll(/invoke\('([a-z_]+)'/g)].map((m) => m[1]))];
+const comandos = [...new Set([...ponte.matchAll(/(?:invoke|pedir)\('([a-z_]+)'/g)].map((m) => m[1]))];
 assert.ok(comandos.length > 0);
 const declarados = new Set([...build.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]));
 const permissoes = new Set(capacidade.permissions);
 for (const c of comandos) {
   assert.ok(declarados.has(c), `"${c}" não está no AppManifest do desktop/build.rs`);
   assert.ok(permissoes.has(`allow-${c.replace(/_/g, '-')}`), `"allow-${c.replace(/_/g, '-')}" não está na capability`);
-  assert.match(main, new RegExp(`ponte::${c}\\b`), `"${c}" não está no generate_handler do main.rs`);
+  assert.match(main, new RegExp(`(?:ponte|rede)::${c}\\b`), `"${c}" não está no generate_handler do main.rs`);
 }
 // A capability nunca aceita curingas na origem (a ponte existe no frame do YouTube).
 for (const url of capacidade.remote.urls) assert.match(url, /^http:\/\/localhost:\d+(\/\*)?$/, `origem larga demais: ${url}`);
