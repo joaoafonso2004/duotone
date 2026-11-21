@@ -91,6 +91,18 @@ export function definirFetchDoYouTube(f: FetchDoYouTube | null): void {
   fetchDoYouTube = f ?? fetchDeSempre;
 }
 
+/**
+ * A sonda de 2 bytes da cascata (`probeMediaUrl`). No iPhone fica: um URL
+ * morto que passasse rebentava só no download, já sem os outros clientes. No
+ * motor do PC sai (medido a 21/11: ~200 ms por música nova), porque lá o
+ * `<audio>` dá erro sozinho e a faixa passa ao IFrame. A renovação continua
+ * a sondar.
+ */
+let sondarNaCascata = true;
+export function definirSondaDaCascata(ligada: boolean): void {
+  sondarNaCascata = ligada;
+}
+
 const VISITOR_ENDPOINT = 'https://www.youtube.com/youtubei/v1/visitor_id';
 // Chave só para o cliente WEB (usada em getVisitorData). Android/iOS não a usam.
 const WEB_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
@@ -750,7 +762,7 @@ async function resolverStreamSemMemo(
             stream.hasPoToken = true;
           }
         }
-        const status = await probeMediaUrl(stream.url);
+        const status = sondarNaCascata ? await probeMediaUrl(stream.url) : 200;
         if (status !== 200 && status !== 206) {
           const erro: any = new Error(`CDN rejected the URL (HTTP ${status})`);
           erro.http = status;

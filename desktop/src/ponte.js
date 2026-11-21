@@ -67,6 +67,7 @@
     // O resolvedor (ytstream.ts) fala com o InnerTube por aqui; o áudio serve-se em /audio/<id>.
     pedirAoInnerTube: (url, corpo, cabecalhos) => pedir('innertube_pedir', { url, corpo, cabecalhos }),
     sondarAudio: (url) => pedir('googlevideo_sondar', { url }),
+    aquecerLigacoes: () => pedir('innertube_aquecer', {}),
     // O EQ e o tom vivem no grafo do motor só de áudio (MotorDeAudio.web.tsx),
     // que se regista em window.__duotoneMotor. Com o IFrame de recurso a tocar
     // não há onde os pôr no Tauri (não se injeta no frame do YouTube): diz-se a verdade.

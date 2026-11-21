@@ -22,6 +22,10 @@ const VERSAO_ANDROID: &str = "7.27.52";
 pub static CLIENTE: LazyLock<reqwest::Client> = LazyLock::new(|| {
     reqwest::Client::builder()
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36 Edg/157.0.0.0")
+        // 10 min em vez dos 90 s do reqwest: entre duas músicas passam ~3 min, e
+        // cada `/player` pagava de novo o TLS ao www.youtube.com. Sem PINGs: se o
+        // servidor fechar a ligação antes, a seguinte abre-se como sempre.
+        .pool_idle_timeout(Duration::from_secs(600))
         .build()
         .expect("cliente http")
 });
@@ -31,32 +35,32 @@ macro_rules! re {
         static $nome: LazyLock<Regex> = LazyLock::new(|| Regex::new($padrao).unwrap());
     };
 }
-re!(VERSAO, r"^[\w.]{1,32}$");
-re!(CONTINUACAO_PESQUISA, r"^[\w%=.-]{1,4096}$");
-re!(PARAMS_PESQUISA, r"^[\w%=-]{0,64}$");
-re!(CANAL, r"^UC[\w-]{22}$");
-re!(LISTA_DO_ARTISTA, r"^VL(OLAK5uy_|PL|RDCLAK5uy_)[\w-]{10,80}$");
-re!(CONTINUACAO_ARTISTA, r"^[\w%=-]{16,4000}$");
-re!(MIX, r"^RD[\w-]{2,80}$");
-re!(VIDEO, r"^[\w-]{11}$");
-re!(PARAMS_RADIO, r"^[\w%=-]{1,40}$");
-re!(LETRA, r"^MPLY[\w-]{3,60}$");
-re!(VERSAO_DO_ANDROID, r"^[\d.]{1,16}$");
+re!(VERSAO, r"^[A-Za-z0-9_.]{1,32}$");
+re!(CONTINUACAO_PESQUISA, r"^[A-Za-z0-9_%=.-]{1,4096}$");
+re!(PARAMS_PESQUISA, r"^[A-Za-z0-9_%=-]{0,64}$");
+re!(CANAL, r"^UC[A-Za-z0-9_-]{22}$");
+re!(LISTA_DO_ARTISTA, r"^VL(OLAK5uy_|PL|RDCLAK5uy_)[A-Za-z0-9_-]{10,80}$");
+re!(CONTINUACAO_ARTISTA, r"^[A-Za-z0-9_%=-]{16,4000}$");
+re!(MIX, r"^RD[A-Za-z0-9_-]{2,80}$");
+re!(VIDEO, r"^[A-Za-z0-9_-]{11}$");
+re!(PARAMS_RADIO, r"^[A-Za-z0-9_%=-]{1,40}$");
+re!(LETRA, r"^MPLY[A-Za-z0-9_-]{3,60}$");
+re!(VERSAO_DO_ANDROID, r"^[0-9.]{1,16}$");
 re!(LINK_DA_APPLE, r"(?i)^https://music\.apple\.com/[a-z]{2}/playlist/[^\s/?#]{1,200}/pl\.[A-Za-z0-9.-]{5,80}$");
 re!(LINK_CURTO_DO_DEEZER, r"^https://(?:link\.deezer\.com/s/[A-Za-z0-9]{4,40}|deezer\.page\.link/[A-Za-z0-9]{4,40})$");
 re!(SPOTIFY_ID, r"^[A-Za-z0-9]{22}$");
 re!(SUPABASE, r"^https://[a-z0-9]{20}\.supabase\.co/(rest|auth)/v1/");
 static CAMINHOS_DO_CATALOGO: LazyLock<Vec<Regex>> = LazyLock::new(|| {
     [
-        r"^/search/artist\?q=[A-Za-z0-9%._~!*'()-]{1,500}&limit=\d{1,3}$",
-        r"^/search\?q=[A-Za-z0-9%._~!*'()-]{1,500}&limit=\d{1,3}$",
-        r"^/search\?limit=\d{1,3}&q=[A-Za-z0-9%._~!*'()-]{1,500}$",
-        r"^/artist/\d{1,20}/related\?limit=\d{1,3}$",
-        r"^/artist/\d{1,20}/top\?limit=\d{1,3}$",
-        r"^/album/\d{1,20}$",
-        r"^/chart/0/artists\?limit=\d{1,3}$",
-        r"^/playlist/\d{1,20}$",
-        r"^/playlist/\d{1,20}/tracks\?index=\d{1,5}&limit=\d{1,3}$",
+        r"^/search/artist\?q=[A-Za-z0-9%._~!*'()-]{1,500}&limit=[0-9]{1,3}$",
+        r"^/search\?q=[A-Za-z0-9%._~!*'()-]{1,500}&limit=[0-9]{1,3}$",
+        r"^/search\?limit=[0-9]{1,3}&q=[A-Za-z0-9%._~!*'()-]{1,500}$",
+        r"^/artist/[0-9]{1,20}/related\?limit=[0-9]{1,3}$",
+        r"^/artist/[0-9]{1,20}/top\?limit=[0-9]{1,3}$",
+        r"^/album/[0-9]{1,20}$",
+        r"^/chart/0/artists\?limit=[0-9]{1,3}$",
+        r"^/playlist/[0-9]{1,20}$",
+        r"^/playlist/[0-9]{1,20}/tracks\?index=[0-9]{1,5}&limit=[0-9]{1,3}$",
     ]
     .iter()
     .map(|p| Regex::new(p).unwrap())
@@ -333,7 +337,7 @@ pub async fn spotify_embed(janela: WebviewWindow, id: String) -> Result<Value, S
     Ok(json!(r.text().await.map_err(|e| e.to_string())?))
 }
 
-re!(INNERTUBE_DO_MOTOR, r"^https://www\.youtube\.com/youtubei/v1/(player|visitor_id)(\?[\w=&%.-]{0,200})?$");
+re!(INNERTUBE_DO_MOTOR, r"^https://www\.youtube\.com/youtubei/v1/(player|visitor_id)(\?[A-Za-z0-9_=&%.-]{0,200})?$");
 const CABECALHOS_DO_MOTOR: &[&str] = &["content-type", "x-youtube-client-name", "x-youtube-client-version", "origin", "accept-language", "user-agent", "x-goog-visitor-id"];
 
 pub fn innertube_do_motor_valido(url: &str) -> bool {
@@ -359,6 +363,19 @@ pub async fn innertube_pedir(janela: WebviewWindow, url: String, corpo: String, 
     let r = p.send().await.map_err(|e| e.to_string())?;
     let estado = r.status().as_u16();
     Ok(json!({ "status": estado, "corpo": r.text().await.unwrap_or_default() }))
+}
+
+/// Abre a ligação ao www.youtube.com antes do primeiro clique (o `aquecerOMotor`
+/// da página, uma vez por arranque): o `/player` desse clique já não paga o TLS.
+/// Um pedido só, ao `generate_204` (sem corpo). Devolve os ms, ou 0 se falhou.
+#[tauri::command]
+pub async fn innertube_aquecer(janela: WebviewWindow) -> Result<u64, String> {
+    da_janela_principal(&janela)?;
+    let t0 = std::time::Instant::now();
+    let ok = CLIENTE.get("https://www.youtube.com/generate_204").timeout(Duration::from_secs(10)).send().await.is_ok();
+    let ms = t0.elapsed().as_millis() as u64;
+    crate::registo::linha(&format!("rede: ligação ao YouTube aquecida em {ms} ms{}", if ok { "" } else { " (falhou)" }));
+    Ok(if ok { ms } else { 0 })
 }
 
 /// A sonda de 2 bytes do `ytstream.ts` (o `probeMediaUrl`): o CDN aceita o URL?
@@ -388,6 +405,26 @@ mod testes {
     }
 
     use super::*;
+
+    /// TODOS os padrões compilam. Um `\w` (Unicode no Rust) repetido 4096 vezes
+    /// passava o teto de 10 MB do `regex`, rebentava no primeiro uso e envenenava
+    /// o `LazyLock`: a pesquisa da Preview parou toda (21/11). Por isso as classes
+    /// são ASCII, como o `\w` do JS do Electron.
+    #[test]
+    fn todos_os_padroes_compilam() {
+        for r in [&VERSAO, &CONTINUACAO_PESQUISA, &PARAMS_PESQUISA, &CANAL, &LISTA_DO_ARTISTA, &CONTINUACAO_ARTISTA, &MIX, &VIDEO,
+            &PARAMS_RADIO, &LETRA, &VERSAO_DO_ANDROID, &LINK_DA_APPLE, &LINK_CURTO_DO_DEEZER, &SPOTIFY_ID, &SUPABASE, &INNERTUBE_DO_MOTOR] {
+            let _ = r.is_match("");
+        }
+        assert_eq!(CAMINHOS_DO_CATALOGO.len(), 9);
+        assert!(CONTINUACAO_PESQUISA.is_match(&"a%3D_-.".repeat(585)[..4095]));
+        assert!(!CONTINUACAO_PESQUISA.is_match(&"a".repeat(4097)));
+        assert!(CONTINUACAO_ARTISTA.is_match(&"Ab_-%=".repeat(700)[..4000]));
+        assert!(!CONTINUACAO_ARTISTA.is_match(&"a".repeat(4001)));
+        // O mesmo que o `\w` do JS: sem letras acentuadas.
+        assert!(!VIDEO.is_match("dQw4w9WgXcé") && !PARAMS_PESQUISA.is_match("ção"));
+        assert!(VERSAO_DO_ANDROID.is_match("7.27.52") && !VERSAO_DO_ANDROID.is_match("٧.٢"));
+    }
 
     #[test]
     fn o_catalogo_so_aceita_os_caminhos_da_app() {

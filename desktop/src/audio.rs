@@ -144,7 +144,9 @@ impl DoGooglevideo {
     fn encher(&mut self) -> io::Result<()> {
         let (a, b) = proximo_bocado(self.pos, self.fim, self.primeiro);
         self.primeiro = false;
+        let t0 = std::time::Instant::now();
         let r = CLIENTE.get(&self.fonte.url).header("Range", format!("bytes={a}-{b}")).send().map_err(io::Error::other)?;
+        let cabecalhos_ms = t0.elapsed().as_millis();
         let estado = r.status().as_u16();
         if estado != 206 && estado != 200 {
             crate::registo::linha(&format!("áudio: googlevideo HTTP {estado} no byte {a}"));
@@ -152,6 +154,10 @@ impl DoGooglevideo {
         }
         self.buffer = r.bytes().map_err(io::Error::other)?.to_vec();
         self.lido = 0;
+        // A medida do "resto" do clique ao som (21/11: 200 a 1 578 ms depois de resolver).
+        if a == 0 {
+            crate::registo::linha(&format!("áudio: 1.º bocado de {} KB: cabeçalhos aos {cabecalhos_ms} ms, inteiro aos {} ms", self.buffer.len() / 1024, t0.elapsed().as_millis()));
+        }
         if self.buffer.is_empty() {
             return Err(io::Error::other("bocado vazio"));
         }

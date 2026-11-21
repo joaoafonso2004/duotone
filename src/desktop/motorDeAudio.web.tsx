@@ -17,7 +17,7 @@
  * uma falha (resolução, HLS, erro do `<audio>`) passa ESSA faixa ao IFrame.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { definirFetchDoYouTube, resolveYouTubeStream } from '../api/ytstream';
+import { aquecerResolvedor, definirFetchDoYouTube, definirSondaDaCascata, resolveYouTubeStream } from '../api/ytstream';
 import { YouTubePlayerView } from '../components/YouTubePlayerView';
 import { usePlayer } from '../state/player';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
@@ -42,6 +42,8 @@ let fetchLigado = false;
 function ligarOFetch(): void {
   if (fetchLigado) return;
   fetchLigado = true;
+  // Sem a sonda de 2 bytes: um URL morto dá erro no `<audio>` e a faixa vai pelo IFrame.
+  definirSondaDaCascata(false);
   definirFetchDoYouTube(async (url, init) => {
     const p = ponte();
     const u = String(url);
@@ -59,6 +61,20 @@ function ligarOFetch(): void {
     }
     return fetch(url, init);
   });
+}
+
+/**
+ * A primeira música deixa de pagar o arranque (medido a 21/11: 1 434 ms contra
+ * ~620 nas seguintes). Uma vez, depois da abertura (`useAquecerResolvedor.web`):
+ * o `visitorData` (disco ou rede) e a ligação da casca ao www.youtube.com já
+ * aberta, que é por onde passa o `/player` do clique. Se falhar, a música faz o
+ * que sempre fez.
+ */
+export async function aquecerOMotor(): Promise<void> {
+  if (!haMotorSoDeAudio()) return;
+  ligarOFetch();
+  await aquecerResolvedor();
+  try { await ponte()?.aquecerLigacoes?.(); } catch { /* uma conveniência */ }
 }
 
 // ------------------------------------------------------------------ o grafo
@@ -112,6 +128,13 @@ function oGrafo(): Grafo {
   return grafo;
 }
 
+/** Uma linha no registo da casca (`%LOCALAPPDATA%\<id>\logs\duotone.log`): as medidas do motor. */
+function registarNaCasca(texto: string): void {
+  try { (window as any).__TAURI_INTERNALS__?.invoke('registo_da_pagina', { texto }); } catch { /* sem casca */ }
+}
+/** Do pedido de uma faixa ao primeiro "playing": a medida que se compara com a régua (566/1 099 ms). */
+let marca: { id: string; t0: number; origem: 'cache' | 'rede' | '?'; resolvido: number | null } | null = null;
+
 const volumeDoMotor = (vol: number): number => {
   const v = volumeParaOMotor(vol);
   return (v > 0 ? Math.max(1, Math.round(v * abafoDoRefrao())) : 0) / 100;
@@ -144,6 +167,11 @@ function MotorDeAudio({ track, aoFalhar }: { track: Track; aoFalhar: (sourceId: 
       usePlayer.getState()._setProgress(a.currentTime * 1000, duracao * 1000);
     };
     const aoTocar = () => {
+      const m = marca;
+      if (m && m.id === faixaRef.current.sourceId) {
+        marca = null;
+        registarNaCasca(`motor: ${m.id} som aos ${Math.round(performance.now() - m.t0)} ms (${m.origem}${m.resolvido != null ? `, resolver ${m.resolvido} ms` : ''})`);
+      }
       aCarregarRef.current = false;
       const s = usePlayer.getState();
       s.setError(null); s._setBuffering(false); s._setActiveBackend('native'); s._onYtStateChange('playing');
@@ -191,10 +219,14 @@ function MotorDeAudio({ track, aoFalhar }: { track: Track; aoFalhar: (sourceId: 
     (async () => {
       const p = ponte();
       const id = track.sourceId;
+      const t0 = performance.now();
+      marca = { id, t0, origem: '?', resolvido: null };
       let caminho: string | null = null;
       try { caminho = (await p.audioNaCache(id))?.caminho ?? null; } catch { caminho = null; }
+      if (caminho && marca?.id === id) marca.origem = 'cache';
       if (!caminho) {
         const s = await resolveYouTubeStream(id, 'high', false, 'opus');
+        if (marca?.id === id) { marca.origem = 'rede'; marca.resolvido = Math.round(performance.now() - t0); }
         if (s.isHls || !s.contentLength) throw new Error('sem ficheiro de áudio (HLS)');
         const mime = s.formato === 'opus' ? 'audio/webm; codecs="opus"' : 'audio/mp4; codecs="mp4a.40.2"';
         caminho = String(await p.registarAudio(id, s.url, s.contentLength, mime));
@@ -246,6 +278,7 @@ function MotorDoPcTauri({ track }: { track: Track }) {
   const [recurso, setRecurso] = useState<ReadonlySet<string>>(() => new Set());
   const aoFalhar = React.useCallback((sourceId: string, porque: string) => {
     registarNaFila(`${sourceId}: motor só de áudio falhou (${porque}); toca pelo IFrame`);
+    registarNaCasca(`motor: ${sourceId} FALHOU (${porque}), vai pelo IFrame`);
     setRecurso((antes) => (antes.has(sourceId) ? antes : new Set(antes).add(sourceId)));
   }, []);
   const soDeAudio = !emJam && !aSeguir && !crossfade && !recurso.has(track.sourceId);

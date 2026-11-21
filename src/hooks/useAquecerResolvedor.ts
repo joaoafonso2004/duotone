@@ -11,8 +11,8 @@ import { useConnectivity } from '../state/connectivity';
  * fazia a respiração durar e o download demorar a começar na primeira música
  * (13/9). Isto faz a MESMA chamada, mais cedo: ver `aquecerResolvedor`.
  *
- * - **Só no iPhone.** O leitor do PC é o IFrame oficial do YouTube e nunca
- *   passa pelo resolver.
+ * - **Só no iPhone.** O PC tem o seu par (`useAquecerResolvedor.web.ts`): só
+ *   o motor só de áudio da casca Tauri passa pelo resolver.
  * - **Depois da abertura e das secções.** A animação não pode disputar o CPU
  *   (ver `useAquecerCapas`), e o que se VÊ primeiro tem prioridade sobre o que
  *   só se ouve depois -- daí o segundo e meio a mais.
