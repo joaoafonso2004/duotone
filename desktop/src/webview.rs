@@ -2,7 +2,7 @@
 //! Ctrl+F, Ctrl+P, Ctrl+Shift+I), barra de estado dos links, zoom e pinça,
 //! gesto de recuar, sugestões de preenchimento, guardar palavras-passe, o menu
 //! por omissão ("Inspect", "Reload"...) e as DevTools na build final.
-//! O menu dos campos de texto (cortar, copiar, colar, ortografia) volta na F5.
+//! O menu dos campos de texto (cortar, copiar, colar, ortografia) voltou na F5.
 
 /// Corre em TODOS os frames (é o que o wry faz desde a 0.51), por isso confere
 /// primeiro que está no frame principal e na origem da app. Conta o arranque e
@@ -76,7 +76,25 @@ pub fn configurar(janela: &tauri::WebviewWindow) {
         let Ok(s) = nucleo.Settings() else { return };
         let _ = s.SetIsStatusBarEnabled(false);
         let _ = s.SetIsZoomControlEnabled(false);
-        let _ = s.SetAreDefaultContextMenusEnabled(false);
+        // O menu do Windows só nos campos de texto (cortar, copiar, colar, a
+        // ortografia), como o `menuDoTexto.cjs` do Electron; no resto nenhum (os
+        // menus da app são da página, que cancela o seu `contextmenu`). Sem o
+        // ICoreWebView2_11 fica tudo desligado, como na F1.
+        let mut menu_dos_campos = false;
+        if let Ok(n11) = nucleo.cast::<ICoreWebView2_11>() {
+            let filtro = webview2_com::ContextMenuRequestedEventHandler::create(Box::new(|_, args| {
+                let Some(args) = args else { return Ok(()) };
+                let mut editavel = windows::core::BOOL(0);
+                args.ContextMenuTarget()?.IsEditable(&mut editavel)?;
+                if !editavel.as_bool() {
+                    args.SetHandled(true)?;
+                }
+                Ok(())
+            }));
+            let mut ficha = 0i64;
+            menu_dos_campos = n11.add_ContextMenuRequested(&filtro, &mut ficha).is_ok();
+        }
+        let _ = s.SetAreDefaultContextMenusEnabled(menu_dos_campos);
         if !cfg!(debug_assertions) {
             let _ = s.SetAreDevToolsEnabled(false);
         }
