@@ -13,6 +13,7 @@ mod audio;
 mod barra;
 mod canal;
 mod chaves;
+mod migracao;
 mod mini;
 mod notificacoes;
 mod ponte;
@@ -208,7 +209,10 @@ fn main() {
                 return Ok(());
             }
             let url = format!("http://localhost:{}/index.html", canal::PORTA);
-            let janela = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url.parse().unwrap()))
+            // A passagem do Electron (F10): a sessão e as preferências da versão ponte
+            // entram no localStorage antes de a página correr (só na de produção).
+            let reposicao = migracao::preparar(app.handle());
+            let mut construtor = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url.parse().unwrap()))
                 .title("Duotone")
                 .inner_size(1440.0, 900.0)
                 .min_inner_size(960.0, 640.0)
@@ -235,6 +239,8 @@ fn main() {
                 .on_page_load(|janela, carga| {
                     if carga.event() == PageLoadEvent::Finished {
                         if !JA_ABRIU.swap(true, std::sync::atomic::Ordering::SeqCst) {
+                            // A passagem do Electron: a página diz se as chaves ficaram lá.
+                            migracao::confirmar(&janela);
                             // Reaberta pelo instalador de uma atualização feita sozinha (F9):
                             // volta como estava, sem se pôr à frente de ninguém.
                             if let Some(como) = atualizacao::tirar_reabrir() {
@@ -252,8 +258,14 @@ fn main() {
                         *ESTADO_DA_JANELA.lock().unwrap() = (None, None);
                         avisar_estado_da_janela(janela.app_handle());
                     }
-                })
-                .build()?;
+                });
+            if let Some(script) = reposicao {
+                construtor = construtor.initialization_script(script);
+            }
+            if let Some(perfil) = migracao::perfil_de_ensaio() {
+                construtor = construtor.data_directory(perfil);
+            }
+            let janela = construtor.build()?;
             webview::configurar(&janela);
             // A barra de tarefas (F5): a subclasse antes do 1.º botão na barra, e a lista de saltos.
             barra::instalar(app.handle(), &janela);
