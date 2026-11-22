@@ -472,6 +472,21 @@ function DesktopShell() {
     return () => window.removeEventListener('duotone:cor-na-janela', mudou);
   }, []);
 
+  // As preferências que chegam da conta depois do arranque (22/11, App.tsx): num aparelho
+  // novo (a Preview, uma reinstalação) a leitura de cima já correu sem elas. Lê-se tudo outra vez.
+  useEffect(() => {
+    const voltarALer = () => {
+      void getDoisTons().then(definirDoisTons);
+      void getCapaMetal3D().then(definirCapaMetal);
+      void getDisposicaoDoLeitor().then(definirDisposicaoDoLeitor); void getFundoDoLeitor().then(definirFundoDoLeitor);
+      void getCorNaJanela().then(setCorDoLeitor);
+      void getDiscordRichPresence().then(setDiscordOn);
+      void AsyncStorage.getItem('pref:panelOpacity').then((val) => { if (val) setPanelOpacity(Number(val)); });
+    };
+    window.addEventListener('duotone:prefs-restauradas', voltarALer);
+    return () => window.removeEventListener('duotone:prefs-restauradas', voltarALer);
+  }, []);
+
   useEffect(() => {
     AsyncStorage.getItem('pref:panelOpacity').then((val) => {
       if (val) setPanelOpacity(Number(val));

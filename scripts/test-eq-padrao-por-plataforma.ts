@@ -118,6 +118,17 @@ await t('uma plataforma reinstalada recupera o padrão da conta sem esperar pelo
   assert.match(APP, /chave\.startsWith\('pref:eqPadrao'\)/);
   assert.match(APP, /usePlayer\.setState\(\{ padraoGanhos: ganhos \}\)/);
 });
+await t('no PC, o que a casca leu no arranque volta a ler-se quando chega da conta (22/11)', () => {
+  assert.match(APP, /window\.dispatchEvent\(new CustomEvent\('duotone:prefs-restauradas', \{ detail: chaves \}\)\);/);
+  // Antes do return do EQ: o aviso vai sempre, não só quando chega o EQ.
+  assert.ok(APP.indexOf("'duotone:prefs-restauradas'") < APP.indexOf("chave.startsWith('pref:eqPadrao')"));
+  const NAV = ler('src/navigation/RootNavigator.web.tsx');
+  assert.match(NAV, /window\.addEventListener\('duotone:prefs-restauradas', voltarALer\);/);
+  const corpo = NAV.slice(NAV.indexOf('const voltarALer = () => {'), NAV.indexOf("window.addEventListener('duotone:prefs-restauradas'"));
+  for (const lida of ['getDoisTons', 'getCapaMetal3D', 'getDisposicaoDoLeitor', 'getFundoDoLeitor', 'getCorNaJanela', 'getDiscordRichPresence', "'pref:panelOpacity'"]) {
+    assert.ok(corpo.includes(lida), 'volta a ler ' + lida);
+  }
+});
 
 console.log('\no que as Definições dizem');
 await t('o PC e o iPhone dizem de quem é o padrão', () => {

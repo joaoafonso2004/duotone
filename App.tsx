@@ -199,6 +199,12 @@ export default function App() {
     const pararPresenca = iniciarPresenca(userId);
     // As preferências passam a viver na conta: reinstalar deixa de as apagar.
     const pararPrefs = sincronizarPreferencias(userId, (chaves) => {
+      // No PC a casca lê no arranque a capa 3D, os dois tons, o layout, o fundo, a cor e o
+      // Discord: num aparelho novo eles chegam da conta DEPOIS, e só valiam no arranque
+      // seguinte (22/11: a Preview com "3D cover" ligado mostrava a capa plana). Volta a lê-los.
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('duotone:prefs-restauradas', { detail: chaves }));
+      }
       // O EQ padrão desta plataforma chegou da conta (a app foi reinstalada): passa a valer já, a
       // partir da faixa seguinte, e não só no próximo arranque.
       if (!chaves.some((chave) => chave.startsWith('pref:eqPadrao'))) return;
