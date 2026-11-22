@@ -142,6 +142,9 @@ declare global {
       instalarAtualizacao?: () => Promise<{ ok: boolean; versao?: string; erro?: string }>;
       /** A atualização do Windows é automática: sem aviso, instala ao abrir. */
       atualizacaoAutomatica?: boolean;
+      /** Só na casca em Tauri: a entrada do versions.json desta identidade
+       *  (`windows`, ou `windowsPreview` na Preview). Sem ela, `windows`. */
+      canalDasAtualizacoes?: string;
       procurarAtualizacao?: () => Promise<{ estado: 'atual' | 'pronta' | 'desistiu' | 'erro'; versao?: string } | null>;
       /** O progresso do download, de 0 a 1. Devolve o cancelamento. */
       onProgressoDaAtualizacao?: (listener: (progresso: number) => void) => () => void;

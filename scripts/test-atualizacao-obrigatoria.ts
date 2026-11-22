@@ -152,5 +152,37 @@ await caso('a app manda a sua versão desde o arranque', () => {
   assert.match(ler('src/lib/supabase.ts'), /definirVersaoDosPedidos\(APP_VERSION, Platform\.OS === 'web'\);/);
 });
 
+console.log('\no canal do Windows vem da casca (22/11)');
+/** O `lib/updates.ts` no PC: a Duotone (windows) com a 6.2.0 obrigatória, e a ponte dada. */
+function noPc(ponte: Record<string, unknown> | null) {
+  const versions = { apps: { duotone: { windows: { version: '6.2.0', notes: 'Minimum version: 6.2.0', tag: 'win-v6.2.0',
+    asset: { name: 'Duotone-Setup.exe', size: 1, url: 'x' }, install: 'x' } } } };
+  const stubs: Record<string, unknown> = {
+    'react-native': { Platform: { OS: 'web' } },
+    './buildInfo': { APP_VERSION: '6.1.1' },
+    '@react-native-async-storage/async-storage': { __esModule: true, default: { getItem: async () => null, setItem: async () => {} } },
+  };
+  const codigo = ts.transpileModule(ler('src/lib/updates.ts'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
+  }).outputText;
+  const module = { exports: {} as any };
+  vm.runInNewContext(codigo, {
+    module, exports: module.exports, require: (p: string) => { if (p in stubs) return stubs[p]; throw Error('import inesperado: ' + p); },
+    window: ponte ? { duotoneDesktop: ponte } : {}, fetch: async () => ({ ok: true, json: async () => versions }), AbortController, setTimeout, clearTimeout,
+  });
+  return module.exports;
+}
+await caso('a Duotone (Electron, sem a chave) lê windows e fica obrigada à 6.2.0', async () => {
+  const info = await noPc({ atualizacaoAutomatica: true }).checkForUpdate();
+  assert.equal(info?.obrigatoria, true);
+});
+await caso('a Preview lê windowsPreview: sem ela publicada está atual, não presa no "Update required"', async () => {
+  assert.equal(await noPc({ canalDasAtualizacoes: 'windowsPreview' }).checkForUpdate(), null);
+});
+await caso('um marcador por substituir não conta: volta a windows', () => {
+  assert.equal(noPc({ canalDasAtualizacoes: '__CANAL_DAS_ATUALIZACOES__' }).entradaDoCanal('windows'), 'windows');
+  assert.equal(noPc({ canalDasAtualizacoes: 'windowsPreview' }).entradaDoCanal('ios'), 'ios');
+});
+
 if (falhas) { console.error(`\n${falhas} caso(s) falharam.`); process.exit(1); }
 console.log('\nTodos os casos passaram.');

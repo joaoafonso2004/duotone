@@ -134,6 +134,10 @@
     // A Preview só aceita o canal dela; sem ele no versions.json, está sempre atual.
     instalarAtualizacao: () => pedir('atualizacao_instalar', {}),
     atualizacaoAutomatica: true,
+    // A entrada do versions.json desta identidade (canal.rs): a página lê-a para o
+    // aviso de versão (lib/updates.ts). Sem isto a Preview lia a da Duotone e, com a
+    // 6.2.0 obrigatória, ficava presa no "Update required" (22/11).
+    canalDasAtualizacoes: '__CANAL_DAS_ATUALIZACOES__',
     procurarAtualizacao: () => pedir('atualizacao_procurar', {}),
     descargaDaAtualizacao: () => pedir('atualizacao_descarga', {}),
     onDescargaDaAtualizacao: (listener) => ouvir('atualizacao:descarga', (d) => listener(d && typeof d === 'object'

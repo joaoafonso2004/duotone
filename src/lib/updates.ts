@@ -72,6 +72,19 @@ export function currentPlatform(): UpdatePlatform | null {
 }
 
 /**
+ * A entrada do `versions.json` a ler (22/11). A casca em Tauri diz a da sua
+ * identidade: a Preview tem `windowsPreview` e, sem ela publicada, está sempre
+ * atual. Lia a `windows` da Duotone e, com a 6.2.0 obrigatória, a Preview ficava
+ * presa no "Update required". O Electron não a diz: `windows`.
+ */
+export function entradaDoCanal(platform: UpdatePlatform): string {
+  if (platform !== 'windows' || typeof window === 'undefined') return platform;
+  const canal = window.duotoneDesktop?.canalDasAtualizacoes;
+  // Só um nome do canal do Windows (um marcador por substituir não conta).
+  return typeof canal === 'string' && /^windows[A-Za-z]*$/.test(canal) ? canal : 'windows';
+}
+
+/**
  * Compara duas versões semânticas.
  * Devolve >0 se `a` for mais recente que `b`, 0 se iguais, <0 caso contrário.
  *
@@ -140,7 +153,7 @@ export async function checkForUpdate(
       clearTimeout(relogio);
     }
 
-    const release: PlatformRelease | null = data?.apps?.[APP_ID]?.[platform] ?? null;
+    const release: PlatformRelease | null = data?.apps?.[APP_ID]?.[entradaDoCanal(platform)] ?? null;
     if (!release?.version || !release.asset) return null;
 
     if (compareVersions(release.version, APP_VERSION) <= 0) return null;

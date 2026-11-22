@@ -8,9 +8,11 @@ use std::{fs, path::PathBuf, sync::OnceLock, time::SystemTime};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Manager, WebviewWindow};
 
-/// O script da ponte, já com a origem da app.
+/// O script da ponte, já com a origem da app e o canal das atualizações.
 pub fn script() -> String {
-    include_str!("ponte.js").replace("__ORIGEM__", &format!("http://localhost:{}", crate::canal::PORTA))
+    include_str!("ponte.js")
+        .replace("__ORIGEM__", &format!("http://localhost:{}", crate::canal::PORTA))
+        .replace("__CANAL_DAS_ATUALIZACOES__", crate::canal::ATUALIZACAO_ENTRADA)
 }
 
 /// Entrega um acontecimento à página (só ao frame principal).
