@@ -1,3 +1,4 @@
+import { Saida, useASair } from './Saida.web';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
@@ -115,8 +116,8 @@ export function ModoLimpo() {
     };
   }, []);
 
-  if (!aberto) return null;
-  return <EcraLimpo />;
+  // Entra e sai a apagar-se (22/11), em vez de aparecer e sumir num fotograma.
+  return <Saida aberto={aberto}>{() => <EcraLimpo />}</Saida>;
 }
 
 /** A barra e os tempos: a única parte do modo limpo que lê a posição. */
@@ -194,8 +195,9 @@ function EcraLimpo() {
     ({ opacity: visivel ? 1 : 0, transition: 'opacity 450ms var(--dt-curva)' } as any);
 
 
+  const aSair = useASair();
   return (
-    <V ref={ecra} {...({ tabIndex: -1 } as any)} style={[estilos.fundo, { cursor: quieto ? 'none' : 'default' }]}>
+    <V ref={ecra} {...({ tabIndex: -1 } as any)} {...marcar('veu', aSair ? 'a-sair' : '')} style={[estilos.fundo, { cursor: quieto ? 'none' : 'default' }]}>
       {/* O fundo é o da app, desfocado e escuro -- não a capa.
           A capa esticada por trás enchia o ecrã de cor e roubava a atenção à
           própria capa, que é o que se quer ver; num segundo monitor isso é o

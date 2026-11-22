@@ -1,3 +1,5 @@
+import { Saida, useASair } from './Saida.web';
+import { marcar } from './ui.web';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -13,8 +15,8 @@ import { Artwork, Button, Field } from './ui.web';
  */
 export function BoasVindasPc() {
   const { aberto, fechar } = useBoasVindas();
-  if (!aberto) return null;
-  return <Conteudo aoFechar={fechar} />;
+  // Entra a crescer e sai a apagar-se, como os diálogos (22/11).
+  return <Saida aberto={aberto}>{() => <Conteudo aoFechar={fechar} />}</Saida>;
 }
 
 export function Conteudo({ aoFechar }: { aoFechar: () => void }) {
@@ -137,9 +139,10 @@ export function Conteudo({ aoFechar }: { aoFechar: () => void }) {
     : p.passo === 'fim' ? <Button onPress={p.fechar}>Start listening</Button>
     : null;
 
+  const aSair = useASair();
   return (
-    <View style={s.fundo}>
-      <View style={s.cartao}>
+    <View style={s.fundo} {...marcar('veu', aSair ? 'a-sair' : '')}>
+      <View style={s.cartao} {...marcar('dialogo', aSair ? 'a-sair' : '')}>
         <View style={s.topo}>
           <View style={{ flexDirection: 'row', gap: 6 }}>
             {[0, 1, 2].map((i) => <View key={i} style={[s.passo, i <= p.etapa && { backgroundColor: COR.texto }]} />)}

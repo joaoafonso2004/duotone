@@ -1,3 +1,4 @@
+import { Revelar } from '../Revelar.web';
 import { PainelDeSaude } from '../../components/PainelDeSaude';
 import { souAdministrador } from '../../api/painelDeSaude';
 import { RecommendationPreferences } from '../../components/RecommendationPreferences';
@@ -489,10 +490,10 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                 {/* O Cinema não tem a capa grande: o efeito e a capa de metal não fariam nada lá. */}
                 {/* A captura de audio e dita aqui, nao escondida: e o que permite
                     o efeito reagir ao som, e desligar a opcao desliga-a mesmo. */}
-                {disposicao !== 'cinema' && <ChoiceLine label="Now Playing effect" description="Reactive follows the music. Static freezes it. Off shows the plain artwork." value={glitch} choices={[['reactive', 'Reactive'], ['static', 'Static'], ['off', 'Off']]} onChange={changeGlitch} />}
-                {disposicao !== 'cinema' && glitch !== 'off' && <ChoiceLine label="Effect strength" value={effectIntensity} choices={[['subtle', 'Subtle'], ['normal', 'Normal'], ['strong', 'Strong']]} onChange={changeEffectIntensity} />}
+                <Revelar aberto={disposicao !== 'cinema'}>{() => <ChoiceLine label="Now Playing effect" description="Reactive follows the music. Static freezes it. Off shows the plain artwork." value={glitch} choices={[['reactive', 'Reactive'], ['static', 'Static'], ['off', 'Off']]} onChange={changeGlitch} />}</Revelar>
+                <Revelar aberto={disposicao !== 'cinema' && glitch !== 'off'}>{() => <ChoiceLine label="Effect strength" value={effectIntensity} choices={[['subtle', 'Subtle'], ['normal', 'Normal'], ['strong', 'Strong']]} onChange={changeEffectIntensity} />}</Revelar>
                 {/* A capa de metal em 3D (5/11): desligada de origem. */}
-                {disposicao !== 'cinema' && <ToggleLine label="3D cover" description="Show the Now Playing artwork as a 3D block that sinks where your mouse is, with light running along its edges. Drag it sideways to turn it to the lyrics." value={capaMetal} onChange={(v) => { setCapaMetalState(v); definirCapaMetal(v); void setCapaMetal3D(v); }} />}
+                <Revelar aberto={disposicao !== 'cinema'}>{() => <ToggleLine label="3D cover" description="Show the Now Playing artwork as a 3D block that sinks where your mouse is, with light running along its edges. Drag it sideways to turn it to the lyrics." value={capaMetal} onChange={(v) => { setCapaMetalState(v); definirCapaMetal(v); void setCapaMetal3D(v); }} />}</Revelar>
                 {/* A cor da capa a encher a janela (26/9); a de origem. */}
                 <ChoiceLine label="Now Playing colour" description="Let the artwork's colour (and an artist's photo) fill the whole window, or keep it inside the page." value={corDoLeitor} choices={[['janela', 'Whole window'], ['pagina', 'Page only']]} onChange={mudarCorDoLeitor} />
                 {/* As capas a dois tons (30/10): desligadas de origem. */}
@@ -516,8 +517,8 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                 {startup?.available && <>
                   <ToggleLine label="Start with Windows" description="Open Duotone when you sign in to Windows."
                     value={startup.enabled} onChange={(v) => void changeStartup(v, startup.mode)} />
-                  {startup.enabled && <ChoiceLine label="Start in" value={startup.mode} choices={[[ 'tray', 'System tray' ], [ 'window', 'Window' ]]}
-                    onChange={(v) => void changeStartup(startup.enabled, v as 'window' | 'tray')} />}
+                  <Revelar aberto={startup.enabled}>{() => <ChoiceLine label="Start in" value={startup.mode} choices={[[ 'tray', 'System tray' ], [ 'window', 'Window' ]]}
+                    onChange={(v) => void changeStartup(startup.enabled, v as 'window' | 'tray')} />}</Revelar>
                 </>}
                 {/* Desligada de origem: publica o que se ouve. A aplicação oficial
                     fica embutida; pedir um client id a cada pessoa impedia o Join,

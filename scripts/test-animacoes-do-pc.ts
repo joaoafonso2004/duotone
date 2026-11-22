@@ -206,17 +206,19 @@ caso('o lugar da barra do leitor fecha-se com a mesma curva, a partir da altura 
   assert.match(CASCA_LF, /@keyframes dt-barra-sai \{ from \{ height: var\(--dt-altura-da-barra\); \} to \{ height: 0; \} \}/);
   assert.match(CASCA_LF, /\[data-dt~="entrada-da-barra"\], \[data-dt~="saida-da-barra"\],/, 'o menos movimento desliga as duas');
 });
-caso('a altura lê-se no render da mudança, antes do return sem música', () => {
+caso('a altura lê-se no render da mudança, e as duas barras do fundo saem assim', () => {
+  const g = emLf('src/desktop/saidaDaBarra.web.tsx');
+  assert.match(g, /if \(anterior !== conteudo\) \{\n\s*setAnterior\(conteudo\);\n\s*const h = ref\.current\?\.offsetHeight \?\? 0;/, 'o padrão do React (guardar o render anterior)');
+  assert.match(g, /setAltura\(anterior && !conteudo && h > 0 && !menosMovimentoAgora\(\) \? h : null\);/, 'só quando a barra fica sem nada (e não numa troca)');
+  assert.match(g, /const t = setTimeout\(\(\) => setAltura\(null\), 500\);/, 'tira-se mesmo sem o animationend');
+  assert.match(g, /<div data-dt="saida-da-barra" aria-hidden\n\s*style=\{\{ \['--dt-altura-da-barra' as any\]: `\$\{altura\}px` \}\} onAnimationEnd=\{\(\) => setAltura\(null\)\} \/>/);
   const inicio = CASCA_LF.indexOf('export function PlayerBar(');
   const corpo = CASCA_LF.slice(inicio, CASCA_LF.indexOf('\n}\n', inicio));
-  const mudanca = corpo.indexOf('if (faixaAnterior !== p.current) {');
-  const semMusica = corpo.indexOf('if (!p.current) return <>');
-  assert.ok(mudanca > 0 && semMusica > mudanca, 'o padrão do React (guardar o render anterior) antes do return');
-  assert.match(corpo, /const altura = barraRef\.current\?\.offsetHeight \?\? 0;/);
-  assert.match(corpo, /setAlturaASair\(faixaAnterior && !p\.current && altura > 0 && !menosMovimentoAgora\(\) \? altura : null\);/, 'só quando a música sai (e não numa troca)');
-  assert.match(corpo, /<div data-dt="saida-da-barra" aria-hidden\n\s*style=\{\{ \['--dt-altura-da-barra' as any\]: `\$\{alturaASair\}px` \}\} onAnimationEnd=\{\(\) => setAlturaASair\(null\)\} \/>/);
-  assert.match(corpo, /const t = setTimeout\(\(\) => setAlturaASair\(null\), 500\);/, 'tira-se mesmo sem o animationend');
+  assert.match(corpo, /const \{ ref: barraRef, espaco: saidaDaBarra \} = useSaidaDaBarra\(p\.current\);/);
   assert.match(corpo, /return <div data-dt="entrada-da-barra" ref=\{barraRef\}><div>/, 'a altura é a da barra que está no ecrã');
+  const outro = emLf('src/desktop/OutroAparelho.web.tsx');
+  assert.match(outro, /const \{ ref, espaco \} = useSaidaDaBarra\(oferta\);\n\s*if \(!oferta\) return <>\{espaco\}<\/>;/, 'a do outro aparelho também sai');
+  assert.match(outro, /<div data-dt="entrada-da-barra" ref=\{ref\}><div>\n\s*<View style=\{styles\.player\}>/, 'e entra a abrir o lugar');
 });
 
 console.log('\ntudo o que entra também sai (22/11, antes da 7.0.0)');
@@ -262,6 +264,43 @@ caso('o CSS das saídas: a curva de sair, sem rato, e nada com o menos movimento
   assert.match(CASCA_LF, /\[data-dt~="dialogo"\]\[data-dt~="a-sair"\]\{ animation: dt-dialogo-sai var\(--dt-sair-ms\) var\(--dt-sair\) both; \}/);
   assert.match(CASCA_LF, /\[data-dt~="aviso"\]\[data-dt~="a-sair"\], \[data-dt~="barra-da-selecao"\]\[data-dt~="a-sair"\]\{\n\s*animation: dt-descer var\(--dt-sair-ms\) var\(--dt-sair\) both; \}/);
   assert.match(CASCA_LF, /prefers-reduced-motion: reduce\)\{\n\s*\[data-dt~="painel-do-leitor"\] \{ transition: none !important; \}\n\s*\[data-dt~="a-sair"\]\{ animation: none !important; opacity: 0 !important; \}/);
+});
+
+caso('o aviso de mensagem nova sobe e apaga-se; o cartão do outro aparelho desvanece', () => {
+  const banner = emLf('src/components/NotificationBanner.web.tsx');
+  assert.match(banner, /return <Saida aberto=\{!!item\}>\{\(\) => <Aviso key=\{item!\.conversationKey\} item=\{item!\} onOpen=\{onOpen\} \/>\}<\/Saida>;/);
+  assert.match(banner, /marcar\('aviso-msg', aSair \? 'a-sair' : ''\)/);
+  assert.match(CASCA_LF, /\[data-dt~="aviso-msg"\]\[data-dt~="a-sair"\]\{ animation: dt-aviso-msg-sai var\(--dt-sair-ms\) var\(--dt-sair\) both; \}/);
+  assert.match(emLf('src/desktop/OutroAparelho.web.tsx'), /useLayoutEffect\(\(\) => \(\) => sairComFantasma\(cartao\.current\), \[\]\);/);
+});
+caso('o Pin to sidebar sai por cima de tudo, e não dentro da lateral', () => {
+  assert.match(emLf('src/desktop/AtalhosNaLateral.web.tsx'), /const \{ montado \} = useSaida\(aberto, SAIDA_MS\);\n\s*if \(!montado \|\| typeof document === 'undefined'\) return <>\{children\}<\/>;/);
+});
+caso('as boas-vindas e o modo limpo entram e saem a apagar-se', () => {
+  const bv = emLf('src/desktop/BoasVindasPc.web.tsx');
+  assert.match(bv, /return <Saida aberto=\{aberto\}>\{\(\) => <Conteudo aoFechar=\{fechar\} \/>\}<\/Saida>;/);
+  assert.match(bv, /<View style=\{s\.fundo\} \{\.\.\.marcar\('veu', aSair \? 'a-sair' : ''\)\}>\n\s*<View style=\{s\.cartao\} \{\.\.\.marcar\('dialogo', aSair \? 'a-sair' : ''\)\}>/);
+  const ml = emLf('src/desktop/ModoLimpo.web.tsx');
+  assert.match(ml, /return <Saida aberto=\{aberto\}>\{\(\) => <EcraLimpo \/>\}<\/Saida>;/);
+  assert.match(ml, /\{\.\.\.marcar\('veu', aSair \? 'a-sair' : ''\)\} style=\{\[estilos\.fundo,/);
+});
+caso('as opções que aparecem no meio das Definições abrem e fecham o lugar', () => {
+  const r = emLf('src/desktop/Revelar.web.tsx');
+  assert.match(r, /if \(antes !== aberto\) \{\n\s*setAntes\(aberto\);\n\s*setAEntrar\(aberto\);/, 'só anima quando muda com a página aberta');
+  assert.match(r, /if \(aSair\) return <div data-dt="revelar a-sair">\{dentro\}<\/div>;/);
+  assert.match(CASCA_LF, /\[data-dt~="revelar"\]\{ display: grid; grid-template-rows: 1fr; \}/);
+  assert.match(CASCA_LF, /@keyframes dt-revelar\{ from\{ grid-template-rows: 0fr; opacity: 0; \} to\{ grid-template-rows: 1fr; opacity: 1; \} \}/);
+  const def = emLf('src/desktop/paginas/SettingsPage.web.tsx');
+  assert.match(def, /<Revelar aberto=\{startup\.enabled\}>\{\(\) => <ChoiceLine label="Start in"/);
+});
+caso('os amigos da lateral entram, saem e trocam de lugar a deslizar', () => {
+  const f = emLf('src/desktop/useFlip.web.ts');
+  assert.match(f, /el\.animate\(\[\{ transform: `translateY\(\$\{era - topo\}px\)` \}, \{ transform: 'none' \}\]/, 'do sítio antigo para o novo');
+  assert.match(f, /const animar = antes\.current !== null && !menosMovimentoAgora\(\);/, 'nada à primeira, nem com o menos movimento');
+  const am = emLf('src/desktop/AmigosNaLateral.web.tsx');
+  assert.equal((am.match(/<View ref=\{lista\}/g) ?? []).length, 2, 'na lateral larga e na estreita');
+  assert.match(am, /\{\.\.\.\(\{ dataSet: \{ dt: 'amigo', chave: a\.friendId \} \} as any\)\}/);
+  assert.match(am, /dataSet: \{ \.\.\.comDica\([\s\S]{0,120}\.dataSet, chave: a\.friendId \}/, 'a chave junta-se à legenda, sem a apagar');
 });
 
 console.log(falhas === 0 ? '\nTudo bem.\n' : `\n${falhas} falha(s).\n`);

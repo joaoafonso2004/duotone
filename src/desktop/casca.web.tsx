@@ -1,10 +1,11 @@
+import { useSaidaDaBarra } from './saidaDaBarra.web';
 import { closePlayerSmoothly, confirmaSwipe } from '../lib/closePlayer';
 import { ICONES } from '../lib/icones';
 import { FriendAvatar } from '../components/FriendAvatar';
 import { getPublicProfiles } from '../api/profiles';
 import { useSocial } from '../state/social';
 import { naoLidasPorAmigo } from '../lib/social';
-import { useReducedMotion, menosMovimentoAgora } from '../hooks/useReducedMotion';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 /**
  * A casca da janela: barra de título, barra lateral e barra do leitor.
  *
@@ -772,12 +773,22 @@ export function injectDesktopDocumentStyles() {
     @keyframes dt-desaparecer{ from{ opacity: 1; } to{ opacity: 0; } }
     @keyframes dt-dialogo-sai{ from{ opacity: 1; transform: none; } to{ opacity: 0; transform: translateY(4px) scale(.98); } }
     @keyframes dt-descer{ from{ opacity: 1; transform: none; } to{ opacity: 0; transform: translateY(40%); } }
+    [data-dt~="aviso-msg"][data-dt~="a-sair"]{ animation: dt-aviso-msg-sai var(--dt-sair-ms) var(--dt-sair) both; }
+    @keyframes dt-aviso-msg-sai{ from{ opacity: 1; transform: none; } to{ opacity: 0; transform: translateY(-16px) scale(.98); } }
+    /* O que aparece no meio de uma lista (uma opção que só existe com outra ligada,
+       desktop/Revelar.web.tsx): abre o lugar e fecha-o, e o resto desce e sobe com ele. */
+    [data-dt~="revelar"]{ display: grid; grid-template-rows: 1fr; }
+    [data-dt~="revelar"] > div{ min-height: 0; overflow: hidden; }
+    [data-dt~="revelar"][data-dt~="a-entrar"]{ animation: dt-revelar 240ms var(--dt-curva) both; }
+    [data-dt~="revelar"][data-dt~="a-sair"]{ animation: dt-revelar 200ms var(--dt-sair) reverse both; }
+    @keyframes dt-revelar{ from{ grid-template-rows: 0fr; opacity: 0; } to{ grid-template-rows: 1fr; opacity: 1; } }
 
     /* Quem pediu menos movimento no Windows nao leva nada disto. O estado
        final e o mesmo: aqui so morre o caminho ate la. */
     @media (prefers-reduced-motion: reduce){
       [data-dt~="painel-do-leitor"] { transition: none !important; }
       [data-dt~="a-sair"]{ animation: none !important; opacity: 0 !important; }
+      [data-dt~="revelar"]{ animation: none !important; }
       [data-dt~="separador"]::after{ transition: none !important; }
       #duotone-dica{ transition: none !important; transform: none !important; }
       [data-dt~="entrada-da-barra"], [data-dt~="saida-da-barra"],
@@ -1186,24 +1197,9 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
     cycleRepeat: s.cycleRepeat, error: s.error, seekTo: s.seekTo,
   })));
   const jam = useOuvirJuntos((s) => s.sessao);
-  // A saída da barra (22/11): quando a música sai, o lugar da barra fecha-se em vez
-  // de desaparecer num fotograma (a página saltava para baixo). A altura lê-se da
-  // barra que ainda está no ecrã, no próprio render da mudança (o padrão do React
-  // para guardar o render anterior), para o 1.º fotograma sem ela já ter o espaço.
-  const barraRef = useRef<HTMLDivElement | null>(null);
-  const [faixaAnterior, setFaixaAnterior] = useState(p.current);
-  const [alturaASair, setAlturaASair] = useState<number | null>(null);
-  if (faixaAnterior !== p.current) {
-    setFaixaAnterior(p.current);
-    const altura = barraRef.current?.offsetHeight ?? 0;
-    setAlturaASair(faixaAnterior && !p.current && altura > 0 && !menosMovimentoAgora() ? altura : null);
-  }
-  useEffect(() => {
-    if (alturaASair === null) return;
-    // Sem o `animationend` (janela escondida, por exemplo), tira-se na mesma.
-    const t = setTimeout(() => setAlturaASair(null), 500);
-    return () => clearTimeout(t);
-  }, [alturaASair]);
+  // A saída da barra (22/11): quando a música sai, o lugar dela fecha-se em vez de
+  // desaparecer num fotograma (desktop/saidaDaBarra.web.tsx).
+  const { ref: barraRef, espaco: saidaDaBarra } = useSaidaDaBarra(p.current);
   // A música como se MOSTRA: a mesma do Now Playing e do painel, com o catálogo
   // (1/11). A barra mostrava a crua e o Now Playing a do catálogo, e quando o
   // catálogo a corrigia pareciam duas músicas. O motor continua a receber a crua.
@@ -1229,11 +1225,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
     onPanResponderTerminate:()=>{setDragX(0);swiping.current=false;},
   })).current;
   // Sem nada a tocar aqui, a barra é a do outro aparelho, se houver um a tocar (1/11).
-  if (!p.current) return <>
-    {alturaASair !== null && <div data-dt="saida-da-barra" aria-hidden
-      style={{ ['--dt-altura-da-barra' as any]: `${alturaASair}px` }} onAnimationEnd={() => setAlturaASair(null)} />}
-    <BarraDoOutroAparelho />
-  </>;
+  if (!p.current) return <>{saidaDaBarra}<BarraDoOutroAparelho /></>;
 
   // Largar uma música na barra põe-na a seguir à que toca (24/10).
   return <div data-dt="entrada-da-barra" ref={barraRef}><div>

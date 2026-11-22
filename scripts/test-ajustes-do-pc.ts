@@ -113,10 +113,11 @@ caso('mudam ao vivo e ficam guardados, e a casca lê-os ao arrancar', () => {
   assert.match(NAVEGADOR, /getFundoDoLeitor\(\)\.then\(definirFundoDoLeitor\)/);
 });
 caso('no Cinema somem as opções da capa grande, que lá não fariam nada', () => {
+  // Num Revelar (22/11): o lugar fecha-se e o resto sobe com ele, em vez de saltar.
   for (const rotulo of ['ChoiceLine label="Now Playing effect"', 'ToggleLine label="3D cover"']) {
-    assert.ok(DEFINICOES.includes(`{disposicao !== 'cinema' && <${rotulo}`), rotulo);
+    assert.ok(DEFINICOES.includes(`<Revelar aberto={disposicao !== 'cinema'}>{() => <${rotulo}`), rotulo);
   }
-  assert.ok(DEFINICOES.includes(`{disposicao !== 'cinema' && glitch !== 'off' && <ChoiceLine label="Effect strength"`));
+  assert.ok(DEFINICOES.includes(`<Revelar aberto={disposicao !== 'cinema' && glitch !== 'off'}>{() => <ChoiceLine label="Effect strength"`));
 });
 
 if (falhas) { console.log(`\n${falhas} falha(s)`); process.exit(1); }

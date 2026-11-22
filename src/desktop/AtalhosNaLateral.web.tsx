@@ -1,3 +1,5 @@
+import { useSaida } from './useSaida.web';
+import { SAIDA_MS } from './Saida.web';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { MenuDeContexto, pontoDoEvento, type LinhaDoMenu, type PontoNoEcra } from './MenuDeContexto.web';
 import { MenuDoArtista } from './MenuDoArtista.web';
@@ -177,7 +179,10 @@ export function AtalhosNaLateral({ navigate, notify, compacta = false }: { navig
  * portal para o `body`, por cima da janela inteira.
  */
 function PorCimaDeTudo({ aberto, children }: { aberto: boolean; children: React.ReactNode }) {
-  if (!aberto || typeof document === 'undefined') return <>{children}</>;
+  // Fechado, o diálogo de dentro ainda SAI (22/11): o portal fica esse tempo, senão a
+  // saída desenhava-se dentro da lateral.
+  const { montado } = useSaida(aberto, SAIDA_MS);
+  if (!montado || typeof document === 'undefined') return <>{children}</>;
   return createPortal(
     <View style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 200 } as any}>{children}</View>,
     document.body,

@@ -1,3 +1,4 @@
+import { Saida, useASair } from '../desktop/Saida.web';
 import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -153,17 +154,23 @@ export function ProfileHeroPc({ profile, own, cover, unread, status, altura, lar
         <Ionicons name="chevron-down" size={14} color="rgba(255,255,255,0.7)" />
       </View>
     </View>
-    {aberta && cover ? createPortal(
-      <div ref={caixaRef} role="dialog" aria-modal="true" aria-label="Full cover photo" tabIndex={-1} data-dt="veu" onClick={() => setAberta(false)}
-        style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 320, background: 'rgba(0,0,0,0.94)', display: 'flex',
-          flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, cursor: 'zoom-out', outline: 'none' }}>
-        <img data-dt="dialogo" src={cover} alt="Cover photo" draggable={false}
-          style={{ maxWidth: '92%', maxHeight: '84%', objectFit: 'contain', borderRadius: 8, boxShadow: '0 30px 100px #000' }} />
-        <span style={{ fontFamily: FONT.mono, fontSize: 11, letterSpacing: 1.4, color: '#fff', textTransform: 'uppercase' }}>Full cover · click or press Esc to close</span>
-      </div>,
+    <Saida aberto={aberta && !!cover}>{() => createPortal(
+      <CapaInteira caixaRef={caixaRef} cover={cover!} aoFechar={() => setAberta(false)} />,
       document.body,
-    ) : null}
+    )}</Saida>
   </>;
+}
+
+/** A capa inteira por cima de tudo. Fechada, sai como os diálogos (22/11). */
+function CapaInteira({ caixaRef, cover, aoFechar }: { caixaRef: React.RefObject<any>; cover: string; aoFechar: () => void }) {
+  const aSair = useASair();
+  return <div ref={caixaRef} role="dialog" aria-modal="true" aria-label="Full cover photo" tabIndex={-1} data-dt={aSair ? 'veu a-sair' : 'veu'} onClick={aoFechar}
+    style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 320, background: 'rgba(0,0,0,0.94)', display: 'flex',
+      flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, cursor: 'zoom-out', outline: 'none' }}>
+    <img data-dt={aSair ? 'dialogo a-sair' : 'dialogo'} src={cover} alt="Cover photo" draggable={false}
+      style={{ maxWidth: '92%', maxHeight: '84%', objectFit: 'contain', borderRadius: 8, boxShadow: '0 30px 100px #000' }} />
+    <span style={{ fontFamily: FONT.mono, fontSize: 11, letterSpacing: 1.4, color: '#fff', textTransform: 'uppercase' }}>Full cover · click or press Esc to close</span>
+  </div>;
 }
 
 const estilos = StyleSheet.create({

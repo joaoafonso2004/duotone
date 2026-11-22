@@ -1,3 +1,4 @@
+import { useFlip } from './useFlip.web';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { ICONES } from '../lib/icones';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -44,6 +45,8 @@ export function AmigosNaLateral({ navigate, notify, compacta = false }: { naviga
   const [aRemover, setARemover] = useState<Friendship | null>(null);
   const fecharMenu = useCallback(() => setMenu(null), []);
   const { visiveis, resto, online } = useMemo(() => amigosNaLateral(amigos), [amigos]);
+  // Os amigos entram, saem e trocam de lugar a deslizar, e não aos saltos (22/11, useFlip).
+  const lista = useFlip<any>();
   const aOuvir = visiveis.filter((a) => musicaDoAmigo(a)).length;
 
   // As sessões abertas, para "ouvir com" entrar no jam dele em vez de só tocar
@@ -82,7 +85,7 @@ export function AmigosNaLateral({ navigate, notify, compacta = false }: { naviga
   // A régua (31/10): uma cara por amigo, com o ponto verde; o nome e a música ficam na legenda.
   if (compacta) {
     return (
-      <View style={[CAIXA, { paddingTop: ESP.md, paddingBottom: ESP.sm }]}>
+      <View ref={lista} style={[CAIXA, { paddingTop: ESP.md, paddingBottom: ESP.sm }]}>
         {/* Sem o indicador: na régua de 72 px empurrava as caras para fora do eixo dos ícones. */}
         <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center', gap: 6 }}>
           {visiveis.map((a) => {
@@ -90,7 +93,7 @@ export function AmigosNaLateral({ navigate, notify, compacta = false }: { naviga
             const nome = a.name || a.username;
             return (
               <Pressable key={a.friendId}
-                {...comDica(faixa ? `${nome} · ${tituloDaFaixa(faixa)}` : `${nome} · Online`, undefined, 'amigo')}
+                {...({ dataSet: { ...comDica(faixa ? `${nome} · ${tituloDaFaixa(faixa)}` : `${nome} · Online`, undefined, 'amigo').dataSet, chave: a.friendId } } as any)}
                 accessibilityLabel={faixa ? `${nome}, listening to ${tituloDaFaixa(faixa)}. Open chat` : `${nome}, online. Open chat`}
                 onPress={() => navigate({ name: 'social', friendId: a.friendId })}
                 onContextMenu={((e: any) => { e.preventDefault(); setMenu({ amigoId: a.friendId, rato: { x: e.clientX, y: e.clientY } }); }) as any}
@@ -111,7 +114,7 @@ export function AmigosNaLateral({ navigate, notify, compacta = false }: { naviga
   }
 
   return (
-    <View style={[CAIXA, { paddingHorizontal: ESP.md, paddingTop: ESP.md, paddingBottom: ESP.sm }]}>
+    <View ref={lista} style={[CAIXA, { paddingHorizontal: ESP.md, paddingTop: ESP.md, paddingBottom: ESP.sm }]}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: ESP.sm, paddingBottom: ESP.sm }}>
         <Text style={{ ...TIPO.micro, color: COR.textoFraco }}>FRIENDS</Text>
         <Text style={{ ...TIPO.micro, color: COR.textoFraco }}>{online} ONLINE</Text>
@@ -126,7 +129,7 @@ export function AmigosNaLateral({ navigate, notify, compacta = false }: { naviga
           return (
             <Pressable
               key={a.friendId}
-              {...marcar('amigo')}
+              {...({ dataSet: { dt: 'amigo', chave: a.friendId } } as any)}
               // Sem papel de botão: o ▶ lá dentro é que o é, e um <button> dentro
               // de outro é HTML inválido (o browser apanhou-o no ensaio de 26/9).
               accessibilityLabel={faixa ? `${nome}, listening to ${tituloDaFaixa(faixa)}. Open chat` : `${nome}, online. Open chat`}

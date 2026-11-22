@@ -1,3 +1,4 @@
+import { Saida, useASair } from '../desktop/Saida.web';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useRef, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -31,10 +32,10 @@ const FICA_MS = 8000;
  */
 export function NotificationBanner({ onOpen }: { onOpen: (target: NotificationTarget) => void }) {
   const item = useNotifications((s) => s.banners[0]);
-  if (!item) return null;
   // Pela conversa e não pelo id: uma mensagem nova da mesma pessoa troca o
-  // conteúdo sem voltar a animar, e o que se estava a escrever fica.
-  return <Aviso key={item.conversationKey} item={item} onOpen={onOpen} />;
+  // conteúdo sem voltar a animar, e o que se estava a escrever fica. Fechado,
+  // sobe e apaga-se (22/11) em vez de desaparecer.
+  return <Saida aberto={!!item}>{() => <Aviso key={item!.conversationKey} item={item!} onOpen={onOpen} />}</Saida>;
 }
 
 function Aviso({ item, onOpen }: { item: InAppNotification; onOpen: (target: NotificationTarget) => void }) {
@@ -45,6 +46,7 @@ function Aviso({ item, onOpen }: { item: InAppNotification; onOpen: (target: Not
   const [aEnviar, setAEnviar] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const entrada = useRef<TextInput>(null);
+  const aSair = useASair();
   const fechar = () => useNotifications.getState().dismiss(item.id);
 
   // Desaparece sozinho, mas não enquanto se escreve, se tem o rato em cima ou
@@ -85,7 +87,7 @@ function Aviso({ item, onOpen }: { item: InAppNotification; onOpen: (target: Not
   return (
     <View pointerEvents="box-none" style={s.host}>
       <View
-        {...(marcar('aviso-msg') as any)}
+        {...(marcar('aviso-msg', aSair ? 'a-sair' : '') as any)}
         {...({ onPointerEnter: () => setPorCima(true), onPointerLeave: () => setPorCima(false) } as any)}
         style={s.card}
       >

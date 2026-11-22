@@ -1,5 +1,7 @@
+import { useSaidaDaBarra } from './saidaDaBarra.web';
+import { sairComFantasma } from './fantasma.web';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { useComandarOutro } from '../lib/comandarOutro';
@@ -134,6 +136,9 @@ function CartaoDoOutroAparelho({ sessao }: { sessao: RemoteSession }) {
   const posicao = usePosicaoDoOutro(sessao);
   const { comandar, aMandar, aviso } = useComandarOutro(sessao);
   const [lugar, setLugar] = useState<{ right: number; bottom: number } | null>(null);
+  // Fechado (um clique fora, o Esc), deixa uma cópia a desvanecer (22/11, fantasma.web.ts).
+  const cartao = useRef<any>(null);
+  useLayoutEffect(() => () => sairComFantasma(cartao.current), []);
   useEffect(() => {
     const botao = document.getElementById(ID_DO_BOTAO);
     if (botao) {
@@ -152,7 +157,7 @@ function CartaoDoOutroAparelho({ sessao }: { sessao: RemoteSession }) {
     <View style={{ position: 'fixed', inset: 0, zIndex: 320 } as any}>
       {/* Um clique fora fecha. */}
       <P accessibilityLabel="Close" onPress={fecharOutroAparelho} style={{ position: 'absolute', inset: 0, cursor: 'default' } as any} />
-      <View accessibilityRole={'dialog' as any} accessibilityLabel={`Playing on ${nome}`}
+      <View ref={cartao} accessibilityRole={'dialog' as any} accessibilityLabel={`Playing on ${nome}`}
         style={{ position: 'absolute', right: lugar.right, bottom: lugar.bottom, width: 360, ...flutuante(RAIO_FLUTUANTE.menu), overflow: 'hidden',
           animationName: 'dt-linha', animationDuration: '260ms', animationTimingFunction: 'var(--dt-curva)' } as any}>
         <Text style={[TIPO.seccao, { color: COR.texto, paddingHorizontal: ESP.lg, paddingTop: 14, paddingBottom: ESP.sm }]}>Playing on {nome}</Text>
@@ -198,7 +203,9 @@ export function BarraDoOutroAparelho() {
   const cor = useTheme((s) => s.theme.color);
   const posicao = usePosicaoDoOutro(oferta);
   const { comandar, aMandar } = useComandarOutro(oferta);
-  if (!oferta) return null;
+  // Entra e sai como a barra do leitor (22/11): a abrir o lugar e a fechá-lo.
+  const { ref, espaco } = useSaidaDaBarra(oferta);
+  if (!oferta) return <>{espaco}</>;
   const duracao = (oferta.track.durationSeconds ?? 0) * 1000;
   const fracao = duracao > 0 ? Math.min(1, posicao / duracao) : 0;
   const ouve = estaAcordado(oferta);
@@ -209,6 +216,7 @@ export function BarraDoOutroAparelho() {
     </P>
   );
   return (
+    <div data-dt="entrada-da-barra" ref={ref}><div>
     <View style={styles.player}>
       <View style={styles.playerTrack}>
         <View style={[styles.playerTrackLink, { cursor: 'default' } as any]}>
@@ -242,6 +250,7 @@ export function BarraDoOutroAparelho() {
         <BotaoDoOutroAparelho />
       </View>
     </View>
+    </div></div>
   );
 }
 

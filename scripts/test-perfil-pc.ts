@@ -138,11 +138,13 @@ caso('o botão do canto e o F abrem a capa inteira; só com a página à vista e
   assert.match(HERO, /if \(!eTeclaDaCapa\(e as unknown as Parameters<typeof eTeclaDaCapa>\[0\]\)\) return;/);
 });
 caso('a capa inteira é um diálogo num portal fixo (a armadilha do Save), com Esc, clique e foco', () => {
-  assert.match(HERO, /createPortal\(\n\s+<div ref=\{caixaRef\} role="dialog" aria-modal="true"/);
+  // Numa Saida (22/11): fechada, sai como os diálogos.
+  assert.match(HERO, /<Saida aberto=\{aberta && !!cover\}>\{\(\) => createPortal\(\n\s+<CapaInteira caixaRef=\{caixaRef\} cover=\{cover!\} aoFechar=\{\(\) => setAberta\(false\)\} \/>/);
+  assert.match(HERO, /return <div ref=\{caixaRef\} role="dialog" aria-modal="true"/);
   assert.match(HERO, /position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 320/);
   assert.match(HERO, /objectFit: 'contain'/, 'a fotografia inteira, sem cortes');
   assert.match(HERO, /if \(aberta && e\.key === 'Escape'\) \{ e\.preventDefault\(\); e\.stopPropagation\(\); setAberta\(false\); return; \}/);
-  assert.match(HERO, /onClick=\{\(\) => setAberta\(false\)\}/);
+  assert.match(HERO, /data-dt=\{aSair \? 'veu a-sair' : 'veu'\} onClick=\{aoFechar\}/);
   assert.match(HERO, /antesDoFoco\.current = document\.activeElement as HTMLElement \| null;/);
 });
 caso('as ações da identidade são as de sempre (editar, mensagem, "You two", adicionar)', () => {
