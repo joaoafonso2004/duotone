@@ -1,3 +1,4 @@
+import { Saida } from './Saida.web';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useRef, useState } from 'react';
 import { refDoAlvo } from './Arrastar.web';
@@ -130,7 +131,7 @@ export function CabecaDaFila({ fila, compacta = false, abas }: {
         da cabeça da fila, ficava preso a essa camada -- o veu só cobria a cabeça,
         e os botões, por baixo da lista, deixavam de receber o clique (iam para a
         fila). Só existe aberto: o contentor fixo cobre a janela e apanharia o rato. */}
-    {fila.aGuardar ? createPortal(
+    <Saida aberto={!!fila.aGuardar}>{() => createPortal(
       <View style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 310 } as any}>
         <Dialog open title="Save queue as playlist" onClose={() => { if (!fila.aGravar) fila.setAGuardar(null); }}>
           <View style={{ paddingBottom: 16 }}>
@@ -147,7 +148,7 @@ export function CabecaDaFila({ fila, compacta = false, abas }: {
         </Dialog>
       </View>,
       document.body,
-    ) : null}
+    )}</Saida>
   </View>;
 }
 

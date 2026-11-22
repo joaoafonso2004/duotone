@@ -1,3 +1,4 @@
+import { Saida } from './Saida.web';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useState } from 'react';
 import { Image, Pressable, ScrollView, Text, View } from 'react-native';
@@ -145,7 +146,7 @@ export function ContaDoSpotifyPc({ aoComecar }: { aoComecar: () => void }) {
 
       {/* Pelo portal, como o "Save queue" da fila: dentro do scroll da página o
           diálogo ficava preso ao cartão e cortado. Só existe aberto. */}
-      {biblioteca ? createPortal(
+      <Saida aberto={!!biblioteca}>{() => createPortal(
         <View style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 310 } as any}>
       <Dialog open title="Choose what to import" width={520} onClose={() => { if (!aLer) setBiblioteca(null); }}>
         <Pressable accessibilityRole="button" onPress={() => setEscolhidas(todas ? new Set() : new Set(listas.map((l) => l.id)))}
@@ -163,7 +164,7 @@ export function ContaDoSpotifyPc({ aoComecar }: { aoComecar: () => void }) {
       </Dialog>
         </View>,
         document.body,
-      ) : null}
+      )}</Saida>
     </View>
   );
 }

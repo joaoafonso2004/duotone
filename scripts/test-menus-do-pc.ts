@@ -44,7 +44,7 @@ caso('nenhuma delas voltou a ter a sua cor de fundo e o seu fio', () => {
 });
 caso('dentro de um diálogo: os botões em pílula, o secundário sem contorno, o destrutivo com fundo, o campo sem fio', () => {
   assert.match(ui, /const NoDialogo = createContext\(false\);/);
-  assert.match(ui, /<NoDialogo\.Provider value>\{children\}<\/NoDialogo\.Provider>/);
+  assert.match(ui, /<NoDialogo\.Provider value>\{v\.children\}<\/NoDialogo\.Provider>/);
   assert.match(ui, /noDialogo && ui\.buttonNoDialogo, noDialogo && secondary && !marcado && !danger && ui\.buttonSecNoDialogo, noDialogo && danger && ui\.buttonDangerNoDialogo,/);
   assert.match(ui, /buttonSecNoDialogo: \{ backgroundColor: ESTADO\.hover, borderColor: 'transparent' \},/);
   assert.match(ui, /noDialogo && !pilula && ui\.fieldNoDialogo/);

@@ -146,7 +146,8 @@ caso('a mola (25/10): parada nas Playlists da lateral abre a página, e larga-se
 caso('o Undo aparece no PC (o aviso partilhado com o botão)', () => {
   const raiz = ler('src/navigation/RootNavigator.web.tsx');
   assert.match(raiz, /if \(a\?\.desfazer\) \{ setToast\(''\); setAvisoComDesfazer\(a\); return; \}/);
-  assert.match(raiz, /\{avisoComDesfazer && <AvisoComDesfazer aviso=\{avisoComDesfazer\} \/>\}<CamadaDoArrasto \/>/);
+  // Dentro de uma Saida (22/11): no fim, desce e apaga-se em vez de desaparecer.
+  assert.match(raiz, /<Saida aberto=\{!!avisoComDesfazer\}>\{\(\) => <AvisoComDesfazer aviso=\{avisoComDesfazer!\} \/>\}<\/Saida><CamadaDoArrasto \/>/);
 });
 
 if (falhas) { console.error(`\n  ${falhas} caso(s) falharam.\n`); process.exit(1); }

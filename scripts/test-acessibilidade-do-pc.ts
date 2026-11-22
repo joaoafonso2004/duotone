@@ -120,7 +120,8 @@ console.log('\nligado');
 const ui = ler('src/desktop/ui.web.tsx');
 caso('o Dialog anuncia-se, prende o Tab, fecha só por cima e devolve o foco', () => {
   const dialogo = ui.slice(ui.indexOf('export function Dialog('), ui.indexOf('export function Toast('));
-  assert.match(dialogo, /role="dialog" aria-modal aria-label=\{title\}/);
+  // O título visto (22/11): a fechar, o diálogo sai com o do último render aberto.
+  assert.match(dialogo, /role="dialog" aria-modal aria-label=\{v\.title\}/);
   assert.match(dialogo, /if \(!camadas\.noTopo\(camada\)\) return;/);
   assert.match(dialogo, /if \(e\.defaultPrevented \|\| document\.querySelector\('\[role="menu"\]'\)\) return;/, 'o Escape de um menu por cima não fecha o diálogo');
   assert.match(dialogo, /window\.addEventListener\('keydown', tecla, true\);/, 'na captura: o TextInput do RNW pára as teclas na bolha');

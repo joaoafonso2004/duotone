@@ -80,7 +80,8 @@ caso('o ficheiro com licença é mesmo um elemento do DOM (<div>, <span>, <svg>)
 
 caso('o marcador continua a ser o dataSet, e não outra coisa', () => {
   const ui = readFileSync('src/desktop/ui.web.tsx', 'utf8');
-  assert.match(ui, /export const marcar = \(\.\.\.nomes: string\[\]\) => \(\{ dataSet: \{ dt: nomes\.join\(' '\) \} \}/,
+  // Os nomes vazios ficam de fora (22/11: `marcar('veu', aSair ? 'a-sair' : '')`).
+  assert.match(ui, /export const marcar = \(\.\.\.nomes: string\[\]\) => \(\{ dataSet: \{ dt: nomes\.filter\(Boolean\)\.join\(' '\) \} \}/,
     'o `marcar` mudou de forma -- se deixar de escrever `dataSet`, nada chega ao DOM');
 });
 
@@ -216,6 +217,51 @@ caso('a altura lê-se no render da mudança, antes do return sem música', () =>
   assert.match(corpo, /<div data-dt="saida-da-barra" aria-hidden\n\s*style=\{\{ \['--dt-altura-da-barra' as any\]: `\$\{alturaASair\}px` \}\} onAnimationEnd=\{\(\) => setAlturaASair\(null\)\} \/>/);
   assert.match(corpo, /const t = setTimeout\(\(\) => setAlturaASair\(null\), 500\);/, 'tira-se mesmo sem o animationend');
   assert.match(corpo, /return <div data-dt="entrada-da-barra" ref=\{barraRef\}><div>/, 'a altura é a da barra que está no ecrã');
+});
+
+console.log('\ntudo o que entra também sai (22/11, antes da 7.0.0)');
+const UI_LF = emLf('src/desktop/ui.web.tsx');
+caso('o diálogo sai com o que mostrava, e também quando o desmontam numa Saida', () => {
+  const dialogo = UI_LF.slice(UI_LF.indexOf('export function Dialog('), UI_LF.indexOf('export function Toast('));
+  assert.match(dialogo, /const \{ montado, aSair: aSairDeDentro \} = useSaida\(open, SAIDA_MS\);\n\s*const aSairDeFora = useASair\(\);/);
+  assert.match(dialogo, /if \(open\) visto\.current = \{ title, children, width, semVeu, lavagem \};/, 'o conteúdo do último render aberto');
+  assert.match(dialogo, /if \(!montado\) return null;/);
+  assert.match(dialogo, /marcar\('veu', aSair \? 'a-sair' : ''\)/);
+  assert.match(dialogo, /marcar\('dialogo', aSair \? 'a-sair' : ''\)/);
+  assert.match(dialogo, /pointerEvents=\{aSair \? 'none' : 'auto'\}/, 'a sair não apanha o rato');
+});
+caso('o aviso desce e apaga-se antes de avisar quem o mostrou', () => {
+  const toast = UI_LF.slice(UI_LF.indexOf('export function Toast('));
+  assert.match(toast, /const id = setTimeout\(\(\) => setASair\(true\), duracaoDoAviso\(\{ tipo \}\)\);/);
+  assert.match(toast, /const id = setTimeout\(\(\) => onDoneRef\.current\(\), SAIDA_MS\);/);
+  assert.match(toast, /marcar\('aviso', aSair \? 'a-sair' : ''\)/);
+  assert.match(emLf('src/desktop/AvisoComDesfazer.web.tsx'), /const aSair = useASair\(\);\n\s*return <View ref=\{caixa\} \{\.\.\.marcar\('aviso', aSair \? 'a-sair' : ''\)\}/);
+});
+caso('a barra da seleção, a BottomSheet e os diálogos em portal saem numa Saida', () => {
+  assert.match(emLf('src/desktop/BarraDaSelecao.web.tsx'), /<Saida aberto=\{faixas\.length > 0\}>\{\(\) => \(\n\s*<NaSaida>/);
+  assert.match(emLf('src/components/BottomSheet.web.tsx'), /return <Saida aberto=\{visible\}>\{\(\) => createPortal\(/);
+  assert.match(emLf('src/desktop/ContaDoSpotifyPc.web.tsx'), /<Saida aberto=\{!!biblioteca\}>\{\(\) => createPortal\(/);
+  assert.match(emLf('src/desktop/ProgressoDaImportacao.web.tsx'), /<Saida aberto=\{verFaltas && typeof document !== 'undefined'\}>\{\(\) => createPortal\(/);
+  assert.match(emLf('src/desktop/MenuDoAmigo.web.tsx'), /return <Saida aberto=\{!!amigo\}>\{\(\) => \{\n\s*if \(!amigo\) return null;/);
+  const saida = emLf('src/desktop/Saida.web.tsx');
+  assert.match(saida, /export const SAIDA_MS = 160;/, 'a curva de sair do PC');
+  assert.match(saida, /if \(aberto\) ultimo\.current = children\(\);/, 'o conteúdo só se escreve aberto');
+});
+caso('o menu deixa uma cópia a desvanecer, sem ids, sem rato e sem mais nada a mexer', () => {
+  assert.match(emLf('src/desktop/MenuDeContexto.web.tsx'), /useLayoutEffect\(\(\) => \(\) => \{ sairComFantasma\(caixa\.current\); sairComFantasma\(painel\.current\); \}, \[\]\);/);
+  const f = emLf('src/desktop/fantasma.web.ts');
+  assert.match(f, /if \(!el \|\| !el\.isConnected \|\| typeof document === 'undefined' \|\| menosMovimentoAgora\(\)\) return;/);
+  assert.match(f, /copia\.querySelectorAll\('\[id\]'\)\.forEach\(\(n\) => n\.removeAttribute\('id'\)\);/);
+  assert.match(f, /copia\.setAttribute\('inert', ''\);/);
+  assert.match(f, /setTimeout\(fim, SAIDA_MS \+ 120\);/, 'a cópia nunca fica, mesmo sem o finish');
+  assert.match(CASCA_LF, /\[data-fantasma\], \[data-fantasma\] \*\{ animation: none !important; transition: none !important; \}/);
+});
+caso('o CSS das saídas: a curva de sair, sem rato, e nada com o menos movimento', () => {
+  assert.match(CASCA_LF, /\[data-dt~="a-sair"\]\{ pointer-events: none !important; \}/);
+  assert.match(CASCA_LF, /\[data-dt~="veu"\]\[data-dt~="a-sair"\]\{ animation: dt-desaparecer var\(--dt-sair-ms\) var\(--dt-sair\) both; \}/);
+  assert.match(CASCA_LF, /\[data-dt~="dialogo"\]\[data-dt~="a-sair"\]\{ animation: dt-dialogo-sai var\(--dt-sair-ms\) var\(--dt-sair\) both; \}/);
+  assert.match(CASCA_LF, /\[data-dt~="aviso"\]\[data-dt~="a-sair"\], \[data-dt~="barra-da-selecao"\]\[data-dt~="a-sair"\]\{\n\s*animation: dt-descer var\(--dt-sair-ms\) var\(--dt-sair\) both; \}/);
+  assert.match(CASCA_LF, /prefers-reduced-motion: reduce\)\{\n\s*\[data-dt~="painel-do-leitor"\] \{ transition: none !important; \}\n\s*\[data-dt~="a-sair"\]\{ animation: none !important; opacity: 0 !important; \}/);
 });
 
 console.log(falhas === 0 ? '\nTudo bem.\n' : `\n${falhas} falha(s).\n`);

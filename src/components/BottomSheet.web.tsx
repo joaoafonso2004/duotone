@@ -1,3 +1,4 @@
+import { Saida } from '../desktop/Saida.web';
 import React from 'react';
 import { FlatList, ScrollView, View, type FlatListProps, type ScrollViewProps } from 'react-native';
 import { Dialog } from '../desktop/ui.web';
@@ -28,17 +29,17 @@ export const FOLHAS_NATIVAS = false;
 
 export function BottomSheet({ visible, onClose, children, titulo }: Props) {
   useNotificationOverlay(visible, onClose);
-  if (!visible || typeof document === 'undefined') return null;
+  if (typeof document === 'undefined') return null;
   // Num portal: dentro de uma página ou de um painel, o `fixed` ficava preso
-  // ao contentor com transform mais próximo.
-  return createPortal(
+  // ao contentor com transform mais próximo. Fechada, sai como os diálogos (22/11).
+  return <Saida aberto={visible}>{() => createPortal(
     <View style={{ position: 'fixed', inset: 0, zIndex: 10000 } as any}>
       <Dialog open title={titulo ?? ''} onClose={onClose} width={520}>
         <View style={{ maxHeight: 'calc(100dvh - 160px)', minHeight: 0, flexShrink: 1 } as any}>{children}</View>
       </Dialog>
     </View>,
     document.body,
-  );
+  )}</Saida>;
 }
 
 /** Sem gesto de arrastar para fechar no PC: é um `ScrollView` normal. */

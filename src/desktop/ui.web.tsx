@@ -1,3 +1,5 @@
+import { SAIDA_MS, useASair } from './Saida.web';
+import { useSaida } from './useSaida.web';
 import {StateIcon} from '../components/StateIcon';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { ReactNode, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -75,7 +77,7 @@ const SEM_CHAVES: string[] = [];
  * Há um teste que falha se voltar a aparecer um `className` num componente RN,
  * e se uma marca existir só de um dos lados (`scripts/test-animacoes-do-pc.ts`).
  */
-export const marcar = (...nomes: string[]) => ({ dataSet: { dt: nomes.join(' ') } } as any);
+export const marcar = (...nomes: string[]) => ({ dataSet: { dt: nomes.filter(Boolean).join(' ') } } as any);
 /**
  * O id da música no DOM (`data-yt`), nas linhas e nos cartões: o motor só de
  * áudio do Tauri resolve a que tem o rato parado em cima, antes do clique
@@ -1509,6 +1511,15 @@ export function Dialog({ open, title, children, onClose, width = 460, semVeu = f
   /** Uma cor (a da capa) a lavar o topo da caixa. */
   lavagem?: string | null;
 }) {
+  // A saída (22/11): fechado, o diálogo fica o tempo de sair com o que mostrava
+  // (o título e o conteúdo do último render aberto: quem o usa costuma limpar o
+  // estado ao fechar, e a caixa esvaziava-se a meio). Também sai quando quem o
+  // usa o desmonta dentro de uma `Saida` (os que vivem num portal).
+  const { montado, aSair: aSairDeDentro } = useSaida(open, SAIDA_MS);
+  const aSairDeFora = useASair();
+  const aSair = aSairDeDentro || aSairDeFora;
+  const visto = useRef({ title, children, width, semVeu, lavagem });
+  if (open) visto.current = { title, children, width, semVeu, lavagem };
   const caixa = useRef<any>(null);
   // As páginas passam o `onClose` em linha; o ouvinte fica o mesmo enquanto
   // o diálogo está aberto, e a camada não sai da pilha a cada render.
@@ -1553,14 +1564,15 @@ export function Dialog({ open, title, children, onClose, width = 460, semVeu = f
       if (antes?.isConnected && typeof antes.focus === 'function') antes.focus();
     };
   }, [open]);
-  if (!open) return null;
-  return <View style={[ui.dialogLayer, semVeu && { backgroundColor: 'transparent' }]} {...marcar('veu')}>
+  if (!montado) return null;
+  const v = open ? { title, children, width, semVeu, lavagem } : visto.current;
+  return <View pointerEvents={aSair ? 'none' : 'auto'} style={[ui.dialogLayer, v.semVeu && { backgroundColor: 'transparent' }]} {...marcar('veu', aSair ? 'a-sair' : '')}>
     <P style={StyleSheet.absoluteFill} onPress={onClose} focusable={false} aria-hidden />
-    <View ref={caixa} role="dialog" aria-modal aria-label={title} tabIndex={-1}
-      style={[ui.dialog, { width, maxWidth: 'calc(100vw - 48px)' as any }]} {...marcar('dialogo')}>
-      {lavagem ? <View aria-hidden style={[ui.dialogLavagem, { backgroundImage: `radial-gradient(520px 240px at 30% -40px, ${lavagem}, transparent 70%)`, opacity: 0.6 } as any]} /> : null}
-      <View style={ui.dialogHeader}><Text style={ui.dialogTitle}>{title}</Text><View style={ui.dialogFechar}><IconButton name="close" label="Close dialog" atalho="Esc" onPress={onClose} /></View></View>
-      <NoDialogo.Provider value>{children}</NoDialogo.Provider>
+    <View ref={caixa} role="dialog" aria-modal aria-label={v.title} tabIndex={-1}
+      style={[ui.dialog, { width: v.width, maxWidth: 'calc(100vw - 48px)' as any }]} {...marcar('dialogo', aSair ? 'a-sair' : '')}>
+      {v.lavagem ? <View aria-hidden style={[ui.dialogLavagem, { backgroundImage: `radial-gradient(520px 240px at 30% -40px, ${v.lavagem}, transparent 70%)`, opacity: 0.6 } as any]} /> : null}
+      <View style={ui.dialogHeader}><Text style={ui.dialogTitle}>{v.title}</Text><View style={ui.dialogFechar}><IconButton name="close" label="Close dialog" atalho="Esc" onPress={onClose} /></View></View>
+      <NoDialogo.Provider value>{v.children}</NoDialogo.Provider>
     </View>
   </View>;
 }
@@ -1574,7 +1586,19 @@ export function Toast({ message, tipo = 'feito', onDone }: { message: string; ti
   // reiniciava o temporizador para sempre e o aviso nunca desaparecia.
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
-  useEffect(() => { const id = setTimeout(() => onDoneRef.current(), duracaoDoAviso({ tipo })); return () => clearTimeout(id); }, [message, tipo]);
+  // No fim do tempo, SAI (22/11): desce e apaga-se com a curva de sair, e só
+  // depois avisa quem o mostrou. Um aviso novo a meio volta a contar do zero.
+  const [aSair, setASair] = useState(false);
+  useEffect(() => {
+    setASair(false);
+    const id = setTimeout(() => setASair(true), duracaoDoAviso({ tipo }));
+    return () => clearTimeout(id);
+  }, [message, tipo]);
+  useEffect(() => {
+    if (!aSair) return;
+    const id = setTimeout(() => onDoneRef.current(), SAIDA_MS);
+    return () => clearTimeout(id);
+  }, [aSair]);
   // A luz passa depois de o aviso subir (S2, 1/11): → num sucesso, ↓ numa
   // informação, nada num erro.
   const caixa = useRef<any>(null);
@@ -1583,7 +1607,7 @@ export function Toast({ message, tipo = 'feito', onDone }: { message: string; ti
   // connection…" ou "Couldn't…" saíam com o visto verde de sucesso.
   const icon = tipo === 'erro' ? 'alert-circle' : tipo === 'info' ? 'information-circle' : 'checkmark-circle';
   const colour = tipo === 'erro' ? COR.aviso : tipo === 'info' ? COR.metalClaro : COR.ok;
-  return <View ref={caixa} style={ui.toast} {...marcar('aviso')}><Ionicons name={icon} size={18} color={colour} /><Text style={ui.toastText}>{message}</Text></View>;
+  return <View ref={caixa} style={ui.toast} {...marcar('aviso', aSair ? 'a-sair' : '')}><Ionicons name={icon} size={18} color={colour} /><Text style={ui.toastText}>{message}</Text></View>;
 }
 
 /**

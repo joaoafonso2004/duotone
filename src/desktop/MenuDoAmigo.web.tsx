@@ -1,3 +1,4 @@
+import { Saida } from './Saida.web';
 import React, { useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 import { checkIsSaved, removeFromLibrary, saveToLibrary } from '../api/library';
@@ -170,6 +171,8 @@ export function ConfirmarRemoverAmigo({ amigo, aoFechar, notify }: {
   notify: (texto: string) => void;
 }) {
   const [aRemover, setARemover] = useState(false);
+  // Fechada, sai como os outros diálogos (22/11): o conteúdo só se escreve com o amigo.
+  return <Saida aberto={!!amigo}>{() => {
   if (!amigo) return null;
   const nome = amigo.name || amigo.username || 'this friend';
   const remover = async () => {
@@ -202,4 +205,5 @@ export function ConfirmarRemoverAmigo({ amigo, aoFechar, notify }: {
     </View>,
     document.body,
   );
+  }}</Saida>;
 }

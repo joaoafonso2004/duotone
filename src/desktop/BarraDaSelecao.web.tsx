@@ -16,6 +16,7 @@ import { mudouAPlaylist } from './porNaPlaylist.web';
 import { useSelecao } from './selecao.web';
 import { COR, ESP, ESTADO, flutuante, RAIO, TIPO } from './tokens.web';
 import { marcar } from './ui.web';
+import { Saida, useASair } from './Saida.web';
 
 type Acao = 'tocar' | 'seguinte' | 'fila' | 'playlist' | 'gostar' | 'remover';
 
@@ -104,8 +105,8 @@ export function BarraDaSelecao({ notify }: { notify: (texto: string) => void }) 
   };
 
   return <>
-    {faixas.length ? (
-      <View pointerEvents="box-none" style={{ position: 'absolute', left: 0, right: 0, bottom: ESP.lg, alignItems: 'center', zIndex: 40 }}>
+    <Saida aberto={faixas.length > 0}>{() => (
+      <NaSaida>
         <View {...marcar('barra-das-escolhidas')} accessibilityRole="toolbar" accessibilityLabel={`${musicas(faixas.length)} selected`}
           style={{ flexDirection: 'row', alignItems: 'center', gap: 2, paddingLeft: ESP.lg, paddingRight: 6, paddingVertical: 6, ...flutuante(RAIO.pilula) } as any}>
           <Text style={{ ...TIPO.legenda, color: COR.texto, fontWeight: '650', marginRight: ESP.sm } as any}>{faixas.length} selected</Text>
@@ -119,8 +120,8 @@ export function BarraDaSelecao({ notify }: { notify: (texto: string) => void }) 
             <Ionicons name="close" size={16} color={COR.textoMedio} />
           </Pressable>
         </View>
-      </View>
-    ) : null}
+      </NaSaida>
+    )}</Saida>
     {menu && faixas.length ? (
       <MenuDeContexto rato={menu} rotulo={`Options for ${musicas(faixas.length)}`}
         cabecalho={<Text style={{ ...TIPO.micro, color: COR.textoFraco }}>{musicas(faixas.length).toUpperCase()}</Text>}
@@ -133,6 +134,13 @@ export function BarraDaSelecao({ notify }: { notify: (texto: string) => void }) 
         corpo={painelDasPlaylists(() => setPlaylists(null))} aoEscolher={() => {}} aoFechar={() => setPlaylists(null)} />
     ) : null}
   </>;
+}
+
+/** O sítio da barra, por cima do leitor; ao largar as escolhidas, desce e apaga-se (22/11). */
+function NaSaida({ children }: { children: React.ReactNode }) {
+  const aSair = useASair();
+  return <View pointerEvents={aSair ? 'none' : 'box-none'} {...(aSair ? marcar('barra-da-selecao', 'a-sair') : {})}
+    style={{ position: 'absolute', left: 0, right: 0, bottom: ESP.lg, alignItems: 'center', zIndex: 40 }}>{children}</View>;
 }
 
 function Botao({ icone, rotulo, titulo, aoCarregar }: { icone: string; rotulo: string; titulo?: string; aoCarregar: (e: any) => void }) {

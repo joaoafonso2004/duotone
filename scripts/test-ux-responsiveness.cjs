@@ -77,7 +77,8 @@ const acessibilidade=load('src/lib/acessibilidadeDoPc.ts',{});
 const camadas=acessibilidade.criarPilhaDeCamadas();
 let menuAberto=null;
 const tecla=(key,extra={})=>({key,preventDefault(){this.defaultPrevented=true;},...extra});
-const scope={exports:{},React,useEffect:fn=>{remove=fn();},useRef:current=>({current}),window:{addEventListener:(_k,fn)=>keydown=fn,removeEventListener:()=>keydown=null},
+// A saída (22/11): aqui o diálogo está sempre aberto e montado.
+const scope={exports:{},React,useEffect:fn=>{remove=fn();},useRef:current=>({current}),useSaida:aberto=>({montado:aberto,aSair:false}),useASair:()=>false,SAIDA_MS:160,window:{addEventListener:(_k,fn)=>keydown=fn,removeEventListener:()=>keydown=null},
   View:'View',P:'Pressable',Text:'Text',IconButton:'IconButton',StyleSheet:{absoluteFill:{}},ui:{},marcar:()=>({}),NoDialogo:{Provider:'NoDialogo'},
   camadas,focoAoTab:acessibilidade.focoAoTab,focaveisDentro:()=>[],requestAnimationFrame:()=>1,cancelAnimationFrame(){},document:{activeElement:null,querySelector:()=>menuAberto}};
 vm.runInNewContext(code,scope);
@@ -97,7 +98,7 @@ remove();assert.equal(keydown,null);assert.equal(camadas.quantas,0,'ao fechar sa
 // No PC, todas as folhas partilhadas (Share, Add to playlist...) são este Dialog (5/10).
 const {BottomSheet}=load('src/components/BottomSheet.web.tsx',{
   react:React,'react-native':{View:'View',ScrollView:'ScrollView',FlatList:'FlatList'},'react-dom':{createPortal:(child,container)=>({child,container})},
-  '../desktop/ui.web':{Dialog:'Dialog'},'../hooks/useNotificationOverlay':{useNotificationOverlay(){}},
+  '../desktop/ui.web':{Dialog:'Dialog'},'../hooks/useNotificationOverlay':{useNotificationOverlay(){}},'../desktop/Saida.web':{Saida:'Saida'},
 });
 // load runs without document by default: hidden or server rendered stays empty.
 assert.equal(BottomSheet({visible:false,titulo:'Share',onClose(){},children:null}),null);

@@ -1,3 +1,4 @@
+import { Saida } from './Saida.web';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
@@ -61,14 +62,14 @@ export function ProgressoDaImportacao() {
       ) : null}
       {/* Num portal para o `body`, como os outros diálogos da lateral: dentro
           dela ficava preso aos 232 px e por baixo do conteúdo. Só existe aberto. */}
-      {verFaltas && typeof document !== 'undefined' ? createPortal(
+      <Saida aberto={verFaltas && typeof document !== 'undefined'}>{() => createPortal(
         <View style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 300 } as any}>
           <Dialog open title={`Not found (${faltaram.length})`} width={560} onClose={() => setVerFaltas(false)}>
             <FaltasDaImportacao imp={imp} faltaram={faltaram} />
           </Dialog>
         </View>,
         document.body,
-      ) : null}
+      )}</Saida>
     </View>
   );
 }

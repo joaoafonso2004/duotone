@@ -759,11 +759,25 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="saida-da-barra"] { flex-shrink: 0; overflow: hidden; pointer-events: none;
       animation: dt-barra-sai 320ms var(--dt-curva) both; }
     @keyframes dt-barra-sai { from { height: var(--dt-altura-da-barra); } to { height: 0; } }
+    /* As saídas (22/11, antes da 7.0.0): tudo o que entra também sai, com a curva de
+       sair (160 ms, a acelerar). Quem sai fica montado esse tempo (desktop/Saida.web.tsx)
+       e não apanha o rato. Os menus deixam uma cópia a desvanecer (desktop/fantasma.web.ts),
+       e lá dentro nada mais mexe. */
+    [data-dt~="a-sair"]{ pointer-events: none !important; }
+    [data-dt~="veu"][data-dt~="a-sair"]{ animation: dt-desaparecer var(--dt-sair-ms) var(--dt-sair) both; }
+    [data-dt~="dialogo"][data-dt~="a-sair"]{ animation: dt-dialogo-sai var(--dt-sair-ms) var(--dt-sair) both; }
+    [data-dt~="aviso"][data-dt~="a-sair"], [data-dt~="barra-da-selecao"][data-dt~="a-sair"]{
+      animation: dt-descer var(--dt-sair-ms) var(--dt-sair) both; }
+    [data-fantasma], [data-fantasma] *{ animation: none !important; transition: none !important; }
+    @keyframes dt-desaparecer{ from{ opacity: 1; } to{ opacity: 0; } }
+    @keyframes dt-dialogo-sai{ from{ opacity: 1; transform: none; } to{ opacity: 0; transform: translateY(4px) scale(.98); } }
+    @keyframes dt-descer{ from{ opacity: 1; transform: none; } to{ opacity: 0; transform: translateY(40%); } }
 
     /* Quem pediu menos movimento no Windows nao leva nada disto. O estado
        final e o mesmo: aqui so morre o caminho ate la. */
     @media (prefers-reduced-motion: reduce){
       [data-dt~="painel-do-leitor"] { transition: none !important; }
+      [data-dt~="a-sair"]{ animation: none !important; opacity: 0 !important; }
       [data-dt~="separador"]::after{ transition: none !important; }
       #duotone-dica{ transition: none !important; transform: none !important; }
       [data-dt~="entrada-da-barra"], [data-dt~="saida-da-barra"],

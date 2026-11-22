@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useLayoutEffect } from 'react';
+import { sairComFantasma } from './fantasma.web';
 import { Pressable, Text, View } from 'react-native';
 import { posicaoDoMenu, posicaoDoSubmenu } from '../lib/menuDoAmigo';
 import { COR, flutuante, FONT, RAIO, RAIO_FLUTUANTE, TIPO } from './tokens.web';
@@ -116,6 +117,9 @@ export function MenuDeContexto({ rato, rotulo, cabecalho, linhas, corpo, submenu
   const abertoAgora = useRef(aberto);
   abertoAgora.current = aberto;
   const relogio = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // A saída (22/11): quem o abriu desmonta-o; antes de os nós saírem, fica uma
+  // cópia a desvanecer (desktop/fantasma.web.ts). O painel do lado também.
+  useLayoutEffect(() => () => { sairComFantasma(caixa.current); sairComFantasma(painel.current); }, []);
 
   const parar = () => { if (relogio.current) { clearTimeout(relogio.current); relogio.current = null; } };
   const depois = (f: () => void) => { parar(); relogio.current = setTimeout(f, ESPERA_DO_SUBMENU); };

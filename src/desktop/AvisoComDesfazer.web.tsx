@@ -1,3 +1,4 @@
+import { useASair } from './Saida.web';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useRef } from 'react';
 import { Pressable, Text, View } from 'react-native';
@@ -21,7 +22,8 @@ export function AvisoComDesfazer({ aviso }: { aviso: AvisoDeRemocao }) {
   // A luz passa por cada aviso novo (S2): ← no que saiu, → no que juntou.
   const caixa = useRef<any>(null);
   useEffect(() => { varrerLuz(caixa.current, direcaoDoAviso(aviso), ATRASO_DA_LUZ_MS); }, [aviso.id]);
-  return <View ref={caixa} {...marcar('aviso')} accessibilityRole={'status' as any} style={{
+  const aSair = useASair();
+  return <View ref={caixa} {...marcar('aviso', aSair ? 'a-sair' : '')} accessibilityRole={'status' as any} style={{
     position: 'absolute', right: ESP.xl, bottom: 110, zIndex: 110, minHeight: 42, paddingLeft: ESP.lg, paddingRight: ESP.sm,
     ...flutuante(RAIO_FLUTUANTE.aviso),
     flexDirection: 'row', alignItems: 'center', gap: ESP.sm, overflow: 'hidden',

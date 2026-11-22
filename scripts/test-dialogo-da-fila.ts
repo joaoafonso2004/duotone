@@ -29,11 +29,12 @@ caso('o diálogo existe e já não é o `open={...}` solto na cabeça da fila', 
 });
 caso('só existe aberto, num portal para o body com um contentor fixo por cima de tudo', () => {
   const antes = fonte.slice(0, dialogo);
-  const abertura = antes.lastIndexOf('{fila.aGuardar ? createPortal(');
-  assert.ok(abertura > 0, 'falta `fila.aGuardar ? createPortal(` antes do diálogo');
+  // Numa Saida (22/11): fechado, o portal fica o tempo de o diálogo sair.
+  const abertura = antes.lastIndexOf('<Saida aberto={!!fila.aGuardar}>{() => createPortal(');
+  assert.ok(abertura > 0, 'falta `<Saida aberto={!!fila.aGuardar}>{() => createPortal(` antes do diálogo');
   const contentor = antes.slice(abertura);
   assert.match(contentor, /position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 310/);
-  assert.match(fonte.slice(dialogo), /document\.body,\n\s*\) : null\}/);
+  assert.match(fonte.slice(dialogo).replace(/\r\n/g, '\n'), /document\.body,\n\s*\)\}<\/Saida>/);
 });
 caso('o `createPortal` vem do react-dom, como nos outros portais do PC', () => {
   assert.match(fonte, /const \{ createPortal \} = require\('react-dom'\)/);
