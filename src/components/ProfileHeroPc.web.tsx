@@ -131,8 +131,12 @@ export function ProfileHeroPc({ profile, own, cover, unread, status, altura, lar
       </View>
       {profile ? <View style={{ alignItems: 'flex-start' }}>
         <View style={estilos.anel}><FriendAvatar avatarUrl={profile.profile.avatar_url} name={profile.profile.name} size={112} /></View>
-        <Text numberOfLines={1} accessibilityRole="header"
-          style={[estilos.nome, { fontSize: tamanho, lineHeight: Math.round(tamanho * 0.95), letterSpacing: -tamanho * 0.04 }]}>{nome}</Text>
+        {/* Sem `numberOfLines` (22/11, o João: "esta sombra feia"): no react-native-web é um
+            `overflow: hidden` na caixa do nome, que cortava a sombra de 40 px num retângulo escuro
+            de cantos vivos, e a cauda do "y" (a linha é 0,95 do tamanho). O tamanho já cabe na
+            largura (`tamanhoDoNome`), por isso basta não partir a linha. */}
+        <Text accessibilityRole="header"
+          style={[estilos.nome, { fontSize: tamanho, lineHeight: Math.round(tamanho * 0.95), letterSpacing: -tamanho * 0.04, whiteSpace: 'nowrap' } as any]}>{nome}</Text>
         <Text numberOfLines={1} style={estilos.arroba}>
           @{profile.profile.username}{status ? <Text style={{ color: status.startsWith('●') ? colors.online : 'rgba(255,255,255,0.7)' }}>{`  ·  ${status}`}</Text> : null}
         </Text>

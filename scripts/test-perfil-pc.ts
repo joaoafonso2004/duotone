@@ -156,5 +156,19 @@ caso('nada de className nem de backdrop-filter', () => {
   assert.ok(!/backdrop-?[fF]ilter/.test(HERO));
 });
 
+caso('a sombra do nome não fica num retângulo (22/11)', () => {
+  // No RNW o `numberOfLines` é um `overflow: hidden` no texto: cortava a sombra de 40 px
+  // em cantos vivos (o João: "esta sombra feia") e a cauda do "y".
+  const nome = HERO.replace(/\r\n/g, '\n').match(/<Text accessibilityRole="header"[\s\S]*?\{nome\}<\/Text>/)?.[0] ?? '';
+  assert.ok(nome, 'o nome está lá');
+  assert.ok(!/numberOfLines/.test(nome), 'o nome voltou a cortar a sombra');
+  assert.match(nome, /whiteSpace: 'nowrap'/, 'numa linha só, sem cortar');
+  // No artista o nome guarda as duas linhas; a sombra vai num invólucro (um filtro não é cortado).
+  const artista = readFileSync('src/desktop/paginas/BibliotecaPages.web.tsx', 'utf8');
+  assert.match(artista, /<View style=\{artistStyles\.sombraDoNome\}><Text numberOfLines=\{2\} style=\{artistStyles\.heroiNome\}>\{name\}<\/Text><\/View>/);
+  assert.match(artista, /sombraDoNome: \{ filter: 'drop-shadow\(0 2px 15px rgba\(0,0,0,0\.35\)\)' \}/);
+  assert.ok(!/heroiNome: \{[^}]*textShadow/.test(artista), 'a sombra voltou para o texto do artista');
+});
+
 if (falhas) { console.log(`\n${falhas} falha(s)`); process.exit(1); }
 console.log('\ntudo certo');

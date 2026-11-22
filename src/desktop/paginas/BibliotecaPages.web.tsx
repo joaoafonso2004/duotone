@@ -1053,7 +1053,9 @@ export function ArtistPage({ name, back, corNaJanela = false, ...props }: { name
           <View style={artistStyles.voltar}><BotaoVoltar onPress={back} /></View>
           <View style={artistStyles.heroiBaixo}>
             <Text style={styles.detailHeroEyebrow}>ARTIST</Text>
-            <Text numberOfLines={2} style={artistStyles.heroiNome}>{name}</Text>
+            {/* A sombra no invólucro e não no texto (22/11): com o `numberOfLines` o RNW põe
+                `overflow: hidden` no texto, que cortava a sombra num retângulo escuro. */}
+            <View style={artistStyles.sombraDoNome}><Text numberOfLines={2} style={artistStyles.heroiNome}>{name}</Text></View>
             {/* Os fãs e quantas são tuas, só quando são ("0 saved tracks"
                 parecia uma página que não carregou). */}
             {meta ? <Text style={artistStyles.heroiMeta}>{meta}</Text> : null}
@@ -1359,8 +1361,11 @@ const artistStyles = StyleSheet.create({
   heroiBaixo: { position: 'absolute', left: ESP.xxxl, right: ESP.xxxl, bottom: ESP.xl },
   heroiNome: {
     fontFamily: FONT.display, color: COR.texto, fontSize: 72, lineHeight: 74, fontWeight: '800' as any, letterSpacing: -2,
-    marginTop: ESP.sm, maxWidth: 900, textShadowColor: 'rgba(0,0,0,0.35)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 30,
+    marginTop: ESP.sm, maxWidth: 900,
   },
+  // A sombra do nome, desenhada FORA da caixa do texto (um filtro não é cortado pelo
+  // `overflow` dela): a mesma de antes, 30 px de raio, que no drop-shadow é metade.
+  sombraDoNome: { filter: 'drop-shadow(0 2px 15px rgba(0,0,0,0.35))' } as any,
   heroiMeta: { ...TIPO.corpo, color: COR.textoMedio, marginTop: ESP.sm },
   accoes: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: ESP.sm, marginTop: ESP.xl },
   // As músicas à esquerda; a coluna parada à direita (por baixo delas numa janela estreita).
