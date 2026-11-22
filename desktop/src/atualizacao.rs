@@ -373,13 +373,16 @@ fn descarregar(url: &str, destino: &Path, tamanho: u64, mut progresso: impl FnMu
     resultado
 }
 
-/// O NSIS fecha a app, instala por cima e (com `--force-run`) reabre-a.
+/// O instalador do Tauri (NSIS) fecha a app, instala por cima e reabre-a: `/S`
+/// calado, `/UPDATE` sem recriar os atalhos que o utilizador apagou, `/R` reabre
+/// (como o utilizador, nunca elevada). O `--force-run` do Electron fica nos ganchos
+/// (`desktop/nsis/ganchos.nsh`) para quem vem do Electron.
 fn lancar_instalador(instalador: &Path) -> Result<(), String> {
     use std::os::windows::process::CommandExt;
     const DETACHED_PROCESS: u32 = 0x0000_0008;
     const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
     std::process::Command::new(instalador)
-        .args(["/S", "--updated", "--force-run"])
+        .args(["/S", "/UPDATE", "/R"])
         .creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())

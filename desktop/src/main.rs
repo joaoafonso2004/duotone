@@ -59,14 +59,21 @@ fn registo_da_pagina(texto: String) {
     registo::linha(&format!("página: {}", texto.chars().take(500).collect::<String>()));
 }
 
-/// O `dist-web` que o servidor serve. Em desenvolvimento: `DUOTONE_WEB`, ou
-/// `desktop/dist-web` ao lado do `target/`. (Embutido no .exe: F9.)
-fn pasta_da_web() -> PathBuf {
+/// A app que o servidor serve: a de dentro do .exe (F9). Em desenvolvimento,
+/// `DUOTONE_WEB` manda servir uma pasta; e uma build sem nada embutido serve o
+/// `desktop/dist-web` ao lado do `target/`.
+fn fonte_da_web() -> (servidor::Fonte, String) {
     if let Ok(p) = std::env::var("DUOTONE_WEB") {
-        return PathBuf::from(p);
+        return (servidor::Fonte::Pasta(PathBuf::from(&p)), format!("web em {p} (DUOTONE_WEB)"));
+    }
+    let embutida = servidor::embutida::FICHEIROS;
+    if !embutida.is_empty() {
+        return (servidor::Fonte::Embutida(embutida), format!("web embutida ({} ficheiros)", embutida.len()));
     }
     let exe = std::env::current_exe().unwrap_or_default();
-    exe.parent().and_then(|p| p.parent()).and_then(|p| p.parent()).map(|p| p.join("dist-web")).unwrap_or_else(|| PathBuf::from("dist-web"))
+    let pasta = exe.parent().and_then(|p| p.parent()).and_then(|p| p.parent()).map(|p| p.join("dist-web")).unwrap_or_else(|| PathBuf::from("dist-web"));
+    let texto = format!("web em {}", pasta.display());
+    (servidor::Fonte::Pasta(pasta), texto)
 }
 
 /// Esconde a janela no tabuleiro (o X, com "fechar para o tabuleiro"): a música continua.
@@ -191,8 +198,8 @@ fn main() {
                 app.handle().exit(0);
                 return Ok(());
             }
-            let web = pasta_da_web();
-            registo::linha(&format!("web em {}", web.display()));
+            let (web, de_onde) = fonte_da_web();
+            registo::linha(&de_onde);
             if let Err(e) = servidor::arrancar(web, canal::PORTA) {
                 registo::linha(&format!("porta ocupada: {e}"));
                 canal::caixa_de_erro(&format!("A porta {} está a ser usada por outro programa. Fecha-o e abre o Duotone outra vez.", canal::PORTA));

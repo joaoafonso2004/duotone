@@ -11,8 +11,12 @@
 //!   -> o index.html (é uma rota da app).
 //! - Dois loopbacks (127.0.0.1 e ::1): o `localhost` resolve muitas vezes para ::1
 //!   primeiro, e outro processo nessa porta seria carregado como se fosse a app.
+//! - A app vem de dentro do .exe (o `dist-web` embutido pelo build.rs, F9): uma
+//!   atualização troca o .exe e a app juntos, sem ficheiros velhos ao lado. Uma
+//!   pasta (`DUOTONE_WEB`, ou `desktop/dist-web` sem nada embutido) só em desenvolvimento.
 
 use std::{
+    borrow::Cow,
     collections::HashMap,
     fs,
     path::{Path, PathBuf},
@@ -26,39 +30,60 @@ use sha1::{Digest, Sha1};
 pub const PARA_SEMPRE: &str = "public, max-age=31536000, immutable";
 pub const PERGUNTAR_SEMPRE: &str = "no-cache";
 
+/// Um pedido recusado: a URL não se lê (400) ou o caminho sai da raiz (403).
 #[derive(Debug, PartialEq)]
-pub enum Resolvido {
-    Ficheiro(PathBuf),
+pub enum Recusa {
     Malformado,
     Proibido,
 }
 
-/// Que ficheiro um pedido quer, dentro de `raiz`. Igual ao `resolverFicheiroLocal`.
-pub fn resolver_ficheiro(url: &str, raiz: &Path) -> Resolvido {
+/// O `dist-web` embutido no .exe (gerado pelo build.rs): o caminho com `/` e os bytes.
+/// Vazio quando a build não tinha o `dist-web` (os testes no CI, por exemplo).
+pub mod embutida {
+    include!(concat!(env!("OUT_DIR"), "/web_embutida.rs"));
+}
+
+/// De onde vêm os ficheiros da app.
+pub enum Fonte {
+    Pasta(PathBuf),
+    Embutida(&'static [(&'static str, &'static [u8])]),
+}
+
+/// As partes do caminho que um pedido quer, já sem `.` nem `..`. Igual ao
+/// `resolverFicheiroLocal`: malformado ou a sair da raiz é recusado.
+fn partes_do_pedido(url: &str) -> Result<Vec<String>, Recusa> {
     let caminho = url.split('?').next().unwrap_or("/");
     let Ok(descodificado) = percent_encoding::percent_decode_str(caminho).decode_utf8() else {
-        return Resolvido::Malformado;
+        return Err(Recusa::Malformado);
     };
     let descodificado = if descodificado == "/" { "/index.html".into() } else { descodificado };
-    let mut partes: Vec<&str> = Vec::new();
+    let mut partes: Vec<String> = Vec::new();
     for parte in descodificado.split(['/', '\\']) {
         match parte {
             "" | "." => {}
             ".." => {
                 if partes.pop().is_none() {
-                    return Resolvido::Proibido;
+                    return Err(Recusa::Proibido);
                 }
             }
             // Uma letra de disco ou um fluxo alternativo (C:, ficheiro:fluxo) nunca é da app.
-            p if p.contains(':') => return Resolvido::Proibido,
-            p => partes.push(p),
+            p if p.contains(':') => return Err(Recusa::Proibido),
+            p => partes.push(p.to_string()),
         }
     }
-    let mut destino = raiz.to_path_buf();
-    for p in partes {
-        destino.push(p);
-    }
-    Resolvido::Ficheiro(destino)
+    Ok(partes)
+}
+
+/// O ficheiro destas partes do caminho, dentro de `raiz`.
+fn na_pasta(raiz: &Path, partes: &[String]) -> PathBuf {
+    partes.iter().fold(raiz.to_path_buf(), |c, p| c.join(p))
+}
+
+/// Que ficheiro um pedido quer, dentro de `raiz`. Igual ao `resolverFicheiroLocal`
+/// (os casos do `test-servidor-local.mjs`).
+#[cfg(test)]
+fn resolver_ficheiro(url: &str, raiz: &Path) -> Result<PathBuf, Recusa> {
+    partes_do_pedido(url).map(|partes| na_pasta(raiz, &partes))
 }
 
 /// `index-7b00...ca.js`, `archivo-latin.cd56...24.woff2`: 32 hexadecimais antes da extensão.
@@ -108,18 +133,18 @@ pub struct Resposta {
 }
 
 pub struct Servidor {
-    raiz: PathBuf,
+    fonte: Fonte,
     etags: Mutex<HashMap<PathBuf, String>>,
 }
 
 impl Servidor {
-    pub fn new(raiz: PathBuf) -> Self {
-        Self { raiz, etags: Mutex::new(HashMap::new()) }
+    pub fn new(fonte: Fonte) -> Self {
+        Self { fonte, etags: Mutex::new(HashMap::new()) }
     }
 
-    fn responder(&self, caminho: &Path, dados: Vec<u8>, if_none_match: Option<&str>) -> Resposta {
+    fn responder(&self, caminho: &Path, dados: Cow<'static, [u8]>, if_none_match: Option<&str>) -> Resposta {
         let etag = {
-            let mut etags = self.etags.lock().unwrap();
+            let mut etags = self.etags.lock().unwrap_or_else(|e| e.into_inner());
             etags.entry(caminho.to_path_buf()).or_insert_with(|| etag_de(&dados)).clone()
         };
         let cache = if tem_hash_no_nome(caminho) { PARA_SEMPRE } else { PERGUNTAR_SEMPRE };
@@ -129,24 +154,37 @@ impl Servidor {
         }
         let mut cabecalhos = cabecalhos;
         cabecalhos.insert(0, ("Content-Type", tipo_de(caminho).to_string()));
-        Resposta { estado: 200, cabecalhos, corpo: dados }
+        Resposta { estado: 200, cabecalhos, corpo: dados.into_owned() }
+    }
+
+    /// O ficheiro destas partes do caminho (o caminho para a cache e os bytes), se existir.
+    fn ler(&self, partes: &[String]) -> Option<(PathBuf, Cow<'static, [u8]>)> {
+        match &self.fonte {
+            Fonte::Pasta(raiz) => {
+                let caminho = na_pasta(raiz, partes);
+                let dados = fs::read(&caminho).ok().filter(|_| caminho.is_file())?;
+                Some((caminho, Cow::Owned(dados)))
+            }
+            Fonte::Embutida(ficheiros) => {
+                let chave = partes.join("/");
+                let (nome, dados) = ficheiros.iter().find(|(nome, _)| *nome == chave)?;
+                Some((PathBuf::from(nome), Cow::Borrowed(*dados)))
+            }
+        }
     }
 
     /// O que um GET recebe. Igual ao tratador do `servirFicheiros`.
     pub fn servir(&self, url: &str, if_none_match: Option<&str>) -> Resposta {
-        match resolver_ficheiro(url, &self.raiz) {
-            Resolvido::Malformado => Resposta { estado: 400, cabecalhos: vec![], corpo: b"Bad Request".to_vec() },
-            Resolvido::Proibido => Resposta { estado: 403, cabecalhos: vec![], corpo: b"Forbidden".to_vec() },
-            Resolvido::Ficheiro(caminho) => match fs::read(&caminho) {
-                Ok(dados) if caminho.is_file() => self.responder(&caminho, dados, if_none_match),
-                _ => {
-                    let indice = self.raiz.join("index.html");
-                    match fs::read(&indice) {
-                        Ok(dados) => self.responder(&indice, dados, if_none_match),
-                        Err(_) => Resposta { estado: 404, cabecalhos: vec![], corpo: b"Not Found".to_vec() },
-                    }
-                }
-            },
+        let partes = match partes_do_pedido(url) {
+            Ok(partes) if partes.is_empty() => vec!["index.html".to_string()],
+            Ok(partes) => partes,
+            Err(Recusa::Malformado) => return Resposta { estado: 400, cabecalhos: vec![], corpo: b"Bad Request".to_vec() },
+            Err(Recusa::Proibido) => return Resposta { estado: 403, cabecalhos: vec![], corpo: b"Forbidden".to_vec() },
+        };
+        // Um caminho que não existe é uma rota da app: o index.html.
+        match self.ler(&partes).or_else(|| self.ler(&["index.html".to_string()])) {
+            Some((caminho, dados)) => self.responder(&caminho, dados, if_none_match),
+            None => Resposta { estado: 404, cabecalhos: vec![], corpo: b"Not Found".to_vec() },
         }
     }
 }
@@ -177,8 +215,8 @@ fn atender(servidor: Arc<Servidor>, escuta: tiny_http::Server) {
 
 /// Abre a porta nos dois loopbacks. Sem o 127.0.0.1 é erro (a porta está ocupada);
 /// sem pilha IPv6 no sistema não há ::1 para ninguém ocupar, e segue-se.
-pub fn arrancar(raiz: PathBuf, porta: u16) -> Result<(), String> {
-    let servidor = Arc::new(Servidor::new(raiz));
+pub fn arrancar(fonte: Fonte, porta: u16) -> Result<(), String> {
+    let servidor = Arc::new(Servidor::new(fonte));
     let v4 = tiny_http::Server::http(("127.0.0.1", porta)).map_err(|e| format!("127.0.0.1:{porta}: {e}"))?;
     match tiny_http::Server::http(format!("[::1]:{porta}")) {
         Ok(v6) => {
@@ -235,19 +273,54 @@ mod testes {
     #[test]
     fn as_defesas_de_antes() {
         let raiz = PathBuf::from(r"C:\app\dist");
-        assert_eq!(resolver_ficheiro("/%E0%A4%A", &raiz), Resolvido::Malformado, "URL malformada");
-        assert_eq!(resolver_ficheiro("/..%5Csegredo.txt", &raiz), Resolvido::Proibido, "não sai da pasta");
-        assert_eq!(resolver_ficheiro("/../segredo.txt", &raiz), Resolvido::Proibido);
-        assert_eq!(resolver_ficheiro("/C:/Windows/win.ini", &raiz), Resolvido::Proibido);
-        assert_eq!(resolver_ficheiro("/assets/app.js", &raiz), Resolvido::Ficheiro(raiz.join("assets").join("app.js")));
-        assert_eq!(resolver_ficheiro("/", &raiz), Resolvido::Ficheiro(raiz.join("index.html")));
-        assert_eq!(resolver_ficheiro("/a/../b.js?x=1", &raiz), Resolvido::Ficheiro(raiz.join("b.js")));
+        assert_eq!(resolver_ficheiro("/%E0%A4%A", &raiz), Err(Recusa::Malformado), "URL malformada");
+        assert_eq!(resolver_ficheiro("/..%5Csegredo.txt", &raiz), Err(Recusa::Proibido), "não sai da pasta");
+        assert_eq!(resolver_ficheiro("/../segredo.txt", &raiz), Err(Recusa::Proibido));
+        assert_eq!(resolver_ficheiro("/C:/Windows/win.ini", &raiz), Err(Recusa::Proibido));
+        assert_eq!(resolver_ficheiro("/assets/app.js", &raiz), Ok(raiz.join("assets").join("app.js")));
+        assert_eq!(resolver_ficheiro("/", &raiz), Ok(raiz.join("index.html")));
+        assert_eq!(resolver_ficheiro("/a/../b.js?x=1", &raiz), Ok(raiz.join("b.js")));
     }
 
     #[test]
     fn as_respostas_e_a_cache() {
         let raiz = pasta();
-        let s = Servidor::new(raiz.clone());
+        as_respostas_de(&Servidor::new(Fonte::Pasta(raiz.clone())));
+        let _ = fs::remove_dir_all(raiz);
+    }
+
+    /// A mesma conversa, com a app de dentro do .exe (F9).
+    #[test]
+    fn a_app_embutida_responde_igual() {
+        static FICHEIROS: &[(&str, &[u8])] = &[
+            ("index.html", b"<!doctype html><script src=\"/_expo/static/js/web/index-7b007d07186d29978e25254bd8bcc9ca.js\" defer></script>"),
+            ("_expo/static/js/web/index-7b007d07186d29978e25254bd8bcc9ca.js", b"console.log(\"duotone\")"),
+            ("metadata.json", b"{}"),
+        ];
+        let s = Servidor::new(Fonte::Embutida(FICHEIROS));
+        as_respostas_de(&s);
+        assert_eq!(s.servir("/_expo/static/js/web/../web/./index-7b007d07186d29978e25254bd8bcc9ca.js", None).corpo, FICHEIROS[1].1);
+        assert_eq!(s.servir("/_expo%5Cstatic%5Cjs%5Cweb%5Cindex-7b007d07186d29978e25254bd8bcc9ca.js", None).corpo, FICHEIROS[1].1, "a barra do Windows também separa");
+        assert_eq!(s.servir("/C:/Windows/win.ini", None).estado, 403);
+        assert_eq!(Servidor::new(Fonte::Embutida(&[])).servir("/", None).estado, 404, "sem app nenhuma");
+    }
+
+    /// O `dist-web` desta build, se veio: o index.html e o bundle que ele pede estão lá.
+    #[test]
+    fn o_dist_web_embutido_esta_inteiro() {
+        let ficheiros = embutida::FICHEIROS;
+        if ficheiros.is_empty() {
+            return; // a build sem dist-web (os testes no CI)
+        }
+        let indice = ficheiros.iter().find(|(n, _)| *n == "index.html").expect("o index.html");
+        let html = String::from_utf8_lossy(indice.1);
+        let bundle = regex::Regex::new(r#"src="/(_expo/static/js/web/[^"]+\.js)""#).unwrap();
+        let pedido = bundle.captures(&html).expect("o index.html pede um bundle")[1].to_string();
+        assert!(ficheiros.iter().any(|(n, _)| *n == pedido), "o bundle {pedido} veio com o index.html");
+        assert!(ficheiros.iter().all(|(n, _)| !n.contains('\\') && !n.starts_with('/')), "caminhos com /");
+    }
+
+    fn as_respostas_de(s: &Servidor) {
         let indice = s.servir("/", None);
         assert_eq!(indice.estado, 200);
         assert_eq!(cabecalho(&indice, "Content-Type"), Some("text/html; charset=utf-8"));
@@ -280,6 +353,5 @@ mod testes {
 
         assert_eq!(s.servir("/%E0%A4%A", None).estado, 400);
         assert_eq!(s.servir("/..%5Csegredo.txt", None).estado, 403);
-        let _ = fs::remove_dir_all(raiz);
     }
 }

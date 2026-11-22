@@ -4,5 +4,17 @@
   "identifier": "com.joao.duotone.desktop.preview",
   "build": { "frontendDist": "web" },
   "app": { "windows": [], "security": { "csp": null } },
-  "bundle": { "active": false }
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "publisher": "Duotone",
+    "icon": ["icons/icon.ico"],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico",
+        "installerHooks": "nsis/ganchos.nsh"
+      }
+    }
+  }
 }
