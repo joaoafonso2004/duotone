@@ -20,6 +20,7 @@ mod rede;
 mod registo;
 mod saude;
 mod servidor;
+mod spotify;
 mod webview;
 
 use std::{path::PathBuf, sync::Mutex};
@@ -154,7 +155,7 @@ fn main() {
             registo_da_pagina,
             ponte::janela_minimizar, ponte::janela_alternar_maximizar, ponte::janela_fechar, ponte::janela_maximizada,
             ponte::fechar_para_tabuleiro_ler, ponte::fechar_para_tabuleiro_definir,
-            arranque::arranque_ler, arranque::arranque_definir, barra::barra_estado, barra::barra_tirar_acao, notificacoes::notificacao_mensagem, notificacoes::notificacao_por_ler, atualizacao::atualizacao_procurar, atualizacao::atualizacao_descarga, atualizacao::atualizacao_instalar, ponte::saude_ler, ponte::segundos_sem_interacao, saude::diagnostico_recursos,
+            arranque::arranque_ler, arranque::arranque_definir, barra::barra_estado, barra::barra_tirar_acao, notificacoes::notificacao_mensagem, notificacoes::notificacao_por_ler, atualizacao::atualizacao_procurar, spotify::spotify_ligado, spotify::spotify_entrar, spotify::spotify_sair, spotify::spotify_consultar, atualizacao::atualizacao_descarga, atualizacao::atualizacao_instalar, ponte::saude_ler, ponte::segundos_sem_interacao, saude::diagnostico_recursos,
             mini::mini_alternar, mini::mini_esta_aberto, mini::mini_estado, mini::mini_modo_limpo,
             mini::mini_pronto, mini::mini_pega, mini::mini_lista, mini::mini_ignorar_rato, mini::mini_comando,
             rede::yt_pesquisa, rede::ytmusic_pesquisa, rede::yt_mix, rede::yt_refrao, rede::ytmusic_artista, rede::ytmusic_radio, rede::ytmusic_letra,
@@ -260,6 +261,10 @@ fn main() {
             notificacoes::preparar(app.handle());
             // O relógio das atualizações: 5 s depois de abrir, depois de 15 em 15 min (F9).
             atualizacao::iniciar(app.handle());
+            // A conta do Spotify (F7): só a pasta; nada abre até a pessoa carregar no botão.
+            spotify::preparar(app.handle());
+            #[cfg(debug_assertions)]
+            spotify::ensaio(app.handle());
             // A app instalada liga o arranque com o Windows na 1.ª abertura (na Preview, nada).
             arranque::aplicar_de_origem(app.handle());
             // A amostra dos recursos com a janela escondida, uma vez por minuto (F8).

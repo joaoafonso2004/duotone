@@ -76,6 +76,12 @@
     pedirAoCatalogo: (caminho) => pedir('catalogo_pedir', { caminho }),
     pedirAoSupabase: (pedido) => pedir('supabase_pedir', { pedido }),
     lerEmbedDoSpotify: (id) => pedir('spotify_embed', { id }),
+    // F7, a conta do Spotify pelo leitor web (desktop/src/spotify.rs). O sp_dc e o
+    // token ficam no Rust: aqui só chegam as respostas.
+    spotifyLigado: () => pedir('spotify_ligado', {}),
+    entrarNoSpotify: () => pedir('spotify_entrar', {}),
+    sairDoSpotify: () => pedir('spotify_sair', {}).then(() => undefined),
+    consultarOSpotify: (nome, variaveis) => pedir('spotify_consultar', { nome, variaveis }),
     lerPlaylistDaApple: (url) => pedir('apple_playlist', { url }),
     resolverLinkDoDeezer: (url) => pedir('deezer_link', { url }),
     // F4, só no Tauri (decidido a 21/11): o motor só de áudio.
