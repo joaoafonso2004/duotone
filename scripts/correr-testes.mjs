@@ -213,6 +213,7 @@ const TESTES = [
   `${DUPLOS} scripts/test-refrao-pre-escuta.ts`,
   `${RESOLVER} scripts/test-pedidos-ao-supabase-contados.ts`,
   `${TS} scripts/test-mensagem-do-registo.ts`,
+  `${TS} scripts/test-recuperacao-da-password.ts`,
   `${TS} scripts/test-download-da-lista.ts`,
   `${TS} scripts/test-relato-do-problema.ts`,
   `${RESOLVER} scripts/test-albuns-guardados.ts`,

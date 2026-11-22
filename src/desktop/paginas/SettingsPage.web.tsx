@@ -42,6 +42,7 @@ import { useTheme } from '../../state/theme';
 import { styles } from '../estilos.web';
 import { COR, ESP } from '../tokens.web';
 import { Button, ContentScroll, Dialog } from '../ui.web';
+import { RecuperarPassword } from '../RecuperarPassword.web';
 import { BarraVelocidade } from '../BarraVelocidade.web';
 import { AtalhosDoTeclado } from '../AtalhosDoTeclado.web';
 import { BandasDoEqualizador, ReporEqualizador } from '../PainelEqualizador.web';
@@ -161,19 +162,9 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   // ficou sem porta para sair da conta. Agora é a secção Account, como no iPhone.
   const email = useAuth((s) => s.session?.user?.email ?? null);
   const [signOutConfirm, setSignOutConfirm] = useState(false);
+  // A palavra-passe muda-se com um código por email (22/11): o link antigo abria o
+  // localhost:3000 do painel do Supabase, onde não corre nada.
   const [aRepor, setARepor] = useState(false);
-  const resetPassword = async () => {
-    setARepor(true);
-    try {
-      const erro = await useAuth.getState().resetPassword();
-      if (erro) avisarErro(erro);
-      else notify('We sent a password reset link to your email.');
-    } catch {
-      avisarErro("Couldn't send the reset email. Please try again.");
-    } finally {
-      setARepor(false);
-    }
-  };
   const [seccao, setSeccao] = useState<IdDaSeccao>(seccaoAberta);
   const [estreita, setEstreita] = useState(false);
   const [doisTons, setDoisTonsState] = useState(false);
@@ -599,6 +590,10 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
               </SettingsCard>}
               <PainelDeSaude visivel={painelAberto} aoFechar={() => setPainelAberto(false)} />
               <RelatarProblema visible={relatoAberto} onClose={() => setRelatoAberto(false)} />
+              <Dialog open={aRepor} title={ROTULOS.reporPassword} onClose={() => setARepor(false)}>
+                <RecuperarPassword emailInicial={email ?? ''} emailFixo rotuloDoVoltar="Cancel" aoVoltar={() => setARepor(false)}
+                  aoMudar={() => { setARepor(false); notify('Password changed.'); }} />
+              </Dialog>
               <FolhaDoListenBrainz visible={listenBrainzAberto} onClose={() => setListenBrainzAberto(false)} />
 
               {/* As mesmas três coisas da secção Account do iPhone, e o apagar a
@@ -606,7 +601,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
               {aberta === 'conta' && <SettingsCard title="Account">
                 {offline ? <Text style={[styles.settingDescription, { paddingHorizontal: 17, paddingTop: 10, marginTop: 0 }]}>Offline · connect to manage your account.</Text> : null}
                 <SettingLine label={ROTULOS.email} value={email ?? '—'} />
-                <SettingAction label={aRepor ? 'Sending…' : ROTULOS.reporPassword} description="We'll email you a link to choose a new one." disabled={offline || aRepor} onPress={() => void resetPassword()} />
+                <SettingAction label={ROTULOS.reporPassword} description="We'll email you a code to choose a new one." disabled={offline} onPress={() => setARepor(true)} />
                 <SettingAction label={ROTULOS.sair} description="Stops the music and clears the queue on this computer." onPress={() => setSignOutConfirm(true)} />
                 <SettingAction danger label={ROTULOS.apagarConta} disabled={offline} onPress={() => setDeleteConfirm(true)} />
               </SettingsCard>}

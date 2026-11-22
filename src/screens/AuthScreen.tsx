@@ -19,6 +19,7 @@ import {
 import { ENDERECO_DA_PRIVACIDADE, ROTULOS } from '../lib/rotulosDasDefinicoes';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Input } from '../components/Input';
+import { RecuperarPassword } from '../components/RecuperarPassword';
 import { useAuth } from '../state/auth';
 import { hapticImpact, hapticNotification, hapticSelection } from '../lib/haptics';
 import { colors, radii, spacing, type } from '../theme';
@@ -38,6 +39,8 @@ export function AuthScreen() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // O "Forgot password?" (22/11): a recuperação por código no lugar do formulário.
+  const [aRecuperar, setARecuperar] = useState(false);
 
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -167,6 +170,10 @@ export function AuthScreen() {
               },
             ]}
           >
+            {aRecuperar ? <>
+              <Text style={styles.recuperarTitulo}>Reset your password</Text>
+              <RecuperarPassword emailInicial={identifier} aoVoltar={() => setARecuperar(false)} />
+            </> : <>
             {/* Custom Tab Switcher matching the screenshot exactly */}
             <View style={styles.customTabs}>
               <Pressable
@@ -266,6 +273,9 @@ export function AuthScreen() {
               <Pressable
                 onPress={() => {
                   hapticSelection();
+                  setError(null);
+                  setInfo(null);
+                  setARecuperar(true);
                 }}
                 style={styles.forgotBtn}
                 hitSlop={6}
@@ -295,6 +305,7 @@ export function AuthScreen() {
                 </Text>
               )}
             </Pressable>
+            </>}
 
             {/* O que a app guarda e as regras (11/11), antes de criar a conta. */}
             <Text style={styles.legalText}>
@@ -396,6 +407,12 @@ const styles = StyleSheet.create({
   },
   eyeBtn: {
     paddingLeft: spacing.sm,
+  },
+  recuperarTitulo: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textAlign: 'center',
   },
   forgotBtn: {
     alignSelf: 'flex-end',

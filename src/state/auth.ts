@@ -8,6 +8,7 @@ import { endSession } from '../lib/sessionSync';
 import { terminarPresenca } from '../lib/presenceSync';
 import { esquecerPerfisPublicos } from '../api/profiles';
 import { mensagemDoRegisto } from '../lib/mensagemDoRegisto';
+import { erroDoCodigo, erroDoEmail, limparCodigo, mensagemDaRecuperacao, normalizarEmail } from '../lib/recuperacaoDaPassword';
 
 let authGeneration=0;
 /**
@@ -54,9 +55,24 @@ interface AuthState {
   signOut: () => Promise<void>;
   /** Atualiza o nome/username (metadata da conta + tabela profiles). */
   updateName: (name: string) => Promise<string | null>;
-  /** Envia email de redefinição de palavra-passe para o email da conta. */
-  resetPassword: () => Promise<string | null>;
+  /**
+   * A recuperação por código (22/11, `lib/recuperacaoDaPassword.ts`): manda o código
+   * para o email; depois confirma-o e muda a palavra-passe, e só então entra.
+   * Devolvem a frase de erro, ou null.
+   */
+  pedirCodigoDeRecuperacao: (email: string) => Promise<string | null>;
+  mudarPasswordComCodigo: (email: string, codigo: string, nova: string) => Promise<string | null>;
+  /** Larga uma recuperação a meio (o "Back"): a sessão do código não fica no ar. */
+  cancelarRecuperacao: () => Promise<void>;
 }
+
+/**
+ * Enquanto se muda a palavra-passe com o código, a sessão que o código abre fica
+ * RETIDA: a loja punha-a logo no sítio (o `onAuthStateChange`), a app abria e o
+ * ecrã fechava antes de a palavra-passe mudar (e um erro dela perdia-se).
+ */
+let aRecuperar = false;
+let sessaoRetida: Session | null = null;
 
 export const useAuth = create<AuthState>((set) => ({
   session: null,
@@ -78,6 +94,7 @@ export const useAuth = create<AuthState>((set) => ({
       else set({initialized:true});
     }).catch(()=>{if(run===authGeneration)set({initialized:true});});
     const {data:{subscription}}=supabase.auth.onAuthStateChange((event,session)=>{
+      if(session&&aRecuperar){sessaoRetida=session;return;}
       if(session){
         authGeneration++;
         set({session,offlineUserId:session.user.id,initialized:true});
@@ -92,6 +109,7 @@ export const useAuth = create<AuthState>((set) => ({
   },
 
   refreshSession:async()=>{
+    if(aRecuperar)return;
     const run=authGeneration;
     const {data,error}=await supabase.auth.getSession();
     if(run!==authGeneration)return;
@@ -226,11 +244,51 @@ export const useAuth = create<AuthState>((set) => ({
     return null;
   },
 
-  resetPassword: async () => {
-    const { data } = await supabase.auth.getUser();
-    const mail = data.user?.email;
-    if (!mail) return 'No email on this account.';
-    const { error } = await supabase.auth.resetPasswordForEmail(mail);
-    return error ? error.message : null;
+  pedirCodigoDeRecuperacao: async (texto) => {
+    const invalido = erroDoEmail(texto);
+    if (invalido) return invalido;
+    const email = normalizarEmail(texto);
+    // Sem `redirectTo`: o email traz o código ({{ .Token }}), não um link. O Supabase
+    // responde igual a um email que não existe (não diz quem tem conta).
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    return mensagemDaRecuperacao(error);
+  },
+
+  mudarPasswordComCodigo: async (texto, codigo, nova) => {
+    const email = normalizarEmail(texto);
+    // Uma tentativa anterior já confirmou o código (falhou a palavra-passe): não se pede outro.
+    if (!sessaoRetida) {
+      const invalido = erroDoCodigo(codigo);
+      if (invalido) return invalido;
+      aRecuperar = true;
+      const { error } = await supabase.auth.verifyOtp({ email, token: limparCodigo(codigo), type: 'recovery' });
+      if (error) {
+        aRecuperar = false;
+        return mensagemDaRecuperacao(error);
+      }
+    }
+    const { error } = await supabase.auth.updateUser({ password: nova });
+    if (error) return mensagemDaRecuperacao(error);
+    aRecuperar = false;
+    const sessao = sessaoRetida ?? (await supabase.auth.getSession()).data.session;
+    sessaoRetida = null;
+    if (sessao) {
+      authGeneration++;
+      set({ session: sessao, offlineUserId: sessao.user.id, initialized: true });
+      if (Platform.OS === 'ios') void AsyncStorage.setItem('offline:last-user', sessao.user.id);
+    }
+    return null;
+  },
+
+  cancelarRecuperacao: async () => {
+    const retida = sessaoRetida;
+    const estava = !!useAuth.getState().session;
+    aRecuperar = false;
+    sessaoRetida = null;
+    if (!retida) return;
+    // Nas Definições a pessoa já tinha sessão: fica com a nova. No início de sessão,
+    // a do código sai (só servia para mudar a palavra-passe).
+    if (estava) set({ session: retida, offlineUserId: retida.user.id });
+    else await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
   },
 }));

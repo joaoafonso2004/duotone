@@ -98,6 +98,7 @@ import { Equalizador, ReporEqualizador } from '../components/Equalizador';
 import { EscolhaDoModelo, LinhaDoRecomendado } from '../components/RecomendadoDoEq';
 import { ligarRecomendado, useRecomendado } from '../state/recomendado';
 import { BottomSheet, BottomSheetGestureGuard } from '../components/BottomSheet';
+import { RecuperarPassword } from '../components/RecuperarPassword';
 import { Grupo, Linha, LinhaAlta, LinhaInterruptor } from '../components/ListaAgrupada';
 import { MenuFlutuante, type Ancora } from '../components/MenuFlutuante';
 import type { PlayerAction } from '../components/PlayerActionsSheet';
@@ -176,20 +177,9 @@ export function SettingsScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const session = useAuth((s) => s.session);
   const signOut = useAuth((s) => s.signOut);
-  const resetPassword = useAuth((s) => s.resetPassword);
-  const [resettingPw, setResettingPw] = useState(false);
-
-  const doResetPassword = async () => {
-    setResettingPw(true);
-    try {
-      const err = await resetPassword();
-      hapticNotification();
-      if (err) avisarErro(mensagemDeErro(err, "Couldn't send the reset email."));
-      else avisarFeito('Check your email', 'We sent you a link to reset your password.');
-    } finally {
-      setResettingPw(false);
-    }
-  };
+  // A palavra-passe muda-se com um código por email (22/11): o link antigo abria o
+  // localhost:3000 do painel do Supabase, onde não corre nada.
+  const [aRepor, setARepor] = useState(false);
 
   const showRewindButton = usePlayer((s) => s.showRewindButton);
   const autoplayRadio = usePlayer((s) => s.autoplayRadio);
@@ -743,7 +733,7 @@ export function SettingsScreen({ navigation }: Props) {
 
         <Grupo titulo="Account" rodape={offline ? 'Offline · connect to manage your account.' : null}>
           <Linha icone="mail" rotulo={ROTULOS.email} valor={session?.user?.email ?? '—'} />
-          <Linha icone="key" rotulo={ROTULOS.reporPassword} acao aCarregar={resettingPw} desativada={offline || resettingPw} aoTocar={() => void doResetPassword()} />
+          <Linha icone="key" rotulo={ROTULOS.reporPassword} acao desativada={offline} aoTocar={() => setARepor(true)} />
           <Linha icone="log-out-outline" rotulo={ROTULOS.sair} acao aoTocar={() => setSignOutOpen(true)} />
         </Grupo>
         <Grupo>
@@ -877,6 +867,10 @@ export function SettingsScreen({ navigation }: Props) {
         onClose={() => setDeleteAccountOpen(false)}
         onConfirm={doDeleteAccount}
       />
+      <BottomSheet visible={aRepor} onClose={() => setARepor(false)} titulo={ROTULOS.reporPassword}>
+        <RecuperarPassword emailInicial={session?.user?.email ?? ''} emailFixo rotuloDoVoltar="Cancel" aoVoltar={() => setARepor(false)}
+          aoMudar={() => { setARepor(false); avisarFeito('Password changed', 'Use the new one the next time you sign in.'); }} />
+      </BottomSheet>
     </Screen>
   );
 }
