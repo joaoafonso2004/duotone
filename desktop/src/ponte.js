@@ -38,7 +38,8 @@
 
   const ponte = {
     platform: 'win32',
-    discordApplicationId: '1547625164328538133',
+    // Sem Discord na casca em Tauri (o João tirou-o a 22/11): nem o id da aplicação,
+    // nem a presença, nem o Join. As Definições escondem a opção.
     // F5, o arranque com o Windows (desktop/src/arranque.rs). Na Preview nunca se liga sozinho.
     getStartup: () => invoke('arranque_ler'),
     setStartup: (enabled, mode) => pedir('arranque_definir', { enabled, mode }),

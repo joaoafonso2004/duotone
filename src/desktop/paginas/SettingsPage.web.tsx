@@ -220,6 +220,9 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   /** A casca e outra arvore: o aviso passa por evento, como o glitch. */
   const avisarDiscord=(on:boolean)=>
     window.dispatchEvent(new CustomEvent('duotone:discord',{detail:{on}}));
+  /** A casca em Tauri não tem Discord (o João tirou-o a 22/11): a opção só
+   * aparece onde a casca o publica, para não ficar um interruptor que nada faz. */
+  const temDiscord=!!window.duotoneDesktop?.definirPresencaNoDiscord;
   const padraoGanhos = usePlayer((s) => s.padraoGanhos);
   const memoriaDosPresets = usePresets((s) => s.memoria);
   const presetsNaFila = useMemo(() => presetsVisiveis(memoriaDosPresets), [memoriaDosPresets]);
@@ -519,10 +522,10 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                 {/* Desligada de origem: publica o que se ouve. A aplicação oficial
                     fica embutida; pedir um client id a cada pessoa impedia o Join,
                     porque todos os participantes têm de usar a mesma aplicação. */}
-                <ToggleLine label="Discord status"
+                {temDiscord && <ToggleLine label="Discord status"
                   description="Show what you're listening to on Discord. Friends can join your Jam from there."
                   value={discordOn} onChange={(v)=>{setDiscordOn(v);void setDiscordRichPresence(v);avisarDiscord(v);}}
-                  efeito={efeitos.discord} />
+                  efeito={efeitos.discord} />}
               </SettingsCard>}
 
               {aberta === 'atalhos' && <SettingsCard title="Keyboard shortcuts">
