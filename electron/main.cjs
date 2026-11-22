@@ -98,6 +98,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const { spawn } = require('node:child_process');
 const atualizacao = require('./atualizacao.cjs');
+const exportacao = require('./exportacao.cjs');
 const atalhos = require('./atalhos.cjs');
 const mini = require('./miniLeitor.cjs');
 const { linhasDoMenuDoTexto } = require('./menuDoTexto.cjs');
@@ -1731,6 +1732,10 @@ ipcMain.handle('atualizacao:instalar', async (event) => {
         fetch: (url, opcoes) => net.fetch(url, opcoes), url: alvo.url, destino: instalador, tamanho: alvo.tamanho, fs,
         aoProgresso: (progresso) => { if (!remetente.isDestroyed()) remetente.send('atualizacao:progresso', progresso); },
       });
+      // Antes de qualquer instalador, a exportação (a versão ponte).
+      if (!(await exportarParaACascaNova()).ok) {
+        return { ok: false, erro: 'Could not prepare the update. Try again in a moment.' };
+      }
       await atualizacao.lancarInstalador({ spawn, instalador });
       // Fechar a SÉRIO: sem o `isQuitting` o X só escondia para o tabuleiro, e o
       // instalador encontrava a app aberta.
@@ -1774,6 +1779,41 @@ function apagarInstaladores(manter) {
   } catch {}
 }
 
+/**
+ * A versão ponte (22/11, `electron/exportacao.cjs`): o que a casca em Tauri lê no
+ * 1.º arranque (a sessão, as preferências e os JSON da pasta de dados). Só a app
+ * instalada: uma corrida de desenvolvimento tem outra origem e outro armazenamento.
+ */
+let ultimaExportacao = null;
+let exportadaEm = 0;
+let exportacaoEmCurso = null;
+function exportarParaACascaNova() {
+  if (!app.isPackaged) return Promise.resolve({ ok: true, escrita: false });
+  if (exportacaoEmCurso) return exportacaoEmCurso;
+  exportacaoEmCurso = exportacao.exportar({
+    webContents: mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents : null,
+    eDaApp: origemDaApp,
+    pastaDeDados: app.getPath('userData'),
+    versaoDaApp: app.getVersion(),
+    fs, path, crypto: require('node:crypto'),
+    ultima: ultimaExportacao,
+  }).then((r) => {
+    if (r.ok) { ultimaExportacao = r.assinatura; exportadaEm = Date.now(); }
+    else console.warn('[exportacao] não foi possível gravar:', r.erro);
+    return r;
+  }).finally(() => { exportacaoEmCurso = null; });
+  return exportacaoEmCurso;
+}
+/** Com a página pronta (20 s depois de abrir) e de 15 em 15 min; só reescreve quando muda. */
+let vigiaDaExportacao = null;
+function vigiarExportacao() {
+  if (vigiaDaExportacao || !app.isPackaged || process.platform !== 'win32') return;
+  const vez = () => { void exportarParaACascaNova(); };
+  setTimeout(vez, 20_000).unref?.();
+  vigiaDaExportacao = setInterval(vez, 15 * 60_000);
+  vigiaDaExportacao.unref?.();
+}
+
 /** Na abertura: devolve true quando o instalador arrancou e a app vai fechar. */
 async function instalarPendenteAoAbrir() {
   if (!app.isPackaged || process.platform !== 'win32') return false;
@@ -1791,6 +1831,9 @@ async function instalarPendenteAoAbrir() {
       return false;
     }
     if (decisao !== 'instalar') return false;
+    // Sem uma exportação boa (a versão ponte) não se instala: a app abre, exporta,
+    // e a versão nova instala-se depois em segundo plano (`instalarProntaSePuder`).
+    if (!exportacao.lerExportacao({ fs, path, pastaDeDados: app.getPath('userData') })) return false;
     // A tentativa conta ANTES de correr: se o instalador falhar e a app voltar
     // a abrir na mesma versão, é esta contagem que a deixa desistir.
     gravarPendente({ ...pendente, tentativas: (Number(pendente.tentativas) || 0) + 1 });
@@ -1837,6 +1880,11 @@ async function instalarProntaSePuder() {
     semUsoHaS,
   })) return 'espera';
   aInstalarJa = true;
+  // Antes de qualquer instalador, a exportação (a versão ponte). Sem ela, espera-se.
+  if (!(await exportarParaACascaNova()).ok) {
+    aInstalarJa = false;
+    return 'espera';
+  }
   try {
     // Conta como uma tentativa, como ao abrir: duas falhas e desiste-se dela.
     gravarPendente({ ...pendente, tentativas: (Number(pendente.tentativas) || 0) + 1 });
@@ -1964,6 +2012,16 @@ ipcMain.on('context-menu', (event, items) => {
   }))).popup({ window: BrowserWindow.fromWebContents(event.sender) });
 });
 
+// Ao sair, uma última exportação (a versão ponte), com 2,5 s no máximo. Só uma vez,
+// e não quando acabou de se fazer (antes de um instalador, por exemplo).
+let exportouAoSair = false;
+app.on('before-quit', (evento) => {
+  if (exportouAoSair || !app.isPackaged || !mainWindow || mainWindow.isDestroyed() || Date.now() - exportadaEm < 60_000) return;
+  exportouAoSair = true;
+  evento.preventDefault();
+  void Promise.race([exportarParaACascaNova(), new Promise((r) => setTimeout(r, 2500))]).finally(() => app.quit());
+});
+
 app.on('before-quit', () => {
   isQuitting = true;
   procuraAutomatica?.parar();
@@ -2020,6 +2078,7 @@ app.whenReady().then(async () => {
   createWindow();
   createTray();
   porListaDeSaltos();
+  vigiarExportacao();
   if (veioDoDiscord(process.argv)) void prepararDiscord(DISCORD_APP_ID);
 
   // As teclas de média NÃO se registam aqui (issue #10, 11/11): pedi-las ao

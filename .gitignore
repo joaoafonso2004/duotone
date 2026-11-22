@@ -39,6 +39,7 @@ test-*.mjs
 !scripts/test-ouvir-juntos.mjs
 !scripts/test-definicoes-com-efeito.mjs
 !scripts/test-ensaio-opus.mjs
+!scripts/test-exportacao-ponte.mjs
 !scripts/test-higiene-da-biblioteca-sql.mjs
 !scripts/test-escritas-atomicas-sql.mjs
 !scripts/test-atalhos.mjs

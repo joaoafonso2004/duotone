@@ -315,6 +315,8 @@ const TESTES = [
   `${TS} scripts/test-presenca-ativa.ts`,
   'scripts/test-api-regressions.mjs',
   'scripts/check-desktop-integration.mjs',
+  // A versão ponte (Electron -> Tauri): a exportação antes de qualquer instalador.
+  'scripts/test-exportacao-ponte.mjs',
   'scripts/test-servidor-local.mjs',
   'scripts/test-ponte-tauri.mjs',
   'scripts/test-segunda-instancia.mjs',
