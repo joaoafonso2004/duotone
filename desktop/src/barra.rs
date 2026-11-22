@@ -503,6 +503,8 @@ pub fn barra_estado(app: AppHandle, janela: WebviewWindow, estado: Value) -> Res
             let mut parada = PARADA_DESDE.lock().unwrap_or_else(|e| e.into_inner());
             if a_tocar {
                 *parada = None;
+                // O som do WebView2 aparece no misturador como "Duotone" (mistura.rs).
+                crate::mistura::ao_tocar();
             } else if parada.is_none() {
                 *parada = Some(std::time::Instant::now());
             }

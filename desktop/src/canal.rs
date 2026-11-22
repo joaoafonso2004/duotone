@@ -30,6 +30,8 @@ mod identidade {
     pub const ATUALIZACAO_ENTRADA: &str = "windowsPreview";
     pub const ATUALIZACAO_TAG: &str = "win-preview-v";
     pub const ATUALIZACAO_INSTALADOR: &str = "Duotone-Preview-Setup.exe";
+    /// O nome no misturador de volume do Windows (`mistura.rs`).
+    pub const NOME_NO_MISTURADOR: &str = "Duotone Preview";
 }
 
 #[cfg(feature = "producao")]
@@ -40,6 +42,7 @@ mod identidade {
     pub const ATUALIZACAO_ENTRADA: &str = "windows";
     pub const ATUALIZACAO_TAG: &str = "win-v";
     pub const ATUALIZACAO_INSTALADOR: &str = "Duotone-Setup.exe";
+    pub const NOME_NO_MISTURADOR: &str = "Duotone";
 }
 
 pub use identidade::*;

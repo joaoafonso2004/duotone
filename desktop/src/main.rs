@@ -15,6 +15,7 @@ mod canal;
 mod chaves;
 mod migracao;
 mod mini;
+mod mistura;
 mod notificacoes;
 mod ponte;
 mod rede;
