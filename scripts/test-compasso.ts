@@ -134,7 +134,7 @@ caso('um ritmo novo chega a quem ouve, e o que está guardado lê-se uma vez', (
 console.log('\no PC');
 const casca = ler('src/desktop/casca.web.tsx');
 caso('as barrinhas das listas leem as variáveis, e sem elas são os 900 ms de sempre', () => {
-  assert.match(casca, /\[data-dt~="barra"\]\{ animation: dt-pular var\(--dt-barra-1, 900ms\) ease-in-out infinite; \}/);
+  assert.match(casca, /\[data-dt~="barra"\]\{ animation: dt-pular var\(--dt-barra-1, 900ms\) step-end infinite; \}/);
   assert.match(casca, /:nth-child\(2\)\{ animation-duration: var\(--dt-barra-2, 900ms\); animation-delay: calc\(var\(--dt-barra-2, 900ms\) \/ 6\); \}/);
   assert.match(casca, /:nth-child\(3\)\{ animation-duration: var\(--dt-barra-3, 900ms\); animation-delay: calc\(var\(--dt-barra-3, 900ms\) \/ 3\); \}/);
 });

@@ -138,14 +138,25 @@ caso('nada de backdrop-filter na superfície da janela', () => {
   assert.match(estilos, /backgroundImage:[\s\S]{0,400}?filter: 'blur\((\d+)px\) brightness/,
     'o fundo deixou de trazer o desfoque dele');
 });
-caso('a barra dos amigos anda por escala, não por largura', () => {
-  // Recebe uma posição por segundo com uma transição de 1 s: nunca pára. Com
-  // `width` o layout refazia-se a cada fotograma (~450 vezes por segundo com 8
-  // amigos, medido a 28/9); o `scaleX` fica no compositor.
+caso('a barra dos amigos anda por escala, aos passos, sem transição', () => {
+  // Recebe uma posição por segundo. Com `width` o layout refazia-se a cada
+  // fotograma (~450 vezes por segundo com 8 amigos, medido a 28/9); o `scaleX`
+  // fica no compositor. E SEM transição (22/11): a de 1 s, recomeçada a cada
+  // segundo, nunca parava, e a GPU do WebView2 desenhava a janela a cada
+  // fotograma (~5 % do PC na 7.0.0). Aos passos, um desenho por segundo.
+  for (const f of ['src/desktop/AmigosNaLateral.web.tsx', 'src/components/SocialOverview.web.tsx', 'src/components/SocialPc.web.tsx']) {
+    const t = readFileSync(f, 'utf8');
+    assert.ok(!/transition: 'width/.test(t), `${f}: a barra dos amigos voltou a animar a largura`);
+    assert.ok(!/transition: 'transform 1s linear'/.test(t), `${f}: a transição de 1 s voltou (desenha a janela sem parar)`);
+  }
   const amigos = readFileSync('src/desktop/AmigosNaLateral.web.tsx', 'utf8');
-  assert.ok(!/transition: 'width/.test(amigos), 'a barra dos amigos voltou a animar a largura');
-  assert.match(amigos, /scaleX: [^\n]*transformOrigin: 'left'[^\n]*transition: 'transform 1s linear'/,
-    'a escala tem de crescer da esquerda e com a mesma transição de 1 s');
+  assert.match(amigos, /scaleX: [^\n]*transformOrigin: 'left'/, 'a escala tem de crescer da esquerda');
+});
+caso('as barrinhas a tocar andam aos saltos, como um medidor', () => {
+  // 4 desenhos por volta, em vez de 60 por segundo (22/11).
+  const casca = readFileSync('src/desktop/casca.web.tsx', 'utf8');
+  assert.match(casca, /\[data-dt~="eq"\] > \*\{ transform-origin: bottom; animation: dt-eq 1s step-end infinite; \}/, 'o eq voltou a deslizar');
+  assert.match(casca, /\[data-dt~="barra"\]\{ animation: dt-pular var\(--dt-barra-1, 900ms\) step-end infinite; \}/, 'as barras da fila voltaram a deslizar');
 });
 caso('os nomes de classe antigos não voltaram', () => {
   assert.ok(!CASCA.includes('glass-panel'), 'sobrou o nome antigo do vidro');

@@ -181,7 +181,7 @@ function PainelDoAmigo({ amigo, musica }: { amigo: SocialFriend; musica: any }) 
     </View>
     {onde ? <View style={{ gap: 6 }}>
       <View style={{ height: 3, borderRadius: 2, backgroundColor: 'rgba(233,234,238,0.14)', overflow: 'hidden' }}>
-        <View style={{ height: 3, width: '100%', transformOrigin: 'left', transform: [{ scaleX: Math.round(onde.fracao * 1000) / 1000 }], backgroundColor: COR.texto, transition: 'transform 1s linear' } as any}/>
+        <View style={{ height: 3, width: '100%', transformOrigin: 'left', transform: [{ scaleX: Math.round(onde.fracao * 1000) / 1000 }], backgroundColor: COR.texto } as any}/>
       </View>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
         <Text style={{ ...TIPO.numero, fontSize: 10, color: COR.textoFraco }}>{tempo(onde.ms)}</Text>

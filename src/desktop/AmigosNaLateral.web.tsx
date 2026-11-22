@@ -155,13 +155,15 @@ export function AmigosNaLateral({ navigate, notify, compacta = false }: { naviga
                   <Text numberOfLines={1} style={{ ...TIPO.legenda, marginTop: 1, color: COR.textoFraco }}>Online</Text>
                 )}
                 {/* Só o fio (27/9: o João experimentou com os tempos e preferiu
-                    sem eles). Anda por `scaleX` e não por `width` (28/9): com
-                    uma posição nova por segundo a transição nunca pára, e a
+                    sem eles). Anda por `scaleX` e não por `width` (28/9), e aos
+                    passos de um segundo, SEM transição (22/11): com uma de 1 s
+                    nunca parava, e a GPU desenhava a janela a cada fotograma
+                    (~5 % do PC na 7.0.0). Com a transição e `width`, a
                     largura refazia o layout a cada fotograma -- ~450 vezes por
                     segundo com 8 amigos, medido; a escala fica no compositor. */}
                 {onde ? (
                   <View style={{ height: 2, borderRadius: 1, backgroundColor: 'rgba(233,234,238,0.14)', marginTop: 5, overflow: 'hidden' }}>
-                    <View style={{ height: 2, width: '100%', transform: [{ scaleX: Math.round(onde.fracao * 1000) / 1000 }], transformOrigin: 'left', backgroundColor: COR.texto, transition: 'transform 1s linear' } as any} />
+                    <View style={{ height: 2, width: '100%', transform: [{ scaleX: Math.round(onde.fracao * 1000) / 1000 }], transformOrigin: 'left', backgroundColor: COR.texto } as any} />
                   </View>
                 ) : null}
               </View>

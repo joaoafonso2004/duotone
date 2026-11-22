@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
   ouvintePlay: { width: 26, height: 26, borderRadius: 13, backgroundColor: COR.texto, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   vira: { alignItems: 'center', justifyContent: 'center' },
   fio: { height: 2, borderRadius: 1, backgroundColor: 'rgba(233,234,238,0.14)', marginTop: 5, overflow: 'hidden' },
-  fioCheio: { height: 2, width: '100%', transformOrigin: 'left', backgroundColor: COR.texto, transition: 'transform 1s linear' } as any,
+  fioCheio: { height: 2, width: '100%', transformOrigin: 'left', backgroundColor: COR.texto } as any,
   linhaDoNome: { flexDirection: 'row', alignItems: 'center', gap: ESP.sm },
   eq: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 11 }, eqBarra: { width: 3, height: 11, borderRadius: 1 },
   nome: { fontFamily: FONT.body, fontSize: 14, fontWeight: '600', color: COR.texto, flexShrink: 1 },

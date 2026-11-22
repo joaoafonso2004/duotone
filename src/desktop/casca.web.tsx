@@ -440,12 +440,16 @@ export function injectDesktopDocumentStyles() {
     /* A que esta a tocar nao esconde as barrinhas nem mostra o numero. Andam no andamento da
        musica quando ele se sabe (S3, CompassoNoCss), e nos 900 ms de sempre quando nao. O
        atraso e uma parte da volta: sem isso, a 180 BPM as duas de um tempo andavam quase juntas. */
-    [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]{ animation: dt-pular var(--dt-barra-1, 900ms) ease-in-out infinite; }
+    /* Aos saltos, como um medidor de nível (22/11): quatro alturas por volta e nada no meio.
+       Deslizar redesenhava a janela a cada fotograma enquanto houvesse música (a GPU do
+       WebView2 a ~5 % do PC, medido na 7.0.0); aos saltos, o compositor só desenha 4 vezes
+       por volta de cada barra. */
+    [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]{ animation: dt-pular var(--dt-barra-1, 900ms) step-end infinite; }
     [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]:nth-child(2){ animation-duration: var(--dt-barra-2, 900ms); animation-delay: calc(var(--dt-barra-2, 900ms) / 6); }
     [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]:nth-child(3){ animation-duration: var(--dt-barra-3, 900ms); animation-delay: calc(var(--dt-barra-3, 900ms) / 3); }
     /* Em pausa, as barras ficam quietas e baixas (27/9). */
     [data-dt~="fila"] [data-dt~="barras"][data-dt~="parado"] [data-dt~="barra"]{ animation: none; height: 4px; }
-    @keyframes dt-pular{ 0%,100%{ height:4px } 50%{ height:13px } }
+    @keyframes dt-pular{ 0%{ height:4px } 25%{ height:9px } 50%{ height:13px } 75%{ height:7px } 100%{ height:4px } }
 
     /* Dialogos: o veu escurece e a caixa cresce a partir do centro. */
     [data-dt~="veu"]{ animation: dt-aparecer var(--dt-normal) var(--dt-curva) both; }
@@ -640,10 +644,11 @@ export function injectDesktopDocumentStyles() {
        ouvir: as barrinhas mexem-se, e o "Listen along" aparece com o rato no
        cartao (ou com o foco la dentro, para o teclado o encontrar). A linha de
        uma conversa acende com o rato. So opacidade, transform e fundo. */
-    [data-dt~="eq"] > *{ transform-origin: bottom; animation: dt-eq 1s ease-in-out infinite; }
+    /* Aos saltos, como as barras da fila (22/11): 4 desenhos por segundo, e não 60. */
+    [data-dt~="eq"] > *{ transform-origin: bottom; animation: dt-eq 1s step-end infinite; }
     [data-dt~="eq"] > *:nth-child(2){ animation-delay: 250ms; }
     [data-dt~="eq"] > *:nth-child(3){ animation-delay: 500ms; }
-    @keyframes dt-eq{ 0%, 100%{ transform: scaleY(.3); } 50%{ transform: scaleY(1); } }
+    @keyframes dt-eq{ 0%{ transform: scaleY(.3); } 25%{ transform: scaleY(.7); } 50%{ transform: scaleY(1); } 75%{ transform: scaleY(.55); } 100%{ transform: scaleY(.3); } }
     /* O cartão de quem ouve e o "Listen along" ao passar saíram a 22/11 (a B4): quem ouve
        é a linha dos amigos da lateral (\`ouvinte\`, mais abaixo). */
     [data-dt~="conversa"]{ transition: background-color var(--dt-rapido) var(--dt-curva); }

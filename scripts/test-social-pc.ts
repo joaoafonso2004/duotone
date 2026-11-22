@@ -92,8 +92,9 @@ caso('a pergunta das Jams é a partilhada com a Home (2 min), e só se faz ao ca
 });
 caso('o ▶ aparece com o rato na linha ou com o foco (CSS), e fica a seguir; as barrinhas só mexem em CSS', () => {
   assert.match(CASCA, /\[data-dt~="ouvinte"\]:hover \[data-dt~="ouvinte-play"\], \[data-dt~="ouvinte-play"\]:focus-visible, \[data-dt~="ouvinte-play"\]\[data-dt~="a-seguir"\]\{ opacity: 1; \}/);
-  assert.match(CASCA, /\[data-dt~="eq"\] > \*\{ transform-origin: bottom; animation: dt-eq 1s ease-in-out infinite; \}/);
-  assert.match(CASCA, /@keyframes dt-eq\{ 0%, 100%\{ transform: scaleY\(\.3\); \} 50%\{ transform: scaleY\(1\); \} \}/);
+  // Aos saltos (22/11): 4 desenhos por segundo, e não 60.
+  assert.match(CASCA, /\[data-dt~="eq"\] > \*\{ transform-origin: bottom; animation: dt-eq 1s step-end infinite; \}/);
+  assert.match(CASCA, /@keyframes dt-eq\{ 0%\{ transform: scaleY\(\.3\); \} 25%\{ transform: scaleY\(\.7\); \} 50%\{ transform: scaleY\(1\); \} 75%\{ transform: scaleY\(\.55\); \} 100%\{ transform: scaleY\(\.3\); \} \}/);
 });
 
 console.log('\nas conversas');
