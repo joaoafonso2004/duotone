@@ -36,6 +36,23 @@
     document.dispatchEvent(new Event('visibilitychange'));
   });
 
+  // F5, os controlos de média do Windows (desktop/src/sessao.rs): as ações chegam ao
+  // Rust e voltam aqui. A página liga-as no navigator.mediaSession (o RootNavigator);
+  // a ponte guarda-as para as chamar, porque a sessão do WebView2 está desligada.
+  const acoesDeMedia = new Map();
+  const ms = navigator.mediaSession;
+  if (ms && typeof ms.setActionHandler === 'function') {
+    const ligar = ms.setActionHandler.bind(ms);
+    ms.setActionHandler = (acao, f) => {
+      acoesDeMedia.set(acao, typeof f === 'function' ? f : null);
+      try { ligar(acao, f); } catch (e) { /* uma ação que o WebView2 não conhece */ }
+    };
+  }
+  ouvir('media:acao', (d) => {
+    const f = d && acoesDeMedia.get(d.acao);
+    if (f) f({ action: d.acao, seekTime: typeof d.segundos === 'number' ? d.segundos : undefined });
+  });
+
   const ponte = {
     platform: 'win32',
     // Sem Discord na casca em Tauri (o João tirou-o a 22/11): nem o id da aplicação,
@@ -112,6 +129,7 @@
     // esconde a janela (P3: 6 min no tabuleiro, temporizadores de 100 ms intactos).
     // Se um dia a casca o avisar (para poupar memória), isto tem de passar a fazer algo.
     naoEstrangular: () => {},
+    definirSessaoDeMedia: (sessao) => pedir('sessao_de_media_definir', { sessao }),
     // F9, as atualizações (desktop/src/atualizacao.rs): de onde e o quê decide a casca.
     // A Preview só aceita o canal dela; sem ele no versions.json, está sempre atual.
     instalarAtualizacao: () => pedir('atualizacao_instalar', {}),

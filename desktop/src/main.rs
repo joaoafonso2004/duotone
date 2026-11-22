@@ -21,6 +21,7 @@ mod rede;
 mod registo;
 mod saude;
 mod servidor;
+mod sessao;
 mod spotify;
 mod webview;
 
@@ -156,7 +157,7 @@ fn main() {
             registo_da_pagina,
             ponte::janela_minimizar, ponte::janela_alternar_maximizar, ponte::janela_fechar, ponte::janela_maximizada,
             ponte::fechar_para_tabuleiro_ler, ponte::fechar_para_tabuleiro_definir,
-            arranque::arranque_ler, arranque::arranque_definir, barra::barra_estado, barra::barra_tirar_acao, notificacoes::notificacao_mensagem, notificacoes::notificacao_por_ler, atualizacao::atualizacao_procurar, spotify::spotify_ligado, spotify::spotify_entrar, spotify::spotify_sair, spotify::spotify_consultar, atualizacao::atualizacao_descarga, atualizacao::atualizacao_instalar, ponte::saude_ler, ponte::segundos_sem_interacao, saude::diagnostico_recursos,
+            arranque::arranque_ler, arranque::arranque_definir, barra::barra_estado, barra::barra_tirar_acao, notificacoes::notificacao_mensagem, notificacoes::notificacao_por_ler, atualizacao::atualizacao_procurar, spotify::spotify_ligado, sessao::sessao_de_media_definir, spotify::spotify_entrar, spotify::spotify_sair, spotify::spotify_consultar, atualizacao::atualizacao_descarga, atualizacao::atualizacao_instalar, ponte::saude_ler, ponte::segundos_sem_interacao, saude::diagnostico_recursos,
             mini::mini_alternar, mini::mini_esta_aberto, mini::mini_estado, mini::mini_modo_limpo,
             mini::mini_pronto, mini::mini_pega, mini::mini_lista, mini::mini_ignorar_rato, mini::mini_comando,
             rede::yt_pesquisa, rede::ytmusic_pesquisa, rede::yt_mix, rede::yt_refrao, rede::ytmusic_artista, rede::ytmusic_radio, rede::ytmusic_letra,
@@ -219,6 +220,8 @@ fn main() {
                 .decorations(false)
                 .visible(false)
                 .background_color(tauri::window::Color(9, 9, 13, 255))
+                // Sem a sessão de média do próprio WebView2: a da app é a nativa (sessao.rs).
+                .additional_browser_args(webview::ARGUMENTOS)
                 .initialization_script(webview::SCRIPT_DO_ARRANQUE)
                 // A ponte `window.duotoneDesktop` (F2), antes de qualquer script da app.
                 .initialization_script(ponte::script())
@@ -241,6 +244,8 @@ fn main() {
                         if !JA_ABRIU.swap(true, std::sync::atomic::Ordering::SeqCst) {
                             // A passagem do Electron: a página diz se as chaves ficaram lá.
                             migracao::confirmar(&janela);
+                            #[cfg(debug_assertions)]
+                            sessao::ensaio(&janela);
                             // Reaberta pelo instalador de uma atualização feita sozinha (F9):
                             // volta como estava, sem se pôr à frente de ninguém.
                             if let Some(como) = atualizacao::tirar_reabrir() {

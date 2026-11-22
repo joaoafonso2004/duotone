@@ -77,6 +77,12 @@ fn tecla_do_modo_limpo(codigo: u32) -> Option<&'static str> {
     }
 }
 
+/// Os argumentos do WebView2 da janela principal e do mini (a mesma pasta, por isso
+/// os mesmos): os que o wry põe por omissão (sem o menu mini, os PDF e o SmartScreen)
+/// e, a mais, sem a sessão de média do próprio WebView2 (a da app é a de `sessao.rs`:
+/// com as duas, o Windows mostrava o `msedgewebview2.exe` e o "tocar" não chegava, P4).
+pub const ARGUMENTOS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,HardwareMediaKeyHandling";
+
 pub fn configurar(janela: &tauri::WebviewWindow) {
     let (para_o_ecra, para_as_teclas) = (janela.clone(), janela.clone());
     let feito = janela.with_webview(move |w| unsafe {

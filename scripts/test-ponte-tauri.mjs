@@ -7,6 +7,7 @@
 // checkout com CRLF).
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import vm from 'node:vm';
 
 const ler = (f) => fs.readFileSync(new URL(`../${f}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const preload = ler('electron/preload.cjs');
@@ -60,7 +61,7 @@ const permissoes = new Set(capacidade.permissions);
 for (const c of comandos) {
   assert.ok(declarados.has(c), `"${c}" não está no AppManifest do desktop/build.rs`);
   assert.ok(permissoes.has(`allow-${c.replace(/_/g, '-')}`), `"allow-${c.replace(/_/g, '-')}" não está na capability`);
-  assert.match(main, new RegExp(`(?:ponte|rede|audio|saude|mini|arranque|barra|notificacoes|atualizacao|spotify)::${c}\\b`), `"${c}" não está no generate_handler do main.rs`);
+  assert.match(main, new RegExp(`(?:ponte|rede|audio|saude|mini|arranque|barra|notificacoes|atualizacao|spotify|sessao)::${c}\\b`), `"${c}" não está no generate_handler do main.rs`);
 }
 // A capability nunca aceita curingas na origem (a ponte existe no frame do YouTube).
 for (const url of capacidade.remote.urls) assert.match(url, /^http:\/\/localhost:\d+(\/\*)?$/, `origem larga demais: ${url}`);
@@ -81,6 +82,38 @@ for (const c of comandosMini) {
   assert.match(main, new RegExp(`mini::${c}\\b`), `"${c}" (mini) não está no generate_handler`);
 }
 assert.ok(capacidade.windows.includes('mini'), 'a capability tem de incluir a janela do mini');
+
+// Os controlos de média (F5, sessao.rs): a ponte guarda as ações que a página liga no
+// navigator.mediaSession e chama-as quando o Windows manda uma (o "media:acao" do Rust).
+// O ponte.js a sério numa vm, com um navigator falso.
+{
+  const ligadasNoWebView2 = [];
+  const chamadas = [];
+  const janela = {
+    location: { origin: '__ORIGEM__' },
+    __TAURI_INTERNALS__: { invoke: (comando, args) => { chamadas.push([comando, args]); return Promise.resolve(true); } },
+    navigator: { mediaSession: { setActionHandler(acao, f) { ligadasNoWebView2.push([acao, typeof f]); } } },
+    document: { dispatchEvent() {}, addEventListener() {} },
+    addEventListener() {}, removeEventListener() {}, console,
+  };
+  janela.window = janela;
+  janela.top = janela;
+  vm.runInNewContext(ler('desktop/src/ponte.js'), janela);
+  const recebidas = [];
+  janela.navigator.mediaSession.setActionHandler('pause', (d) => recebidas.push(['pause', d.action, d.seekTime]));
+  janela.navigator.mediaSession.setActionHandler('seekto', (d) => recebidas.push(['seekto', d.action, d.seekTime]));
+  janela.navigator.mediaSession.setActionHandler('play', null);
+  assert.deepEqual(ligadasNoWebView2, [['pause', 'function'], ['seekto', 'function'], ['play', 'object']], 'a ação também se liga no WebView2, como a página pediu');
+  janela.__duotoneEvento('media:acao', { acao: 'pause', segundos: null });
+  janela.__duotoneEvento('media:acao', { acao: 'seekto', segundos: 42 });
+  janela.__duotoneEvento('media:acao', { acao: 'play' });
+  janela.__duotoneEvento('media:acao', { acao: 'nexttrack' });
+  janela.__duotoneEvento('media:acao', null);
+  assert.deepEqual(recebidas, [['pause', 'pause', undefined], ['seekto', 'seekto', 42]], 'só as ações ligadas, com o seekTime; uma desligada ou sem dono não faz nada');
+  await janela.duotoneDesktop.definirSessaoDeMedia({ titulo: 'S', estado: 'playing' });
+  // O objeto vem da vm (outro realm): compara-se pelo JSON.
+  assert.equal(JSON.stringify(chamadas.at(-1)), JSON.stringify(['sessao_de_media_definir', { sessao: { titulo: 'S', estado: 'playing' } }]));
+}
 
 const faltam = [...doElectron].filter((k) => !doTauri.includes(k));
 console.log(`Ponte Tauri: ${doTauri.filter((k) => doElectron.has(k)).length} de ${doElectron.size} chaves do preload (mais ${doTauri.filter((k) => SO_DO_TAURI.has(k)).length} só do Tauri), ${comandos.length} comandos declarados, autorizados e registados. Por fazer: ${faltam.length}.`);

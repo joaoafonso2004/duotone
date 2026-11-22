@@ -362,6 +362,9 @@ pub fn abrir(app: &AppHandle) {
     let tam = fisico(COMPACTO, escala, area.map(|a| escala_do_monitor(&mons, &a)).unwrap_or(escala_principal));
     let url = format!("http://localhost:{}/index.html?janela=mini", crate::canal::PORTA);
     let criada = WebviewWindowBuilder::new(app, "mini", WebviewUrl::External(url.parse().unwrap()))
+        // Os mesmos da janela principal: partilham a pasta do WebView2, e o WebView2
+        // recusa dois ambientes com opções diferentes na mesma pasta.
+        .additional_browser_args(crate::webview::ARGUMENTOS)
         .title("Duotone mini player")
         .decorations(false)
         .transparent(true)
