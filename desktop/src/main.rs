@@ -13,6 +13,7 @@ mod audio;
 mod barra;
 mod canal;
 mod chaves;
+mod janela;
 mod migracao;
 mod mini;
 mod mistura;
@@ -93,6 +94,7 @@ pub fn mostrar_janela(app: &tauri::AppHandle) {
     if let Some(j) = app.get_webview_window("main") {
         let _ = j.unminimize();
         let _ = j.show();
+        janela::ao_mostrar(&j);
         let _ = j.set_focus();
     }
     avisar_estado_da_janela(app);
@@ -183,6 +185,10 @@ fn main() {
                 }
                 return;
             }
+            // O sítio e o tamanho, para a próxima vez que abrir (janela.rs).
+            if matches!(evento, WindowEvent::Moved(_) | WindowEvent::Resized(_)) && janela.label() == "main" {
+                crate::janela::mudou(janela);
+            }
             // Com o foco, o botão da barra deixa de piscar (as mensagens por ler, F5).
             if let WindowEvent::Focused(true) = evento {
                 if let Some(j) = janela.app_handle().get_webview_window("main") {
@@ -258,6 +264,7 @@ fn main() {
                                 registo::linha("arranque com o Windows: fica no tabuleiro");
                             } else {
                                 let _ = janela.show();
+                                crate::janela::ao_mostrar(&janela);
                             }
                         }
                         // Uma página recarregada começa sem saber: volta a dizer-se tudo.
@@ -272,6 +279,8 @@ fn main() {
                 construtor = construtor.data_directory(perfil);
             }
             let janela = construtor.build()?;
+            // O sítio e o tamanho da última vez, antes de se mostrar (janela.rs).
+            crate::janela::restaurar(&janela);
             webview::configurar(&janela);
             // A barra de tarefas (F5): a subclasse antes do 1.º botão na barra, e a lista de saltos.
             barra::instalar(app.handle(), &janela);
