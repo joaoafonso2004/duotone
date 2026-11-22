@@ -193,8 +193,10 @@ fn amostrar(processos: &[(u32, &'static str, &'static str)]) -> Vec<Value> {
     }).collect()
 }
 
+/// Com as palavras do `estadoDaJanela` do Electron (e do `RecursosDaApp` no
+/// electron.d.ts): o relatório escreve-as tal e qual.
 fn estado_da_janela(janela: &WebviewWindow) -> &'static str {
-    if !janela.is_visible().unwrap_or(true) { "hidden" } else if janela.is_minimized().unwrap_or(false) { "minimized" } else { "visible" }
+    if !janela.is_visible().unwrap_or(true) { "escondida" } else if janela.is_minimized().unwrap_or(false) { "minimizada" } else { "visivel" }
 }
 
 /// Os processos da app: a casca e os do WebView2. Bloqueia até 3 s à espera da
@@ -212,9 +214,22 @@ fn processos_da_app(janela: &WebviewWindow) -> Vec<(u32, &'static str, &'static 
 /// do Electron): uma vez por minuto, com o CPU MÉDIO desse minuto.
 static ESCONDIDA: Mutex<Option<Value>> = Mutex::new(None);
 
-fn hora_utc() -> String {
-    let s = agora() / 1000 % 86_400;
-    format!("{:02}:{:02}:{:02} UTC", s / 3600, s / 60 % 60, s % 60)
+/// A hora em ISO 8601, em UTC e ao segundo (o `new Date().toISOString()` do Electron,
+/// sem os milissegundos). Os dias para a data pelo algoritmo `civil_from_days`.
+fn hora_iso(ms: u64) -> String {
+    let s = ms / 1000;
+    let dias = (s / 86_400) as i64;
+    let z = dias + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let dia = doy - (153 * mp + 2) / 5 + 1;
+    let mes = if mp < 10 { mp + 3 } else { mp - 9 };
+    let ano = yoe + era * 400 + i64::from(mes <= 2);
+    let r = s % 86_400;
+    format!("{ano:04}-{mes:02}-{dia:02}T{:02}:{:02}:{:02}Z", r / 3600, r / 60 % 60, r % 60)
 }
 
 pub fn vigiar_escondida(app: tauri::AppHandle) {
@@ -235,7 +250,7 @@ pub fn vigiar_escondida(app: tauri::AppHandle) {
             let mut amostra = Vec::new();
             for (pid, tipo, nome) in processos {
                 let Some(m) = medir(pid) else { continue };
-                if estado != "visible" {
+                if estado != "visivel" {
                     let cpu = antes.get(&pid).map(|a| m.cpu_100ns.saturating_sub(*a) as f64 / (decorrido_100ns * nucleos) * 100.0).unwrap_or(0.0);
                     amostra.push(json!({ "tipo": tipo, "nome": nome, "cpu": (cpu * 10.0).round() / 10.0, "memoriaMB": mb(m.memoria), "privadaMB": mb(m.privada) }));
                 }
@@ -243,7 +258,13 @@ pub fn vigiar_escondida(app: tauri::AppHandle) {
             }
             antes = novos;
             if !amostra.is_empty() {
-                *ESCONDIDA.lock().unwrap_or_else(|e| e.into_inner()) = Some(json!({ "em": hora_utc(), "janela": estado, "processos": amostra, "youtube": [] }));
+                let mut ultima = ESCONDIDA.lock().unwrap_or_else(|e| e.into_inner());
+                if ultima.is_none() {
+                    // A 1.ª, para se ver no registo sem tirar o relatório.
+                    let total: f64 = amostra.iter().filter_map(|p| p["memoriaMB"].as_f64()).sum();
+                    crate::registo::linha(&format!("saúde: 1.ª amostra escondida ({estado}, {} processos, {:.0} MB)", amostra.len(), total));
+                }
+                *ultima = Some(json!({ "em": hora_iso(agora()), "janela": estado, "processos": amostra, "youtube": [] }));
             }
         }
     });
@@ -331,6 +352,16 @@ mod testes {
         assert_eq!(nome_do_tipo(1), "Tab");
         assert_eq!(nome_do_tipo(4), "GPU");
         assert_eq!(nome_do_tipo(2), "Utility");
+    }
+
+    #[test]
+    fn a_hora_e_a_do_electron() {
+        assert_eq!(hora_iso(0), "1970-01-01T00:00:00Z");
+        assert_eq!(hora_iso(1_727_431_200_000), "2024-09-27T10:00:00Z");
+        assert_eq!(hora_iso(1_709_208_000_999), "2024-02-29T12:00:00Z", "o dia a mais dos bissextos, sem os milissegundos");
+        assert_eq!(hora_iso(951_782_400_000), "2000-02-29T00:00:00Z", "o 2000 é bissexto");
+        assert_eq!(hora_iso(4_102_444_800_000), "2100-01-01T00:00:00Z");
+        assert_eq!(hora_iso(1_795_312_816_000), "2026-11-22T02:00:16Z", "uma linha do registo de hoje");
     }
 
     #[test]

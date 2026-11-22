@@ -100,6 +100,12 @@
     adiantarAudio: (id, url, tamanho, mime) => pedir('audio_adiantar', { id, url, tamanho, mime }),
     audioNaCache: (id) => pedir('audio_na_cache', { id }),
     aliviarMemoria: () => {},
+    // O crossfade do IFrame de recurso pede para o Chromium não estrangular os
+    // temporizadores com a janela escondida (o setBackgroundThrottling do Electron).
+    // Na casca em Tauri nada os estrangula: o Tauri não avisa o WebView2 quando
+    // esconde a janela (P3: 6 min no tabuleiro, temporizadores de 100 ms intactos).
+    // Se um dia a casca o avisar (para poupar memória), isto tem de passar a fazer algo.
+    naoEstrangular: () => {},
     // F9, as atualizações (desktop/src/atualizacao.rs): de onde e o quê decide a casca.
     // A Preview só aceita o canal dela; sem ele no versions.json, está sempre atual.
     instalarAtualizacao: () => pedir('atualizacao_instalar', {}),
