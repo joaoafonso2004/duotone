@@ -49,6 +49,8 @@ interface Props {
   onFriendMenu?: (id: string, ancora: { x: number; y: number; width: number; height: number }, e?: any) => void;
   onDeleteConversation: (id: string) => void;
   onStart: () => void;
+  /** A conversa aberta, acesa na lista do PC (22/11). O iPhone não a usa. */
+  aberta?: string;
 }
 
 const CARA = 54;

@@ -11,7 +11,7 @@ import {
   MINIMO_PARA_A_BARRA, nomeDaPlaylistDaConversa, origemDaConversa, type Conversa,
 } from '../lib/musicasDaConversa';
 import { PromptSheet } from './PromptSheet';
-import { colors } from './socialTokens';
+import { colors, type } from './socialTokens';
 import type { Track } from '../types';
 
 const web = Platform.OS === 'web';
@@ -40,7 +40,8 @@ export function AcaoDaConversa({ rotulo, icone, texto, aCarregar = false, deslig
       {aCarregar
         ? <ActivityIndicator size="small" color={tom} style={{ width: 16, height: 16 }} />
         : <Ionicons name={icone} size={16} color={tom} />}
-      <Text style={{ color: tom, fontSize: 13, fontWeight: '600' }}>{texto}</Text>
+      {/* No PC com a fonte da app (22/11, a B4): sem família, o react-native-web punha a Segoe UI. */}
+      <Text style={[{ color: tom, fontSize: 13, fontWeight: '600' }, web && { fontFamily: (type.body as { fontFamily?: string }).fontFamily }]}>{texto}</Text>
     </Pressable>
   );
 }

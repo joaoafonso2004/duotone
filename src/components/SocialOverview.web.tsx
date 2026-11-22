@@ -1,10 +1,16 @@
 // Atividade musical e conversas numa só vista, com os dados já recebidos pelo Social.
 // O PC (9/10): o iPhone tem a sua (SocialOverview.tsx, docs/PLANO-SOCIAL-IOS.md).
-import React, { useMemo, useState } from 'react';
+//
+// A pele da B4 (22/11, `.claude/planos/PLANO-SOCIAL-B4.md`): as fontes da app em
+// todo o texto (antes quase tudo saía em Segoe UI, porque o react-native-web
+// impõe a dele a cada `<Text>` sem família), as etiquetas mono da lateral e da
+// Home, as linhas de 56 px, e quem ouve com a linha dos amigos da lateral.
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ChatGroup } from '../api/social';
 import type { PublicProfile } from '../api/profiles';
-import type { SocialFriend } from '../state/social';
+import { agoraNoServidor, type SocialFriend } from '../state/social';
 import type { Track } from '../types';
 import { musicActivityLabel, type ConversationPreview } from '../lib/socialActivity';
 import { previaDaConversa } from '../lib/previaDaConversa';
@@ -13,14 +19,17 @@ import { haQuantoTempo } from '../lib/social';
 import { ordenarConversas, CONVERSAS_PARA_PESQUISAR } from '../lib/ordemDasConversas';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
-import { colors, radii } from './socialTokens';
+import { posicaoDoAmigo } from '../lib/posicaoDoAmigo';
 import { ESCALA_MAXIMA } from '../theme';
 import { CapaDuotone } from '../desktop/duotone.web';
-import { useCorDoAmbiente } from '../hooks/useCorDoAmbiente';
 import { marcar } from '../desktop/ui.web';
+import { useFlip } from '../desktop/useFlip.web';
+import { COR, ESP, ESTADO, FONT, LINHA_LISTA, RAIO, TIPO } from '../desktop/tokens.web';
 import { jamsDosAmigos } from '../state/jamsDosAmigos';
 import { ouvirComAmigo } from '../state/ouvirComAmigo';
-import { AvatarDeConversa, SocialIconButton } from './socialUI';
+import { useSeguirAmigo } from '../state/seguirAmigo';
+import { FriendAvatar } from './FriendAvatar';
+import { SocialIconButton } from './socialUI';
 import { GroupAvatar } from './GroupChat';
 
 interface Props {
@@ -34,6 +43,8 @@ interface Props {
   myId: string | undefined;
   loading: boolean;
   requests: React.ReactNode;
+  /** A conversa aberta (a chave: o id do amigo, ou `group:<id>`), acesa na lista. */
+  aberta?: string;
   onOpen: (kind: 'friend' | 'group', id: string) => void;
   onProfile: (id: string) => void;
   onTrack: (track: Track) => void;
@@ -45,7 +56,7 @@ interface Props {
   onStart: () => void;
 }
 
-/** Quantos cartões "Listening now" cabem em cima: os outros amigos ativos estão nas conversas, com o estado deles. */
+/** Quantos amigos cabem em "Listening now": os outros ativos estão nas conversas, com o estado deles. */
 const CARTOES_A_OUVIR = 5;
 
 /**
@@ -53,43 +64,64 @@ const CARTOES_A_OUVIR = 5;
  * do menu do botão direito). A pergunta das Jams é a partilhada com a Home
  * (`state/jamsDosAmigos.ts`, 2 min): só se faz ao carregar, e uma vez por 2 min.
  */
-async function ouvirJunto(amigo: SocialFriend): Promise<void> {
+export async function ouvirJunto(amigo: SocialFriend): Promise<void> {
   const jams = await jamsDosAmigos().catch(() => new Map<string, string>());
   await ouvirComAmigo(amigo, jams.get(amigo.friendId) ?? null);
 }
 
+/** As três barrinhas que mexem enquanto ele ouve (o `eq` da casca). */
+export function Barrinhas({ cor = COR.texto }: { cor?: string }) {
+  return <View {...marcar('eq')} aria-hidden style={styles.eq}>
+    <View style={[styles.eqBarra, { backgroundColor: cor }]}/><View style={[styles.eqBarra, { backgroundColor: cor }]}/><View style={[styles.eqBarra, { backgroundColor: cor }]}/>
+  </View>;
+}
+
 /**
- * Um amigo que está a ouvir (30/10, passo 7 de `docs/PLANO-ELEVAR-PC.md`): a
- * capa a cores e as barrinhas a mexer enquanto ouve, e "Listen along" ao passar
- * o rato (CSS: `cartao-ouvir` / `ouvir-ja`). Quem ouviu há pouco fica a dois
- * tons, sem o botão (não há nada a que se juntar). Tocar no cartão abre as
- * opções da música, como antes.
+ * Quem ouve (B4): a linha dos amigos da lateral, maior. A capa com a cara no
+ * canto, o nome com as barrinhas, "Title · Artist", o fio do progresso e o ▶
+ * branco do Listen along (aparece com o rato, como na lateral). A seguir este
+ * amigo: "Listening along", e o ▶ passa a ×, que deixa de o seguir. Quem ouviu
+ * há pouco fica a dois tons, sem barrinhas nem botão. A linha abre a conversa
+ * com ele; a capa abre as opções da música, como o cartão de antes.
  */
-function CartaoAOuvir({ amigo, agora, aoAbrir }: { amigo: SocialFriend; agora: number; aoAbrir: (t: Track) => void }) {
+function QuemOuve({ amigo, agora, aoAbrir, aoTrack, aoMenu }: {
+  amigo: SocialFriend; agora: number; aoAbrir: () => void; aoTrack: (t: Track) => void; aoMenu?: (e: any) => void;
+}) {
   const a = amigo.musicActivity!;
   const title = tituloDaFaixa(a.track), artist = displayArtist(a.track);
   const status = musicActivityLabel(a, agora);
   const cover = capaParaLista(a.track.artworkUrl) ?? a.track.artworkUrl;
-  // A cor da capa a lavar o cartão da esquerda para a direita (30/10, da maquete): só quem ouve agora.
-  const cor = useCorDoAmbiente(a.listening ? cover : null);
-  const lavagem = cor ? { backgroundImage: `linear-gradient(90deg, color-mix(in oklab, ${cor} 30%, transparent), ${colors.surface} 75%)` } : null;
-  return <View {...marcar('cartao-ouvir')} style={[styles.activityCard, lavagem as any]}>
-    <Pressable style={({pressed}) => [styles.activityMain, pressed && styles.pressed]} accessibilityRole="button"
-      accessibilityLabel={`${amigo.name}, ${title}, ${artist}, ${status}. Song options`} onPress={() => aoAbrir(a.track)}>
-      <View style={styles.activityCover}><CapaDuotone uri={cover} viva={a.listening} style={{ borderRadius: 8 }}/></View>
-      <View style={styles.activityText}>
-        <Text numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA.lista} style={styles.cardName}>{amigo.name}</Text>
-        <View style={styles.activityLine}>
-          {a.listening && <View {...marcar('eq')} aria-hidden style={styles.eq}><View style={styles.eqBarra}/><View style={styles.eqBarra}/><View style={styles.eqBarra}/></View>}
-          <Text numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA.lista} style={styles.cardTitle}>{title} · {artist}</Text>
-        </View>
-        {!a.listening && <Text numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA.lista} style={styles.cardStatus}>{status}</Text>}
-      </View>
+  const sigo = useSeguirAmigo((s) => s.seguindo?.id === amigo.friendId);
+  const onde = a.listening ? posicaoDoAmigo((amigo.currentlyPlaying ?? a.track) as any, agoraNoServidor()) : null;
+  // Três botões irmãos (a capa, o texto, o ▶), nunca um dentro do outro: um <button> dentro de
+  // outro é HTML inválido. O hover da linha inteira é do CSS (`ouvinte`, no casca).
+  return <View {...marcar('ouvinte', ...(sigo ? ['a-seguir'] : []))} {...(aoMenu ? { onContextMenu: aoMenu } : {}) as any}
+    style={styles.ouvinte}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`${title}. Song options`} onPress={() => aoTrack(a.track)}
+      style={styles.ouvinteCapa}>
+      <CapaDuotone uri={cover} viva={a.listening} style={{ borderRadius: RAIO.cartao }}/>
+      <View style={styles.ouvinteCara}><FriendAvatar avatarUrl={amigo.avatarUrl} name={amigo.name} size={20}/></View>
     </Pressable>
-    {a.listening && <Pressable {...marcar('ouvir-ja')} accessibilityRole="button" accessibilityLabel={`Listen along with ${amigo.name}`}
-      style={({pressed}) => [styles.ouvirJa, pressed && styles.pressed]} onPress={() => void ouvirJunto(amigo)}>
-      <Text style={styles.ouvirJaTexto}>Listen along</Text>
-    </Pressable>}
+    <Pressable accessibilityRole="button" onPress={aoAbrir} style={styles.ouvinteTexto}
+      accessibilityLabel={`${amigo.name}, ${title}, ${artist}, ${sigo ? 'listening along' : status}. Open chat`}>
+      <View style={styles.linhaDoNome}>
+        <Text numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA.lista} style={styles.nome}>{amigo.name}</Text>
+        {a.listening ? <Barrinhas/> : null}
+      </View>
+      <Text numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA.lista} style={styles.legenda}>
+        {sigo ? 'Listening along' : a.listening ? `${title} · ${artist}` : `${title} · ${status}`}
+      </Text>
+      {/* O fio do progresso, por `scaleX` (no compositor), como na lateral. */}
+      {onde ? <View style={styles.fio}>
+        <View style={[styles.fioCheio, { transform: [{ scaleX: Math.round(onde.fracao * 1000) / 1000 }] } as any]}/>
+      </View> : null}
+    </Pressable>
+    {a.listening ? <Pressable {...marcar('ouvinte-play', ...(sigo ? ['a-seguir'] : []))} accessibilityRole="button"
+      accessibilityLabel={sigo ? `Stop listening along with ${amigo.name}` : `Listen along with ${amigo.name}`}
+      onPress={() => { if (sigo) useSeguirAmigo.getState().parar(null); else void ouvirJunto(amigo); }}
+      style={styles.ouvintePlay}>
+      <View {...marcar('vira')} style={styles.vira}><Ionicons name={sigo ? 'close' : 'play'} size={sigo ? 14 : 12} color={COR.fundo}/></View>
+    </Pressable> : null}
   </View>;
 }
 
@@ -110,19 +142,50 @@ export function SocialOverview(props: Props) {
   const query = filter.trim().toLowerCase();
   const shown = conversations.filter(c => !query || c.nome.toLowerCase().includes(query));
   const aOuvirAgora = listening.filter(f => f.musicActivity!.listening).length;
+  const mostrados = listening.slice(0, CARTOES_A_OUVIR);
+
+  // O fio do progresso anda de segundo a segundo, só com alguém a ouvir.
+  const [, setTique] = useState(0);
+  useEffect(() => {
+    if (!aOuvirAgora) return;
+    const id = setInterval(() => setTique((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [aOuvirAgora]);
+
+  // Alguém começa a ouvir: a linha dele abre o lugar (`revelar`, como nas
+  // Definições), em vez de o resto saltar. Só depois do primeiro desenho.
+  const conhecidos = useRef<Set<string> | null>(null);
+  const novos = conhecidos.current ? new Set(mostrados.filter(f => !conhecidos.current!.has(f.friendId)).map(f => f.friendId)) : new Set<string>();
+  useEffect(() => { conhecidos.current = new Set(mostrados.map(f => f.friendId)); });
+
+  // A ordem das conversas muda (uma mensagem nova sobe a dela): as linhas deslizam.
+  const lista = useFlip<any>();
+  const ouvintes = useFlip<any>();
+
+  const menuDoAmigo = (id: string) => (e: any) => {
+    e.preventDefault();
+    props.onFriendMenu?.(id, { x: e.nativeEvent?.clientX ?? e.clientX ?? 0, y: e.nativeEvent?.clientY ?? e.clientY ?? 0, width: 1, height: 1 }, e);
+  };
 
   return <View style={styles.root}>
       {listening.length > 0 && <View style={styles.section}>
-        <Text accessibilityRole="header" style={styles.sectionTitle}>{aOuvirAgora ? `Listening now · ${aOuvirAgora}` : 'Recently played'}</Text>
-        <View style={styles.cartoes} accessibilityLabel="Friends’ music activity">
-          {listening.slice(0, CARTOES_A_OUVIR).map(f => <CartaoAOuvir key={f.friendId} amigo={f} agora={props.now} aoAbrir={props.onTrack}/>)}
+        <Text accessibilityRole="header" style={styles.etiqueta}>{aOuvirAgora ? `LISTENING NOW · ${aOuvirAgora}` : 'RECENTLY PLAYED'}</Text>
+        <View ref={ouvintes} style={styles.ouvintes} accessibilityLabel="Friends’ music activity">
+          {mostrados.map(f => {
+            const linha = <QuemOuve amigo={f} agora={props.now} aoTrack={props.onTrack} aoAbrir={() => props.onOpen('friend', f.friendId)}
+              aoMenu={props.onFriendMenu ? menuDoAmigo(f.friendId) : undefined}/>;
+            return <View key={f.friendId} {...({ dataSet: { chave: `ouve:${f.friendId}` } } as any)}>
+              {novos.has(f.friendId) ? <div data-dt="revelar a-entrar"><div>{linha}</div></div> : linha}
+            </View>;
+          })}
         </View>
       </View>}
     <View style={styles.section}>
-      <Text accessibilityRole="header" style={styles.sectionTitle}>Conversations</Text>
+      <Text accessibilityRole="header" style={styles.etiqueta}>CONVERSATIONS</Text>
       {conversations.length >= CONVERSAS_PARA_PESQUISAR && <TextInput value={filter} onChangeText={setFilter}
-        accessibilityLabel="Search friends and groups" placeholder="Search friends and groups" placeholderTextColor={colors.textSecondary}
+        accessibilityLabel="Search friends and groups" placeholder="Search friends and groups" placeholderTextColor={COR.textoFraco}
         autoCapitalize="none" style={styles.search}/>}
+      <View ref={lista} style={styles.conversas}>
       {shown.map(c => {
         const group = c.tipo === 'grupo', key = group ? `group:${c.id}` : c.id;
         const preview = props.previews[key], count = props.unread.get(key) ?? 0;
@@ -131,61 +194,70 @@ export function SocialOverview(props: Props) {
           : friend?.musicActivity?.listening ? 'Listening now' : friend?.online ? 'Online now' : ultimaAtividade(friend?.lastSeenAt, props.now);
         const open = () => props.onOpen(group ? 'group' : 'friend', c.id);
         const oldContact = former.some(p => p.id === c.id);
+        const aberta = props.aberta === key;
         // O botão direito num amigo abre o menu dele (24/10); num grupo, ou numa conversa antiga, nada.
-        const menu = !group && !oldContact && props.onFriendMenu
-          ? { onContextMenu: (e: any) => { e.preventDefault(); props.onFriendMenu!(c.id, { x: e.nativeEvent?.clientX ?? 0, y: e.nativeEvent?.clientY ?? 0, width: 1, height: 1 }, e); } }
-          : {};
-        return <View key={key} style={styles.personRow} {...marcar('conversa')} {...(menu as any)}>
+        const menu = !group && !oldContact && props.onFriendMenu ? { onContextMenu: menuDoAmigo(c.id) } : {};
+        return <View key={key} {...({ dataSet: { ...marcar('conversa').dataSet, chave: key } } as any)} {...(menu as any)}
+          style={[styles.conversa, aberta && ESTADO.escolhido]}>
           <Pressable accessibilityRole="button" accessibilityLabel={group ? `Open ${c.nome}` : `View ${c.nome}`}
             onPress={group ? open : () => props.onProfile(c.id)}>
-            {c.tipo === 'grupo' ? <GroupAvatar group={c.grupo} size={44}/>
-              : <AvatarDeConversa avatarUrl={c.amigo.avatarUrl} nome={c.nome} tamanho={44} online={c.amigo.online}/>}
+            {c.tipo === 'grupo' ? <GroupAvatar group={c.grupo} size={40}/>
+              : <View><FriendAvatar avatarUrl={c.amigo.avatarUrl} name={c.nome} size={40}/>
+                {c.amigo.online ? <View style={styles.ponto}/> : null}</View>}
           </Pressable>
-          <Pressable style={styles.personText} accessibilityRole="button" accessibilityLabel={`${c.nome}. ${text}${count ? `. ${count} unread` : ''}`}
+          <Pressable style={styles.conversaTexto} accessibilityRole="button" accessibilityState={{ selected: aberta }}
+            accessibilityLabel={`${c.nome}. ${text}${count ? `. ${count} unread` : ''}`}
             onPress={open} onLongPress={(e) => !group && (oldContact ? props.onDeleteConversation(c.id)
               : props.onFriendMenu ? props.onFriendMenu(c.id, { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY, width: 1, height: 1 })
               : props.onRemoveFriend(c.id))}>
-            <View style={styles.nameRow}><Text numberOfLines={1} style={[styles.personName, styles.flex, count > 0 && styles.unreadText]}>{c.nome}</Text>
-              {preview && <Text style={styles.time}>{haQuantoTempo(preview.createdAt, props.now)}</Text>}</View>
-            <Text numberOfLines={1} style={[styles.secondary, count > 0 && styles.unreadPreview]}>{text}</Text>
+            <View style={styles.linhaDoNome}>
+              <Text numberOfLines={1} style={[styles.nome, styles.flex, count > 0 && styles.porLer]}>{c.nome}</Text>
+              {preview && <Text style={styles.hora}>{haQuantoTempo(preview.createdAt, props.now)}</Text>}
+            </View>
+            <Text numberOfLines={1} style={[styles.previa, count > 0 && { color: COR.texto }]}>{text}</Text>
           </Pressable>
-          {count > 0 && <Unread count={count}/>}
+          {/* O contador entra com a mola SOLTAR (`contador`, na casca). */}
+          {count > 0 && <View {...marcar('contador')} style={styles.contador}><Text style={styles.contadorNumero}>{count > 99 ? '99+' : count}</Text></View>}
           {/* Sem o balão em cada linha (30/10): a linha inteira abre a conversa. Só o lixo de uma conversa antiga. */}
           {oldContact && <SocialIconButton label={`Delete conversation with ${c.nome}`} icon="trash-outline" onPress={() => props.onDeleteConversation(c.id)}/>}
         </View>;
       })}
+      </View>
       {!shown.length && !props.loading && <Pressable accessibilityRole="button" onPress={props.onStart} style={styles.empty}>
-        <Text style={styles.secondary}>{query ? 'No friends or groups match.' : 'Add a friend to share music.'}</Text>
-        {!query && <Text style={styles.personName}>New chat</Text>}
+        <Text style={styles.previa}>{query ? 'No friends or groups match.' : 'Add a friend to share music.'}</Text>
+        {!query && <Text style={styles.nome}>New chat</Text>}
       </Pressable>}
     </View>
     {props.requests}
   </View>;
 }
 
-function Unread({count}: {count: number}) {
-  return <View style={styles.unread}><Text style={styles.unreadNumber}>{count > 99 ? '99+' : count}</Text></View>;
-}
-
 const styles = StyleSheet.create({
-  root: { gap: 24 }, section: { gap: 12 },
-  sectionTitle: { fontSize: 13, fontWeight: '500', color: colors.textSecondary },
-  cartoes: { gap: 8 },
-  activityCard: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.surface, borderRadius: 16, paddingRight: 10 },
-  activityMain: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10 },
-  activityCover: { width: 48, height: 48, flexShrink: 0 },
-  activityText: { flex: 1, minWidth: 0, gap: 2 }, activityLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  eq: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 12 }, eqBarra: { width: 3, height: 12, borderRadius: 2, backgroundColor: colors.online },
-  ouvirJa: { height: 30, paddingHorizontal: 12, borderRadius: 15, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  ouvirJaTexto: { color: colors.text, fontSize: 12, fontWeight: '600' },
-  cardName: { color: colors.text, fontSize: 14, fontWeight: '700' }, cardTitle: { color: colors.textSecondary, fontSize: 12, flexShrink: 1 },
-  cardStatus: { color: colors.textSecondary, fontSize: 12 }, pressed: { opacity: 0.7 },
-  personRow: { minHeight: 60, paddingVertical: 6, paddingHorizontal: 8, marginHorizontal: -8, borderRadius: 14, flexDirection: 'row', gap: 12, alignItems: 'center' },
-  personText: { flex: 1, minWidth: 0, minHeight: 44, justifyContent: 'center', gap: 3 },
-  personName: { fontSize: 15, fontWeight: '600', color: colors.text }, secondary: { fontSize: 13, color: colors.textSecondary },
-  nameRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8 }, flex: { flex: 1, minWidth: 0 },
-  time: { fontSize: 11, color: colors.textSecondary }, unreadText: { fontWeight: '700' }, unreadPreview: { color: colors.text },
-  unread: { minWidth: 20, height: 20, paddingHorizontal: 5, borderRadius: 10, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center' },
-  unreadNumber: { fontSize: 11, fontWeight: '700', color: colors.bg }, empty: { minHeight: 76, gap: 10, paddingVertical: 12 },
-  search: { minHeight: 44, borderRadius: 12, backgroundColor: colors.surface, color: colors.text, paddingHorizontal: 12, fontSize: 15 },
+  root: { gap: ESP.xl }, section: { gap: ESP.sm },
+  etiqueta: { ...TIPO.micro, color: COR.textoFraco, paddingHorizontal: ESP.sm },
+  ouvintes: { gap: 2 },
+  ouvinte: { flexDirection: 'row', alignItems: 'center', gap: ESP.md, paddingVertical: ESP.sm, paddingHorizontal: ESP.sm, borderRadius: RAIO.cartao },
+  ouvinteCapa: { width: 44, height: 44, flexShrink: 0 },
+  ouvinteCara: { position: 'absolute', right: -4, bottom: -4, borderRadius: 999, borderWidth: 2, borderColor: COR.painel, overflow: 'hidden' },
+  ouvinteTexto: { flex: 1, minWidth: 0, gap: 2 },
+  ouvintePlay: { width: 26, height: 26, borderRadius: 13, backgroundColor: COR.texto, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  vira: { alignItems: 'center', justifyContent: 'center' },
+  fio: { height: 2, borderRadius: 1, backgroundColor: 'rgba(233,234,238,0.14)', marginTop: 5, overflow: 'hidden' },
+  fioCheio: { height: 2, width: '100%', transformOrigin: 'left', backgroundColor: COR.texto, transition: 'transform 1s linear' } as any,
+  linhaDoNome: { flexDirection: 'row', alignItems: 'center', gap: ESP.sm },
+  eq: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 11 }, eqBarra: { width: 3, height: 11, borderRadius: 1 },
+  nome: { fontFamily: FONT.body, fontSize: 14, fontWeight: '600', color: COR.texto, flexShrink: 1 },
+  legenda: { ...TIPO.legenda, color: COR.textoMedio },
+  conversas: { gap: 2 },
+  conversa: { height: LINHA_LISTA, paddingHorizontal: ESP.sm, borderRadius: RAIO.cartao, flexDirection: 'row', gap: ESP.md, alignItems: 'center' },
+  ponto: { position: 'absolute', right: -1, bottom: -1, width: 12, height: 12, borderRadius: 6, backgroundColor: COR.ok, borderWidth: 2, borderColor: COR.painel },
+  conversaTexto: { flex: 1, minWidth: 0, height: LINHA_LISTA, justifyContent: 'center', gap: 2 },
+  flex: { flex: 1, minWidth: 0 },
+  porLer: { fontWeight: '750' as any },
+  previa: { fontFamily: FONT.body, fontSize: 13, color: COR.textoMedio },
+  hora: { fontFamily: FONT.mono, fontSize: 10, color: COR.textoFraco },
+  contador: { minWidth: 18, height: 18, paddingHorizontal: 4, borderRadius: 9, backgroundColor: COR.texto, alignItems: 'center', justifyContent: 'center' },
+  contadorNumero: { fontFamily: FONT.mono, fontSize: 10, fontWeight: '700', color: COR.fundo },
+  empty: { minHeight: 76, gap: 10, paddingVertical: 12, paddingHorizontal: ESP.sm },
+  search: { height: 40, borderRadius: RAIO.cartao, backgroundColor: COR.elevado, color: COR.texto, paddingHorizontal: ESP.md, fontFamily: FONT.body, fontSize: 14, marginBottom: ESP.xs },
 });

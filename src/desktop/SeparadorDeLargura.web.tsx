@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { teclar, type Limites } from '../lib/largurasDasBarras';
+import { PAINEL_DO_AMIGO, limitesDoPainelDoAmigo, teclar, type Limites } from '../lib/largurasDasBarras';
 import { limitesAgora, useBarras } from './estadoDasBarras.web';
 
 /**
@@ -18,7 +18,7 @@ import { limitesAgora, useBarras } from './estadoDasBarras.web';
  * (`requestAnimationFrame`). Durante o arrasto a raiz leva `data-a-redimensionar` (o cursor
  * fica de arrasto em todo o lado, nada se seleciona e a fila deixa de animar).
  */
-export function SeparadorDeLargura({ rotulo, valor, limites, sinal, lado, aoMudar, aoRepor }: {
+export function SeparadorDeLargura({ rotulo, valor, limites, sinal, lado, aoMudar, aoRepor, passos }: {
   /** O nome para o leitor de ecrã ("Resize the sidebar"). */
   rotulo: string;
   /** A largura guardada, para o leitor de ecrã. */
@@ -31,6 +31,8 @@ export function SeparadorDeLargura({ rotulo, valor, limites, sinal, lado, aoMuda
   lado: 'direita' | 'esquerda';
   aoMudar: (largura: number) => void;
   aoRepor: () => void;
+  /** Os passos do teclado (o painel do amigo do Social anda de 10 em 10, e 40 com Shift). */
+  passos?: { passo: number; grande: number };
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const arrasto = useRef<{ x: number; largura: number } | null>(null);
@@ -81,7 +83,7 @@ export function SeparadorDeLargura({ rotulo, valor, limites, sinal, lado, aoMuda
     onLostPointerCapture={acabar}
     onDoubleClick={aoRepor}
     onKeyDown={(e) => {
-      const nova = teclar(valor, e.key, e.shiftKey, sinal, lim);
+      const nova = teclar(valor, e.key, e.shiftKey, sinal, lim, passos);
       if (nova == null) return;
       e.preventDefault();
       aoMudar(nova);
@@ -96,6 +98,15 @@ export function SeparadorDaLateral() {
   const repor = useBarras((s) => s.reporLateral);
   return <SeparadorDeLargura rotulo="Resize the sidebar" valor={valor} limites={limitesAgora.lateral} sinal={1} lado="direita"
     aoMudar={definir} aoRepor={repor} />;
+}
+
+/** A pega do painel do amigo no Social (B4, 22/11): no bordo esquerdo dele, a crescer para a esquerda. */
+export function SeparadorDoPainelDoAmigo() {
+  const valor = useBarras((s) => s.painelDoAmigo);
+  const definir = useBarras((s) => s.definirPainelDoAmigo);
+  const repor = useBarras((s) => s.reporPainelDoAmigo);
+  return <SeparadorDeLargura rotulo="Resize the friend panel" valor={valor} limites={limitesDoPainelDoAmigo} sinal={-1} lado="esquerda"
+    aoMudar={definir} aoRepor={repor} passos={{ passo: PAINEL_DO_AMIGO.passo, grande: PAINEL_DO_AMIGO.passoGrande }} />;
 }
 
 /** A pega do painel da fila: no bordo esquerdo dele, a crescer para a esquerda. */

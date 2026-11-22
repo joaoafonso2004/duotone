@@ -37,18 +37,23 @@ assert.equal(core.receivedPreviews([{ ...message('group', 0), groupId: 'room' }]
 
 let hook = 0; const state = [];
 const React = { createElement: (type, props, ...children) => ({ type, props: { ...props, children } }),
-  useMemo: fn => fn(), useState: initial => { const i = hook++; if (!(i in state)) state[i] = initial; return [state[i], v => { state[i] = typeof v === 'function' ? v(state[i]) : v; }]; } };
+  useMemo: fn => fn(), useEffect: () => {}, useRef: v => ({ current: v }), useState: initial => { const i = hook++; if (!(i in state)) state[i] = initial; return [state[i], v => { state[i] = typeof v === 'function' ? v(state[i]) : v; }]; } };
 // O PC (9/10): o iPhone tem a sua, testada em test-social-ios.cjs.
 const { SocialOverview } = load('src/components/SocialOverview.web.tsx', {
   '../lib/previaDaConversa': load('src/lib/previaDaConversa.ts'),
   react: React, 'react-native': { Pressable: 'Pressable', Text: 'Text', TextInput: 'TextInput', View: 'View', StyleSheet: { create: x => x } },
-  '../desktop/duotone.web': { CapaDuotone: 'CapaDuotone' }, '../hooks/useCorDoAmbiente': { useCorDoAmbiente: () => null }, '../desktop/ui.web': { marcar: (...m) => ({ 'data-dt': m.join(' ') }) },
+  '../desktop/duotone.web': { CapaDuotone: 'CapaDuotone' }, '../desktop/ui.web': { marcar: (...m) => ({ 'data-dt': m.filter(Boolean).join(' '), dataSet: { dt: m.filter(Boolean).join(' ') } }) },
+  // A pele da B4 (22/11): as fontes e as medidas do PC, o FLIP das linhas, quem se segue e o fio do progresso.
+  '../desktop/tokens.web': { COR: {}, ESP: {}, ESTADO: { escolhido: {}, hover: '' }, FONT: {}, LINHA_LISTA: 56, RAIO: {}, TIPO: { micro: {}, legenda: {} } },
+  '../desktop/useFlip.web': { useFlip: () => ({ current: null }) }, '@expo/vector-icons/Ionicons': 'Ionicons', './FriendAvatar': { FriendAvatar: 'FriendAvatar' },
+  '../state/social': { agoraNoServidor: () => now }, '../lib/posicaoDoAmigo': load('src/lib/posicaoDoAmigo.ts'),
+  '../state/seguirAmigo': { useSeguirAmigo: Object.assign((sel) => sel({ seguindo: null }), { getState: () => ({ parar() {} }) }) },
   '../state/jamsDosAmigos': { jamsDosAmigos: async () => new Map([['f0', 'jam-f0']]) },
   '../state/ouvirComAmigo': { ouvirComAmigo: async (amigo, sessao) => { juntados.push([amigo.friendId, sessao]); } },
   '../lib/socialActivity': core,
   '../lib/socialPresence': { ultimaAtividade: () => 'Last seen' }, '../lib/social': { haQuantoTempo: () => 'now' },
   '../lib/ordemDasConversas': load('src/lib/ordemDasConversas.ts'), '../lib/artistName': { tituloDaFaixa: t => t.title, displayArtist: t => t.artist },
-  '../lib/capaDoEcraBloqueado': { capaParaLista: x => x }, './socialTokens': { colors: {}, radii: {} }, '../theme': { ESCALA_MAXIMA: { lista: 1.4 } },
+  '../lib/capaDoEcraBloqueado': { capaParaLista: x => x }, '../theme': { ESCALA_MAXIMA: { lista: 1.4 } },
   './socialUI': { AvatarDeConversa: 'Avatar', SocialIconButton: 'ChatButton' }, './GroupChat': { GroupAvatar: 'GroupAvatar' },
 });
 const opened = [], profiles = [], songs = [], juntados = [];
@@ -60,28 +65,29 @@ const props = { friends, groups: [], contacts: [], previews: { f0: read.friend }
 const render = () => { hook = 0; return SocialOverview(props); };
 // Os componentes de função (o cartão de quem ouve, sem hooks) abrem-se para se ver o que desenham.
 function nodes(tree) { if (!tree || typeof tree !== 'object') return []; if (typeof tree.type === 'function') return [tree, ...nodes(tree.type(tree.props))]; return [tree, ...(tree.props?.children ?? []).flat(Infinity).flatMap(nodes)]; }
+const dt = x => x.props['data-dt'] ?? x.props.dataSet?.dt;
 function text(tree) { return (tree.props?.children ?? []).flat(Infinity).filter(c => typeof c === 'string').join(''); }
 let tree = render(), n = nodes(tree);
 const headers = n.filter(x => x.props.accessibilityRole === 'header');
 assert.equal(headers.length, 2); assert.equal(headers[0].props.style, headers[1].props.style, 'identical section typography');
-assert.equal(text(headers[0]), 'Listening now · 4'); assert.equal(text(headers[1]), 'Conversations');
+assert.equal(text(headers[0]), 'LISTENING NOW · 4'); assert.equal(text(headers[1]), 'CONVERSATIONS', 'the mono labels of the sidebar and the Home');
 assert.equal(headers[0].props.children.length, 1, 'no icon beside the music heading');
-const cartoes = n.filter(x => x['props']['data-dt'] === 'cartao-ouvir'); assert.equal(cartoes.length, 4, 'one card per friend who is listening');
+const cartoes = n.filter(x => dt(x) === 'ouvinte'); assert.equal(cartoes.length, 4, 'one row per friend who is listening (the sidebar row, bigger)');
 assert.equal(n.filter(x => x.type === 'ScrollView').length, 0, 'a list of cards, not a shelf');
 const firstCard = n.find(x => x.props.accessibilityLabel?.endsWith('Song options'));
 firstCard.props.onPress(); assert.equal(songs[0].sourceId, 'a');
 const capas = n.filter(x => x.type === 'CapaDuotone'); assert.equal(capas.length, 4);
 assert.ok(capas.every(c => c.props.viva === true), 'who is listening has the cover in colour');
-assert.equal(n.filter(x => x.props['data-dt'] === 'eq').length, 4, 'the bars move while someone listens');
-const ouvir = n.filter(x => x.props['data-dt'] === 'ouvir-ja'); assert.equal(ouvir.length, 4, 'Listen along on each card');
+assert.equal(n.filter(x => dt(x) === 'eq').length, 4, 'the bars move while someone listens');
+const ouvir = n.filter(x => dt(x) === 'ouvinte-play'); assert.equal(ouvir.length, 4, 'Listen along on each row');
 assert.equal(ouvir[0].props.accessibilityLabel, 'Listen along with Friend 0');
 assert.equal(n.filter(x => x.type === 'ChatButton').length, 0, 'no chat bubble on every row: the whole row opens the chat');
-assert.equal(n.filter(x => x.props['data-dt'] === 'conversa').length, 7, 'all friends appear without See all');
+assert.equal(n.filter(x => dt(x) === 'conversa').length, 7, 'all friends appear without See all');
 assert.equal(n.filter(x => x.props.accessibilityRole === 'tab').length, 0, 'one unified view');
 props.activity = { f0: now - 6000, f6: now - 1000, f4: now - 3000 };
 props.friends[1].online = true;
 n = nodes(render());
-assert.deepEqual(n.filter(x => x.props['data-dt'] === 'conversa').map(row => nodes(row).find(x => x.props.accessibilityLabel?.startsWith('View '))?.props.accessibilityLabel),
+assert.deepEqual(n.filter(x => dt(x) === 'conversa').map(row => nodes(row).find(x => x.props.accessibilityLabel?.startsWith('View '))?.props.accessibilityLabel),
   ['View Friend 6','View Friend 4','View Friend 0','View Friend 1','View Friend 2','View Friend 3','View Friend 5'],
   'latest interaction wins over presence, and friends without messages remain visible');
 n.find(x => x.props.accessibilityLabel === 'View Friend 6').props.onPress();

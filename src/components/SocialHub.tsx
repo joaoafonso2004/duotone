@@ -26,7 +26,7 @@ import { FriendAvatar } from './FriendAvatar';
 import { colors, SOCIAL_GUTTER, type } from './socialTokens';
 import { useSocialBottomPadding } from './useSocialBottomPadding';
 import { useTheme } from '../state/theme';
-import { SocialButton,SocialModal,SocialIconButton,socialStyles as s } from './socialUI';
+import { SocialButton,SocialIconButton,socialStyles as s } from './socialUI';
 import { SocialTrackActions } from './SocialTrackActions';
 import { SharedAlbumCard, SharedPlaylistCard } from './SharedPlaylistCard';
 import type { AlbumPartilhado } from '../lib/albumPartilhado';
@@ -45,6 +45,10 @@ import { copiaEmMemoria, guardarCopiaDaConversa, lerCopiaDaConversa } from '../l
 import { contarMusicasCarregadas, musicasUnicas, origemDaConversa } from '../lib/musicasDaConversa';
 import { SocialOverview } from './SocialOverview';
 import { OpcoesDoAmigo } from './OpcoesDoAmigo';
+import { CabecalhoDaConversaPc, CampoDeEscreverPc, DialogoDoSocial, EntradaDaMensagem, LayoutDaConversa, MascaraDaConversa } from './SocialPc';
+import { musicaDoAmigo } from '../lib/amigosNaLateral';
+import { SOCIAL_COM_PAINEL } from '../lib/largurasDasBarras';
+import type { SocialFriend } from '../state/social';
 import { useDestinos } from '../navigation/destinos';
 import type { Playlist,Track } from '../types';
 
@@ -117,6 +121,11 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
   /** A original para onde se acabou de saltar, acesa um instante. */
   const [destacada,setDestacada]=useState<string|null>(null);
   const lista=useRef<FlatList<SharedItem>>(null);
+  // O PC (B4, 22/11): as mensagens que já se viram desta conversa. Ao abri-la, as de
+  // baixo entram em cascata; as que chegam depois entram cada uma com a sua animação.
+  const vistas=useRef<{key:string;ids:Set<string>}>({key:'',ids:new Set()});
+  if(vistas.current.key!==key)vistas.current={key,ids:new Set()};
+  const primeiraLeva=vistas.current.ids.size===0;
   const campo=useRef<TextInput>(null);
   /** Originais mais antigas do que a página carregada, pedidas à parte. */
   const [citadasFora,setCitadasFora]=useState<{ids:string;mapa:Map<string,SharedItem>}>({ids:'',mapa:new Map()});
@@ -208,6 +217,7 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
   const run=async(action:()=>Promise<unknown>)=>{if(busy)return;setBusy(true);setError('');try{await action();await social.refresh();}catch(e:any){setError(e.message || 'That did not go through.');}finally{setBusy(false);}};
   useEffect(()=>{if(initialFriend)open('friend',initialFriend);else if(initialGroup)open('group',initialGroup);},[initialFriend,initialGroup]);
   useEffect(()=>{setGroupDetails(null);setAResponder(null);setDestacada(null);},[key]);
+  useEffect(()=>{if(web)messages.forEach(m=>vistas.current.ids.add(m.id));},[messages,key]);
   useEffect(()=>{
     let active=true;
     if(query.trim().length<2){setResults([]);return;}
@@ -351,20 +361,22 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
       {social.loading&&!accepted.length&&<SkeletonDeConversas/>}
       <SocialOverview key={myId??'signed-out'} friends={accepted} groups={social.groups} contacts={social.contacts}
         activity={social.activity} previews={social.conversationPreviews} unread={unread} now={social.now} myId={myId}
-        loading={social.loading} requests={requests} onOpen={open} onProfile={onProfile} onTrack={t=>aoMenuDaFaixa?aoMenuDaFaixa(t):setTrack(t)}
+        loading={social.loading} requests={requests} aberta={web?key:undefined} onOpen={open} onProfile={onProfile} onTrack={t=>aoMenuDaFaixa?aoMenuDaFaixa(t):setTrack(t)}
         pedidos={pending.filter(f=>!f.isSender).length} procurar={web?undefined:procurar} gutter={web?SOCIAL_GUTTER:24}
         onRemoveFriend={id=>setConfirm({id,group:false})}
         onFriendMenu={web?(id,_ancora,e)=>abrirMenuDoAmigo(id,e):(id,ancora)=>setMenuDoAmigo({id,ancora})}
         onDeleteConversation={id=>setConfirm({id,group:false,conversa:true})} onStart={()=>setComecar(true)}/>
     </Animated.ScrollView>
   </View>;
+  // O painel dele à direita da conversa (PC, B4): só com ele a ouvir e lugar para os três.
+  const comPainel=web&&!group&&!!friend&&!!musicaDoAmigo(friend as SocialFriend)&&width>=SOCIAL_COM_PAINEL;
   const groupHeader=group?<GroupChatHeader group={group} split={split} onBack={closeChat} onDetails={()=>setGroupDetails(group.id)}/>:undefined;
   // O nome aparecia TRES vezes: na barra, na linha de perfil, e dentro de cada
   // mensagem recebida. Numa conversa a dois so ha duas pessoas -- e o lado do
   // balao ja diz quem falou. Fica uma vez, com a cara e o estado.
-  // No PC o dia é uma pílula pequena em maiúsculas (30/10, da maquete); no iPhone fica o texto de sempre.
+  // No PC o dia é só texto mono ao centro, sem pílula nem fios (22/11, a B4); no iPhone fica o texto de sempre.
   const estiloDoSeparador=web
-    ?{alignSelf:'center' as const,fontSize:11,fontWeight:'600' as const,letterSpacing:1.3,textTransform:'uppercase' as const,color:colors.textTertiary,backgroundColor:colors.surface,paddingHorizontal:13,paddingVertical:5,borderRadius:999,overflow:'hidden' as const,marginBottom:8,marginTop:4}
+    ?{...type.micro,alignSelf:'center' as const,color:colors.textTertiary,marginBottom:8,marginTop:6}
     :{alignSelf:'center' as const,fontSize:12,fontWeight:'600' as const,color:colors.textTertiary,marginBottom:8,marginTop:4};
   const estiloDeSistema={fontSize:type.caption.fontSize,fontWeight:'600' as const,color:colors.textTertiary,textAlign:'center' as const};
   const amigoHeader=friend?<CabecalhoDoAmigo
@@ -430,9 +442,12 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
             // Sem borda (9/10): era o balão com uma moldura e o cartão com outra.
             borderWidth:destacada===m.id?1:0,
             borderColor:accent,
-            paddingHorizontal:comCartao?10:13,paddingVertical:comCartao?10:9,borderRadius:20,gap:8,
-            // O canto cortado do lado de quem fala, só na última do grupo.
-            ...(fimDoGrupo?{[minha?'borderBottomRightRadius':'borderBottomLeftRadius']:6}:{}),
+            paddingHorizontal:comCartao?10:13,paddingVertical:comCartao?10:9,borderRadius:web?14:20,gap:8,
+            // O canto cortado do lado de quem fala, só na última do grupo. No PC (B4):
+            // raio 14, e 4 nos cantos do lado de quem fala que se juntam às do mesmo grupo.
+            ...(web
+              ?{...(comAAntiga?{[minha?'borderTopRightRadius':'borderTopLeftRadius']:4}:{}),...(!fimDoGrupo?{[minha?'borderBottomRightRadius':'borderBottomLeftRadius']:4}:{})}
+              :fimDoGrupo?{[minha?'borderBottomRightRadius':'borderBottomLeftRadius']:6}:{}),
           }}>
         {cit}
         {!!m.message&&<Text selectable style={[s.text,{flexShrink:1,paddingHorizontal:comCartao?3:0},claro&&{color:colors.bg}]}>{m.message}</Text>}
@@ -452,10 +467,15 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
         </View>
       </View>;
     }
-    return <View style={{paddingTop:comAAntiga?2:(group?6:12)}}>
+    const linha=<View style={{paddingTop:comAAntiga?2:(group?6:12)}}>
       {separador?<Text style={estiloDoSeparador}>{separador}</Text>:null}
       {corpo}
     </View>;
+    if(!web)return linha;
+    // O PC (B4): a cascata ao abrir (só as dez de baixo), e as novas a chegar.
+    const naoVista=!vistas.current.ids.has(m.id);
+    const entrada=!naoVista?null:primeiraLeva?(index<10?'cascata' as const:null):minha?'minha' as const:'dele' as const;
+    return <EntradaDaMensagem tipo={entrada} atraso={index*28}>{linha}</EntradaDaMensagem>;
   };
   const chat=<View style={{flex:1,minHeight:0}}>
       {web&&groupHeader}
@@ -464,40 +484,27 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
         {/* No PC a conversa só dizia o nome (João, 26/9: "devia ter a imagem dele em cima").
             A cara com a bolinha de online, o nome e, por baixo, o estado ou o que está a
             ouvir -- o mesmo que o CabecalhoDoAmigo dá no iPhone. Clicar abre o perfil. */}
-        {web&&!group&&<View style={s.row}>
-          <Pressable accessibilityRole="button" accessibilityLabel={`View ${title}`} disabled={!friend} onPress={()=>friend&&onProfile(friend.friendId)}
-            style={{flex:1,minWidth:0,flexDirection:'row',alignItems:'center',gap:12}}>
-            <View>
-              <FriendAvatar avatarUrl={friend?.avatarUrl??null} name={title} size={40}/>
-              {friend?.online?<View style={{position:'absolute',right:-1,bottom:-1,width:12,height:12,borderRadius:6,backgroundColor:'#3ECF6E',borderWidth:2,borderColor:colors.bg}}/>:null}
-            </View>
-            <View style={{flex:1,minWidth:0}}>
-              <Text numberOfLines={1} style={s.title}>{title}</Text>
-              {friend?<Text numberOfLines={1} style={[s.muted,friend.currentlyPlaying&&{color:accent}]}>
-                {friend.currentlyPlaying?`♫ ${tituloDaFaixa(friend.currentlyPlaying)} · ${displayArtist(friend.currentlyPlaying)}`
-                  :friend.online?'Online now':ultimaAtividade(friend.lastSeenAt,social.now)}
-              </Text>:null}
-            </View>
-          </Pressable>
-          {/* Sem pílula (16/11): uma ação discreta, como as músicas da conversa por baixo. */}
-          {friend?<AcaoDaConversa rotulo={friend.currentlyPlaying?`Listen along with ${title}`:`Start a Jam with ${title}`} onPress={()=>ouvirJuntosCom(friend)}
-            icone="headset-outline" cor={friend.currentlyPlaying?accent:undefined} texto={friend.currentlyPlaying?'Listen along':'Start a Jam'}/>:null}
-          <SocialIconButton label="Back to chats" icon={split?'close':'chevron-back'} onPress={closeChat}/>
-        </View>}
-        {/* As músicas da conversa (5/11): Play all e Save as playlist, com duas ou mais. */}
-        {conversation&&<MusicasDaConversa alvo={conversation} conversa={{tipo:group?'grupo':'amigo',nome:title}} carregadas={contarMusicasCarregadas(messages)}/>}
+        {web&&!group&&<CabecalhoDaConversaPc titulo={title} amigo={(friend as SocialFriend|null)??null}
+          estado={friend?(friend.online?'Online now':ultimaAtividade(friend.lastSeenAt,social.now)):''}
+          comPainel={comPainel} aoPerfil={()=>friend&&onProfile(friend.friendId)} aoOuvirJuntos={()=>friend&&ouvirJuntosCom(friend)}
+          aoFechar={closeChat} aoLado={split}
+          acoes={conversation?<MusicasDaConversa alvo={conversation} conversa={{tipo:'amigo',nome:title}} carregadas={contarMusicasCarregadas(messages)}/>:null}/>}
+        {/* As músicas da conversa (5/11): Play all e Save as playlist, com duas ou mais. No PC, a dois, sobem ao cabeçalho (B4). */}
+        {conversation&&(!web||!!group)&&<MusicasDaConversa alvo={conversation} conversa={{tipo:group?'grupo':'amigo',nome:title}} carregadas={contarMusicasCarregadas(messages)}/>}
         {!!error&&<Text style={s.error}>{error}</Text>}{chatLoading&&<ActivityIndicator color={accent}/>}
         {group&&!chatLoading&&!messages.length&&!error?<View style={{flex:1,justifyContent:'center'}}><GroupEmptyState group={group}/></View>:
-        <FlatList ref={lista} inverted onScrollToIndexFailed={info=>{
+        <MascaraDaConversa><FlatList ref={lista} inverted onScrollToIndexFailed={info=>{
           // A original ainda não foi medida (fora do que a lista desenhou):
           // aproxima-se pela altura média e tenta-se outra vez.
           lista.current?.scrollToOffset({offset:info.averageItemLength*info.index,animated:true});
           setTimeout(()=>lista.current?.scrollToIndex({index:info.index,animated:true,viewPosition:0.5}),250);
-        }} ListFooterComponent={hasOlder?<SocialButton disabled={older} onPress={()=>void loadOlder()}>{older?'Loading…':'Older messages'}</SocialButton>:null} data={ordered} keyExtractor={m=>m.id} contentContainerStyle={{paddingVertical:10,paddingHorizontal:web?10:0}} style={{flex:1}} keyboardShouldPersistTaps="handled" renderItem={({item:m,index})=>desenharMensagem(m,index)}/>}
+        }} ListFooterComponent={hasOlder?<SocialButton disabled={older} onPress={()=>void loadOlder()}>{older?'Loading…':'Older messages'}</SocialButton>:null} data={ordered} keyExtractor={m=>m.id} contentContainerStyle={{paddingVertical:10,paddingHorizontal:web?10:0}} style={{flex:1}} keyboardShouldPersistTaps="handled" renderItem={({item:m,index})=>desenharMensagem(m,index)}/></MascaraDaConversa>}
         {aResponder&&<BarraDeResposta accent={accent} excerto={excerto(aResponder)}
           titulo={aResponder.sender.id===myId?'Replying to yourself':`Replying to ${aResponder.sender.name}`}
           onCancelar={()=>setAResponder(null)}/>}
         {group?<GroupComposer campoRef={campo} value={draft} onChange={setDraft} busy={busy} onSend={()=>void send()}/>:
+          web?<CampoDeEscreverPc campoRef={campo} valor={draft} aoMudar={setDraft} ocupado={busy} aoEnviar={()=>void send()}
+            aoEnviarMusica={()=>setEnviarMusica(true)} aTocar={aTocar} aoEnviarATocar={()=>aTocar&&void enviarItem('track',aTocar)}/>:
           <View style={[s.row,{alignItems:'flex-end'}]}><Pressable accessibilityRole="button" accessibilityLabel="Send music" onPress={()=>setEnviarMusica(true)}
             style={({pressed}:any)=>[{width:40,height:40,borderRadius:20,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(255,255,255,0.08)'},pressed&&{opacity:0.7}]}>
             <Ionicons name="add" size={22} color={colors.text}/></Pressable><TextInput ref={campo} accessibilityLabel="Message" placeholder="Message…" placeholderTextColor={colors.textSecondary} value={draft} onChangeText={setDraft} multiline maxLength={4000} style={[s.input,{flex:1,maxHeight:90},web&&{borderRadius:22,minHeight:44,paddingHorizontal:18}]} editable={!busy}
@@ -517,8 +524,9 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
       {chat}
     </View> : <View style={{flex:1,minHeight:0,flexDirection:split?'row':'column',paddingHorizontal:web?SOCIAL_GUTTER:24,gap:split?24:0,paddingBottom:web?24:0}}>
       {(!web||split||!conversation)&&<View style={{flex:split?undefined:1,width:split?300:undefined,minHeight:0}}>{list}</View>}
-      {web&&(split||!!conversation)&&<View style={{flex:1,minWidth:0,minHeight:0,borderWidth:1,borderColor:colors.borderStrong,borderRadius:22,overflow:'hidden'}}>
-        {conversation?chat:<View style={{flex:1,alignItems:'center',justifyContent:'center',padding:24,gap:12}}><Ionicons name="chatbubbles-outline" size={36} color={colors.textSecondary}/><Text style={s.title}>Your conversations</Text><Text style={[s.muted,{textAlign:'center'}]}>Choose a friend or group to open a conversation.</Text></View>}
+      {/* Sem moldura (B4, 22/11): a conversa fica na mesma superfície que a lista, separada só por espaço. */}
+      {web&&(split||!!conversation)&&<View style={{flex:1,minWidth:0,minHeight:0}}>
+        {conversation?<LayoutDaConversa chave={key} amigo={group?null:(friend as SocialFriend|null)??null} largura={width}>{chat}</LayoutDaConversa>:<View style={{flex:1,alignItems:'center',justifyContent:'center',padding:24,gap:12}}><Ionicons name="chatbubbles-outline" size={36} color={colors.textSecondary}/><Text style={s.title}>Your conversations</Text><Text style={[s.muted,{textAlign:'center'}]}>Choose a friend or group to open a conversation.</Text></View>}
       </View>}
     </View>}
 
@@ -527,14 +535,14 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
     {/* O que o `+` abre. Duas accoes, uma intencao -- comecar uma conversa
         nova. Ter as duas sempre a vista custava um icone e uma pilula no topo
         de uma pagina que e uma lista. */}
-    <SocialModal visible={comecar&&visible} title="Start a conversation" onClose={()=>setComecar(false)}>
-      <View style={{padding:20,gap:12}}>
+    <DialogoDoSocial visible={comecar&&visible} title="Start a conversation" onClose={()=>setComecar(false)}>
+      <View style={{padding:web?0:20,gap:12}}>
         <SocialButton icon="person-add-outline" onPress={()=>{setComecar(false);setTab('add');}}>Add a friend</SocialButton>
         <SocialButton icon="people-outline" onPress={()=>{setComecar(false);setGroupEditor('new');setMembers([]);setGroupName('');}}>New group</SocialButton>
       </View>
-    </SocialModal>
-    <SocialModal visible={tab==='add'&&visible} title="Find people" onClose={()=>{setTab('friends');setQuery('');}}>
-      <View style={{padding:20,gap:12}}>
+    </DialogoDoSocial>
+    <DialogoDoSocial visible={tab==='add'&&visible} title="Find people" onClose={()=>{setTab('friends');setQuery('');}}>
+      <View style={{padding:web?0:20,gap:12}}>
         <Text style={s.muted}>Search by name or username.</Text>
         <TextInput accessibilityLabel="Search people" value={query} onChangeText={setQuery} style={s.input} placeholder="Name or username" placeholderTextColor={colors.textSecondary} autoCapitalize="none" autoFocus/>
         {results.map(p=><View key={p.id} style={s.conversa}>
@@ -547,25 +555,25 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
         </View>)}
         {!results.length&&!!query.trim()&&<Text style={s.muted}>Nobody with that name.</Text>}
       </View>
-    </SocialModal>
+    </DialogoDoSocial>
 
-    <SocialModal visible={!!detailedGroup&&visible} title="Group details" onClose={()=>setGroupDetails(null)}>
+    <DialogoDoSocial visible={!!detailedGroup&&visible} title="Group details" onClose={()=>setGroupDetails(null)}>
       {detailedGroup&&<GroupDetails group={detailedGroup} myId={myId} onProfile={id=>{setGroupDetails(null);onProfile(id);}}
         onAdd={()=>{setMembers([]);setError('');setGroupEditor(detailedGroup.id);setGroupDetails(null);}}
         onLeave={()=>{setError('');setConfirm({id:detailedGroup.id,group:true});setGroupDetails(null);}}/>}
-    </SocialModal>
+    </DialogoDoSocial>
 
     {menuDaMensagem}
     {menuDoAmigoNoPc}
     {!web&&<OpcoesDoAmigo amigo={menuDoAmigo?social.friends.find(f=>f.friendId===menuDoAmigo.id)??null:null} ancora={menuDoAmigo?.ancora??null}
       aoFechar={()=>setMenuDoAmigo(null)} aoMensagem={id=>open('friend',id)} aoPerfil={onProfile} aoPedirRemover={id=>setConfirm({id,group:false})}/>}
-    <SocialModal visible={!!confirm} title={confirm?.conversa?'Delete conversation?':confirm?.group?'Leave group?':'Remove friend?'} onClose={()=>setConfirm(null)}><View style={{padding:20,gap:12}}><Text style={s.muted}>{confirm?.conversa?'The messages are deleted for good, on both sides. This cannot be undone.':'Earlier messages stay saved.'}</Text><SocialButton danger disabled={busy} onPress={()=>void run(async()=>{if(!confirm)return;if(confirm.conversa)await apagarConversa(confirm.id);else if(confirm.group)await sairDoGrupo(confirm.id);else await declineOrRemoveFriendship(confirm.id);setConfirm(null);closeChat();})}>{confirm?.conversa?'Delete':'Confirm'}</SocialButton><SocialButton quiet onPress={()=>setConfirm(null)}>Cancel</SocialButton></View></SocialModal>
+    <DialogoDoSocial visible={!!confirm} title={confirm?.conversa?'Delete conversation?':confirm?.group?'Leave group?':'Remove friend?'} onClose={()=>setConfirm(null)}><View style={{padding:web?0:20,gap:12}}><Text style={s.muted}>{confirm?.conversa?'The messages are deleted for good, on both sides. This cannot be undone.':'Earlier messages stay saved.'}</Text><SocialButton danger disabled={busy} onPress={()=>void run(async()=>{if(!confirm)return;if(confirm.conversa)await apagarConversa(confirm.id);else if(confirm.group)await sairDoGrupo(confirm.id);else await declineOrRemoveFriendship(confirm.id);setConfirm(null);closeChat();})}>{confirm?.conversa?'Delete':'Confirm'}</SocialButton><SocialButton quiet onPress={()=>setConfirm(null)}>Cancel</SocialButton></View></DialogoDoSocial>
     {/* O mesmo cartao com avatar, nome e @username que a lista de amigos usa.
         Estava aqui uma coluna de botoes centrados com um visto colado ao nome
         -- que nao mostrava quem era a pessoa, nao dizia quantos iam escolhidos,
         e nao se parecia com nada no resto da app. */}
-    <SocialModal visible={!!groupEditor} title={groupEditor==='new'?'New group':'Add people'} onClose={()=>setGroupEditor(null)}>
-      <ScrollView style={{flexShrink:1}} contentContainerStyle={{padding:20,gap:12}} keyboardShouldPersistTaps="handled">
+    <DialogoDoSocial visible={!!groupEditor} title={groupEditor==='new'?'New group':'Add people'} onClose={()=>setGroupEditor(null)}>
+      <ScrollView style={{flexShrink:1}} contentContainerStyle={{padding:web?0:20,gap:12}} keyboardShouldPersistTaps="handled">
         {groupEditor==='new'&&<TextInput accessibilityLabel="Group name" value={groupName} onChangeText={setGroupName} maxLength={60} placeholder="Group name" placeholderTextColor={colors.textSecondary} style={s.input}/>}
         {(() => {
           const escolhiveis=accepted.filter(f=>groupEditor==='new'||!social.groups.find(g=>g.id===groupEditor)?.membros.some(m=>m.id===f.friendId));
@@ -585,7 +593,7 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
         <SocialButton primary disabled={busy||!members.length||(groupEditor==='new'&&!groupName.trim())} onPress={()=>void run(async()=>{if(groupEditor==='new')await criarGrupo(groupName,members);else if(groupEditor)await acrescentarAoGrupo(groupEditor,members);setGroupEditor(null);})}>{groupEditor==='new'?'Create group':'Add to group'}</SocialButton>
         {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
       </ScrollView>
-    </SocialModal>
+    </DialogoDoSocial>
     <SocialTrackActions track={track} onClose={()=>setTrack(null)} onArtist={onArtist}/>
     <EnviarMusica visible={enviarMusica&&!!conversation} onClose={()=>setEnviarMusica(false)} onEnviar={(tipo,item)=>void enviarItem(tipo,item)}/>
   </View>;

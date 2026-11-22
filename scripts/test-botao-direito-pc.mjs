@@ -103,7 +103,8 @@ const social = ler('src/components/SocialHub.tsx');
 const naLista = ler('src/components/SocialOverview.web.tsx');
 caso('na lista do Social: um amigo (não um grupo, nem uma conversa antiga)', () => {
   assert.match(naLista, /const menu = !group && !oldContact && props\.onFriendMenu/);
-  assert.match(naLista, /<View key=\{key\} style=\{styles\.personRow\} \{\.\.\.marcar\('conversa'\)\} \{\.\.\.\(menu as any\)\}>/);
+  // A B4 (22/11): a linha leva também a chave do FLIP (as conversas reordenam-se a deslizar).
+  assert.match(naLista, /<View key=\{key\} \{\.\.\.\(\{ dataSet: \{ \.\.\.marcar\('conversa'\)\.dataSet, chave: key \} \} as any\)\} \{\.\.\.\(menu as any\)\}/);
   assert.match(social, /const \{abrirMenuDoAmigo,menuDoAmigo:menuDoAmigoNoPc\}=useMenuDoAmigoNoPc\(\);/);
 });
 caso('nos participantes da Jam, sem "ouvir com" nem "convidar" (já lá estão)', () => {

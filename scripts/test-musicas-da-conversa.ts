@@ -86,7 +86,10 @@ caso('Play all toca a lista com a origem; Save as playlist cria e enche uma play
   assert.match(COMPONENTE, /initialValue=\{nomeDaPlaylistDaConversa\(conversa\)\}/);
 });
 caso('a barra está na conversa a dois e na de grupo, nas duas plataformas (o mesmo SocialHub)', () => {
-  assert.match(HUB, /\{conversation&&<MusicasDaConversa alvo=\{conversation\} conversa=\{\{tipo:group\?'grupo':'amigo',nome:title\}\} carregadas=\{contarMusicasCarregadas\(messages\)\}\/>\}/);
+  // No iPhone e nos grupos, por baixo do cabeçalho, como sempre.
+  assert.match(HUB, /\{conversation&&\(!web\|\|!!group\)&&<MusicasDaConversa alvo=\{conversation\} conversa=\{\{tipo:group\?'grupo':'amigo',nome:title\}\} carregadas=\{contarMusicasCarregadas\(messages\)\}\/>\}/);
+  // No PC, a dois, sobe ao cabeçalho da conversa (22/11, a B4).
+  assert.match(HUB, /acoes=\{conversation\?<MusicasDaConversa alvo=\{conversation\} conversa=\{\{tipo:'amigo',nome:title\}\} carregadas=\{contarMusicasCarregadas\(messages\)\}\/>:null\}/);
 });
 caso('os erros dizem o que falhou, sem o erro cru', () => {
   assert.ok(!/e\.message|e\?\.message/.test(COMPONENTE));

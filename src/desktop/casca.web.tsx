@@ -644,9 +644,8 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="eq"] > *:nth-child(2){ animation-delay: 250ms; }
     [data-dt~="eq"] > *:nth-child(3){ animation-delay: 500ms; }
     @keyframes dt-eq{ 0%, 100%{ transform: scaleY(.3); } 50%{ transform: scaleY(1); } }
-    [data-dt~="ouvir-ja"]{ opacity: 0; transform: translateX(6px);
-      transition: opacity var(--dt-rapido) var(--dt-curva), transform var(--dt-normal) var(--dt-curva); }
-    [data-dt~="cartao-ouvir"]:hover [data-dt~="ouvir-ja"], [data-dt~="cartao-ouvir"]:focus-within [data-dt~="ouvir-ja"]{ opacity: 1; transform: none; }
+    /* O cartão de quem ouve e o "Listen along" ao passar saíram a 22/11 (a B4): quem ouve
+       é a linha dos amigos da lateral (\`ouvinte\`, mais abaixo). */
     [data-dt~="conversa"]{ transition: background-color var(--dt-rapido) var(--dt-curva); }
     [data-dt~="conversa"]:hover{ background-color: rgba(233,234,238,.05); }
 
@@ -783,6 +782,46 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="revelar"][data-dt~="a-sair"]{ animation: dt-revelar 200ms var(--dt-sair) reverse both; }
     @keyframes dt-revelar{ from{ grid-template-rows: 0fr; opacity: 0; } to{ grid-template-rows: 1fr; opacity: 1; } }
 
+    /* O Social do PC (22/11, a B4 de .claude/planos/PLANO-SOCIAL-B4.md). */
+    /* Quem ouve: o Listen along aparece com o rato, como na lateral; a seguir, fica. */
+    [data-dt~="ouvinte"]{ transition: background-color var(--dt-rapido) var(--dt-curva); }
+    [data-dt~="ouvinte"]:hover, [data-dt~="ouvinte"]:focus-within{ background-color: ${ESTADO.hover}; }
+    [data-dt~="ouvinte-play"]{ opacity: 0; transition: opacity var(--dt-rapido) var(--dt-curva), transform var(--dt-rapido) var(--dt-curva); }
+    [data-dt~="ouvinte"]:hover [data-dt~="ouvinte-play"], [data-dt~="ouvinte-play"]:focus-visible, [data-dt~="ouvinte-play"][data-dt~="a-seguir"]{ opacity: 1; }
+    [data-dt~="ouvinte-play"]:hover{ transform: scale(1.08); }
+    /* Um ícone que troca roda com a mola ESTADO (▶ e ×, ♪ e ↑), como o giro do play/pause. */
+    [data-dt~="vira"]{ transition: transform var(--dt-estado-ms) var(--dt-estado); }
+    [data-dt~="a-seguir"] > [data-dt~="vira"], [data-dt~="com-texto"] > [data-dt~="vira"]{ transform: rotate(360deg); }
+    /* O contador das por ler entra com a mola SOLTAR. */
+    [data-dt~="contador"]{ animation: dt-contador var(--dt-soltar-ms) var(--dt-soltar) both; }
+    @keyframes dt-contador{ from{ opacity: 0; transform: scale(.3); } to{ opacity: 1; transform: none; } }
+    /* Trocar de conversa: a nova sobe 10 px com a ENTRADA. */
+    [data-dt~="conversa-entra"]{ animation: dt-conversa-entra var(--dt-entrada-ms) var(--dt-entrada) both; }
+    @keyframes dt-conversa-entra{ from{ opacity: 0; transform: translateY(10px); } to{ opacity: 1; transform: none; } }
+    /* O painel do amigo: a conversa abre lugar em 460 ms; o painel entra 140 ms depois, e sai com a curva de sair. */
+    [data-dt~="conversa-com-painel"]{ transition: padding-right 460ms var(--dt-entrada); }
+    [data-dt~="conversa-com-painel"][data-dt~="com-painel"]{ padding-right: calc(var(--dt-painel-amigo, 220px) + ${ESP.xl}px); }
+    html[data-a-redimensionar] [data-dt~="conversa-com-painel"]{ transition: none; }
+    [data-dt~="painel-amigo"]{ animation: dt-painel-amigo 320ms var(--dt-entrada) 140ms both; }
+    [data-dt~="painel-amigo"][data-dt~="a-sair"]{ animation: dt-painel-amigo-sai 190ms var(--dt-sair) both; }
+    @keyframes dt-painel-amigo{ from{ opacity: 0; transform: translateX(28px); } to{ opacity: 1; transform: none; } }
+    @keyframes dt-painel-amigo-sai{ from{ opacity: 1; transform: none; } to{ opacity: 0; transform: translateX(16px); } }
+    /* As mensagens esbatem-se nos 28 px de cima. */
+    [data-dt~="mascara-da-conversa"]{ -webkit-mask-image: linear-gradient(180deg, transparent, #000 28px); mask-image: linear-gradient(180deg, transparent, #000 28px); }
+    /* Mandar: a linha abre-se (as de cima sobem a deslizar) e o balão sobe do campo com a SOLTAR.
+       Receber: chega 8 px e a 0,98 com a ENTRADA. Abrir: as de baixo em cascata. */
+    [data-dt~="msg-minha"], [data-dt~="msg-dele"]{ display: grid; grid-template-rows: 1fr; }
+    [data-dt~="msg-minha"] > div, [data-dt~="msg-dele"] > div{ min-height: 0; overflow: hidden; }
+    [data-dt~="msg-minha"]{ animation: dt-msg-abre 420ms var(--dt-entrada) both; }
+    [data-dt~="msg-minha"] > div{ transform-origin: 100% 100%; animation: dt-msg-sobe var(--dt-soltar-ms) var(--dt-soltar) both; }
+    [data-dt~="msg-dele"]{ animation: dt-msg-abre 300ms var(--dt-entrada) both; }
+    [data-dt~="msg-dele"] > div{ transform-origin: 0 100%; animation: dt-msg-chega var(--dt-entrada-ms) var(--dt-entrada) both; }
+    [data-dt~="msg-cascata"] > div{ animation: dt-msg-cascata var(--dt-entrada-ms) var(--dt-entrada) both; }
+    @keyframes dt-msg-abre{ from{ grid-template-rows: 0fr; } to{ grid-template-rows: 1fr; } }
+    @keyframes dt-msg-sobe{ from{ opacity: 0; transform: translateY(26px) scale(.94); } to{ opacity: 1; transform: none; } }
+    @keyframes dt-msg-chega{ from{ opacity: 0; transform: translateY(8px) scale(.98); } to{ opacity: 1; transform: none; } }
+    @keyframes dt-msg-cascata{ from{ opacity: 0; transform: translateY(10px); } to{ opacity: 1; transform: none; } }
+
     /* Quem pediu menos movimento no Windows nao leva nada disto. O estado
        final e o mesmo: aqui so morre o caminho ate la. */
     @media (prefers-reduced-motion: reduce){
@@ -816,6 +855,10 @@ export function injectDesktopDocumentStyles() {
       [data-dt~="amigo"]:hover [data-dt~="rola"]{ animation: none !important; overflow: hidden !important; text-overflow: ellipsis !important; }
       [data-dt~="amigo"]:hover [data-dt~="rola-caixa"]{ -webkit-mask-image: none; mask-image: none; }
       [data-dt~="premir"]:active{ transform: none !important; }
+      /* O Social (B4, 22/11): os estados ficam, o caminho não. */
+      [data-dt~="contador"], [data-dt~="conversa-entra"], [data-dt~="painel-amigo"], [data-dt~="msg-minha"], [data-dt~="msg-minha"] > div,
+      [data-dt~="msg-dele"], [data-dt~="msg-dele"] > div, [data-dt~="msg-cascata"] > div{ animation: none !important; }
+      [data-dt~="vira"], [data-dt~="conversa-com-painel"], [data-dt~="ouvinte"], [data-dt~="ouvinte-play"]{ transition: none !important; }
     }
   `;
   document.head.appendChild(style);

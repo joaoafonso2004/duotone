@@ -295,7 +295,11 @@ caso('as opções que aparecem no meio das Definições abrem e fecham o lugar',
 });
 caso('os amigos da lateral entram, saem e trocam de lugar a deslizar', () => {
   const f = emLf('src/desktop/useFlip.web.ts');
-  assert.match(f, /el\.animate\(\[\{ transform: `translateY\(\$\{era - topo\}px\)` \}, \{ transform: 'none' \}\]/, 'do sítio antigo para o novo');
+  assert.match(f, /el\.animate\(\[\{ transform: `translateY\(\$\{era \+ desvio - topo\}px\)` \}, \{ transform: 'none' \}\]/, 'do sítio antigo (com o deslize que ia a meio) para o novo');
+  // 22/11: medido sem a animação em curso e a partir do contentor (senão o desvio somava-se e as linhas fugiam).
+  assert.match(f, /const topo = topoNoLayout\(el, raiz\);/);
+  assert.match(f, /y \+= n\.offsetTop;/, 'pelo layout, sem transformações nem scroll');
+  assert.match(f, /emCurso\.current\.get\(el\)\?\.cancel\(\);/);
   assert.match(f, /const animar = antes\.current !== null && !menosMovimentoAgora\(\);/, 'nada à primeira, nem com o menos movimento');
   const am = emLf('src/desktop/AmigosNaLateral.web.tsx');
   assert.equal((am.match(/<View ref=\{lista\}/g) ?? []).length, 2, 'na lateral larga e na estreita');

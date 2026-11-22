@@ -157,7 +157,8 @@ caso('o destaque também viaja, com o retrato dele', () => {
 console.log('\na cor do artista na janela inteira');
 caso('é a MESMA camada do Now Playing (o mesmo véu e a mesma intensidade), com a foto do catálogo', () => {
   assert.match(NAVEGADOR, /\{corDoArtistaMontada && fotoDaCor && <FundoDaCapa onde="janela" aApagar=\{corDoArtistaApaga\} uri=\{fotoNoTamanho\(fotoDaCor, 250\)\} \/>\}/);
-  assert.equal((NAVEGADOR.match(/<FundoDaCapa /g) ?? []).length, 2, 'só duas camadas: a do leitor e a do artista');
+  // A terceira é a da conversa do Social (22/11, a B4), com as mesmas regras.
+  assert.equal((NAVEGADOR.match(/<FundoDaCapa /g) ?? []).length, 3, 'só três camadas: a do leitor, a do artista e a da conversa');
 });
 caso('só com a preferência "Whole window", só na página do artista, e só se a foto se souber', () => {
   assert.match(NAVEGADOR, /const corDoArtista = useSaida\(corDoLeitor === 'janela' && route\.name === 'artist' && !leitorAberto && !!fotoDaCor, SAIDA_DO_LEITOR_MS\);/);
@@ -167,8 +168,8 @@ caso('a do Now Playing manda: com a cor do leitor na janela, a do artista não s
   assert.match(NAVEGADOR, /const corDoArtistaApaga = corDoArtista\.aSair && !corNaJanela;/);
 });
 caso('ao sair da página a cor apaga-se (como a do Now Playing) e a superfície volta ao mesmo passo', () => {
-  assert.match(NAVEGADOR, /\(corNaJanela && !aApagarACor\) \|\| \(corDoArtistaMontada && !corDoArtistaApaga\) \? \{ backgroundColor: 'transparent' \} : bgStyle/);
-  assert.match(NAVEGADOR, /\{\.\.\.\(aApagarACor \|\| corDoArtistaApaga \? marcar\('main-a-voltar'\) : \{\}\)\}/);
+  assert.match(NAVEGADOR, /\(corNaJanela && !aApagarACor\) \|\| \(corDoArtistaMontada && !corDoArtistaApaga\)( \|\| \(corDaConversaMontada && !corDaConversaApaga\))? \? \{ backgroundColor: 'transparent' \} : bgStyle/);
+  assert.match(NAVEGADOR, /\{\.\.\.\(aApagarACor \|\| corDoArtistaApaga( \|\| corDaConversaApaga)? \? marcar\('main-a-voltar'\) : \{\}\)\}/);
   assert.match(NAVEGADOR, /if \(route\.name === 'artist' && artistaDaCor !== route\.value\) setArtistaDaCor\(route\.value\);/);
 });
 caso('o véu e a camada são os de sempre: nenhuma afinação nova da cor', () => {

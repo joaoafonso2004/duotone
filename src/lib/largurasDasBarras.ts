@@ -55,14 +55,40 @@ export function ajustar(pedida: number, l: Limites): number {
  * lado de onde a barra cresce: +1 para a lateral (a seta para a direita alarga), -1 para o painel
  * (a seta para a esquerda alarga). Da régua, o primeiro passo para fora vai à largura mínima.
  */
-export function teclar(atual: number, tecla: string, shift: boolean, sinal: 1 | -1, l: Limites): number | null {
+export function teclar(atual: number, tecla: string, shift: boolean, sinal: 1 | -1, l: Limites,
+  passos: { passo: number; grande: number } = { passo: PASSO, grande: PASSO_GRANDE }): number | null {
   if (tecla === 'Home') return l.recolhida ?? l.minima;
   if (tecla === 'End') return l.maxima;
   if (tecla !== 'ArrowLeft' && tecla !== 'ArrowRight') return null;
-  const passo = (shift ? PASSO_GRANDE : PASSO) * (tecla === 'ArrowRight' ? 1 : -1) * sinal;
+  const passo = (shift ? passos.grande : passos.passo) * (tecla === 'ArrowRight' ? 1 : -1) * sinal;
   if (l.recolhida != null && atual <= l.recolhida) return passo > 0 ? l.minima : l.recolhida;
   if (l.recolhida != null && passo < 0 && atual + passo < l.minima) return l.recolhida;
   return ajustar(atual + passo, l);
+}
+
+/**
+ * O painel do amigo no Social (22/11, a B4 de `.claude/planos/PLANO-SOCIAL-B4.md`): a música
+ * dele, o Listen along e as próximas dele, à direita da conversa. Mais fino do que o painel da
+ * fila ("B4 mas mais fina a barra, ou então ajustável"): começa nos 220 e vai de 180 a 360, com
+ * passos mais finos no teclado (10, e 40 com Shift).
+ */
+export const PAINEL_DO_AMIGO = { padrao: 220, minima: 180, maxima: 360, passo: 10, passoGrande: 40 } as const;
+/** Abaixo disto (a largura do Social) não há lugar para a lista, a conversa e o painel: não aparece. */
+export const SOCIAL_COM_PAINEL = 1000;
+
+export function limitesDoPainelDoAmigo(): Limites {
+  return { minima: PAINEL_DO_AMIGO.minima, maxima: PAINEL_DO_AMIGO.maxima };
+}
+
+/** O guardado do painel do amigo: só um número a sério, já nos limites; o resto volta ao de origem. */
+export function lerPainelDoAmigo(guardado: unknown): number {
+  const g = (guardado ?? {}) as { amigo?: unknown };
+  return typeof g.amigo === 'number' && Number.isFinite(g.amigo) ? ajustar(g.amigo, limitesDoPainelDoAmigo()) : PAINEL_DO_AMIGO.padrao;
+}
+
+/** O teclado na pega do painel do amigo (cresce para a esquerda, como o da fila). */
+export function teclarPainelDoAmigo(atual: number, tecla: string, shift: boolean): number | null {
+  return teclar(atual, tecla, shift, -1, limitesDoPainelDoAmigo(), { passo: PAINEL_DO_AMIGO.passo, grande: PAINEL_DO_AMIGO.passoGrande });
 }
 
 /** A lateral está recolhida na régua de ícones? */

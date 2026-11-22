@@ -11,6 +11,7 @@ import { readFileSync } from 'node:fs';
 import {
   AMIGOS as DIVISAO, LATERAL, PAINEL, ajustar, alturaDosAmigos, fracaoDosAmigos, lateralRecolhida, lerFracaoDosAmigos,
   lerLarguras, limitesDaLateral, limitesDoPainel, teclar, teclarAmigos,
+  PAINEL_DO_AMIGO, SOCIAL_COM_PAINEL, lerPainelDoAmigo, limitesDoPainelDoAmigo, teclarPainelDoAmigo,
 } from '../src/lib/largurasDasBarras.ts';
 
 let falhas = 0;
@@ -114,7 +115,7 @@ console.log('\na pega');
 caso('é um separador a sério: papel, orientação, valores e teclado', () => {
   assert.match(SEPARADOR, /role="separator" aria-orientation="vertical" aria-label=\{rotulo\} tabIndex=\{0\}/);
   assert.match(SEPARADOR, /aria-valuenow=\{Math\.round\(valor\)\} aria-valuemin=\{lim\.recolhida \?\? lim\.minima\} aria-valuemax=\{lim\.maxima\}/);
-  assert.match(SEPARADOR, /const nova = teclar\(valor, e\.key, e\.shiftKey, sinal, lim\);/);
+  assert.match(SEPARADOR, /const nova = teclar\(valor, e\.key, e\.shiftKey, sinal, lim, passos\);/);
 });
 caso('arrasta com captura do ponteiro, um pedido por fotograma, e acaba em todas as saídas', () => {
   assert.match(SEPARADOR, /setPointerCapture\(e\.pointerId\)/);
@@ -148,7 +149,7 @@ caso('a largura vai pelas variáveis da raiz, e não pelo React: arrastar não r
   assert.ok(!/width: 340/.test(PAINEL_TSX), 'sobrou uma largura fixa de 340');
 });
 caso('a escolha guarda-se no aparelho e uma janela pequena não a estraga', () => {
-  assert.match(STORE, /window\.localStorage\.setItem\(PREFERENCIA, JSON\.stringify\(\{ lateral: s\.lateral, painel: s\.painel \}\)\)/);
+  assert.match(STORE, /window\.localStorage\.setItem\(PREFERENCIA, JSON\.stringify\(\{ lateral: s\.lateral, painel: s\.painel, amigo: s\.painelDoAmigo \}\)\)/);
   assert.match(STORE, /export function larguraEfetiva\(/);
 });
 caso('a casca monta a pega da lateral dentro dela, e o painel a dele', () => {
@@ -245,6 +246,36 @@ caso('a pega deitada é um separador a sério, com o cursor de cima para baixo',
 });
 caso('a percentagem conta na zona que os amigos e os atalhos dividem, e não na lateral toda', () => {
   assert.match(CASCA, /<View style=\{\{ flex: 1, minHeight: 0 \}\}>\n\s+<AmigosNaLateral [^\n]*\/>\n[^\n]*\n\s+<AtalhosNaLateral [^\n]*\/>\n\s+<\/View>/);
+});
+
+console.log('\no painel do amigo no Social (22/11, a B4)');
+caso('começa nos 220 e vai de 180 a 360', () => {
+  assert.equal(PAINEL_DO_AMIGO.padrao, 220);
+  assert.deepEqual(limitesDoPainelDoAmigo(), { minima: 180, maxima: 360 });
+  assert.equal(ajustar(100, limitesDoPainelDoAmigo()), 180);
+  assert.equal(ajustar(999, limitesDoPainelDoAmigo()), 360);
+});
+caso('o teclado anda de 10 em 10 (Shift 40), cresce para a esquerda; Home e End aos extremos', () => {
+  assert.equal(teclarPainelDoAmigo(220, 'ArrowLeft', false), 230);
+  assert.equal(teclarPainelDoAmigo(220, 'ArrowRight', false), 210);
+  assert.equal(teclarPainelDoAmigo(220, 'ArrowLeft', true), 260);
+  assert.equal(teclarPainelDoAmigo(355, 'ArrowLeft', false), 360, 'não passa do máximo');
+  assert.equal(teclarPainelDoAmigo(220, 'Home', false), 180);
+  assert.equal(teclarPainelDoAmigo(220, 'End', false), 360);
+  assert.equal(teclarPainelDoAmigo(220, 'a', false), null);
+});
+caso('o guardado: só um número a sério, já nos limites; sem ele, os 220', () => {
+  assert.equal(lerPainelDoAmigo({ amigo: 300 }), 300);
+  assert.equal(lerPainelDoAmigo({ amigo: 900 }), 360);
+  assert.equal(lerPainelDoAmigo({ amigo: 'x' }), 220);
+  assert.equal(lerPainelDoAmigo(null), 220);
+  assert.equal(lerPainelDoAmigo({ lateral: 300, painel: 400 }), 220, 'o guardado de antes não tem o painel do amigo');
+});
+caso('a pega é a das barras, com os passos finos; e numa janela estreita o painel não aparece', () => {
+  assert.match(SEPARADOR, /export function SeparadorDoPainelDoAmigo\(\)/);
+  assert.match(SEPARADOR, /passos=\{\{ passo: PAINEL_DO_AMIGO\.passo, grande: PAINEL_DO_AMIGO\.passoGrande \}\}/);
+  assert.match(STORE, /raiz\.setProperty\('--dt-painel-amigo'/);
+  assert.equal(SOCIAL_COM_PAINEL, 1000);
 });
 
 if (falhas) { console.log(`\n${falhas} falha(s)`); process.exit(1); }
