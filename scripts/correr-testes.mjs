@@ -275,6 +275,8 @@ const TESTES = [
   `${DUPLOS} scripts/test-downloads-acoes.ts`,
   `${RESOLVER} scripts/test-webm-opus.ts`,
   `${DUPLOS} scripts/test-escolha-codec.ts`,
+  // O fetch trocável do resolvedor e as regras do motor só de áudio do PC (Tauri, F4).
+  `${DUPLOS} scripts/test-fetch-do-pc.ts`,
   `${TS} scripts/test-efeito-das-definicoes.ts`,
   'scripts/test-definicoes-com-efeito.mjs',
   // A interface em francês (15/11): o motor, o dicionário e as ligações.
