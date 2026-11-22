@@ -16,3 +16,12 @@ export function useReducedMotion() {
   },[]);
   return reduced;
 }
+
+/**
+ * O mesmo, lido na hora: para decidir DENTRO de um render (o hook só sabe depois
+ * do 1.º efeito). No iPhone diz que não: lá o hook é que manda.
+ */
+export function menosMovimentoAgora(): boolean {
+  if (Platform.OS !== 'web') return false;
+  try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; }
+}

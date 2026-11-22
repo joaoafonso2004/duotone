@@ -183,5 +183,40 @@ caso('o carrossel liga-se quando a lista aparece, e não só no arranque', () =>
   assert.ok(/observador\?\.observe\(conteudo\)/.test(hook), 'mais cartões acendem a seta sem redimensionar');
 });
 
+console.log('\no painel da direita e a barra do leitor (22/11: o João viu-os aos saltos)');
+// Os finais de linha do Windows (o CI faz checkout com CRLF): estes leem em LF.
+const emLf = (f: string) => readFileSync(f, 'utf8').replace(/\r\n/g, '\n');
+const PAINEL = emLf('src/desktop/PainelDoLeitor.web.tsx');
+const CASCA_LF = CASCA.replace(/\r\n/g, '\n');
+
+caso('o estilo do painel não traz um transition (de 9/11 a 22/11 substituía o do CSS e o painel saltava)', () => {
+  const i = PAINEL.indexOf('<div id="painel-do-leitor"');
+  assert.ok(i > 0, 'o painel');
+  const estilo = PAINEL.slice(i, PAINEL.indexOf('}}>', i));
+  assert.doesNotMatch(estilo, /\btransition\s*:/, 'um transition inline anula o do CSS');
+  assert.match(estilo, /transform: `translateX\(\$\{noSitio \? 0 : 100\}%\)`/, 'continua a deslizar pelo transform');
+});
+caso('o CSS da casca anima o deslizar e a cor do painel, e não a arrastar a largura', () => {
+  assert.match(CASCA_LF, /\[data-dt~="painel-do-leitor"\] \{ transition: transform 240ms var\(--dt-curva\), background-color 220ms var\(--dt-curva\); will-change: transform; \}/);
+  assert.match(CASCA_LF, /html\[data-a-redimensionar\] \[data-dt~="painel-do-leitor"\]\{ transition: none !important; \}/);
+});
+caso('o lugar da barra do leitor fecha-se com a mesma curva, a partir da altura dela', () => {
+  assert.match(CASCA_LF, /\[data-dt~="saida-da-barra"\] \{ flex-shrink: 0; overflow: hidden; pointer-events: none;\n\s*animation: dt-barra-sai 320ms var\(--dt-curva\) both; \}/);
+  assert.match(CASCA_LF, /@keyframes dt-barra-sai \{ from \{ height: var\(--dt-altura-da-barra\); \} to \{ height: 0; \} \}/);
+  assert.match(CASCA_LF, /\[data-dt~="entrada-da-barra"\], \[data-dt~="saida-da-barra"\],/, 'o menos movimento desliga as duas');
+});
+caso('a altura lê-se no render da mudança, antes do return sem música', () => {
+  const inicio = CASCA_LF.indexOf('export function PlayerBar(');
+  const corpo = CASCA_LF.slice(inicio, CASCA_LF.indexOf('\n}\n', inicio));
+  const mudanca = corpo.indexOf('if (faixaAnterior !== p.current) {');
+  const semMusica = corpo.indexOf('if (!p.current) return <>');
+  assert.ok(mudanca > 0 && semMusica > mudanca, 'o padrão do React (guardar o render anterior) antes do return');
+  assert.match(corpo, /const altura = barraRef\.current\?\.offsetHeight \?\? 0;/);
+  assert.match(corpo, /setAlturaASair\(faixaAnterior && !p\.current && altura > 0 && !menosMovimentoAgora\(\) \? altura : null\);/, 'só quando a música sai (e não numa troca)');
+  assert.match(corpo, /<div data-dt="saida-da-barra" aria-hidden\n\s*style=\{\{ \['--dt-altura-da-barra' as any\]: `\$\{alturaASair\}px` \}\} onAnimationEnd=\{\(\) => setAlturaASair\(null\)\} \/>/);
+  assert.match(corpo, /const t = setTimeout\(\(\) => setAlturaASair\(null\), 500\);/, 'tira-se mesmo sem o animationend');
+  assert.match(corpo, /return <div data-dt="entrada-da-barra" ref=\{barraRef\}><div>/, 'a altura é a da barra que está no ecrã');
+});
+
 console.log(falhas === 0 ? '\nTudo bem.\n' : `\n${falhas} falha(s).\n`);
 process.exit(falhas === 0 ? 0 : 1);

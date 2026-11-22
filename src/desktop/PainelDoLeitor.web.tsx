@@ -174,7 +174,10 @@ export function PainelDoLeitor({ children, more, notify }: Pick<CommonPageProps,
       // linha, separa-o o espaço. Por cima da página (a deslizar, ou na janela
       // estreita) leva fundo, senão via-se a página através dele.
       backgroundColor: porCimaAgora ? FUNDO_POR_CIMA : 'transparent',
-      transition: menosMovimento ? undefined : 'background-color 220ms var(--dt-curva)',
+      // A transição (o deslizar e a cor) está TODA no CSS da casca
+      // (`[data-dt~="painel-do-leitor"]`). Um `transition` aqui substituía a de lá
+      // por inteiro: de 9/11 a 22/11 o painel abria e fechava aos saltos, e a
+      // página com ele. O "menos movimento" do Windows desliga-a lá.
     }}>
     {(estado.aberto || conteudoMontado) && <SeparadorDoPainel />}
     {(estado.aberto || conteudoMontado) && <View style={[s.painel, porCima && { maxWidth: '100%' }]}>

@@ -58,7 +58,8 @@ caso('uma só leitura das sessões: o hook só se chama nos dois avisos', () => 
 });
 caso('PC: o botão com o nome do aparelho na barra, e a barra dele sem nada a tocar aqui', () => {
   const casca = ler('src/desktop/casca.web.tsx');
-  assert.match(casca, /if \(!p\.current\) return <BarraDoOutroAparelho \/>;/);
+  // Sem música aqui, a barra é a do outro aparelho (com o lugar da de cá a fechar-se antes, 22/11).
+  assert.match(casca, /if \(!p\.current\) return <>\n\s*\{alturaASair !== null && <div data-dt=\"saida-da-barra\"[\s\S]{0,200}\/>\}\n\s*<BarraDoOutroAparelho \/>\n\s*<\/>;/);
   assert.match(casca, /<BotaoDoOutroAparelho \/>\n\s+<BarraDoVolume \/>/);
   const aviso = ler('src/components/HandoffBanner.web.tsx');
   assert.match(aviso, /if \(!session \|\| !aviso\) return null;/);
