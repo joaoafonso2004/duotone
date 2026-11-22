@@ -290,6 +290,35 @@ assert.equal(usePlayer.getState().resumePositionMs, null, 'faixa nova a tocar ar
   usePlayer.setState({ _yt: null });
 }
 
+// ---- um "tocar" forcado com o motor ja a tocar nao cala a musica aos amigos (22/11)
+//
+// O João: dois amigos numa Jam apareciam so "Online". Cada confirmacao da sala
+// e um `_forcarReproducao(true)`, que apaga o `playbackConfirmed`; com o motor
+// ja a tocar nao vem outro "playing" (nem o IFrame nem o <audio> mudam de
+// estado). A presenca so anuncia a musica com a confirmacao, e a correcao do
+// desvio tambem a pede. Os motores do PC passam a confirmar enquanto andam,
+// como o do iPhone ja fazia.
+{
+  usePlayer.setState({ _yt: { play: () => {}, pause: () => {}, seek: () => {}, setVolume: () => {} } as never, current: actual });
+  usePlayer.getState()._onYtStateChange('playing');
+  assert.equal(usePlayer.getState().playbackConfirmed, true);
+  usePlayer.getState()._forcarReproducao(true);
+  assert.equal(usePlayer.getState().playbackConfirmed, false, 'o forcar apaga a confirmacao, e o motor ja a tocar nao manda outro playing');
+  usePlayer.getState()._onYtStateChange('playing');
+  assert.equal(usePlayer.getState().playbackConfirmed, true, 'a confirmacao do motor a andar repoe-a');
+  usePlayer.setState({ _yt: null });
+  const lf = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  assert.match(lf('../src/components/YouTubePlayerView.web.tsx'),
+    /if \(!confirmada && position > 0 && ativo\.getPlayerState\?\.\(\) === 1\n\s*&& estaNoVideo\(ativo, faixaRef\.current\.sourceId\)\) usePlayer\.getState\(\)\._onYtStateChange\('playing'\);/,
+    'o IFrame do PC (a Jam) confirma no progresso');
+  assert.match(lf('../src/desktop/motorDeAudio.web.tsx'),
+    /if \(!a\.paused && a\.currentTime > 0 && !aCarregarRef\.current && !entregaRef\.current\n\s*&& !usePlayer\.getState\(\)\.playbackConfirmed\) usePlayer\.getState\(\)\._onYtStateChange\('playing'\);/,
+    'o motor so de audio tambem');
+  assert.match(lf('../src/components/YouTubePlayerView.tsx'),
+    /if\(currentTime>0&&player\.playing&&!usePlayer\.getState\(\)\.playbackConfirmed\)onStateChange\('playing'\);/,
+    'e o iPhone continua a faze-lo');
+}
+
 
 // ---- o caminho INTEIRO da mudanca automatica, do lado do convidado ---------
 //

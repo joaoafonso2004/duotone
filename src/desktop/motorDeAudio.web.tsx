@@ -646,6 +646,11 @@ function MotorDeAudio({ track, aoFalhar, recurso }: { track: Track; aoFalhar: (s
       const a = ativa(g).audio;
       const duracao = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : (faixaRef.current.durationSeconds || 0);
       cuidarRef.current(a.currentTime, duracao);
+      // A voz a andar confirma o som (22/11), como no IFrame e no iPhone: um
+      // "tocar" com ela já a tocar apaga o `playbackConfirmed` e não traz
+      // outro `playing`. Sem a confirmação, os amigos viam só "Online".
+      if (!a.paused && a.currentTime > 0 && !aCarregarRef.current && !entregaRef.current
+        && !usePlayer.getState().playbackConfirmed) usePlayer.getState()._onYtStateChange('playing');
     };
     const aoPoderTocar = (ev: Event) => {
       const e = emEspera(g);

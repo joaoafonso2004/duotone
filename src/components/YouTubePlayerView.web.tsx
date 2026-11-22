@@ -807,6 +807,16 @@ export function YouTubePlayerView({ track }: { track: Track }) {
               const duration = Number(ativo.getDuration?.() || 0);
               const position = Number(ativo.getCurrentTime?.() || 0);
               usePlayer.getState()._setProgress(position * 1000, duration * 1000);
+              // O motor a andar confirma o som (22/11), como no iPhone
+              // (`YouTubePlayerView.tsx`). Numa Jam, cada confirmação da sala é
+              // um "tocar" forçado (`_forcarReproducao`), que apaga o
+              // `playbackConfirmed`; com o IFrame já a tocar não vem outro
+              // "playing", e a confirmação não voltava. Sem ela a presença
+              // deixava de anunciar a música (os amigos viam só "Online") e a
+              // correção do desvio da Jam parava.
+              const confirmada = usePlayer.getState().playbackConfirmed;
+              if (!confirmada && position > 0 && ativo.getPlayerState?.() === 1
+                && estaNoVideo(ativo, faixaRef.current.sourceId)) usePlayer.getState()._onYtStateChange('playing');
               // O batimento da sessão de handoff anda com o relógio do
               // player e não com um temporizador à parte -- com a janela
               // escondida o Chromium estrangula os temporizadores, e a
