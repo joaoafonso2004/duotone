@@ -249,8 +249,19 @@ static PASTA: OnceLock<PathBuf> = OnceLock::new();
 static VERSAO: OnceLock<String> = OnceLock::new();
 static REABRIR: Mutex<Option<&'static str>> = Mutex::new(None);
 
+/// Só no .exe de release, como o `app.isPackaged` do Electron. Na Preview, só na
+/// cópia INSTALADA (`%LOCALAPPDATA%\Programs\Duotone Preview`, 22/11): com o canal
+/// `windowsPreview` publicado, a que se compila em `desktop\target\release` para
+/// testar trocava-se sozinha pela do canal, com o código de antes.
 fn disponivel() -> bool {
-    !cfg!(debug_assertions)
+    if cfg!(debug_assertions) {
+        return false;
+    }
+    if !crate::canal::E_A_PREVIEW {
+        return true;
+    }
+    let exe = std::env::current_exe().map(|e| e.display().to_string()).unwrap_or_default();
+    instalacao_por_utilizador(&exe, &std::env::var("LOCALAPPDATA").unwrap_or_default())
 }
 
 fn pasta() -> Option<&'static Path> {

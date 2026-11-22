@@ -7,8 +7,8 @@ name: Build Windows Preview (Tauri)
 #   workflow_dispatch        -> o mesmo, a pedido (em qualquer ramo, mas o GitHub
 #                               só mostra o botão depois de este ficheiro estar na main)
 #
-# NÃO publica nada: nem Release, nem aviso ao portfólio. Um canal de
-# atualizações da Preview (win-preview-v*) só existe se o João o decidir.
+# NÃO publica nada: nem Release, nem aviso ao portfólio. O canal de atualizações
+# da Preview (as tags win-preview-v*, 22/11) é o release-windows-preview.yml.
 on:
   workflow_dispatch:
   push:

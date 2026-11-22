@@ -118,5 +118,27 @@ assert.ok(capacidade.windows.includes('mini'), 'a capability tem de incluir a ja
   assert.equal(JSON.stringify(chamadas.at(-1)), JSON.stringify(['sessao_de_media_definir', { sessao: { titulo: 'S', estado: 'playing' } }]));
 }
 
+// O canal de atualizações da Preview (22/11, o João: "Sim, cria").
+{
+  const wf = ler('.github/workflows/release-windows-preview.yml');
+  assert.match(wf, /tags: \['win-preview-v\*'\]/, 'só as tags da Preview');
+  assert.match(wf, /VERSAO="\$\{TAG#win-preview-v\}"/);
+  assert.match(wf, /-name "Duotone Preview_\*-setup\.exe"/);
+  assert.match(wf, /mv "\$SRC" release\/Duotone-Preview-Setup\.exe/, 'o nome que o canal.rs pede');
+  assert.match(wf, /npx -y "\$TAURI_CLI" build --config versao\.conf\.json/, 'a identidade da Preview (sem --features producao)');
+  assert.ok(!/producao/.test(wf.replace(/^#.*$/gm, '')), 'nada da identidade de produção');
+  assert.match(wf, /--latest=false/, 'a Duotone continua a ser o Latest do repositório');
+  assert.match(wf, /client_payload\[platform\]=windowsPreview/);
+  // As tags da Preview não entram nos workflows da Duotone.
+  for (const outro of ['build-windows.yml', 'release-windows-tauri.yml']) {
+    assert.ok(!/win-preview/.test(ler('.github/workflows/' + outro).replace(/^\s*#.*$/gm, '')), outro + ' não apanha a Preview');
+  }
+  assert.match(ler('.github/workflows/release.yml'), /win-preview-v\*\) echo "id=windowsPreview"[^\n]*asset=Duotone-Preview-Setup\.exe/);
+  // O canal da identidade da Preview é o que o workflow publica.
+  assert.match(canal, /ATUALIZACAO_ENTRADA: &str = "windowsPreview";\n {4}pub const ATUALIZACAO_TAG: &str = "win-preview-v";\n {4}pub const ATUALIZACAO_INSTALADOR: &str = "Duotone-Preview-Setup\.exe";/);
+  // Só a Preview instalada se troca pela do canal; a de target\release fica como foi compilada.
+  assert.match(ler('desktop/src/atualizacao.rs'), /fn disponivel\(\) -> bool \{\n {4}if cfg!\(debug_assertions\) \{\n {8}return false;\n {4}\}\n {4}if !crate::canal::E_A_PREVIEW \{\n {8}return true;\n {4}\}\n {4}let exe = std::env::current_exe\(\)[^\n]*\n {4}instalacao_por_utilizador\(/);
+}
+
 const faltam = [...doElectron].filter((k) => !doTauri.includes(k));
 console.log(`Ponte Tauri: ${doTauri.filter((k) => doElectron.has(k)).length} de ${doElectron.size} chaves do preload (mais ${doTauri.filter((k) => SO_DO_TAURI.has(k)).length} só do Tauri), ${comandos.length} comandos declarados, autorizados e registados. Por fazer: ${faltam.length}.`);

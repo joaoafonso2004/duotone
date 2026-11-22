@@ -34,6 +34,8 @@ jobs:
           TAG="${{ github.event.release.tag_name }}"
           case "$TAG" in
             ios-v*) echo "id=ios"     >> "$GITHUB_OUTPUT"; echo "asset=Duotone.ipa"       >> "$GITHUB_OUTPUT"; echo "ext=.ipa" >> "$GITHUB_OUTPUT" ;;
+            # A Preview (22/11, release-windows-preview.yml) antes do win-v*, que não a apanha.
+            win-preview-v*) echo "id=windowsPreview" >> "$GITHUB_OUTPUT"; echo "asset=Duotone-Preview-Setup.exe" >> "$GITHUB_OUTPUT"; echo "ext=.exe" >> "$GITHUB_OUTPUT" ;;
             win-v*) echo "id=windows" >> "$GITHUB_OUTPUT"; echo "asset=Duotone-Setup.exe" >> "$GITHUB_OUTPUT"; echo "ext=.exe" >> "$GITHUB_OUTPUT" ;;
             *)
               echo "::error::Tag '$TAG' não segue a convenção. Usa ios-vX.Y.Z ou win-vX.Y.Z."

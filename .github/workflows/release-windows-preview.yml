@@ -1,0 +1,187 @@
+name: Release Windows Preview (Tauri)
+
+# O canal de atualizações da Duotone Preview (decidido pelo João a 22/11: "Sim, cria"),
+# para a semana em que a Preview é a app do dia a dia (o plano do Tauri, F12).
+#
+#   push de uma tag win-preview-vX.Y.Z -> o instalador da Preview publicado como Release
+#
+# A Preview corre AO LADO da Duotone e nunca lhe toca (desktop/src/canal.rs): outro
+# identificador, outra porta, e o canal dela. O atualizador da Preview só aceita
+#   https://github.com/joaoafonso2004/duotone/releases/download/win-preview-v<versão>/Duotone-Preview-Setup.exe
+# com o tamanho anunciado no versions.json do portfólio (entrada `windowsPreview`, na
+# chave `canais` do apps.json, que o site não mostra). Só a Preview INSTALADA se
+# atualiza; a de desktop\target\release fica como foi compilada.
+#
+# A versão da tag é a da casca (0.x, à parte da Duotone); a da app web (APP_VERSION)
+# continua a do package.json. O release não fica como "Latest" no GitHub.
+#
+# Lançar: git tag -a win-preview-v0.2.0 -m "notas" && git push origin win-preview-v0.2.0
+# (só quando o João pedir).
+on:
+  push:
+    tags: ['win-preview-v*']
+
+permissions:
+  contents: write
+
+env:
+  RUST_VERSION: '1.97.1'
+  TAURI_CLI: '@tauri-apps/cli@2.12.6'
+  CARGO_INCREMENTAL: '0'
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # As notas saem da tag anotada, ou dos commits desde a Preview anterior.
+          fetch-depth: 0
+
+      - name: Repor as tags anotadas
+        run: git fetch --force --tags origin
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Versão a partir da tag
+        id: vars
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSAO="${TAG#win-preview-v}"
+          if ! [[ "$VERSAO" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::A tag $TAG não é win-preview-vX.Y.Z."
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSAO" >> "$GITHUB_OUTPUT"
+
+      - name: Rust fixo
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal --component clippy
+          rustup default "$RUST_VERSION"
+
+      # A mesma cache do build-windows-preview.yml (a mesma identidade, o mesmo target/).
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            ~/AppData/Local/tauri
+            desktop/target
+            !desktop/target/release/bundle
+          key: windows-preview-${{ env.RUST_VERSION }}-${{ hashFiles('desktop/Cargo.lock') }}
+          restore-keys: windows-preview-${{ env.RUST_VERSION }}-
+
+      - name: Instalar dependências
+        run: npm ci --no-audit --no-fund
+
+      - name: Validar TypeScript
+        run: npm run typecheck
+
+      - name: Criar .env a partir do secret
+        run: printf '%s' "$ENV_FILE" > .env
+        env:
+          ENV_FILE: ${{ secrets.ENV_FILE }}
+
+      # Só a casca leva a versão da tag (o tauri.conf.json tem 0.1.0, a das builds locais).
+      - name: Versão da casca
+        env:
+          VERSAO: ${{ steps.vars.outputs.version }}
+        run: |
+          printf '{ "version": "%s" }\n' "$VERSAO" > desktop/versao.conf.json
+          cat desktop/versao.conf.json
+
+      - name: Compilar a app web para dentro da casca
+        run: |
+          node scripts/write-build-info.mjs
+          npx expo export --platform web --output-dir desktop/dist-web
+          test -f desktop/dist-web/index.html
+
+      - name: Testes da casca
+        working-directory: desktop
+        run: |
+          cargo clippy --release --all-targets -- -D warnings
+          cargo test --release
+          node ../scripts/test-ponte-tauri.mjs
+          node ../scripts/test-atualizacao-windows.mjs
+
+      - name: Empacotar o instalador
+        working-directory: desktop
+        run: |
+          rm -rf target/release/bundle
+          npx -y "$TAURI_CLI" build --config versao.conf.json
+
+      # O Tauri gera "Duotone Preview_<versão>_x64-setup.exe"; o canal (canal.rs) pede este nome.
+      - name: Normalizar nome do instalador
+        run: |
+          set -euo pipefail
+          PASTA=desktop/target/release/bundle/nsis
+          SRC=$(find "$PASTA" -maxdepth 1 -name "Duotone Preview_*-setup.exe" | head -1)
+          if [ -z "$SRC" ]; then
+            echo "::error::O Tauri não produziu o instalador da Preview."
+            ls -la "$PASTA" || true
+            exit 1
+          fi
+          mkdir -p release
+          mv "$SRC" release/Duotone-Preview-Setup.exe
+          ls -lh release/Duotone-Preview-Setup.exe
+          sha256sum release/Duotone-Preview-Setup.exe
+
+      - name: Preparar notas da versão
+        id: notes
+        env:
+          TAG: ${{ steps.vars.outputs.tag }}
+        run: |
+          if [ "$(git cat-file -t "$TAG" 2>/dev/null)" = "tag" ]; then
+            BODY=$(git for-each-ref "refs/tags/$TAG" --format='%(contents)')
+          else
+            BODY=""
+          fi
+          if [ -z "$(echo "$BODY" | tr -d '[:space:]')" ]; then
+            PREV=$(git tag -l 'win-preview-v*' --sort=-v:refname | grep -vx "$TAG" | head -1)
+            if [ -n "$PREV" ]; then RANGE="$PREV..$TAG"; else RANGE="$TAG"; fi
+            BODY=$(git log --no-merges --pretty=format:'- %s' "$RANGE" | head -20)
+            [ -z "$(echo "$BODY" | tr -d '[:space:]')" ] && BODY="- Sem alterações de código desde $PREV."
+          fi
+          {
+            echo "body<<NOTES_EOF"
+            echo "$BODY"
+            echo "NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+          echo "--- notas ---"; echo "$BODY"
+
+      # --latest=false: a Duotone continua a ser o "Latest" do repositório.
+      - name: Publicar Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.vars.outputs.tag }}
+          VERSION: ${{ steps.vars.outputs.version }}
+          NOTES: ${{ steps.notes.outputs.body }}
+        run: |
+          gh release create "$TAG" \
+            "release/Duotone-Preview-Setup.exe" \
+            --title "Duotone Preview para Windows $VERSION" \
+            --notes "$NOTES" \
+            --latest=false \
+            --verify-tag
+          echo "Publicado $TAG."
+
+      - name: Avisar o portfólio
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.PORTFOLIO_DISPATCH_TOKEN }}
+          PORTFOLIO_REPO: joaoafonso2004/Portfolio
+          TAG: ${{ steps.vars.outputs.tag }}
+        run: |
+          gh api -X POST "repos/$PORTFOLIO_REPO/dispatches" \
+            -f event_type=release-published \
+            -F "client_payload[platform]=windowsPreview" \
+            -F "client_payload[tag]=$TAG"
