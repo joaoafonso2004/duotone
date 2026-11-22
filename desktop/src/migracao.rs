@@ -155,17 +155,28 @@ pub fn preparar(app: &AppHandle) -> Option<String> {
     if marca.exists() {
         return None;
     }
-    let ficheiro = electron.join("migracao").join("exportacao.json");
-    let Ok(texto) = fs::read_to_string(&ficheiro) else {
-        crate::registo::linha("migração: sem exportação do Electron (nada a repor)");
+    // A cópia que o instalador pôs a salvo antes de retirar o Electron (ganchos.nsh),
+    // e a do próprio Electron: a boa mais recente.
+    let origem = origem_da_app();
+    let candidatas = [pasta_de_dados(app, true).map(|p| p.join("migracao").join("exportacao.json")), Some(electron.join("migracao").join("exportacao.json"))];
+    let mut lidas = 0;
+    let mut melhor: Option<(String, Value)> = None;
+    for ficheiro in candidatas.into_iter().flatten() {
+        let Ok(texto) = fs::read_to_string(&ficheiro) else { continue };
+        lidas += 1;
+        let e: Value = serde_json::from_str(&texto).unwrap_or(Value::Null);
+        if exportacao_valida(&e, &origem) && melhor.as_ref().is_none_or(|(_, m)| e["em"].as_f64() > m["em"].as_f64()) {
+            melhor = Some((texto, e));
+        }
+    }
+    let Some((texto, exportacao)) = melhor else {
+        crate::registo::linha(if lidas == 0 {
+            "migração: sem exportação do Electron (nada a repor)"
+        } else {
+            "migração: a exportação do Electron não serve (versão, origem ou conteúdo)"
+        });
         return None;
     };
-    let exportacao: Value = serde_json::from_str(&texto).unwrap_or(Value::Null);
-    let origem = origem_da_app();
-    if !exportacao_valida(&exportacao, &origem) {
-        crate::registo::linha("migração: a exportação do Electron não serve (versão, origem ou conteúdo)");
-        return None;
-    }
     let entradas = &exportacao["localStorage"];
     let chaves = entradas.as_array().map(Vec::len).unwrap_or(0);
     let app_do_electron = exportacao["app"].as_str().unwrap_or("?").to_string();

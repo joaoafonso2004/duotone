@@ -49,8 +49,13 @@ fn main() {
         "catalogo_pedir", "supabase_pedir", "spotify_embed", "apple_playlist", "deezer_link",
         "innertube_pedir", "innertube_aquecer", "googlevideo_sondar", "audio_registar", "audio_adiantar", "audio_na_cache",
     ];
+    // As capabilities da identidade desta build (canal.rs): a porta muda com ela.
+    println!("cargo:rerun-if-changed=capabilities");
+    let capabilities = if env::var_os("CARGO_FEATURE_PRODUCAO").is_some() { "./capabilities/producao/*.json" } else { "./capabilities/preview/*.json" };
     tauri_build::try_build(
-        tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(COMANDOS)),
+        tauri_build::Attributes::new()
+            .capabilities_path_pattern(capabilities)
+            .app_manifest(tauri_build::AppManifest::new().commands(COMANDOS)),
     )
     .expect("tauri-build");
 }

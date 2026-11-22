@@ -17,7 +17,9 @@ on:
     # um push para Testing dava .ipa e nao dava .exe, o que se le como "a build
     # de Windows falhou" quando na verdade nunca chegou a ser pedida.
     branches: [main, Testing]
-    tags: ['win-v*']
+    # A partir da 7.0.0 a Duotone para Windows é em Tauri (release-windows-tauri.yml):
+    # estas tags ficam para as versões em Electron, a ponte 6.2.0 incluída.
+    tags: ['win-v*', '!win-v[7-9].*', '!win-v[1-9][0-9].*']
 
 permissions:
   contents: write

@@ -5,6 +5,10 @@ edition = "2021"
 publish = false
 description = "A casca do Duotone para Windows em Tauri (ver .claude/planos/PLANO-TAURI.md, fora do git)"
 
+[features]
+# A Duotone de produção (canal.rs); sem ela, a Preview. Só no CI de uma tag win-v* em Tauri.
+producao = []
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

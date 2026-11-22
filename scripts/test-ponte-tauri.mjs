@@ -12,7 +12,18 @@ const ler = (f) => fs.readFileSync(new URL(`../${f}`, import.meta.url), 'utf8').
 const preload = ler('electron/preload.cjs');
 const ponte = ler('desktop/src/ponte.js');
 const build = ler('desktop/build.rs');
-const capacidade = JSON.parse(ler('desktop/capabilities/default.json'));
+const capacidade = JSON.parse(ler('desktop/capabilities/preview/default.json'));
+// A de produção (`--features producao`) é a mesma lista, só com a porta da Duotone.
+const deProducao = JSON.parse(ler('desktop/capabilities/producao/default.json'));
+assert.deepEqual(deProducao.permissions, capacidade.permissions, 'as duas identidades autorizam os mesmos comandos');
+assert.deepEqual(deProducao.windows, capacidade.windows);
+assert.deepEqual(capacidade.remote.urls, ['http://localhost:18082/*', 'http://localhost:18082'], 'a Preview na porta dela');
+assert.deepEqual(deProducao.remote.urls, ['http://localhost:18081/*', 'http://localhost:18081'], 'a de produção na porta da Duotone');
+const canal = ler('desktop/src/canal.rs');
+assert.match(canal, /cfg\(not\(feature = "producao"\)\)\]\nmod identidade \{\n {4}pub const IDENTIFICADOR: &str = "com\.joao\.duotone\.desktop\.preview";\n {4}pub const PORTA: u16 = 18082;/);
+assert.match(canal, /cfg\(feature = "producao"\)\]\nmod identidade \{\n {4}pub const IDENTIFICADOR: &str = "com\.joao\.duotone\.desktop";\n {4}pub const PORTA: u16 = 18081;/);
+assert.equal(JSON.parse(ler('desktop/tauri.conf.json')).identifier, 'com.joao.duotone.desktop.preview');
+assert.equal(JSON.parse(ler('desktop/tauri.producao.conf.json')).identifier, 'com.joao.duotone.desktop');
 const main = ler('desktop/src/main.rs');
 
 // As chaves de cada objeto exposto (a indentação é a de cada ficheiro).

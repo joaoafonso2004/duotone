@@ -779,6 +779,7 @@ mod testes {
     }
 
     #[test]
+    #[cfg(not(feature = "producao"))]
     fn a_preview_nunca_corre_o_instalador_da_duotone() {
         // O versions.json de hoje (21/11): só a entrada `windows`, a do Electron.
         let hoje = json!({ "apps": { "duotone": { "windows": { "version": "6.1.2", "asset": {
@@ -792,6 +793,20 @@ mod testes {
         let preview = json!({ "apps": { "duotone": { CANAL.entrada: { "version": "0.2.0", "asset": { "url": certo, "size": 9_000_000u64 } } } } });
         assert_eq!(escolher_instalador(&preview, "0.1.0", &CANAL).map(|a| a.versao), Some("0.2.0".into()));
         assert_eq!(nome_do_instalador("0.2.0"), format!("{}-0.2.0.exe", CANAL.instalador.trim_end_matches(".exe")));
+    }
+
+    /// A de produção usa o canal de sempre: a 7.x em Tauri aceita a seguinte
+    /// (`win-v<versão>/Duotone-Setup.exe`) e nunca uma mais velha (o Electron de hoje).
+    #[test]
+    #[cfg(feature = "producao")]
+    fn a_producao_segue_o_canal_de_sempre() {
+        let entrada = |v: &str| json!({ "apps": { "duotone": { "windows": { "version": v, "asset": {
+            "url": format!("https://github.com/joaoafonso2004/duotone/releases/download/win-v{v}/Duotone-Setup.exe"), "size": 9_000_000u64 } } } } });
+        assert_eq!(escolher_instalador(&entrada("6.2.0"), "7.0.0", &CANAL), None, "a ponte em Electron é mais velha");
+        assert_eq!(escolher_instalador(&entrada("7.0.1"), "7.0.0", &CANAL).map(|a| a.versao), Some("7.0.1".into()));
+        let preview = json!({ "apps": { "duotone": { "windowsPreview": { "version": "9.0.0", "asset": {
+            "url": "https://github.com/joaoafonso2004/duotone/releases/download/win-preview-v9.0.0/Duotone-Preview-Setup.exe", "size": 9_000_000u64 } } } } });
+        assert_eq!(escolher_instalador(&preview, "7.0.0", &CANAL), None, "nunca o da Preview");
     }
 
     #[test]
