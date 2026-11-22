@@ -1,0 +1,121 @@
+name: Build Windows Preview (Tauri)
+
+# A Duotone Preview: a casca nova em Tauri (desktop/), com o motor só de áudio.
+# Corre AO LADO da Duotone (Electron) e não a substitui (ver o build-windows.yml).
+#
+#   push para main/Testing   -> instalador da Preview como artefacto, para testar
+#   workflow_dispatch        -> o mesmo, a pedido (em qualquer ramo)
+#
+# NÃO publica nada: nem Release, nem aviso ao portfólio. Um canal de
+# atualizações da Preview (win-preview-v*) só existe se o João o decidir.
+on:
+  workflow_dispatch:
+  push:
+    # Os mesmos ramos do build-windows.yml, para um push dar sempre os dois .exe.
+    branches: [main, Testing]
+
+permissions:
+  contents: read
+
+# Um push novo no mesmo ramo cancela a build antiga, que já não interessa.
+concurrency:
+  group: windows-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # O Rust e a ferramenta do Tauri FIXOS: o with_webview (WebView2) e o modelo do
+  # NSIS (os ganchos em desktop/nsis/ganchos.nsh) podem mudar entre versões.
+  RUST_VERSION: '1.97.1'
+  TAURI_CLI: '@tauri-apps/cli@2.12.6'
+  CARGO_INCREMENTAL: '0'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Rust fixo
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal --component clippy
+          rustup default "$RUST_VERSION"
+          rustc --version
+
+      # O registo do cargo, o target/ e o NSIS que o Tauri descarrega na 1.ª vez.
+      # O instalador da build anterior fica de fora (não se confunde com o novo).
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            ~/AppData/Local/tauri
+            desktop/target
+            !desktop/target/release/bundle
+          key: windows-preview-${{ env.RUST_VERSION }}-${{ hashFiles('desktop/Cargo.lock') }}
+          restore-keys: windows-preview-${{ env.RUST_VERSION }}-
+
+      - name: Instalar dependências
+        run: npm ci --no-audit --no-fund
+
+      - name: Criar .env a partir do secret
+        run: printf '%s' "$ENV_FILE" > .env
+        env:
+          ENV_FILE: ${{ secrets.ENV_FILE }}
+
+      # A app vai DENTRO do .exe (desktop/build.rs embute o desktop/dist-web).
+      # O buildInfo.ts fica como no build-windows.yml (este commit e a versão do
+      # package.json); o export vai direto para desktop/dist-web.
+      - name: Compilar a app web para dentro da casca
+        run: |
+          node scripts/write-build-info.mjs
+          npx expo export --platform web --output-dir desktop/dist-web
+          test -f desktop/dist-web/index.html
+
+      # Os testes da área (o npm test inteiro corre no build-windows.yml). O
+      # cargo test também confere que o dist-web embutido está inteiro.
+      - name: Testes da casca
+        working-directory: desktop
+        run: |
+          cargo clippy --release --all-targets -- -D warnings
+          cargo test --release
+          node ../scripts/test-ponte-tauri.mjs
+
+      - name: Empacotar o instalador
+        working-directory: desktop
+        run: |
+          rm -rf target/release/bundle
+          npx -y "$TAURI_CLI" build
+
+      # O Tauri gera "Duotone Preview_<versão>_x64-setup.exe". O nome fixo é o
+      # que o atualizador da Preview procuraria num release (canal.rs).
+      - name: Normalizar nome do instalador
+        run: |
+          set -euo pipefail
+          PASTA=desktop/target/release/bundle/nsis
+          SRC=$(find "$PASTA" -maxdepth 1 -name "*-setup.exe" | head -1)
+          if [ -z "$SRC" ]; then
+            echo "::error::O Tauri não produziu nenhum instalador."
+            ls -la "$PASTA" || true
+            exit 1
+          fi
+          mv "$SRC" "$PASTA/Duotone-Preview-Setup.exe"
+          ls -lh "$PASTA/Duotone-Preview-Setup.exe"
+          sha256sum "$PASTA/Duotone-Preview-Setup.exe"
+          echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
+
+      - name: Publicar o instalador como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: Duotone-Preview-exe-${{ env.short_sha }}
+          path: desktop/target/release/bundle/nsis/Duotone-Preview-Setup.exe
+          retention-days: 30
