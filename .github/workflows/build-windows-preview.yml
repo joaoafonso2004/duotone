@@ -4,7 +4,8 @@ name: Build Windows Preview (Tauri)
 # Corre AO LADO da Duotone (Electron) e não a substitui (ver o build-windows.yml).
 #
 #   push para main/Testing   -> instalador da Preview como artefacto, para testar
-#   workflow_dispatch        -> o mesmo, a pedido (em qualquer ramo)
+#   workflow_dispatch        -> o mesmo, a pedido (em qualquer ramo, mas o GitHub
+#                               só mostra o botão depois de este ficheiro estar na main)
 #
 # NÃO publica nada: nem Release, nem aviso ao portfólio. Um canal de
 # atualizações da Preview (win-preview-v*) só existe se o João o decidir.
