@@ -150,9 +150,12 @@ export function PainelDoLeitor({ children, more, notify }: Pick<CommonPageProps,
     return () => window.removeEventListener('keydown', aoEscape);
   }, [estado.aberto, fechar]);
   const porCimaAgora = !encostado;
-  // `overflow: clip`, e não `hidden`: um `hidden` ainda se deixa deslizar por
-  // código, e foi isso que empurrou a janela toda para a esquerda.
-  return <div style={{ display: 'flex', flexDirection: 'row', flex: '1 1 0%', minWidth: 0, minHeight: 0, position: 'relative', overflow: 'clip' }}>
+  // `clip`, e não `hidden`: um `hidden` ainda se deixa deslizar por código, e foi
+  // isso que empurrou a janela toda para a esquerda. SÓ nos lados (22/11): a
+  // cortar também em cima, a página do artista não subia para debaixo da barra
+  // da janela (o chapéu do 15/11 continuava cortado; a área da página já deixava
+  // passar, este invólucro não). Por baixo corta a área da página (`conteudo-da-pagina`).
+  return <div style={{ display: 'flex', flexDirection: 'row', flex: '1 1 0%', minWidth: 0, minHeight: 0, position: 'relative', overflowX: 'clip', overflowY: 'visible' }}>
     <div style={{
       display: 'flex', flexDirection: 'column', flex: '1 1 0%', minWidth: 0, minHeight: 0,
       opacity: assentar ? 0.7 : 1, transition: assentar ? 'none' : 'opacity 220ms var(--dt-curva)',

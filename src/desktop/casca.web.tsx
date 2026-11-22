@@ -578,6 +578,16 @@ export function injectDesktopDocumentStyles() {
       background: radial-gradient(220px circle at var(--mx, 50%) var(--my, 50%), rgba(255,255,255,.16), transparent 62%); }
     [data-dt~="brilho"]:hover::after{ opacity: 1; }
 
+    /* A foto e a cor da pagina de um artista, FORA do rolo (22/11, BibliotecaPages.web.tsx):
+       sobem com ele 1 px por 1 px pela linha do tempo do rolo (scroll-timeline), no
+       compositor e sem JavaScript. Nao e movimento automatico: com "menos movimento"
+       continua, senao a foto ficava parada com a pagina a rolar por cima. */
+    [data-dt~="pagina-do-artista"]{ timeline-scope: --rolo-do-artista; }
+    [data-dt~="pagina-do-artista"] [data-dt~="rolo-da-pagina"]{ scroll-timeline: --rolo-do-artista y; }
+    [data-dt~="fundo-do-artista"]{ animation: dt-fundo-do-artista linear both; animation-timeline: --rolo-do-artista;
+      animation-range: 0px var(--dt-altura-do-fundo); }
+    @keyframes dt-fundo-do-artista{ to{ transform: translateY(calc(-1 * var(--dt-altura-do-fundo))); } }
+
     /* O vinil por tras do retrato de um artista (30/10, passo 4, desktop/RetratosDosArtistas.web.tsx):
        sai para o lado e roda devagar com o rato no cartao. So transform, e
        so um por cartao. */

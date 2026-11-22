@@ -89,9 +89,30 @@ caso('a foto do artista vai até ao topo da janela, por baixo da barra (15/11)',
   assert.match(estilo('titleBar'), /height: ALTURA_DA_BARRA_DA_JANELA/, 'a barra e a subida são a mesma medida');
   // Só a página do artista sobe; o cabeçalho cresce o mesmo, e o voltar desce o mesmo.
   const artista = ler('src/desktop/paginas/BibliotecaPages.web.tsx');
-  assert.match(artista, /<View style=\{\{ flex: 1, minWidth: 0, marginTop: -ALTURA_DA_BARRA_DA_JANELA \}\}>/);
+  assert.match(artista, /<View \{\.\.\.marcar\('pagina-do-artista'\)\} style=\{\{ flex: 1, minWidth: 0, marginTop: -ALTURA_DA_BARRA_DA_JANELA \}\}>/);
+  // E nada entre a página e a barra a cortá-la em cima (22/11): o invólucro do painel cortava.
+  assert.match(ler('src/desktop/PainelDoLeitor.web.tsx'), /overflowX: 'clip', overflowY: 'visible'/, 'o invólucro do painel voltou a cortar em cima');
   assert.match(artista, /heroi: \{ height: ALTURA_DO_HEROI \+ ALTURA_DA_BARRA_DA_JANELA,/);
   assert.match(artista, /voltar: \{ position: 'absolute', top: ESP\.xl \+ ALTURA_DA_BARRA_DA_JANELA,/);
+});
+
+caso('a foto e a cor do artista vão até à direita, por baixo da calha da barra de rolar (22/11)', () => {
+  const artista = ler('src/desktop/paginas/BibliotecaPages.web.tsx').replace(/\r\n/g, '\n');
+  // Fora do rolo, na largura da página inteira, e antes dele (por trás).
+  const fundo = artista.indexOf('<div data-dt="fundo-do-artista"');
+  const rolo = artista.indexOf('<ContentScroll scrollKey={`artist:');
+  assert.ok(fundo > 0 && rolo > fundo, 'a camada de trás está fora do rolo e antes dele');
+  assert.match(artista, /<div data-dt="fundo-do-artista" aria-hidden style=\{\{ position: 'absolute', top: 0, left: 0, right: 0, height: ALTURA_DO_FUNDO,/);
+  assert.match(artista, /\{fotoDoHeroi \? <div style=\{\{ \.\.\.FOTO_DO_HEROI, height: ALTURA_DO_HEROI \+ ALTURA_DA_BARRA_DA_JANELA \}\}>/);
+  assert.ok(!/artistStyles\.tom\b/.test(artista), 'a cor voltou para dentro do rolo');
+  // Sobe com o rolo pela linha do tempo dele, 1 px por 1 px.
+  assert.match(casca, /\[data-dt~="pagina-do-artista"\]\{ timeline-scope: --rolo-do-artista; \}/);
+  assert.match(casca, /\[data-dt~="pagina-do-artista"\] \[data-dt~="rolo-da-pagina"\]\{ scroll-timeline: --rolo-do-artista y; \}/);
+  assert.match(casca, /animation-timeline: --rolo-do-artista;\s*animation-range: 0px var\(--dt-altura-do-fundo\);/);
+  assert.match(casca, /@keyframes dt-fundo-do-artista\{ to\{ transform: translateY\(calc\(-1 \* var\(--dt-altura-do-fundo\)\)\); \} \}/);
+  // O último lançamento cabe na coluna.
+  assert.match(artista, /alignSelf: 'stretch', minWidth: 0, maxWidth: '100%',/);
+  assert.ok(!/minWidth: 320, maxWidth: 520/.test(artista), 'o cartão voltou a poder passar da coluna');
 });
 
 if (falhas) { console.error(`\n${falhas} caso(s) falharam.`); process.exit(1); }

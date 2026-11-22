@@ -1033,16 +1033,23 @@ export function ArtistPage({ name, back, corNaJanela = false, ...props }: { name
         janela, e o cabeçalho cresce o mesmo para o nome e os botões ficarem onde
         estavam. A área da página deixa passar isto por cima (casca.web.tsx,
         `conteudo-da-pagina`). */}
-    <View style={{ flex: 1, minWidth: 0, marginTop: -ALTURA_DA_BARRA_DA_JANELA }}>
+    <View {...marcar('pagina-do-artista')} style={{ flex: 1, minWidth: 0, marginTop: -ALTURA_DA_BARRA_DA_JANELA }}>
+      {/* A foto e a cor FORA do rolo (22/11, o João: "a imagem do artista não chega até
+          à direita"): dentro dele paravam na calha da barra de rolar (~12 px), que
+          continua a existir, transparente, para se poder arrastar. Por trás do rolo e da
+          largura da página inteira; sobem com ele 1 px por 1 px (a linha do tempo do rolo,
+          `pagina-do-artista` / `fundo-do-artista` na casca), sem JavaScript por fotograma. */}
+      <div data-dt="fundo-do-artista" aria-hidden style={{ position: 'absolute', top: 0, left: 0, right: 0, height: ALTURA_DO_FUNDO, pointerEvents: 'none', ['--dt-altura-do-fundo' as any]: `${ALTURA_DO_FUNDO}px` }}>
+        {cor ? <div style={{ position: 'absolute', inset: 0, backgroundImage: tomDoArtista(cor) }} /> : null}
+        {/* Um `<img>` a sério, sem Referer (as do canal davam 429 com ele, ver
+            `CapaSemReferer`), desfeito para a esquerda e para baixo. */}
+        {fotoDoHeroi ? <div style={{ ...FOTO_DO_HEROI, height: ALTURA_DO_HEROI + ALTURA_DA_BARRA_DA_JANELA }}>
+          <img src={fotoDoHeroi} alt="" referrerPolicy="no-referrer" decoding="async" draggable={false}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: '50% 20%', display: 'block' }} />
+        </div> : null}
+      </div>
       <ContentScroll scrollKey={`artist:${chaveDeArtista(name)}`}>
-        {cor ? <View pointerEvents="none" style={[artistStyles.tom, { backgroundImage: tomDoArtista(cor) } as any]} /> : null}
         <View style={artistStyles.heroi}>
-          {/* Um `<img>` a sério, sem Referer (as do canal davam 429 com ele, ver
-              `CapaSemReferer`), desfeito para a esquerda e para baixo. */}
-          {fotoDoHeroi ? <div style={FOTO_DO_HEROI}>
-            <img src={fotoDoHeroi} alt="" referrerPolicy="no-referrer" decoding="async" draggable={false}
-              style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: '50% 20%', display: 'block' }} />
-          </div> : null}
           <View style={artistStyles.voltar}><BotaoVoltar onPress={back} /></View>
           <View style={artistStyles.heroiBaixo}>
             <Text style={styles.detailHeroEyebrow}>ARTIST</Text>
@@ -1298,7 +1305,8 @@ const LADO_DO_DISCO = 158;
 /** A foto do cabeçalho: à direita, a desfazer-se para a esquerda e para baixo (máscara do CSS). */
 const MASCARA_DO_HEROI = 'linear-gradient(90deg, transparent 0%, #000 45%), linear-gradient(0deg, transparent 0%, #000 42%)';
 const FOTO_DO_HEROI: React.CSSProperties = {
-  position: 'absolute', top: 0, right: 0, bottom: 0, width: '62%', pointerEvents: 'none', viewTransitionName: NOME_DO_RETRATO,
+  // A altura (a do cabeçalho) põe-se onde se usa: a constante é declarada mais abaixo.
+  position: 'absolute', top: 0, right: 0, width: '62%', pointerEvents: 'none', viewTransitionName: NOME_DO_RETRATO,
   WebkitMaskImage: MASCARA_DO_HEROI, WebkitMaskComposite: 'source-in', maskImage: MASCARA_DO_HEROI, maskComposite: 'intersect',
 } as any;
 
@@ -1308,6 +1316,8 @@ function tomDoArtista(cor: string): string {
   return `linear-gradient(180deg, ${d.cores.map((c, k) => `${c} ${Math.round(d.paragens[k] * 100)}%`).join(', ')})`;
 }
 const ALTURA_DO_HEROI = 400;
+/** A camada de trás (a cor que se apaga e a foto): a altura da cor, que vai além do cabeçalho. */
+const ALTURA_DO_FUNDO = ALTURA_DO_HEROI + 520;
 
 // A imagem de um artista na grelha dos Artists (23/10: a foto do catálogo, a
 // MESMA da página dele; sem ela, a capa da primeira música dele) passou a ser o
@@ -1344,7 +1354,6 @@ const artistStyles = StyleSheet.create({
   // de ponta a ponta da página (a margem do `ContentScroll` é anulada).
   // Um absoluto mede-se pela caixa COM a margem do `ContentScroll`: 0 e 0 já é de ponta a ponta
   // (com -48 a página ficava 48 px mais larga e fugia para o lado ao focar o filtro).
-  tom: { position: 'absolute', top: 0, left: 0, right: 0, height: ALTURA_DO_HEROI + 520 } as any,
   heroi: { height: ALTURA_DO_HEROI + ALTURA_DA_BARRA_DA_JANELA, marginHorizontal: -ESP.xxxl, marginBottom: ESP.lg, overflow: 'hidden' },
   voltar: { position: 'absolute', top: ESP.xl + ALTURA_DA_BARRA_DA_JANELA, left: ESP.xxxl },
   heroiBaixo: { position: 'absolute', left: ESP.xxxl, right: ESP.xxxl, bottom: ESP.xl },
@@ -1380,7 +1389,9 @@ const artistStyles = StyleSheet.create({
   parecidoFoto: { width: 84, height: 84, borderRadius: 42, backgroundColor: COR.elevado },
   parecidoNome: { ...TIPO.legenda, color: COR.textoMedio, textAlign: 'center', alignSelf: 'stretch' },
   ultimo: {
-    flexDirection: 'row', alignItems: 'center', gap: ESP.lg, alignSelf: 'flex-start', minWidth: 320, maxWidth: 520,
+    // A largura da coluna (330) e não mais (22/11): com 320 a 520 px, um título comprido
+    // esticava o cartão para lá da coluna, que o cortava (sem o fim nem a borda).
+    flexDirection: 'row', alignItems: 'center', gap: ESP.lg, alignSelf: 'stretch', minWidth: 0, maxWidth: '100%',
     padding: ESP.md, paddingRight: ESP.lg, marginBottom: ESP.xl, borderRadius: RAIO.superficie,
     borderWidth: 1, borderColor: COR.linhaSuave, backgroundColor: 'rgba(255,255,255,0.03)',
   },

@@ -164,7 +164,8 @@ assert.match(painel, /transform: `translateX\(\$\{noSitio \? 0 : 100\}%\)`/, 'o 
 assert.match(casca, /<View style=\{styles\.dragRegion as any\} \/>\s*\{comPainel \? <SetaDoPainel \/> : null\}/, 'a seta na barra de título, e só com a app aberta (não no login)');
 // Desde 9/11 a barra de título é só a faixa por cima da página, sem a marca (está no topo da lateral).
 assert.match(fs.readFileSync(require('node:path').join(__dirname, '../src/navigation/RootNavigator.web.tsx'), 'utf8'), /<TitleBar comPainel semMarca \/>/);
-assert.match(painel, /overflow: 'clip'/, 'a janela não se deixa deslizar pelo foco');
+// Só nos lados (22/11): em cima deixa a página do artista subir para debaixo da barra da janela.
+assert.match(painel, /overflowX: 'clip', overflowY: 'visible'/, 'a janela não se deixa deslizar pelo foco, e o topo não corta');
 assert.match(painel, /focus\?\.\(\{ preventScroll: true \}\)/, 'o foco não desliza nada');
 assert.doesNotMatch(painel, /position: 'absolute', right: 16, top: 12/, 'a seta já não flutua por cima das páginas');
 
