@@ -283,6 +283,8 @@ export function GlitchArtwork({ uri, lado, modo, intensidade, raio = RAIO.superf
       {comCanvas && <canvas
         key={`${efetivo}|${intensidade}|${uri}|${lado}`}
         ref={canvasRef}
+        // A cópia da capa que voa para o Now Playing deixa este de fora (vooDaCapa.web.ts).
+        data-efeito="webgl"
         style={{ position: 'absolute', left: 0, top: 0, width: lado, height: lado, display: 'block' }}
         aria-hidden="true"
       />}

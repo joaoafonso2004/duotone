@@ -74,7 +74,12 @@ export function copiaDaCapa(capa: HTMLElement, r: DOMRect): HTMLDivElement {
   const daqui = capa.querySelectorAll('canvas');
   copia.querySelectorAll('canvas').forEach((tela, i) => {
     const original = daqui[i];
-    if (!original) return;
+    // O canvas do efeito é WebGL e, no modo reativo, não guarda o quadro
+    // (`preserveDrawingBuffer` desligado): lido fora do desenho vem PRETO, e tapava a
+    // capa a voar nos dois sentidos (23/11, o João: "a capa vem preta e só depois
+    // aparece"). Sai da cópia: por baixo dele está a imagem da capa, que é o que o
+    // efeito mostra em repouso. As arestas vivas são 2D e guardam o quadro.
+    if (!original || original.matches('[data-efeito="webgl"]')) { tela.remove(); return; }
     tela.width = original.width;
     tela.height = original.height;
     try { tela.getContext('2d')?.drawImage(original, 0, 0); } catch { /* sem o desenho, fica a imagem por baixo */ }

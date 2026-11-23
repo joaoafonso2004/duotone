@@ -389,6 +389,9 @@ caso('com a "3D cover" voa a caixa inteira, já em 3D, e aterra igual à verdade
   assert.match(voo, /copia\.querySelectorAll\('\[id\]'\)\.forEach\(\(n\) => n\.removeAttribute\('id'\)\);/, 'sem ids repetidos');
   assert.match(voo, /filter\(\(n\) => n && n !== ID_DA_CAPA_NO_LEITOR\)/, 'sem a marca que a esconderia');
   assert.match(voo, /tela\.getContext\('2d'\)\?\.drawImage\(original, 0, 0\)/, 'os canvases levam o que têm desenhado');
+  // Menos o do efeito (WebGL, sem o quadro guardado): lido de fora vinha preto e tapava a capa.
+  assert.match(voo, /if \(!original \|\| original\.matches\('\[data-efeito="webgl"\]'\)\) \{ tela\.remove\(\); return; \}/, 'a cópia levava o canvas do efeito, preto');
+  assert.match(emLf('src/desktop/glitch/GlitchArtwork.web.tsx'), /ref=\{canvasRef\}\n(?:\s*\/\/.*\n)?\s*data-efeito="webgl"/, 'o canvas do efeito tem a marca');
   // Voa com uma transformação plana (a caixa lá dentro guarda a perspetiva dela).
   assert.match(voo, /return `translate\(\$\{dx\.toFixed\(2\)\}px, \$\{dy\.toFixed\(2\)\}px\) scale\(/);
   assert.match(voo, /anim = copia\.animate\(\[\{ transform: deslocarAte\(de, alvo\.r\) \}, \{ transform: 'none' \}\]/);
