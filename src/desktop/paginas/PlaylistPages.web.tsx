@@ -124,7 +124,7 @@ function AuraDaPlaylist({ capa }: { capa: string | null }) {
 function LavagemDaPlaylist({ capa }: { capa: string | null }) {
   const cor = useCorDoAmbiente(capaParaLista(capa));
   if (!cor) return null;
-  return <View {...marcar('lavagem-da-playlist')} pointerEvents="none" aria-hidden style={[styles.lavagemDaPlaylist,
+  return <View {...marcar('lavagem-da-playlist', 'fundo-da-pagina')} pointerEvents="none" aria-hidden style={[styles.lavagemDaPlaylist,
     // O raio vertical é a altura da caixa e a cor acaba aos 75 %: desfaz-se antes do
     // fundo dela (com os 160 % da maquete, a caixa cortava-a numa linha reta).
     { backgroundImage: `radial-gradient(110% 100% at 15% 0%, color-mix(in oklab, ${cor} 48%, transparent), transparent 75%)` }]} />;

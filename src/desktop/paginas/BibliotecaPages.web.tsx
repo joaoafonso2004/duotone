@@ -1039,7 +1039,7 @@ export function ArtistPage({ name, back, corNaJanela = false, ...props }: { name
           continua a existir, transparente, para se poder arrastar. Por trás do rolo e da
           largura da página inteira; sobem com ele 1 px por 1 px (a linha do tempo do rolo,
           `pagina-do-artista` / `fundo-do-artista` na casca), sem JavaScript por fotograma. */}
-      <div data-dt="fundo-do-artista" aria-hidden style={{ position: 'absolute', top: 0, left: 0, right: 0, height: ALTURA_DO_FUNDO, pointerEvents: 'none', ['--dt-altura-do-fundo' as any]: `${ALTURA_DO_FUNDO}px` }}>
+      <div data-dt="fundo-do-artista fundo-da-pagina" aria-hidden style={{ position: 'absolute', top: 0, left: 0, right: 0, height: ALTURA_DO_FUNDO, pointerEvents: 'none', ['--dt-altura-do-fundo' as any]: `${ALTURA_DO_FUNDO}px` }}>
         {cor ? <div style={{ position: 'absolute', inset: 0, backgroundImage: tomDoArtista(cor) }} /> : null}
         {/* Um `<img>` a sério, sem Referer (as do canal davam 429 com ele, ver
             `CapaSemReferer`), desfeito para a esquerda e para baixo. */}
@@ -1305,10 +1305,12 @@ const LINHAS_SEM_FILTRO = 12;
 const LADO_DO_DISCO = 158;
 
 /** A foto do cabeçalho: à direita, a desfazer-se para a esquerda e para baixo (máscara do CSS). */
-const MASCARA_DO_HEROI = 'linear-gradient(90deg, transparent 0%, #000 45%), linear-gradient(0deg, transparent 0%, #000 42%)';
+// Com o painel encostado (23/11) a cor passa por trás dele, e a foto fica na página e
+// desfaz-se também pela direita, para dentro da cor (sem uma borda reta junto ao painel).
+const MASCARA_DO_HEROI = 'linear-gradient(90deg, transparent 0%, #000 45%, #000 calc(100% - min(96px, var(--dt-painel-encostado, 0px))), transparent 100%), linear-gradient(0deg, transparent 0%, #000 42%)';
 const FOTO_DO_HEROI: React.CSSProperties = {
   // A altura (a do cabeçalho) põe-se onde se usa: a constante é declarada mais abaixo.
-  position: 'absolute', top: 0, right: 0, width: '62%', pointerEvents: 'none', viewTransitionName: NOME_DO_RETRATO,
+  position: 'absolute', top: 0, right: 'var(--dt-painel-encostado, 0px)', width: 'calc((100% - var(--dt-painel-encostado, 0px)) * 0.62)', pointerEvents: 'none', viewTransitionName: NOME_DO_RETRATO,
   WebkitMaskImage: MASCARA_DO_HEROI, WebkitMaskComposite: 'source-in', maskImage: MASCARA_DO_HEROI, maskComposite: 'intersect',
 } as any;
 

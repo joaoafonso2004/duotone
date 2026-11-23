@@ -245,7 +245,7 @@ export function Page({ title, subtitle, eyebrow, action, lavagem, children }: {
   // desaparecer pelo topo (preview de 20/9). O conteúdo ganha o espaço.
   const [rolado, setRolado] = useState(false);
   return <View style={ui.page}>
-    {lavagem ? <View {...marcar('lavagem')} pointerEvents="none" aria-hidden style={[ui.lavagem, { backgroundImage: `linear-gradient(180deg, ${lavagem}, rgba(6,6,8,0))` } as any]} /> : null}
+    {lavagem ? <View {...marcar('lavagem', 'fundo-da-pagina')} pointerEvents="none" aria-hidden style={[ui.lavagem, { backgroundImage: `linear-gradient(180deg, ${lavagem}, rgba(6,6,8,0))` } as any]} /> : null}
     {/* O cabeçalho entra por blocos, como as prateleiras (30/10). */}
     <View {...marcar('bloco')} style={[ui.pageHeader, rolado && ui.pageHeaderCurto]}>
       <View style={{ flex: 1 }}>

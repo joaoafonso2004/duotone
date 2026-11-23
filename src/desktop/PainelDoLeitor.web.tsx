@@ -155,7 +155,12 @@ export function PainelDoLeitor({ children, more, notify }: Pick<CommonPageProps,
   // cortar também em cima, a página do artista não subia para debaixo da barra
   // da janela (o chapéu do 15/11 continuava cortado; a área da página já deixava
   // passar, este invólucro não). Por baixo corta a área da página (`conteudo-da-pagina`).
-  return <div style={{ display: 'flex', flexDirection: 'row', flex: '1 1 0%', minWidth: 0, minHeight: 0, position: 'relative', overflowX: 'clip', overflowY: 'visible' }}>
+  // O fundo da página passa por trás do painel encostado (23/11, o João: "a barra lateral
+  // não está a absorver a cor do resto da página"): o painel é transparente, e as camadas
+  // `fundo-da-pagina` (a cor do artista, a lavagem da playlist e a das Liked Songs) esticam
+  // para a direita esta largura (casca.web.tsx). Por cima da página não: aí leva fundo.
+  return <div style={{ display: 'flex', flexDirection: 'row', flex: '1 1 0%', minWidth: 0, minHeight: 0, position: 'relative', overflowX: 'clip', overflowY: 'visible',
+    ['--dt-painel-encostado' as any]: encostado ? 'var(--dt-painel, 340px)' : '0px' }}>
     <div style={{
       display: 'flex', flexDirection: 'column', flex: '1 1 0%', minWidth: 0, minHeight: 0,
       opacity: assentar ? 0.7 : 1, transition: assentar ? 'none' : 'opacity 220ms var(--dt-curva)',

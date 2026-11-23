@@ -70,7 +70,7 @@ caso('a página desvanece antes do leitor, e a barra de rolar só aparece com o 
 });
 
 caso('as lavagens da página desfazem-se nos lados e em cima (a borda reta lia-se como um fio)', () => {
-  assert.match(ui, /<View \{\.\.\.marcar\('lavagem'\)\} pointerEvents="none" aria-hidden style=\{\[ui\.lavagem,/);
+  assert.match(ui, /<View \{\.\.\.marcar\('lavagem', 'fundo-da-pagina'\)\} pointerEvents="none" aria-hidden style=\{\[ui\.lavagem,/);
   assert.match(casca, /\[data-dt~="lavagem"\], \[data-dt~="lavagem-da-playlist"\]\{\n\s+-webkit-mask-image: linear-gradient\(90deg, transparent, #000 160px, #000 calc\(100% - 160px\), transparent\), linear-gradient\(180deg, transparent, #000 56px\);/);
   assert.match(casca, /mask-composite: intersect;/);
 });
@@ -85,7 +85,8 @@ caso('a foto do artista vai até ao topo da janela, por baixo da barra (15/11)',
   // A área da página corta pelos lados e por baixo, e deixa passar a altura da barra por cima.
   assert.match(estilos, /\bcontent: \{ flex: 1, minWidth: 0, minHeight: 0 \}/, 'a área da página já não corta os quatro lados');
   assert.match(navegador, /<View style=\{styles\.content\} \{\.\.\.marcar\('conteudo-da-pagina'\)\}>/);
-  assert.match(casca, /\[data-dt~="conteudo-da-pagina"\]\{ clip-path: inset\(-\$\{ALTURA_DA_BARRA_DA_JANELA\}px 0 0 0\); \}/);
+  // E pela direita a largura do painel encostado (23/11): o fundo da página passa por trás dele.
+  assert.match(casca, /\[data-dt~="conteudo-da-pagina"\]\{ clip-path: inset\(-\$\{ALTURA_DA_BARRA_DA_JANELA\}px calc\(-1 \* var\(--dt-painel-encostado, 0px\)\) 0 0\); \}/);
   assert.match(estilo('titleBar'), /height: ALTURA_DA_BARRA_DA_JANELA/, 'a barra e a subida são a mesma medida');
   // Só a página do artista sobe; o cabeçalho cresce o mesmo, e o voltar desce o mesmo.
   const artista = ler('src/desktop/paginas/BibliotecaPages.web.tsx');
@@ -96,13 +97,27 @@ caso('a foto do artista vai até ao topo da janela, por baixo da barra (15/11)',
   assert.match(artista, /voltar: \{ position: 'absolute', top: ESP\.xl \+ ALTURA_DA_BARRA_DA_JANELA,/);
 });
 
+caso('o fundo da página passa por trás do painel encostado (23/11, "a barra lateral não está a absorver a cor")', () => {
+  const painel = ler('src/desktop/PainelDoLeitor.web.tsx');
+  // O painel diz a largura dele só quando está encostado; por cima da página, 0 (e leva fundo).
+  assert.match(painel, /\['--dt-painel-encostado' as any\]: encostado \? 'var\(--dt-painel, 340px\)' : '0px'/);
+  assert.match(painel, /backgroundColor: porCimaAgora \? FUNDO_POR_CIMA : 'transparent'/, 'encostado é transparente');
+  // Só as camadas marcadas esticam por trás dele.
+  assert.match(casca, /\[data-dt~="fundo-da-pagina"\]\{ right: calc\(-1 \* var\(--dt-painel-encostado, 0px\)\) !important; \}/);
+  const artista = ler('src/desktop/paginas/BibliotecaPages.web.tsx');
+  assert.match(ler('src/desktop/paginas/PlaylistPages.web.tsx'), /marcar\('lavagem-da-playlist', 'fundo-da-pagina'\)/);
+  // A foto fica na página e desfaz-se pela direita para dentro da cor, sem borda reta junto ao painel.
+  assert.match(artista, /right: 'var\(--dt-painel-encostado, 0px\)', width: 'calc\(\(100% - var\(--dt-painel-encostado, 0px\)\) \* 0\.62\)'/);
+  assert.match(artista, /#000 calc\(100% - min\(96px, var\(--dt-painel-encostado, 0px\)\)\), transparent 100%\)/);
+});
+
 caso('a foto e a cor do artista vão até à direita, por baixo da calha da barra de rolar (22/11)', () => {
   const artista = ler('src/desktop/paginas/BibliotecaPages.web.tsx').replace(/\r\n/g, '\n');
   // Fora do rolo, na largura da página inteira, e antes dele (por trás).
-  const fundo = artista.indexOf('<div data-dt="fundo-do-artista"');
+  const fundo = artista.indexOf('<div data-dt="fundo-do-artista fundo-da-pagina"');
   const rolo = artista.indexOf('<ContentScroll scrollKey={`artist:');
   assert.ok(fundo > 0 && rolo > fundo, 'a camada de trás está fora do rolo e antes dele');
-  assert.match(artista, /<div data-dt="fundo-do-artista" aria-hidden style=\{\{ position: 'absolute', top: 0, left: 0, right: 0, height: ALTURA_DO_FUNDO,/);
+  assert.match(artista, /<div data-dt="fundo-do-artista fundo-da-pagina" aria-hidden style=\{\{ position: 'absolute', top: 0, left: 0, right: 0, height: ALTURA_DO_FUNDO,/);
   assert.match(artista, /\{fotoDoHeroi \? <div style=\{\{ \.\.\.FOTO_DO_HEROI, height: ALTURA_DO_HEROI \+ ALTURA_DA_BARRA_DA_JANELA \}\}>/);
   assert.ok(!/artistStyles\.tom\b/.test(artista), 'a cor voltou para dentro do rolo');
   // Sobe com o rolo pela linha do tempo dele, 1 px por 1 px.

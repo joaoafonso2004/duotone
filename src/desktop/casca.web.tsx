@@ -109,7 +109,12 @@ export function injectDesktopDocumentStyles() {
        ${ALTURA_DA_BARRA_DA_JANELA} px por cima (15/11): é por onde a página do artista sobe
        para debaixo da barra da janela, com a foto até ao limite (o João: "o
        chapéu fica cortado"). Era um overflow: hidden, que cortava os quatro lados. */
-    [data-dt~="conteudo-da-pagina"]{ clip-path: inset(-${ALTURA_DA_BARRA_DA_JANELA}px 0 0 0); }
+    [data-dt~="conteudo-da-pagina"]{ clip-path: inset(-${ALTURA_DA_BARRA_DA_JANELA}px calc(-1 * var(--dt-painel-encostado, 0px)) 0 0); }
+    /* E pela direita, a largura do painel encostado (23/11, PainelDoLeitor.web.tsx): o
+       fundo da página (a cor do artista, a lavagem da playlist e a das Liked Songs) passa
+       por trás dele, que é transparente. Só as camadas marcadas esticam; o resto da página
+       acaba onde o painel começa. */
+    [data-dt~="fundo-da-pagina"]{ right: calc(-1 * var(--dt-painel-encostado, 0px)) !important; }
     /* O anel do foco do teclado, no metal. Era [data-focusable="true"], que o
        react-native-web 0.21 ja nao escreve: a regra nao apanhava nada e via-se
        o anel do browser (medido a 20/10 na pagina de ensaio). Os sliders tem o
