@@ -8,6 +8,9 @@ New
 
 Improved
 - The colour of artist, playlist and Liked Songs pages now carries on behind the queue and lyrics panel, instead of stopping at its edge.
+- The queue and lyrics panel opens with the page making room in the same movement, and closes without a flash.
+- Opening Now Playing, the cover flies up from the player bar to its place (turning into the 3D cover if you use it), and the rest follows it in. Closing sends it back.
+- The player bar slides up when music starts, song titles slide when you skip, and closing the player slides it down.
 
 Fixed
 - The artist photo goes all the way to the top and to the right edge, and the latest release card no longer gets cut off.
