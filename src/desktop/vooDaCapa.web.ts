@@ -1,6 +1,7 @@
 import { curvaDoPc } from '../lib/molasEmCss';
 import { menosMovimentoAgora } from '../hooks/useReducedMotion';
 import { RAIO } from './tokens.web';
+import { POSE_DO_METAL, meioDaCaixa, perspetivaDaCaixa, transformDaCaixa } from '../lib/capaMetal3D';
 
 /**
  * A capa que voa da barra do leitor para o Now Playing, e de volta (23/11, a maquete
@@ -18,6 +19,10 @@ import { RAIO } from './tokens.web';
  * A capa do leitor só tem o tamanho certo depois de ele medir a área (o `onLayout`
  * corre no fotograma a seguir a montar): a cópia espera até a caixa ficar igual dois
  * fotogramas seguidos. Sem capa à vista (o Cinema, a letra grande) não voa nada.
+ *
+ * Com a "3D cover" (23/11, o João: "consegues fazer com que passe de 3D para 2D de
+ * maneira smooth?") a cópia não aterra plana: vai rodando até à pose da caixa
+ * (`transformDaCaixa`, a mesma do motor), e a fechar endireita-se a caminho da barra.
  */
 
 /** O invólucro da capa na barra do leitor (`CapaDaBarra`, casca.web.tsx). */
@@ -30,9 +35,12 @@ const DURACAO_A_ABRIR = 560;
 const DURACAO_A_FECHAR = 420;
 /** A fechar, a capa trava no sítio dela na barra, sem passar dele. */
 const CURVA_A_FECHAR = () => curvaDoPc('travar');
-/** Os cantos da capa na barra (`CapaDaBarra`) e no leitor (a caixa da capa). */
+/** Os cantos da capa na barra (`CapaDaBarra`), no leitor (a caixa da capa) e na face da caixa 3D (`m3-face`). */
 const RAIO_NA_BARRA = RAIO.ctrl;
 const RAIO_NO_LEITOR = RAIO.superficie;
+const RAIO_DA_FACE_3D = 2;
+const SOMBRA = '0 24px 60px rgba(0,0,0,.45)';
+const SEM_SOMBRA = '0 0 0 rgba(0,0,0,0)';
 const MAX_FOTOGRAMAS_A_ESPERAR = 12;
 
 let cancelarAtual: (() => void) | null = null;
@@ -61,13 +69,38 @@ function copiaEm(r: DOMRect, imagens: (string | null)[], raio: number): HTMLDivE
   const fundos = imagens.filter((i): i is string => !!i).map((i) => `url("${i.replace(/"/g, '%22')}")`);
   Object.assign(copia.style, {
     position: 'fixed', left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`,
-    zIndex: '2147483000', pointerEvents: 'none', transformOrigin: '0 0', willChange: 'transform',
+    zIndex: '2147483000', pointerEvents: 'none', transformOrigin: '50% 50%', willChange: 'transform',
     backgroundColor: '#14141A', backgroundImage: fundos.join(', '), backgroundSize: 'cover', backgroundPosition: 'center',
-    borderRadius: `${raio}px`, boxShadow: '0 24px 60px rgba(0,0,0,.45)',
+    borderRadius: `${raio}px`, boxShadow: SOMBRA,
   } as Partial<CSSStyleDeclaration>);
   document.body.appendChild(copia);
   return copia;
 }
+
+/**
+ * As duas pontas do voo, para a cópia posta no sítio do leitor (`leitor`): `barra` é
+ * plana, encolhida até à capa da barra; `chegada` é plana no sítio, ou a pose da caixa
+ * 3D. As duas com a MESMA lista de funções, para o navegador interpolar função a função
+ * (a rodar) e não decompor matrizes. A perspetiva é a do palco da caixa; plana, sem
+ * nada rodado nem afastado, não muda nada.
+ */
+export function pontasDoVoo(barra: DOMRect, leitor: DOMRect, tres: boolean): { barra: string; chegada: string } {
+  const dx = barra.left + barra.width / 2 - (leitor.left + leitor.width / 2);
+  const dy = barra.top + barra.height / 2 - (leitor.top + leitor.height / 2);
+  const lado = leitor.width;
+  const p = `perspective(${perspetivaDaCaixa(lado)}px)`;
+  const plana = (x: number, y: number, s: number) =>
+    `${p} translate3d(${x.toFixed(2)}px,${y.toFixed(2)}px,0) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(${s.toFixed(4)}) rotateY(0deg) translateZ(0px)`;
+  return {
+    barra: plana(dx, dy, barra.width / lado),
+    chegada: tres
+      ? `${p} ${transformDaCaixa(lado, POSE_DO_METAL.rotateX, POSE_DO_METAL.rotateY, 0)} translateZ(${meioDaCaixa(lado).toFixed(2)}px)`
+      : plana(0, 0, 1),
+  };
+}
+
+/** A capa do leitor é a caixa 3D ("3D cover" nas Definições)? */
+const e3D = (el: HTMLElement) => !!el.querySelector('[data-dt~="m3-caixa"]');
 
 const iguais = (a: DOMRect, b: DOMRect) =>
   Math.abs(a.left - b.left) < 0.5 && Math.abs(a.top - b.top) < 0.5 && Math.abs(a.width - b.width) < 0.5 && Math.abs(a.height - b.height) < 0.5;
@@ -100,12 +133,15 @@ export function voarParaOLeitor(): void {
   const partir = (alvo: { el: HTMLElement; r: DOMRect }) => {
     const de = caixaDe(ID_DA_CAPA_NA_BARRA)?.r ?? naBarra.r;
     const para = alvo.r;
+    const tres = e3D(alvo.el);
+    const pontas = pontasDoVoo(de, para, tres);
+    const escala = de.width / para.width;
     // A grande por cima da pequena: se ainda não carregou, vê-se a da barra.
     copia = copiaEm(para, [imagemDe(alvo.el), imagemDe(naBarra.el)], RAIO_NO_LEITOR);
-    const escala = de.width / para.width;
+    // Na caixa 3D a sombra é a do chão (aparece com ela); plana, a da cópia.
     anim = copia.animate([
-      { transform: `translate(${de.left - para.left}px, ${de.top - para.top}px) scale(${escala})`, borderRadius: `${RAIO_NA_BARRA / escala}px`, boxShadow: '0 0 0 rgba(0,0,0,0)' },
-      { transform: 'none', borderRadius: `${RAIO_NO_LEITOR}px`, boxShadow: '0 24px 60px rgba(0,0,0,.45)' },
+      { transform: pontas.barra, borderRadius: `${RAIO_NA_BARRA / escala}px`, boxShadow: SEM_SOMBRA },
+      { transform: pontas.chegada, borderRadius: `${tres ? RAIO_DA_FACE_3D : RAIO_NO_LEITOR}px`, boxShadow: tres ? SEM_SOMBRA : SOMBRA },
     ], { duration: DURACAO_A_ABRIR, easing: curvaDoPc('entrada'), fill: 'both' });
     anim.onfinish = () => {
       if (cancelado || !copia) return;
@@ -127,12 +163,14 @@ export function voarParaABarra(): void {
   if (!noLeitor || !naBarra) return;
   const raiz = document.documentElement;
   raiz.setAttribute(A_VOAR, '');
-  const de = noLeitor.r, para = naBarra.r;
-  const copia = copiaEm(de, [imagemDe(noLeitor.el), imagemDe(naBarra.el)], RAIO_NO_LEITOR);
-  const escala = para.width / de.width;
+  const tres = e3D(noLeitor.el);
+  const pontas = pontasDoVoo(naBarra.r, noLeitor.r, tres);
+  const escala = naBarra.r.width / noLeitor.r.width;
+  const copia = copiaEm(noLeitor.r, [imagemDe(noLeitor.el), imagemDe(naBarra.el)], RAIO_NO_LEITOR);
+  // Parte da pose onde a caixa estava (3D, ou plana) e endireita-se a caminho da barra.
   const anim = copia.animate([
-    { transform: 'none', borderRadius: `${RAIO_NO_LEITOR}px`, boxShadow: '0 24px 60px rgba(0,0,0,.45)' },
-    { transform: `translate(${para.left - de.left}px, ${para.top - de.top}px) scale(${escala})`, borderRadius: `${RAIO_NA_BARRA / escala}px`, boxShadow: '0 0 0 rgba(0,0,0,0)' },
+    { transform: pontas.chegada, borderRadius: `${tres ? RAIO_DA_FACE_3D : RAIO_NO_LEITOR}px`, boxShadow: tres ? SEM_SOMBRA : SOMBRA },
+    { transform: pontas.barra, borderRadius: `${RAIO_NA_BARRA / escala}px`, boxShadow: SEM_SOMBRA },
   ], { duration: DURACAO_A_FECHAR, easing: CURVA_A_FECHAR(), fill: 'both' });
   const acabar = () => { raiz.removeAttribute(A_VOAR); copia.remove(); if (cancelarAtual === cancelar) cancelarAtual = null; };
   const cancelar = () => { anim.cancel(); acabar(); };

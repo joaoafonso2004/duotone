@@ -351,6 +351,27 @@ caso('a capa voa da barra até à do leitor, e de volta, e a verdadeira espera e
   assert.ok(!/\{ left: |\{ width: /.test(voo.slice(voo.indexOf('.animate('))), 'a animação mexe só no transform');
   assert.match(voo, /!menosMovimentoAgora\(\)/, 'com menos movimento não voa');
 });
+caso('com a "3D cover" a capa vai rodando até à pose da caixa, e endireita-se a voltar (23/11)', () => {
+  const voo = emLf('src/desktop/vooDaCapa.web.ts');
+  const lib = emLf('src/lib/capaMetal3D.ts');
+  // A pose num sítio só: o motor da caixa e o voo usam a mesma.
+  assert.match(lib, /export function transformDaCaixa\(lado: number, rotX: number, rotY: number, volta = 0\): string \{/);
+  assert.match(emLf('src/desktop/CapaMetal3D.web.tsx'), /caixa\.style\.transform = transformDaCaixa\(lado, rotX, rotY, volta\);/);
+  assert.match(voo, /\$\{transformDaCaixa\(lado, POSE_DO_METAL\.rotateX, POSE_DO_METAL\.rotateY, 0\)\} translateZ\(\$\{meioDaCaixa\(lado\)\.toFixed\(2\)\}px\)/, 'chega à face da frente da caixa em repouso');
+  // A mesma lista de funções nas duas pontas (perspetiva, deslocar, rodar X/Y/Z, escala, virar, afastar):
+  // o navegador interpola função a função, a rodar, em vez de decompor matrizes.
+  const plana = voo.match(/const plana = \([^)]*\) =>\n\s*`([^`]+)`/)?.[1] ?? '';
+  const funcoes = (s: string) => [...s.matchAll(/([a-zA-Z0-9]+)\(/g)].map((m) => m[1]).filter((n) => n !== 'toFixed');
+  // As duas começam pela perspetiva do palco (o `p`).
+  assert.match(voo, /const p = `perspective\(\$\{perspetivaDaCaixa\(lado\)\}px\)`;/);
+  assert.match(plana, /^\$\{p\} /);
+  assert.match(voo, /\? `\$\{p\} \$\{transformDaCaixa\(/);
+  assert.deepEqual(funcoes(plana), ['translate3d', 'rotateX', 'rotateY', 'rotateZ', 'scale', 'rotateY', 'translateZ']);
+  const corpo = lib.slice(lib.indexOf('export function transformDaCaixa'), lib.indexOf('export const perspetivaDaCaixa'));
+  assert.deepEqual([...funcoes(corpo.replace(/\$\{[^}]*\}/g, '')).filter((n) => n !== 'transformDaCaixa'), 'translateZ'], funcoes(plana));
+  assert.match(voo, /transformOrigin: '50% 50%'/, 'roda à volta do centro, como a caixa');
+  assert.match(voo, /const e3D = \(el: HTMLElement\) => !!el\.querySelector\('\[data-dt~="m3-caixa"\]'\);/);
+});
 caso('a página recua por baixo em vez de sumir, e o resto do leitor sobe em escada', () => {
   const nav = emLf('src/navigation/RootNavigator.web.tsx');
   assert.match(nav, /marcar\('pagina-sob-o-leitor', nowPlayingOpen\?'escondida':''\)/);

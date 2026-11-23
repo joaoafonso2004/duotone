@@ -9,7 +9,7 @@ import {
   COMPRIMENTO_DO_FIO, COMPRIMENTO_DO_LUSTRO, FORCA_DO_BRILHO, LANCAR, LIMIAR_DO_CAMINHO, LIMIAR_DO_GESTO,
   PAUSA_QUE_NAO_LANCA_MS, POSE_DO_METAL,
   anguloCurto, anguloDoArrasto, anguloDoLado, brilhoDaAresta, criarArestasDoEfeito, destinoAoLargar, grausPorSegundo, inclinacao,
-  molaAssente, mostraALetra, passoDaMola, ratoNaCapa, type EstadoDaMola,
+  meioDaCaixa, molaAssente, mostraALetra, passoDaMola, perspetivaDaCaixa, ratoNaCapa, transformDaCaixa, type EstadoDaMola,
 } from '../lib/capaMetal3D';
 import type { LadoDaCaixa } from '../lib/ocultacao';
 import type { Track } from '../types';
@@ -265,10 +265,7 @@ export function CapaMetal3D({ track, size, artwork, front, showLyrics, onChange,
       const lado = atual.current.size;
       const rotX = m.rx.x, rotY = m.ry.x;
       const volta = atual.current.reduzido ? 0 : m.virar.x;
-      caixa.style.transform =
-        `translate3d(${(POSE_DO_METAL.deslocacaoX * lado).toFixed(2)}px,${(POSE_DO_METAL.deslocacaoY * lado).toFixed(2)}px,0) ` +
-        `rotateX(${rotX.toFixed(3)}deg) rotateY(${rotY.toFixed(3)}deg) rotateZ(${POSE_DO_METAL.rotateZ}deg) ` +
-        `scale(${POSE_DO_METAL.escala}) rotateY(${volta.toFixed(3)}deg)`;
+      caixa.style.transform = transformDaCaixa(lado, rotX, rotY, volta);
       // As sombras fogem para o lado contrário da inclinação.
       const fogeX = -(rotY - POSE_DO_METAL.rotateY) * lado * 0.004;
       const fogeY = (rotX - POSE_DO_METAL.rotateX) * lado * 0.003;
@@ -482,12 +479,12 @@ export function CapaMetal3D({ track, size, artwork, front, showLyrics, onChange,
   useEffect(() => { pintarRef.current(); }, [size]);
 
   const t = size * POSE_DO_METAL.espessura;
-  const meio = t / 2;
+  const meio = meioDaCaixa(size);
   const verso = desfoqueLeve(artwork, 28);
   const letras = showLyrics || aRodar;
   const laterais = { lado: size, espessura: t, capa: capaDasArestas ?? artwork ?? null, capaQueSai, guardar: arestasDoEfeito.guardar };
   return (
-    <div data-dt="m3-palco" ref={palcoRef} style={{ width: size, height: size, perspective: `${Math.round(size * POSE_DO_METAL.perspectiva)}px` }}>
+    <div data-dt="m3-palco" ref={palcoRef} style={{ width: size, height: size, perspective: `${perspetivaDaCaixa(size)}px` }}>
       <div data-dt="m3-chao" ref={chaoRef} aria-hidden="true" style={{ width: size, height: size }}>
         <div data-dt="m3-sombra" style={sombra(CAPA_FLUTUANTE.sombraAmbiente, size)} />
         <div data-dt="m3-sombra" style={sombra(CAPA_FLUTUANTE.sombraDeContacto, size)} />

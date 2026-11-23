@@ -34,6 +34,21 @@ export const POSE_DO_METAL = {
   perspectiva: CAPA_FLUTUANTE.perspectiva,
 } as const;
 
+/**
+ * A transformação da caixa (o `m3-caixa`): a mesma no motor (CapaMetal3D.web.tsx) e na
+ * capa que voa da barra para o Now Playing (vooDaCapa.web.ts, 23/11), que acaba nesta pose
+ * e por isso passa de plana a 3D a voar. `lado` em píxeis, ângulos em graus.
+ */
+export function transformDaCaixa(lado: number, rotX: number, rotY: number, volta = 0): string {
+  return `translate3d(${(POSE_DO_METAL.deslocacaoX * lado).toFixed(2)}px,${(POSE_DO_METAL.deslocacaoY * lado).toFixed(2)}px,0) ` +
+    `rotateX(${rotX.toFixed(3)}deg) rotateY(${rotY.toFixed(3)}deg) rotateZ(${POSE_DO_METAL.rotateZ}deg) ` +
+    `scale(${POSE_DO_METAL.escala}) rotateY(${volta.toFixed(3)}deg)`;
+}
+/** A perspetiva do palco, em píxeis. */
+export const perspetivaDaCaixa = (lado: number): number => Math.round(lado * POSE_DO_METAL.perspectiva);
+/** Meia espessura: o quanto a face da frente sai do meio da caixa. */
+export const meioDaCaixa = (lado: number): number => (lado * POSE_DO_METAL.espessura) / 2;
+
 /** Quanto o rato inclina a caixa, em graus (o João: "podes implementar com 6 graus"). */
 export const INCLINACAO_MAXIMA = 6;
 
