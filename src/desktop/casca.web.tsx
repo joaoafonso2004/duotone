@@ -5,7 +5,7 @@ import { FriendAvatar } from '../components/FriendAvatar';
 import { getPublicProfiles } from '../api/profiles';
 import { useSocial } from '../state/social';
 import { naoLidasPorAmigo } from '../lib/social';
-import { useReducedMotion } from '../hooks/useReducedMotion';
+import { menosMovimentoAgora, useReducedMotion } from '../hooks/useReducedMotion';
 /**
  * A casca da janela: barra de título, barra lateral e barra do leitor.
  *
@@ -795,13 +795,38 @@ export function injectDesktopDocumentStyles() {
     @keyframes dt-ie-onda{ from{ opacity: .9; transform: scale(.7); } to{ opacity: 0; transform: scale(1.6); } }
 
     /* A primeira música abre espaço sem um salto. O nó mantém-se nos skips;
-       o recorte só dura a entrada, para depois deixar passar os efeitos dos botões. */
-    [data-dt~="entrada-da-barra"] { display: grid; grid-template-rows: 1fr; flex-shrink: 0; animation: dt-barra-entra 420ms var(--dt-entrada) backwards; }
+       o recorte só dura a entrada, para depois deixar passar os efeitos dos botões.
+       Desde 23/11 (a maquete "Painel e leitor a abrir") a barra sobe da borda da janela ao
+       passo do lugar, sem o acender de 12 px, e a capa com o título, os botões e os ícones
+       acendem em escada. */
+    [data-dt~="entrada-da-barra"] { display: grid; grid-template-rows: 1fr; flex-shrink: 0; animation: dt-barra-entra 460ms var(--dt-entrada) backwards; }
     [data-dt~="entrada-da-barra"] > div { min-height: 0; }
     @keyframes dt-barra-entra {
-      from { grid-template-rows: 0fr; opacity: 0; transform: translateY(12px); overflow: hidden; }
-      to { grid-template-rows: 1fr; opacity: 1; transform: translateY(0); overflow: hidden; }
+      from { grid-template-rows: 0fr; opacity: .3; overflow: hidden; }
+      to { grid-template-rows: 1fr; opacity: 1; overflow: hidden; }
     }
+    [data-dt~="entrada-da-barra"] [data-dt~="barra-e"]{ animation: dt-barra-e 300ms var(--dt-entrada) 80ms backwards; }
+    [data-dt~="entrada-da-barra"] [data-dt~="barra-e-2"]{ animation-delay: 130ms; }
+    [data-dt~="entrada-da-barra"] [data-dt~="barra-e-3"]{ animation-delay: 180ms; }
+    @keyframes dt-barra-e { from { opacity: 0; } to { opacity: 1; } }
+    /* Fechar pelo botão ou pelo menu (23/11): a barra desce para fora da janela e a página
+       desce com ela, num só movimento, no tempo do som a apagar-se (o closeGain, 300 ms).
+       Arrastar para a direita continua a fechar para a direita (o dragX). */
+    [data-dt~="entrada-da-barra"][data-fechar] { animation: dt-barra-fecha 300ms var(--dt-travar) both; }
+    @keyframes dt-barra-fecha {
+      from { grid-template-rows: 1fr; opacity: 1; overflow: hidden; }
+      to { grid-template-rows: 0fr; opacity: .3; overflow: hidden; }
+    }
+    /* A troca de música na barra (23/11): o título e o artista saem para cima e os novos
+       sobem de baixo; a voltar à anterior, ao contrário. A capa faz a Ocultação ao lado. */
+    [data-dt~="texto-entra"]{ animation: dt-texto-sobe 420ms var(--dt-entrada) both; }
+    [data-dt~="texto-entra"][data-dt~="recua"]{ animation-name: dt-texto-desce; }
+    [data-dt~="texto-sai"]{ pointer-events: none; animation: dt-texto-sai-sobe var(--dt-sair-ms) var(--dt-sair) both; }
+    [data-dt~="texto-sai"][data-dt~="recua"]{ animation-name: dt-texto-sai-desce; }
+    @keyframes dt-texto-sobe { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+    @keyframes dt-texto-desce { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
+    @keyframes dt-texto-sai-sobe { to { opacity: 0; transform: translateY(-10px); } }
+    @keyframes dt-texto-sai-desce { to { opacity: 0; transform: translateY(10px); } }
     /* E a saída (22/11): a barra já desvaneceu (o closeGain); o lugar dela fecha-se
        com a mesma curva, e a página desce sem um salto. */
     [data-dt~="saida-da-barra"] { flex-shrink: 0; overflow: hidden; pointer-events: none;
@@ -910,6 +935,8 @@ export function injectDesktopDocumentStyles() {
       /* O painel e o Now Playing a abrir (23/11): o lugar e a página mudam logo, sem caminho. */
       [data-dt~="painel-e-pagina"], [data-dt~="painel-dentro"], [data-dt~="pagina-sob-o-leitor"]{ transition: none !important; }
       [data-dt~="np-camada"] [data-dt~="np-sobe"]{ animation: none !important; }
+      [data-dt~="barra-e"], [data-dt~="texto-entra"], [data-dt~="texto-sai"]{ animation: none !important; }
+      [data-dt~="texto-sai"]{ opacity: 0 !important; }
     }
   `;
   document.head.appendChild(style);
@@ -1268,6 +1295,35 @@ function CapaDaBarra({ faixa }: { faixa: Track }) {
   );
 }
 
+/**
+ * O título e o artista da barra a trocar de música (23/11, a maquete): o texto velho sai
+ * para cima e o novo sobe de baixo; a voltar à anterior, ao contrário (o mesmo sentido da
+ * Ocultação da capa). O velho fica montado o tempo de sair, por cima, sem apanhar o rato.
+ * Ao aparecer a barra não mexe: aí acende com ela (`barra-e`).
+ */
+function TextoQueTroca({ chave, children }: { chave: string; children: React.ReactNode }) {
+  const [chaveVista, setChaveVista] = useState(chave);
+  const [saindo, setSaindo] = useState<{ chave: string; no: React.ReactNode } | null>(null);
+  const [recua, setRecua] = useState(false);
+  const ultimo = useRef<React.ReactNode>(children);
+  if (chaveVista !== chave) {
+    setChaveVista(chave);
+    setRecua(sentidoDaOcultacao(usePlayer.getState().saltoDaFaixa, Date.now()) < 0);
+    setSaindo(menosMovimentoAgora() ? null : { chave: chaveVista, no: ultimo.current });
+  }
+  useEffect(() => { ultimo.current = children; });
+  useEffect(() => {
+    if (!saindo) return;
+    const t = setTimeout(() => setSaindo(null), 240);
+    return () => clearTimeout(t);
+  }, [saindo]);
+  return <View style={{ minWidth: 0, flexShrink: 1, position: 'relative' }}>
+    {saindo ? <View key={`sai:${saindo.chave}`} aria-hidden {...marcar('texto-sai', recua ? 'recua' : '')}
+      style={{ position: 'absolute', left: 0, right: 0, top: 0, minWidth: 0 }}>{saindo.no}</View> : null}
+    <View key={`entra:${chave}`} {...(saindo ? marcar('texto-entra', recua ? 'recua' : '') : {})} style={{ minWidth: 0 }}>{children}</View>
+  </View>;
+}
+
 export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLigado = false, onAviso, aoMenuDaFaixa }: {
   currentIsSaved: boolean; toggleSaveCurrent: () => void; onJam: () => void;
   /** O botão direito na música que toca (24/10): o menu dela, com o "Open Now Playing". */
@@ -1284,7 +1340,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
   // redesenhava a barra inteira a cada `_setProgress` (auditoria de 17/9, §1.5).
   // A posição vive na `BarraDeProgresso`, que é a única que precisa dela.
   const p = usePlayer(useShallow((s) => ({
-    current: s.current, closeGain: s.closeGain,
+    current: s.current, closeGain: s.closeGain, closing: s.closing,
     shuffle: s.shuffle, shuffleInteligente: s.shuffleInteligente, toggleShuffle: s.toggleShuffle,
     prev: s.prev, next: s.next, showRewindButton: s.showRewindButton, isPlaying: s.isPlaying,
     togglePlay: s.togglePlay, repeatMode: s.repeatMode,
@@ -1322,11 +1378,14 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
   if (!p.current) return <>{saidaDaBarra}<BarraDoOutroAparelho /></>;
 
   // Largar uma música na barra põe-na a seguir à que toca (24/10).
-  return <div data-dt="entrada-da-barra" ref={barraRef}><div>
-    <V ref={refDoAlvo('barra-do-leitor', p.current ? alvoDaBarra() : null)} style={[styles.player,{opacity:p.closeGain*Math.max(0.2,1-dragX/swipeWidth.current),transform:[{translateX:reducedMotion?0:dragX+(1-p.closeGain)*180}]}]}>
+  // Fechar sem arrastar (o botão, o menu): desce com o lugar, pelo CSS. A arrastar para a
+  // direita continua a ir para a direita e a apagar-se com o som.
+  const fechaParaBaixo = p.closing && dragX === 0 && !reducedMotion;
+  return <div data-dt="entrada-da-barra" ref={barraRef} data-fechar={fechaParaBaixo ? '' : undefined}><div>
+    <V ref={refDoAlvo('barra-do-leitor', p.current ? alvoDaBarra() : null)} style={[styles.player,fechaParaBaixo?null:{opacity:p.closeGain*Math.max(0.2,1-dragX/swipeWidth.current),transform:[{translateX:reducedMotion?0:dragX+(1-p.closeGain)*180}]}]}>
     {/* O motor: se rebentar, volta a montar sozinho e retoma a faixa. */}
     <BarreiraDeErros onde="leitor" discreta><MotorDoPc track={p.current} /></BarreiraDeErros>
-    <View style={styles.playerTrack} {...dragClose.panHandlers} onLayout={e=>{swipeWidth.current=e.nativeEvent.layout.width;}}>
+    <View style={styles.playerTrack} {...marcar('barra-e')} {...dragClose.panHandlers} onLayout={e=>{swipeWidth.current=e.nativeEvent.layout.width;}}>
       <Pressable
         style={styles.playerTrackLink}
         onPress={() => {if(!swiping.current)irPara({ tipo: 'a-tocar' });}}
@@ -1336,7 +1395,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
         <View nativeID="alvo-seguinte"><CapaDaBarra faixa={mostrada ?? p.current} /></View>
         {/* O título limpo e o artista, como em todas as listas: aqui ia o
             título cru do upload, sem artista nenhum. */}
-        <View style={{ minWidth: 0, flexShrink: 1 }}>
+        <TextoQueTroca chave={`${p.current.source}:${p.current.sourceId}`}>
           <Text numberOfLines={1} style={styles.playerTitle}>{tituloDaFaixa(mostrada ?? p.current)}</Text>
           {/* Uma falha diz-se no lugar do artista, a 12 px, enquanto dura (16/10,
               W5, variante A de docs/ui-seguinte.html): era uma linha de 10 px
@@ -1347,10 +1406,10 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
                 <Text numberOfLines={1} style={[styles.playerArtista, { color: COR.aviso, marginTop: 0, flexShrink: 1 }]}>{p.error}</Text>
               </View>
             : <Text numberOfLines={1} style={styles.playerArtista}>{displayArtist(mostrada ?? p.current)}</Text>}
-        </View>
+        </TextoQueTroca>
       </Pressable>
     </View>
-    <View style={styles.playerCenter}>
+    <View style={styles.playerCenter} {...marcar('barra-e', 'barra-e-2')}>
       <View style={styles.playerControls}>
         <IconButton name="shuffle" label={rotuloDoModo(modoDeShuffle(p.shuffle, p.shuffleInteligente))} active={p.shuffle} estrela={p.shuffleInteligente} onPress={p.toggleShuffle}
           desenho={(cor) => <IconeShuffle estado={estadoDoShuffle(p.shuffle, p.shuffleInteligente)} cor={cor} />} />
@@ -1371,7 +1430,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
       </View>
       <BarraDeProgresso />
     </View>
-    <View style={styles.playerRight}>
+    <View style={styles.playerRight} {...marcar('barra-e', 'barra-e-3')}>
       <SeguirNaBarra />
       {/* O coração é o primeiro dos ícones da direita (30/10, a escolha do João: ao lado do
           título não lhe agradava): tudo o que é "desta música" junto, e o centro só com o que

@@ -49,7 +49,8 @@ caso('já não está na faixa do título, e a faixa do título ocupa o espaço t
   assert.match(ESTILOS, /playerTrackLink: \{ maxWidth: '100%',/);
 });
 caso('é o primeiro dos ícones da direita: depois do "With X ×" e antes do olho', () => {
-  const direita = barra.slice(barra.indexOf('<View style={styles.playerRight}>'));
+  // Desde 23/11 leva a marca da escada ao aparecer (`barra-e`).
+  const direita = barra.slice(barra.indexOf('<View style={styles.playerRight}'));
   const seguir = direita.indexOf('<SeguirNaBarra />');
   const coracao = direita.indexOf('label={coracao.mostrada ?');
   const olho = direita.indexOf('<IndicadorDeVisibilidade');

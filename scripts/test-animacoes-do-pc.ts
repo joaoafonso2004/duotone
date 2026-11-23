@@ -238,7 +238,7 @@ caso('a altura lê-se no render da mudança, e as duas barras do fundo saem assi
   const inicio = CASCA_LF.indexOf('export function PlayerBar(');
   const corpo = CASCA_LF.slice(inicio, CASCA_LF.indexOf('\n}\n', inicio));
   assert.match(corpo, /const \{ ref: barraRef, espaco: saidaDaBarra \} = useSaidaDaBarra\(p\.current\);/);
-  assert.match(corpo, /return <div data-dt="entrada-da-barra" ref=\{barraRef\}><div>/, 'a altura é a da barra que está no ecrã');
+  assert.match(corpo, /return <div data-dt="entrada-da-barra" ref=\{barraRef\} data-fechar=\{fechaParaBaixo \? '' : undefined\}><div>/, 'a altura é a da barra que está no ecrã');
   const outro = emLf('src/desktop/OutroAparelho.web.tsx');
   assert.match(outro, /const \{ ref, espaco \} = useSaidaDaBarra\(oferta\);\n\s*if \(!oferta\) return <>\{espaco\}<\/>;/, 'a do outro aparelho também sai');
   assert.match(outro, /<div data-dt="entrada-da-barra" ref=\{ref\}><div>\n\s*<View style=\{styles\.player\}>/, 'e entra a abrir o lugar');
@@ -328,6 +328,33 @@ caso('os amigos da lateral entram, saem e trocam de lugar a deslizar', () => {
   assert.equal((am.match(/<View ref=\{lista\}/g) ?? []).length, 2, 'na lateral larga e na estreita');
   assert.match(am, /\{\.\.\.\(\{ dataSet: \{ dt: 'amigo', chave: a\.friendId \} \} as any\)\}/);
   assert.match(am, /dataSet: \{ \.\.\.comDica\([\s\S]{0,120}\.dataSet, chave: a\.friendId \}/, 'a chave junta-se à legenda, sem a apagar');
+});
+
+console.log('\na barra do leitor (23/11, a maquete "Painel e leitor a abrir")');
+const BARRA = (() => { const i = CASCA_LF.indexOf('export function PlayerBar('); return CASCA_LF.slice(i, CASCA_LF.indexOf('\n}\n', i)); })();
+caso('a aparecer sobe da borda da janela ao passo do lugar, e acende em escada', () => {
+  assert.match(CASCA_LF, /@keyframes dt-barra-entra \{\n\s*from \{ grid-template-rows: 0fr; opacity: \.3; overflow: hidden; \}\n\s*to \{ grid-template-rows: 1fr; opacity: 1; overflow: hidden; \}/);
+  assert.ok(!/translateY\(12px\)/.test(CASCA_LF.slice(CASCA_LF.indexOf('@keyframes dt-barra-entra'), CASCA_LF.indexOf('@keyframes dt-barra-entra') + 200)), 'sem o acender de 12 px');
+  assert.match(BARRA, /<View style=\{styles\.playerTrack\} \{\.\.\.marcar\('barra-e'\)\}/);
+  assert.match(BARRA, /<View style=\{styles\.playerCenter\} \{\.\.\.marcar\('barra-e', 'barra-e-2'\)\}>/);
+  assert.match(BARRA, /<View style=\{styles\.playerRight\} \{\.\.\.marcar\('barra-e', 'barra-e-3'\)\}>/);
+  assert.match(CASCA_LF, /\[data-dt~="entrada-da-barra"\] \[data-dt~="barra-e"\]\{ animation: dt-barra-e 300ms var\(--dt-entrada\) 80ms backwards; \}/);
+});
+caso('a trocar de música o título sai e entra no sentido do salto, e o velho fica o tempo de sair', () => {
+  assert.match(BARRA, /<TextoQueTroca chave=\{`\$\{p\.current\.source\}:\$\{p\.current\.sourceId\}`\}>/);
+  assert.match(CASCA_LF, /setRecua\(sentidoDaOcultacao\(usePlayer\.getState\(\)\.saltoDaFaixa, Date\.now\(\)\) < 0\);/, 'o mesmo sentido da Ocultação da capa');
+  assert.match(CASCA_LF, /setSaindo\(menosMovimentoAgora\(\) \? null : \{ chave: chaveVista, no: ultimo\.current \}\);/);
+  assert.match(CASCA_LF, /const t = setTimeout\(\(\) => setSaindo\(null\), 240\);/);
+  assert.match(CASCA_LF, /\{\.\.\.\(saindo \? marcar\('texto-entra', recua \? 'recua' : ''\) : \{\}\)\}/, 'ao aparecer a barra o texto não mexe');
+  assert.match(CASCA_LF, /\[data-dt~="texto-sai"\]\{ pointer-events: none; animation: dt-texto-sai-sobe var\(--dt-sair-ms\) var\(--dt-sair\) both; \}/);
+});
+caso('a fechar pelo botão desce num só movimento, e a arrastar continua para a direita', () => {
+  assert.match(BARRA, /current: s\.current, closeGain: s\.closeGain, closing: s\.closing,/);
+  assert.match(BARRA, /const fechaParaBaixo = p\.closing && dragX === 0 && !reducedMotion;/);
+  assert.match(BARRA, /style=\{\[styles\.player,fechaParaBaixo\?null:\{opacity:p\.closeGain\*/, 'a descer, o closeGain já não mexe no visual (só no som)');
+  assert.match(CASCA_LF, /\[data-dt~="entrada-da-barra"\]\[data-fechar\] \{ animation: dt-barra-fecha 300ms var\(--dt-travar\) both; \}/);
+  assert.match(CASCA_LF, /@keyframes dt-barra-fecha \{\n\s*from \{ grid-template-rows: 1fr; opacity: 1; overflow: hidden; \}\n\s*to \{ grid-template-rows: 0fr; opacity: \.3; overflow: hidden; \}/);
+  assert.match(emLf('src/lib/closePlayer.ts'), /export const CLOSE_FADE_MS=300;/, 'o mesmo tempo do som');
 });
 
 console.log('\no Now Playing a abrir (23/11, a maquete "Painel e leitor a abrir"; o João: "dá pop out")');
