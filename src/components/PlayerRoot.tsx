@@ -33,6 +33,7 @@ import { displayArtist, tituloDaFaixa, tituloNoLeitor } from '../lib/artistName'
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import { COR_DO_ICONE_NO_METAL, NoMetal } from './DiscoDeMetal';
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   Animated,
@@ -1877,8 +1878,10 @@ export function PlayerRoot() {
                 accessibilityRole="button"
                 accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
                 onPress={togglePlay}
-                style={[styles.playBtn, ap.play === 'anel' && [styles.playAnel, { borderColor: corDosControlos }], ap.play === 'icone' && styles.playIcone]}
+                style={[styles.playBtn, ap.play === 'anel' && [styles.playAnel, { borderColor: corDosControlos }], ap.play === 'icone' && styles.playIcone, ap.play === 'metal' && styles.playMetal]}
               >
+                {/* O metal (23/11, de origem): o disco de metal escovado do PC, com o laço de luz. */}
+                <NoMetal ligado={ap.play === 'metal'} lado={62} aTocar={isPlaying}>
                 {/* `trocar`: play e pause sao o mesmo botao, e cruzam-se no
                     sitio. Nao `pulsar`: quem carrega no play ja esta a olhar
                     para ele, nao precisa de aviso. */}
@@ -1886,7 +1889,7 @@ export function PlayerRoot() {
                   trocar
                   name={isPlaying ? 'pause' : 'play'}
                   size={ap.play === 'icone' ? 44 : 27}
-                  color={ap.play === 'cheio' ? colors.bg : colors.text}
+                  color={ap.play === 'cheio' ? colors.bg : ap.play === 'metal' ? COR_DO_ICONE_NO_METAL : colors.text}
                   /**
                    * O acerto optico do triangulo, e porque era uma MARGEM que
                    * nao chegava a acontecer.
@@ -1908,6 +1911,7 @@ export function PlayerRoot() {
                    */
                   style={!isPlaying ? { transform: [{ translateX: (ap.play === 'icone' ? 44 : 27) * 0.104 }] } : undefined}
                 />
+                </NoMetal>
               </Toque>
 
               <Toque
@@ -2042,12 +2046,15 @@ export function PlayerRoot() {
               />
             </Toque>
             <Toque escala={ESCALA.icone} accessibilityRole="button" accessibilityLabel={isPlaying ? 'Pause' : 'Play'} hitSlop={8} onPress={togglePlay} style={styles.miniBtn}>
-              <StateIcon
-                trocar
-                name={isPlaying ? 'pause' : 'play'}
-                size={22}
-                color={colors.text}
-              />
+              <NoMetal ligado={ap.play === 'metal'} lado={32} aTocar={isPlaying}>
+                <StateIcon
+                  trocar
+                  name={isPlaying ? 'pause' : 'play'}
+                  size={ap.play === 'metal' ? 16 : 22}
+                  color={ap.play === 'metal' ? COR_DO_ICONE_NO_METAL : colors.text}
+                  style={ap.play === 'metal' && !isPlaying ? { transform: [{ translateX: 16 * 0.104 }] } : undefined}
+                />
+              </NoMetal>
             </Toque>
             <Toque
               escala={ESCALA.icone}
@@ -2691,6 +2698,8 @@ const styles = StyleSheet.create({
   // O botão play em anel ou só o ícone (10/10, personalização).
   playAnel: { backgroundColor: 'transparent', borderWidth: 2 },
   playIcone: { backgroundColor: 'transparent' },
+  // O metal (23/11): quem pinta é o disco (components/DiscoDeMetal.tsx).
+  playMetal: { backgroundColor: 'transparent' },
   // "Playing from" no topo (o G1): o texto ao centro, o símbolo à esquerda dele.
   origemDoTopo: { alignItems: 'center', maxWidth: 240 },
   olhoDoTopo: { flexDirection: 'row', alignItems: 'center' },

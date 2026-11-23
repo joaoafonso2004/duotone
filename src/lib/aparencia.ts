@@ -60,7 +60,17 @@ export type Aparencia = {
   /** O título do leitor ao centro ou à esquerda (como no Apple Music). */
   titulo: 'centro' | 'esquerda';
   barra: 'fina' | 'grossa';
-  play: 'cheio' | 'anel' | 'icone';
+  /**
+   * O botão de play do leitor. `metal` (23/11, o de origem) é o disco de metal
+   * escovado do PC, com o laço de luz a rodar (`components/DiscoDeMetal.tsx`).
+   */
+  play: 'metal' | 'cheio' | 'anel' | 'icone';
+  /**
+   * Já leu a aparência com o play de metal (23/11). Antes, o de origem era o
+   * `cheio`, e a aparência guarda-se inteira: um `cheio` guardado antes disto
+   * passa uma vez a `metal`. Escolher o `cheio` depois fica.
+   */
+  metalNoPlay: boolean;
   /**
    * Os símbolos do leitor (o coração, o anel do play, os pontos, o shuffle e o
    * repeat ligados): na cor do destaque, ou brancos. 16/11, pedido do João: com
@@ -95,7 +105,7 @@ export type Aparencia = {
 
 export const PADRAO: Aparencia = {
   fundoApp: 'dark', listas: 'comfortable', rotulos: true,
-  topo: 'marca', titulo: 'centro', barra: 'fina', play: 'cheio', controlos: 'destaque', posterImagem: 'artista', posterMono: false,
+  topo: 'marca', titulo: 'centro', barra: 'fina', play: 'metal', metalNoPlay: true, controlos: 'destaque', posterImagem: 'artista', posterMono: false,
   botoes: ['fila', 'visibilidade', 'eq'], flutuar: true, fundoLeitor: 'capa', brilho: 50,
   titulos: 'padrao', tamanhoDasLetras: 'm', abrirNasLetras: false,
   secoesDaHome: [...SECOES_DA_HOME], escondidasDaHome: [],
@@ -161,14 +171,14 @@ export function alternarBotao(botoes: readonly BotaoDoLeitor[], b: BotaoDoLeitor
   return botoes.length >= MAXIMO_DE_BOTOES ? [...botoes] : [...botoes, b];
 }
 
-type ChaveComValores = Exclude<keyof Aparencia, 'botoes' | 'brilho' | 'rotulos' | 'flutuar' | 'posterMono' | 'abrirNasLetras' | 'secoesDaHome' | 'escondidasDaHome'>;
+type ChaveComValores = Exclude<keyof Aparencia, 'botoes' | 'brilho' | 'rotulos' | 'flutuar' | 'posterMono' | 'abrirNasLetras' | 'secoesDaHome' | 'escondidasDaHome' | 'metalNoPlay'>;
 const VALORES: { [K in ChaveComValores]: readonly Aparencia[K][] } = {
   fundoApp: ['dark', 'oled'],
   listas: ['comfortable', 'compact'],
   topo: ['marca', 'origem'],
   titulo: ['centro', 'esquerda'],
   barra: ['fina', 'grossa'],
-  play: ['cheio', 'anel', 'icone'],
+  play: ['metal', 'cheio', 'anel', 'icone'],
   controlos: ['destaque', 'branco'],
   posterImagem: ['artista', 'capa'],
   fundoLeitor: ['capa', 'cor', 'gradiente', 'preto'],
@@ -190,6 +200,8 @@ export function lerAparencia(guardado: unknown): Aparencia {
   if (typeof g.flutuar === 'boolean') fora.flutuar = g.flutuar;
   if (typeof g.posterMono === 'boolean') fora.posterMono = g.posterMono;
   if (typeof g.abrirNasLetras === 'boolean') fora.abrirNasLetras = g.abrirNasLetras;
+  // O play de metal passou a ser o de origem (23/11): o `cheio` de antes dele vira metal, uma vez.
+  if (fora.play === 'cheio' && g.metalNoPlay !== true) fora.play = 'metal';
   if (typeof g.brilho === 'number' && Number.isFinite(g.brilho)) fora.brilho = Math.min(100, Math.max(0, Math.round(g.brilho)));
   if (Array.isArray(g.botoes)) {
     const vistos = new Set<BotaoDoLeitor>();

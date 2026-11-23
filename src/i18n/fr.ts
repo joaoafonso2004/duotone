@@ -722,6 +722,7 @@ export const FR: Readonly<Record<string, string>> = {
   "Few": "Peu",
   "Files": "Fichiers",
   "Filled": "Plein",
+  "Metal": "Métal",
   "Filter songs": "Filtrer les titres",
   "Find": "Rechercher",
   "Find a copy": "Trouver une copie",

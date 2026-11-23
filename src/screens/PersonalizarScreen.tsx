@@ -22,6 +22,7 @@ import { useFotoDoPoster } from '../hooks/useFotoDoPoster';
 import { fotoPequena } from '../lib/fotosDoPoster';
 import { hapticSelection } from '../lib/haptics';
 import type { RootStackParamList } from '../navigation/RootNavigator';
+import { COR_DO_ICONE_NO_METAL, NoMetal } from '../components/DiscoDeMetal';
 import { useAparencia, useTemaDaAparencia } from '../state/aparencia';
 import { useCapaIOS } from '../state/capaIOS';
 import { usePlayer } from '../state/player';
@@ -38,7 +39,7 @@ const ESCOLHAS = {
   topo: { rotulo: 'Top', icone: 'albums-outline', nomes: ['Duotone', 'Playing from'], valores: ['marca', 'origem'] },
   titulo: { rotulo: 'Title', icone: 'reorder-three-outline', nomes: ['Centred', 'Left'], valores: ['centro', 'esquerda'] },
   barra: { rotulo: 'Progress bar', icone: 'remove-outline', nomes: ['Thin', 'Thick'], valores: ['fina', 'grossa'] },
-  play: { rotulo: 'Play button', icone: 'play-circle-outline', nomes: ['Filled', 'Ring', 'Icon'], valores: ['cheio', 'anel', 'icone'] },
+  play: { rotulo: 'Play button', icone: 'play-circle-outline', nomes: ['Metal', 'Filled', 'Ring', 'Icon'], valores: ['metal', 'cheio', 'anel', 'icone'] },
   controlos: { rotulo: 'Controls', icone: 'color-palette-outline', nomes: ['Accent colour', 'White'], valores: ['destaque', 'branco'] },
   posterImagem: { rotulo: 'Poster image', icone: 'person-outline', nomes: ['Artist photos', 'Artwork'], valores: ['artista', 'capa'] },
   fundoLeitor: {
@@ -69,7 +70,7 @@ export function PersonalizarScreen({ navigation }: Props) {
   const cab = useCabecalhoQueEncolhe();
   const ap = useAparencia(useShallow((s) => ({
     fundoApp: s.fundoApp, listas: s.listas, rotulos: s.rotulos, topo: s.topo, titulo: s.titulo, barra: s.barra,
-    play: s.play, controlos: s.controlos, posterImagem: s.posterImagem, posterMono: s.posterMono, botoes: s.botoes, flutuar: s.flutuar, fundoLeitor: s.fundoLeitor, brilho: s.brilho,
+    play: s.play, metalNoPlay: s.metalNoPlay, controlos: s.controlos, posterImagem: s.posterImagem, posterMono: s.posterMono, botoes: s.botoes, flutuar: s.flutuar, fundoLeitor: s.fundoLeitor, brilho: s.brilho,
     titulos: s.titulos, tamanhoDasLetras: s.tamanhoDasLetras, abrirNasLetras: s.abrirNasLetras,
     secoesDaHome: s.secoesDaHome, escondidasDaHome: s.escondidasDaHome,
   })));
@@ -300,8 +301,12 @@ function PreviaDoLeitor({ ap, capa }: { ap: Aparencia; capa: EstiloDaCapa }) {
       <View style={styles.previaControlos}>
         <Ionicons name="play-skip-back" size={16} color={colors.text} />
         <View style={[styles.previaPlay, ap.play === 'anel' && { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: corDosControlos },
-          ap.play === 'icone' && { backgroundColor: 'transparent' }]}>
-          <Ionicons name="pause" size={ap.play === 'icone' ? 22 : 14} color={ap.play === 'cheio' ? colors.bg : colors.text} />
+          (ap.play === 'icone' || ap.play === 'metal') && { backgroundColor: 'transparent' }]}>
+          {/* O metal (23/11): o mesmo disco do leitor, parado (na prévia não toca nada). */}
+          <NoMetal ligado={ap.play === 'metal'} lado={34} aTocar>
+            <Ionicons name="pause" size={ap.play === 'icone' ? 22 : 14}
+              color={ap.play === 'cheio' ? colors.bg : ap.play === 'metal' ? COR_DO_ICONE_NO_METAL : colors.text} />
+          </NoMetal>
         </View>
         <Ionicons name="play-skip-forward" size={16} color={colors.text} />
       </View>

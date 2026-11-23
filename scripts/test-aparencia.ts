@@ -289,4 +289,28 @@ assert.match(ler('src/screens/FilaScreen.tsx'), /<FundoDaFolha \/>/, 'a fila');
 assert.match(ler('src/screens/FolhaScreen.tsx'), /<FundoDaFolha \/>/, 'as folhas nativas');
 assert.match(ler('src/state/aparencia.ts'), /useCapaIOS\.getState\(\)\.setStyle\(capaDoTema\(id\)\)/, 'o tema muda a capa');
 assert.doesNotMatch(ler('src/state/aparencia.ts'), /supabase|prefsSync/, 'fica no aparelho');
+// O play de metal do PC no iPhone (23/11, o João: "o metálico com o efeito das luzes", de origem).
+assert.equal(PADRAO.play, 'metal', 'de origem');
+assert.equal(lerAparencia({ play: 'cheio' }).play, 'metal', 'o cheio guardado antes do metal passa a metal, uma vez');
+assert.equal(lerAparencia({ play: 'cheio', metalNoPlay: true }).play, 'cheio', 'escolhido depois, fica');
+assert.equal(lerAparencia({ play: 'anel' }).play, 'anel', 'as outras escolhas ficam');
+assert.equal(lerAparencia({ play: 'metal' }).play, 'metal');
+assert.equal(lerAparencia({}).metalNoPlay, true, 'guarda-se que já leu, ao guardar a seguir');
+{
+  const disco = ler('src/components/DiscoDeMetal.tsx').replace(/\r\n/g, '\n');
+  // Roda só quando o play muda (nunca ao montar), como no PC, pelo driver nativo e a 120 Hz.
+  assert.match(disco, /if \(antes\.current === aTocar\) return;/);
+  assert.match(disco, /const \{ graus, curva \} = voltaDoDisco\(aTocar\);/, 'as voltas do PC (lib/luz)');
+  assert.match(disco, /Animated\.timing\(angulo, \{ toValue: onde\.current, duration: DURACAO_DO_TRAVAO, easing: travao, useNativeDriver: true \}\)/);
+  assert.match(disco, /Animated\.spring\(angulo, \{ toValue: onde\.current, \.\.\.SOLTAR, useNativeDriver: true \}\)/);
+  assert.match(disco, /pedirFluidez\(/, 'a 120 Hz');
+  assert.match(disco, /require\('\.\.\/\.\.\/assets\/reflexo-do-disco\.png'\)/);
+  assert.match(disco, /export const CORES_DO_METAL = \['#c4c7ce', '#8f929b', '#5c5f68'\] as const;/, 'as cores do metal do PC');
+  assert.match(ler('src/desktop/DiscoDeMetal.web.ts'), /#c4c7ce 0%, #8f929b 48%, #5c5f68 100%/, 'e o PC continua com as mesmas');
+  assert.ok(readFileSync(new URL('../assets/reflexo-do-disco@3x.png', import.meta.url)).length > 10000, 'o laço do gerador');
+}
+assert.match(doLeitor, /<NoMetal ligado=\{ap\.play === 'metal'\} lado=\{62\} aTocar=\{isPlaying\}>/, 'o play do Now Playing');
+assert.match(doLeitor, /<NoMetal ligado=\{ap\.play === 'metal'\} lado=\{32\} aTocar=\{isPlaying\}>/, 'e o do mini');
+assert.match(ler('src/screens/PersonalizarScreen.tsx'), /nomes: \['Metal', 'Filled', 'Ring', 'Icon'\], valores: \['metal', 'cheio', 'anel', 'icone'\]/);
+assert.match(ler('src/i18n/fr.ts'), /"Metal": "Métal",/);
 console.log('Aparência: temas (com a capa), Custom, botões, Home, letras, títulos, gradiente e cada opção com quem a lê.');
