@@ -100,7 +100,8 @@ caso('a foto do artista vai até ao topo da janela, por baixo da barra (15/11)',
 caso('o fundo da página passa por trás do painel encostado (23/11, "a barra lateral não está a absorver a cor")', () => {
   const painel = ler('src/desktop/PainelDoLeitor.web.tsx');
   // O painel diz a largura dele só quando está encostado; por cima da página, 0 (e leva fundo).
-  assert.match(painel, /\['--dt-painel-encostado' as any\]: encostado \? 'var\(--dt-painel, 340px\)' : '0px'/);
+  // Desde a abertura até ao fim do fecho, fixa durante a animação do lugar (23/11).
+  assert.match(painel, /\['--dt-painel-encostado' as any\]: fundoPorTras \? 'var\(--dt-painel, 340px\)' : '0px'/);
   assert.match(painel, /backgroundColor: porCimaAgora \? FUNDO_POR_CIMA : 'transparent'/, 'encostado é transparente');
   // Só as camadas marcadas esticam por trás dele.
   assert.match(casca, /\[data-dt~="fundo-da-pagina"\]\{ right: calc\(-1 \* var\(--dt-painel-encostado, 0px\)\) !important; \}/);

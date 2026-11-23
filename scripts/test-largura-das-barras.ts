@@ -146,7 +146,7 @@ caso('a largura vai pelas variáveis da raiz, e não pelo React: arrastar não r
   assert.match(STORE, /window\.addEventListener\('resize', aplicar\);/);
   assert.match(ESTILOS, /sidebar: \{ width: 'var\(--dt-lateral, 232px\)'/);
   // Por cima da página, a largura do painel; encostado (23/11), a do lugar, que anima até ela.
-  assert.match(PAINEL_TSX, /width: porCimaAgora \? 'var\(--dt-painel, 340px\)' : 'var\(--dt-painel-encostado, 0px\)', maxWidth: '100%'/);
+  assert.match(PAINEL_TSX, /width: porCimaAgora \|\| encostado \? 'var\(--dt-painel, 340px\)' : '0px', maxWidth: '100%'/);
   assert.match(CASCA, /\[data-dt~="painel-dentro"\]\{ position: absolute; top: 0; right: 0; bottom: 0; width: var\(--dt-painel, 340px\); max-width: 100%;/);
   assert.ok(!/width: 340/.test(PAINEL_TSX), 'sobrou uma largura fixa de 340');
 });
@@ -161,7 +161,7 @@ caso('a casca monta a pega da lateral dentro dela, e o painel a dele', () => {
 caso('o CSS: pega de 6 px, fio que acende, cursor de arrasto em todo o lado, e o painel não anima enquanto se arrasta', () => {
   assert.match(CASCA, /\[data-dt~="separador"\]\{ position: absolute; top: 0; bottom: 0; width: 6px; z-index: 40; cursor: col-resize;/);
   assert.match(CASCA, /html\[data-a-redimensionar\], html\[data-a-redimensionar\] \*\{ cursor: col-resize !important; user-select: none !important; \}/);
-  assert.match(CASCA, /html\[data-a-redimensionar\] \[data-dt~="painel-do-leitor"\], html\[data-a-redimensionar\] \[data-dt~="painel-e-pagina"\]\{ transition: none !important; \}/);
+  assert.match(CASCA, /html\[data-a-redimensionar\] \[data-dt~="painel-do-leitor"\]\{ transition: none !important; \}/);
   assert.match(CASCA, /\[data-dt~="separador"\]::after\{ transition: none !important; \}/, 'menos movimento');
 });
 

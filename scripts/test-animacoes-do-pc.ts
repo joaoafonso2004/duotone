@@ -207,22 +207,26 @@ caso('o estilo do painel não traz um transition (de 9/11 a 22/11 substituía o 
   const estilo = PAINEL.slice(i, PAINEL.indexOf('}}>', i));
   assert.doesNotMatch(estilo, /\btransition\s*:/, 'um transition inline anula o do CSS');
   assert.match(estilo, /transform: porCimaAgora \? `translateX\(\$\{noSitio \? 0 : 100\}%\)` : undefined/, 'por cima da página continua a deslizar pelo transform');
-  // Encostado (23/11), a largura é a do lugar, a variável que a casca anima.
-  assert.match(estilo, /width: porCimaAgora \? 'var\(--dt-painel, 340px\)' : 'var\(--dt-painel-encostado, 0px\)'/);
+  // Encostado (23/11), a largura do lugar: 0 ou a do painel, e a casca anima entre as duas.
+  assert.match(estilo, /width: porCimaAgora \|\| encostado \? 'var\(--dt-painel, 340px\)' : '0px'/);
 });
 caso('o lugar do painel encostado cresce com a página (23/11, a maquete), e por cima desliza', () => {
-  // A largura do lugar é uma variável registada, para a transição a poder animar.
-  assert.match(CASCA_LF, /@property --dt-painel-encostado \{ syntax: '<length>'; inherits: true; initial-value: 0px; \}/);
-  assert.match(CASCA_LF, /\[data-dt~="painel-e-pagina"\]\{ transition: --dt-painel-encostado 300ms var\(--dt-travar\) 90ms; \}/, 'a fechar, depois de a fila se apagar');
-  assert.match(CASCA_LF, /\[data-dt~="painel-e-pagina"\]\[data-aberto\]\{ transition: --dt-painel-encostado 460ms var\(--dt-entrada\); \}/);
-  assert.match(PAINEL, /<div data-dt="painel-e-pagina" data-aberto=\{encostado \? '' : undefined\}/);
+  // Anima a width do painel: a página só é arrumada. A 1.ª versão animava uma variável
+  // registada e herdada, que recalculava o estilo da página inteira a cada fotograma (poucos fps).
+  assert.ok(!/@property --dt-painel-encostado/.test(CASCA_LF), 'a variável herdada voltou a animar');
+  assert.match(CASCA_LF, /\[data-dt~="painel-do-leitor"\]\[data-encostado\]\{ transition: width 300ms var\(--dt-travar\) 90ms; \}/, 'a fechar, depois de a fila se apagar');
+  assert.match(CASCA_LF, /\[data-dt~="painel-do-leitor"\]\[data-encostado\]\[data-aberto\]\{ transition: width 460ms var\(--dt-entrada\); \}/);
+  assert.match(PAINEL, /data-encostado=\{porCimaAgora \? undefined : ''\} data-aberto=\{noSitio \? '' : undefined\}/);
+  // O fundo por trás do painel fica fixo durante a animação (do abrir ao fim do fechar).
+  assert.match(PAINEL, /const fundoPorTras = !porCima && conteudoMontado;/);
+  assert.match(PAINEL, /\['--dt-painel-encostado' as any\]: fundoPorTras \? 'var\(--dt-painel, 340px\)' : '0px'/);
   // A fila entra lá dentro depois do lugar, e apaga-se primeiro a fechar.
   assert.match(CASCA_LF, /\[data-dt~="painel-dentro"\]\[data-visivel\]\{ opacity: 1; transform: none; visibility: visible;\n\s*transition: opacity 260ms var\(--dt-entrada\) 90ms, transform 460ms var\(--dt-entrada\) 60ms, visibility 0s; \}/);
   assert.match(PAINEL, /<div data-dt="painel-dentro" data-visivel=\{noSitio \? '' : undefined\} data-escondido=\{escondido \? '' : undefined\}>/);
   // Sem o piscar de 0,7 nem o fundo a acender quando chegava.
   assert.ok(!/assentar/.test(PAINEL), 'o piscar voltou');
   assert.match(CASCA_LF, /\[data-dt~="painel-do-leitor"\] \{ transition: transform 240ms var\(--dt-curva\); will-change: transform; \}/);
-  assert.match(CASCA_LF, /html\[data-a-redimensionar\] \[data-dt~="painel-do-leitor"\], html\[data-a-redimensionar\] \[data-dt~="painel-e-pagina"\]\{ transition: none !important; \}/, 'a arrastar a pega, segue o rato');
+  assert.match(CASCA_LF, /html\[data-a-redimensionar\] \[data-dt~="painel-do-leitor"\]\{ transition: none !important; \}/, 'a arrastar a pega, segue o rato');
 });
 caso('o lugar da barra do leitor fecha-se com a mesma curva, a partir da altura dela', () => {
   assert.match(CASCA_LF, /\[data-dt~="saida-da-barra"\] \{ flex-shrink: 0; overflow: hidden; pointer-events: none;\n\s*animation: dt-barra-sai 320ms var\(--dt-curva\) both; \}/);
@@ -378,26 +382,18 @@ caso('a capa voa da barra até à do leitor, e de volta, e a verdadeira espera e
   assert.ok(!/\{ left: |\{ width: /.test(voo.slice(voo.indexOf('.animate('))), 'a animação mexe só no transform');
   assert.match(voo, /!menosMovimentoAgora\(\)/, 'com menos movimento não voa');
 });
-caso('com a "3D cover" a capa vai rodando até à pose da caixa, e endireita-se a voltar (23/11)', () => {
+caso('com a "3D cover" voa a caixa inteira, já em 3D, e aterra igual à verdadeira (23/11)', () => {
   const voo = emLf('src/desktop/vooDaCapa.web.ts');
-  const lib = emLf('src/lib/capaMetal3D.ts');
-  // A pose num sítio só: o motor da caixa e o voo usam a mesma.
-  assert.match(lib, /export function transformDaCaixa\(lado: number, rotX: number, rotY: number, volta = 0\): string \{/);
+  // Uma cópia do DOM da capa do leitor tal como está: a caixa, as arestas e a sombra.
+  assert.match(voo, /const copia = capa\.cloneNode\(true\) as HTMLElement;/);
+  assert.match(voo, /copia\.querySelectorAll\('\[id\]'\)\.forEach\(\(n\) => n\.removeAttribute\('id'\)\);/, 'sem ids repetidos');
+  assert.match(voo, /filter\(\(n\) => n && n !== ID_DA_CAPA_NO_LEITOR\)/, 'sem a marca que a esconderia');
+  assert.match(voo, /tela\.getContext\('2d'\)\?\.drawImage\(original, 0, 0\)/, 'os canvases levam o que têm desenhado');
+  // Voa com uma transformação plana (a caixa lá dentro guarda a perspetiva dela).
+  assert.match(voo, /return `translate\(\$\{dx\.toFixed\(2\)\}px, \$\{dy\.toFixed\(2\)\}px\) scale\(/);
+  assert.match(voo, /anim = copia\.animate\(\[\{ transform: deslocarAte\(de, alvo\.r\) \}, \{ transform: 'none' \}\]/);
+  // O motor da caixa e a pose ficam num sítio só.
   assert.match(emLf('src/desktop/CapaMetal3D.web.tsx'), /caixa\.style\.transform = transformDaCaixa\(lado, rotX, rotY, volta\);/);
-  assert.match(voo, /\$\{transformDaCaixa\(lado, POSE_DO_METAL\.rotateX, POSE_DO_METAL\.rotateY, 0\)\} translateZ\(\$\{meioDaCaixa\(lado\)\.toFixed\(2\)\}px\)/, 'chega à face da frente da caixa em repouso');
-  // A mesma lista de funções nas duas pontas (perspetiva, deslocar, rodar X/Y/Z, escala, virar, afastar):
-  // o navegador interpola função a função, a rodar, em vez de decompor matrizes.
-  const plana = voo.match(/const plana = \([^)]*\) =>\n\s*`([^`]+)`/)?.[1] ?? '';
-  const funcoes = (s: string) => [...s.matchAll(/([a-zA-Z0-9]+)\(/g)].map((m) => m[1]).filter((n) => n !== 'toFixed');
-  // As duas começam pela perspetiva do palco (o `p`).
-  assert.match(voo, /const p = `perspective\(\$\{perspetivaDaCaixa\(lado\)\}px\)`;/);
-  assert.match(plana, /^\$\{p\} /);
-  assert.match(voo, /\? `\$\{p\} \$\{transformDaCaixa\(/);
-  assert.deepEqual(funcoes(plana), ['translate3d', 'rotateX', 'rotateY', 'rotateZ', 'scale', 'rotateY', 'translateZ']);
-  const corpo = lib.slice(lib.indexOf('export function transformDaCaixa'), lib.indexOf('export const perspetivaDaCaixa'));
-  assert.deepEqual([...funcoes(corpo.replace(/\$\{[^}]*\}/g, '')).filter((n) => n !== 'transformDaCaixa'), 'translateZ'], funcoes(plana));
-  assert.match(voo, /transformOrigin: '50% 50%'/, 'roda à volta do centro, como a caixa');
-  assert.match(voo, /const e3D = \(el: HTMLElement\) => !!el\.querySelector\('\[data-dt~="m3-caixa"\]'\);/);
 });
 caso('a página recua por baixo em vez de sumir, e o resto do leitor sobe em escada', () => {
   const nav = emLf('src/navigation/RootNavigator.web.tsx');

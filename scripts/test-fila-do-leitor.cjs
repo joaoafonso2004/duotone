@@ -153,8 +153,8 @@ fila.aoRolar({ nativeEvent: { contentOffset: { y: 5100 }, layoutMeasurement: { h
 assert.equal(render().linhasDaFila, 200, 'acrescenta um lote ao chegar perto do fim');
 
 // A seta abria e fechava aos solavancos (11/10): animava-se a LARGURA da calha.
-// Desde 23/11 o lugar encostado volta a crescer com a página (a variável registada
-// `--dt-painel-encostado`, ver o test-animacoes-do-pc.ts); por cima, só o transform.
+// Desde 23/11 o lugar encostado volta a crescer com a página (a width do painel, ver o
+// test-animacoes-do-pc.ts); por cima, só o transform.
 const casca = fs.readFileSync(require('node:path').join(__dirname, '../src/desktop/casca.web.tsx'), 'utf8');
 assert.match(casca, /\[data-dt~="painel-do-leitor"\] \{ transition: transform 240ms/);
 assert.doesNotMatch(casca, /painel-do-leitor"\] \{ transition: width/);

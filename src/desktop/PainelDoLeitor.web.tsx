@@ -105,11 +105,11 @@ export function PainelDoLeitor({ children, more, notify, sobre = null }: Pick<Co
   /*
    * Abrir e fechar (23/11, a correção da maquete "Painel e leitor a abrir"; o João:
    * "continua sem estar clean"). Encostado, o LUGAR do painel cresce e a página
-   * encolhe com ele, no mesmo movimento: a largura é a variável registada
-   * `--dt-painel-encostado` (`@property` na casca), que a casca anima com a curva
-   * de entrada, e que a página, o fundo dela por trás do painel e o recorte da área
-   * leem. A fila entra lá dentro um pouco depois; a fechar, apaga-se primeiro e o
-   * lugar fecha a seguir. Nada de fundo, sombra nem piscar (a 11/10 o painel
+   * encolhe com ele, no mesmo movimento: a casca anima a `width` do painel com a curva
+   * de entrada. A fila entra lá dentro um pouco depois; a fechar, apaga-se primeiro e o
+   * lugar fecha a seguir. (A 1.ª versão animava a variável `--dt-painel-encostado`,
+   * registada e herdada: cada fotograma recalculava o estilo da página inteira, e o
+   * João viu-o a poucos fps. A variável agora é fixa durante a animação, ver abaixo.) Nada de fundo, sombra nem piscar (a 11/10 o painel
    * deslizava por cima e a página encolhia de uma vez quando ele chegava).
    * Por cima da página (janela estreita) continua a deslizar pelo `transform`.
    * A página volta a mudar de largura em cada fotograma (o que a 4.9.2 deixou): as
@@ -145,32 +145,37 @@ export function PainelDoLeitor({ children, more, notify, sobre = null }: Pick<Co
   // Encostado: a página reserva o lugar dele. Por cima (janela estreita), não.
   const encostado = noSitio && !porCima;
   const porCimaAgora = porCima;
+  // O fundo da página estica por trás do lugar do painel desde que ele começa a abrir até
+  // acabar de fechar (o conteúdo montado): fixo durante a animação, para nada recalcular o
+  // estilo a cada fotograma. A página e o lugar juntos têm sempre a largura toda, por isso o
+  // fundo chega sempre à borda da janela, cresça ou encolha o lugar.
+  const fundoPorTras = !porCima && conteudoMontado;
   // O fundo da página passa por trás do painel encostado (23/11, o João: "a barra lateral
   // não está a absorver a cor do resto da página"): o painel é transparente, e as camadas
   // `fundo-da-pagina` (a cor do artista, a lavagem da playlist e a das Liked Songs) esticam
   // para a direita esta largura (casca.web.tsx). Por cima da página não: aí leva fundo.
-  // A marca é fixa (o teste das animações lê-a), e o estado vai num atributo à parte.
-  return <div data-dt="painel-e-pagina" data-aberto={encostado ? '' : undefined} style={{ display: 'flex', flexDirection: 'row', flex: '1 1 0%', minWidth: 0, minHeight: 0, position: 'relative', overflowX: 'clip', overflowY: 'visible',
-    ['--dt-painel-encostado' as any]: encostado ? 'var(--dt-painel, 340px)' : '0px' }}>
+  return <div style={{ display: 'flex', flexDirection: 'row', flex: '1 1 0%', minWidth: 0, minHeight: 0, position: 'relative', overflowX: 'clip', overflowY: 'visible',
+    ['--dt-painel-encostado' as any]: fundoPorTras ? 'var(--dt-painel, 340px)' : '0px' }}>
     <div style={{ display: 'flex', flexDirection: 'column', flex: '1 1 0%', minWidth: 0, minHeight: 0 }}>{children}</div>
     {/* Encostado (a página reserva o lugar, que cresce com ela) ou por cima dela.
         Na janela estreita fica sempre por cima. */}
     <div id="painel-do-leitor" role="complementary" aria-label="Queue and lyrics" data-dt="painel-do-leitor"
+      data-encostado={porCimaAgora ? undefined : ''} data-aberto={noSitio ? '' : undefined}
       inert={!estado.aberto} aria-hidden={!estado.aberto} style={{
       display: 'flex', flexDirection: 'column', flexShrink: 0, minHeight: 0, overflow: 'hidden', zIndex: 30,
       position: porCimaAgora ? 'absolute' : 'relative', right: porCimaAgora ? 0 : undefined,
       top: porCimaAgora ? 0 : undefined, bottom: porCimaAgora ? 0 : undefined,
-      // Encostado, a largura é a do lugar (a variável animada); por cima, a do painel (31/10,
-      // `estadoDasBarras.web.ts`: ajustável, e arrastar não passa pelo React).
-      width: porCimaAgora ? 'var(--dt-painel, 340px)' : 'var(--dt-painel-encostado, 0px)', maxWidth: '100%',
+      // Encostado, a largura é a do lugar, que a casca anima de 0 até à do painel; por cima,
+      // a do painel (31/10, `estadoDasBarras.web.ts`: ajustável, e arrastar não passa pelo React).
+      width: porCimaAgora || encostado ? 'var(--dt-painel, 340px)' : '0px', maxWidth: '100%',
       transform: porCimaAgora ? `translateX(${noSitio ? 0 : 100}%)` : undefined,
       pointerEvents: estado.aberto ? 'auto' : 'none',
       boxShadow: porCimaAgora && noSitio ? '-16px 0 44px rgba(0,0,0,0.3)' : undefined,
       // Encostado, o painel é a mesma superfície da página (9/11): sem fundo nem
       // linha, separa-o o espaço. Por cima da página leva fundo.
       backgroundColor: porCimaAgora ? FUNDO_POR_CIMA : 'transparent',
-      // As transições estão TODAS no CSS da casca (`painel-do-leitor`, `painel-dentro`,
-      // `painel-e-pagina`). Um `transition` aqui substituía as de lá por inteiro: de
+      // As transições estão TODAS no CSS da casca (`painel-do-leitor`, `painel-dentro`).
+      // Um `transition` aqui substituía as de lá por inteiro: de
       // 9/11 a 22/11 o painel abria e fechava aos saltos. O "menos movimento" desliga-as lá.
     }}>
     {/* O conteúdo, com a largura do painel e encostado à direita: o lugar abre-se por

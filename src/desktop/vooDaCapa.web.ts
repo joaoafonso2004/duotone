@@ -1,7 +1,5 @@
 import { curvaDoPc } from '../lib/molasEmCss';
 import { menosMovimentoAgora } from '../hooks/useReducedMotion';
-import { RAIO } from './tokens.web';
-import { POSE_DO_METAL, meioDaCaixa, perspetivaDaCaixa, transformDaCaixa } from '../lib/capaMetal3D';
 
 /**
  * A capa que voa da barra do leitor para o Now Playing, e de volta (23/11, a maquete
@@ -11,18 +9,21 @@ import { POSE_DO_METAL, meioDaCaixa, perspetivaDaCaixa, transformDaCaixa } from 
  * recua por baixo (`pagina-sob-o-leitor`) e o resto do leitor sobe em escada
  * (`np-sobe`), tudo no CSS da casca.
  *
+ * Quem voa é uma CÓPIA DO DOM da capa do leitor, tal como está (23/11, o João: "abre
+ * só a imagem e depois dá pop para ficar em 3D, deve abrir já em 3D"): com a "3D
+ * cover" é a caixa inteira, com as arestas e a sombra no chão, já na pose dela; sem
+ * ela, o cubo plano. A cópia voa com uma transformação plana (deslocar e escalar,
+ * pelo compositor) e a caixa lá dentro mantém a perspetiva dela: na barra é uma caixa
+ * 3D pequena, e aterra igual à verdadeira, que fica escondida enquanto ela voa
+ * (`html[data-capa-a-voar]`). Não é a capa verdadeira a voar porque a página do
+ * leitor corta o que sai dela (`npPagina`, `overflow: hidden`), e a barra fica fora.
+ *
  * Não é uma View Transition (`viagem.web.ts`): o Now Playing não é uma rota, e a
- * transição congelava a janela à espera dele. É uma cópia da capa num `<div>` fixo,
- * animada pelo compositor (WAAPI, só `transform`), e a capa verdadeira fica escondida
- * enquanto ela voa (`html[data-capa-a-voar]`).
+ * transição congelava a janela à espera dele.
  *
  * A capa do leitor só tem o tamanho certo depois de ele medir a área (o `onLayout`
  * corre no fotograma a seguir a montar): a cópia espera até a caixa ficar igual dois
  * fotogramas seguidos. Sem capa à vista (o Cinema, a letra grande) não voa nada.
- *
- * Com a "3D cover" (23/11, o João: "consegues fazer com que passe de 3D para 2D de
- * maneira smooth?") a cópia não aterra plana: vai rodando até à pose da caixa
- * (`transformDaCaixa`, a mesma do motor), e a fechar endireita-se a caminho da barra.
  */
 
 /** O invólucro da capa na barra do leitor (`CapaDaBarra`, casca.web.tsx). */
@@ -33,14 +34,10 @@ export const ID_DA_CAPA_NO_LEITOR = 'capa-do-leitor';
 export const A_VOAR = 'data-capa-a-voar';
 const DURACAO_A_ABRIR = 560;
 const DURACAO_A_FECHAR = 420;
+/** O fim de cada voo: a cópia apaga-se por cima da capa verdadeira (ou da da barra). */
+const DURACAO_A_POUSAR = 100;
 /** A fechar, a capa trava no sítio dela na barra, sem passar dele. */
 const CURVA_A_FECHAR = () => curvaDoPc('travar');
-/** Os cantos da capa na barra (`CapaDaBarra`), no leitor (a caixa da capa) e na face da caixa 3D (`m3-face`). */
-const RAIO_NA_BARRA = RAIO.ctrl;
-const RAIO_NO_LEITOR = RAIO.superficie;
-const RAIO_DA_FACE_3D = 2;
-const SOMBRA = '0 24px 60px rgba(0,0,0,.45)';
-const SEM_SOMBRA = '0 0 0 rgba(0,0,0,0)';
 const MAX_FOTOGRAMAS_A_ESPERAR = 12;
 
 let cancelarAtual: (() => void) | null = null;
@@ -52,60 +49,52 @@ function caixaDe(id: string): { el: HTMLElement; r: DOMRect } | null {
   return r.width > 1 && r.height > 1 ? { el, r } : null;
 }
 
-/** A imagem que uma capa está a mostrar (a `<img>` escondida que o RNW põe junto do fundo). */
-function imagemDe(el: HTMLElement | null | undefined): string | null {
-  const img = el?.querySelector('img');
-  return img?.currentSrc || img?.src || null;
-}
-
 function podeVoar(): boolean {
   return typeof document !== 'undefined' && document.visibilityState === 'visible' && !menosMovimentoAgora()
     && typeof Element !== 'undefined' && typeof Element.prototype.animate === 'function';
 }
 
-function copiaEm(r: DOMRect, imagens: (string | null)[], raio: number): HTMLDivElement {
-  const copia = document.createElement('div');
-  copia.setAttribute('aria-hidden', 'true');
-  const fundos = imagens.filter((i): i is string => !!i).map((i) => `url("${i.replace(/"/g, '%22')}")`);
-  Object.assign(copia.style, {
+/**
+ * A cópia da capa do leitor, num `<div>` fixo no sítio dela. Os canvases (o efeito do
+ * glitch e as arestas vivas) não vêm com o DOM: copia-se o que têm desenhado. Tira-se
+ * o id (não pode haver dois) e a marca que a esconde.
+ */
+export function copiaDaCapa(capa: HTMLElement, r: DOMRect): HTMLDivElement {
+  const caixa = document.createElement('div');
+  caixa.setAttribute('aria-hidden', 'true');
+  Object.assign(caixa.style, {
     position: 'fixed', left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`,
     zIndex: '2147483000', pointerEvents: 'none', transformOrigin: '50% 50%', willChange: 'transform',
-    backgroundColor: '#14141A', backgroundImage: fundos.join(', '), backgroundSize: 'cover', backgroundPosition: 'center',
-    borderRadius: `${raio}px`, boxShadow: SOMBRA,
   } as Partial<CSSStyleDeclaration>);
-  document.body.appendChild(copia);
-  return copia;
+  const copia = capa.cloneNode(true) as HTMLElement;
+  copia.removeAttribute('id');
+  copia.querySelectorAll('[id]').forEach((n) => n.removeAttribute('id'));
+  copia.setAttribute('data-dt', (copia.getAttribute('data-dt') ?? '').split(/\s+/).filter((n) => n && n !== ID_DA_CAPA_NO_LEITOR).join(' '));
+  Object.assign(copia.style, { margin: '0', position: 'absolute', left: '0', top: '0' });
+  const daqui = capa.querySelectorAll('canvas');
+  copia.querySelectorAll('canvas').forEach((tela, i) => {
+    const original = daqui[i];
+    if (!original) return;
+    tela.width = original.width;
+    tela.height = original.height;
+    try { tela.getContext('2d')?.drawImage(original, 0, 0); } catch { /* sem o desenho, fica a imagem por baixo */ }
+  });
+  caixa.appendChild(copia);
+  document.body.appendChild(caixa);
+  return caixa;
 }
 
-/**
- * As duas pontas do voo, para a cópia posta no sítio do leitor (`leitor`): `barra` é
- * plana, encolhida até à capa da barra; `chegada` é plana no sítio, ou a pose da caixa
- * 3D. As duas com a MESMA lista de funções, para o navegador interpolar função a função
- * (a rodar) e não decompor matrizes. A perspetiva é a do palco da caixa; plana, sem
- * nada rodado nem afastado, não muda nada.
- */
-export function pontasDoVoo(barra: DOMRect, leitor: DOMRect, tres: boolean): { barra: string; chegada: string } {
-  const dx = barra.left + barra.width / 2 - (leitor.left + leitor.width / 2);
-  const dy = barra.top + barra.height / 2 - (leitor.top + leitor.height / 2);
-  const lado = leitor.width;
-  const p = `perspective(${perspetivaDaCaixa(lado)}px)`;
-  const plana = (x: number, y: number, s: number) =>
-    `${p} translate3d(${x.toFixed(2)}px,${y.toFixed(2)}px,0) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(${s.toFixed(4)}) rotateY(0deg) translateZ(0px)`;
-  return {
-    barra: plana(dx, dy, barra.width / lado),
-    chegada: tres
-      ? `${p} ${transformDaCaixa(lado, POSE_DO_METAL.rotateX, POSE_DO_METAL.rotateY, 0)} translateZ(${meioDaCaixa(lado).toFixed(2)}px)`
-      : plana(0, 0, 1),
-  };
+/** A transformação que leva a cópia (posta em `em`) ao centro e ao tamanho de `la`. */
+export function deslocarAte(la: DOMRect, em: DOMRect): string {
+  const dx = la.left + la.width / 2 - (em.left + em.width / 2);
+  const dy = la.top + la.height / 2 - (em.top + em.height / 2);
+  return `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px) scale(${(la.width / em.width).toFixed(4)})`;
 }
-
-/** A capa do leitor é a caixa 3D ("3D cover" nas Definições)? */
-const e3D = (el: HTMLElement) => !!el.querySelector('[data-dt~="m3-caixa"]');
 
 const iguais = (a: DOMRect, b: DOMRect) =>
   Math.abs(a.left - b.left) < 0.5 && Math.abs(a.top - b.top) < 0.5 && Math.abs(a.width - b.width) < 0.5 && Math.abs(a.height - b.height) < 0.5;
 
-/** Abrir o Now Playing: a capa da barra voa até à capa do leitor. */
+/** Abrir o Now Playing: a capa (já em 3D, com a "3D cover") sai da barra e cresce até ao sítio. */
 export function voarParaOLeitor(): void {
   cancelarAtual?.();
   if (!podeVoar()) return;
@@ -132,29 +121,21 @@ export function voarParaOLeitor(): void {
   };
   const partir = (alvo: { el: HTMLElement; r: DOMRect }) => {
     const de = caixaDe(ID_DA_CAPA_NA_BARRA)?.r ?? naBarra.r;
-    const para = alvo.r;
-    const tres = e3D(alvo.el);
-    const pontas = pontasDoVoo(de, para, tres);
-    const escala = de.width / para.width;
-    // A grande por cima da pequena: se ainda não carregou, vê-se a da barra.
-    copia = copiaEm(para, [imagemDe(alvo.el), imagemDe(naBarra.el)], RAIO_NO_LEITOR);
-    // Na caixa 3D a sombra é a do chão (aparece com ela); plana, a da cópia.
-    anim = copia.animate([
-      { transform: pontas.barra, borderRadius: `${RAIO_NA_BARRA / escala}px`, boxShadow: SEM_SOMBRA },
-      { transform: pontas.chegada, borderRadius: `${tres ? RAIO_DA_FACE_3D : RAIO_NO_LEITOR}px`, boxShadow: tres ? SEM_SOMBRA : SOMBRA },
-    ], { duration: DURACAO_A_ABRIR, easing: curvaDoPc('entrada'), fill: 'both' });
+    copia = copiaDaCapa(alvo.el, alvo.r);
+    anim = copia.animate([{ transform: deslocarAte(de, alvo.r) }, { transform: 'none' }],
+      { duration: DURACAO_A_ABRIR, easing: curvaDoPc('entrada'), fill: 'both' });
     anim.onfinish = () => {
       if (cancelado || !copia) return;
-      // A capa verdadeira aparece por baixo, e a cópia apaga-se por cima dela.
+      // A capa verdadeira aparece por baixo (igual), e a cópia apaga-se por cima dela.
       raiz.removeAttribute(A_VOAR);
-      const fim = copia.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: 'both' });
+      const fim = copia.animate([{ opacity: 1 }, { opacity: 0 }], { duration: DURACAO_A_POUSAR, fill: 'both' });
       fim.onfinish = acabar;
     };
   };
   quadro = requestAnimationFrame(esperar);
 }
 
-/** Fechar o Now Playing: a capa do leitor volta para a barra, enquanto o leitor se apaga. */
+/** Fechar o Now Playing: a capa (como está) volta para a barra, enquanto o leitor se apaga. */
 export function voarParaABarra(): void {
   cancelarAtual?.();
   if (!podeVoar()) return;
@@ -162,18 +143,17 @@ export function voarParaABarra(): void {
   const naBarra = caixaDe(ID_DA_CAPA_NA_BARRA);
   if (!noLeitor || !naBarra) return;
   const raiz = document.documentElement;
+  const copia = copiaDaCapa(noLeitor.el, noLeitor.r);
   raiz.setAttribute(A_VOAR, '');
-  const tres = e3D(noLeitor.el);
-  const pontas = pontasDoVoo(naBarra.r, noLeitor.r, tres);
-  const escala = naBarra.r.width / noLeitor.r.width;
-  const copia = copiaEm(noLeitor.r, [imagemDe(noLeitor.el), imagemDe(naBarra.el)], RAIO_NO_LEITOR);
-  // Parte da pose onde a caixa estava (3D, ou plana) e endireita-se a caminho da barra.
-  const anim = copia.animate([
-    { transform: pontas.chegada, borderRadius: `${tres ? RAIO_DA_FACE_3D : RAIO_NO_LEITOR}px`, boxShadow: tres ? SEM_SOMBRA : SOMBRA },
-    { transform: pontas.barra, borderRadius: `${RAIO_NA_BARRA / escala}px`, boxShadow: SEM_SOMBRA },
-  ], { duration: DURACAO_A_FECHAR, easing: CURVA_A_FECHAR(), fill: 'both' });
+  const anim = copia.animate([{ transform: 'none' }, { transform: deslocarAte(naBarra.r, noLeitor.r) }],
+    { duration: DURACAO_A_FECHAR, easing: CURVA_A_FECHAR(), fill: 'both' });
+  let fim: Animation | null = null;
   const acabar = () => { raiz.removeAttribute(A_VOAR); copia.remove(); if (cancelarAtual === cancelar) cancelarAtual = null; };
-  const cancelar = () => { anim.cancel(); acabar(); };
+  const cancelar = () => { anim.cancel(); fim?.cancel(); acabar(); };
   cancelarAtual = cancelar;
-  anim.onfinish = acabar;
+  // Na barra, apaga-se por cima da capa dela.
+  anim.onfinish = () => {
+    fim = copia.animate([{ opacity: 1 }, { opacity: 0 }], { duration: DURACAO_A_POUSAR, fill: 'both' });
+    fim.onfinish = acabar;
+  };
 }
