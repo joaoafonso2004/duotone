@@ -1,5 +1,5 @@
 Forgot your password? You can now reset it from Duotone with a code we email you.
-Artist, playlist and Liked Songs colours now carry on behind the queue panel.
+The queue panel, Now Playing and the player bar now open and close in one smooth motion.
 
 Duotone for Windows 7.0.3
 
