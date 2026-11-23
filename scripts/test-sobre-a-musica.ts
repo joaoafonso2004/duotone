@@ -133,7 +133,9 @@ caso('a barra da direita tem Queue, Lyrics e About, e a aba guardada aceita a no
 });
 caso('com o Now Playing aberto o painel recolhe-se (não se guarda) e a seta fica apagada, e volta ao fechar', () => {
   assert.match(NAVEGADOR, /useEffect\(\(\) => \{ usePainelDoLeitor\.setState\(\{ escondido: nowPlayingOpen \}\); \}, \[nowPlayingOpen\]\);/);
-  assert.match(PAINEL, /const aberto = usePainelDoLeitor\(\(st\) => st\.aberto && !st\.escondido\);/);
+  // Desde 23/11 o lugar fica (o Now Playing desenha-se por cima dele) e o conteúdo apaga-se.
+  assert.match(PAINEL, /const abertoNaLoja = usePainelDoLeitor\(\(st\) => st\.aberto\);\n\s*const escondido = usePainelDoLeitor\(\(st\) => st\.escondido\);\n\s*const aberto = abertoNaLoja && !escondido;/);
+  assert.match(PAINEL, /inert=\{!estado\.aberto\} aria-hidden=\{!estado\.aberto\}/, 'apagado, não se chega lá pelo teclado');
   assert.match(PAINEL, /if \(aberto && !escondido\) return null;/);
   assert.match(PAINEL, /disabled=\{escondido\}/);
   assert.ok(!/escondido/.test(ESTADO.slice(ESTADO.indexOf('PREFERENCIA, JSON.stringify'), ESTADO.indexOf('PREFERENCIA, JSON.stringify') + 120)), 'o escondido não vai para o disco');

@@ -16,7 +16,9 @@ import type { CommonPageProps } from './rotas';
 import { usePainelDoLeitor, type AbaDoPainel as Aba } from './estadoDoPainel.web';
 
 import { FRASES_DOS_ESTADOS } from '../lib/frasesDosEstados';
-const DURACAO_DA_RECOLHA = 240;
+/** Quanto o painel leva a abrir (a curva de entrada) e a fechar (o conteúdo apaga-se e o lugar fecha a seguir). */
+const DURACAO_DA_ABERTURA = 460;
+const DURACAO_DO_FECHO = 400;
 /** As abas do painel, por ordem, e o nome de cada (31/10: a terceira, About, é nova). */
 const ABAS: readonly Aba[] = ['fila', 'letras', 'sobre'];
 const ROTULO_DA_ABA: Record<Aba, string> = { fila: 'Queue', letras: 'Lyrics', sobre: 'About' };
@@ -69,18 +71,26 @@ function ConteudoDoPainel({ aba, more, notify }: Pick<CommonPageProps, 'more' | 
   </View>;
 }
 
-/** A seta vive no canto do conteúdo, também por cima do Now Playing grande. */
-export function PainelDoLeitor({ children, more, notify }: Pick<CommonPageProps, 'more' | 'notify'> & { children: React.ReactNode }) {
-  // Com o Now Playing aberto o painel recolhe-se (31/10: a página já tem a fila, a letra e o About).
-  const aberto = usePainelDoLeitor((st) => st.aberto && !st.escondido);
+/**
+ * O painel da fila, da letra e do About, à direita da página. `sobre` é o que se
+ * desenha por cima da página E do painel (o Now Playing, 23/11): com ele aberto o
+ * painel não fecha o lugar, apaga-se por baixo, e o leitor fica com a largura toda
+ * sem nada mudar de tamanho a meio da capa a voar.
+ */
+export function PainelDoLeitor({ children, more, notify, sobre = null }: Pick<CommonPageProps, 'more' | 'notify'> & { children: React.ReactNode; sobre?: React.ReactNode }) {
+  // O lugar do painel é o que está aberto na loja; com o Now Playing aberto (31/10:
+  // a página já tem a fila, a letra e o About) o conteúdo apaga-se, e o lugar fica.
+  const abertoNaLoja = usePainelDoLeitor((st) => st.aberto);
+  const escondido = usePainelDoLeitor((st) => st.escondido);
+  const aberto = abertoNaLoja && !escondido;
   const abaAtual = usePainelDoLeitor((st) => st.aba);
   const estado = { aberto, aba: abaAtual };
   const setEstado = (f: (antes: { aberto: boolean; aba: Aba }) => { aberto: boolean; aba: Aba }) =>
     usePainelDoLeitor.setState((st) => f({ aberto: st.aberto, aba: st.aba }));
-  const [conteudoMontado, setConteudoMontado] = useState(estado.aberto);
-  // O painel no sítio (ou a deslizar para fora). Separado do `aberto`: ao
-  // abrir, monta-se fora do ecrã e só no fotograma seguinte desliza para dentro.
-  const [noSitio, setNoSitio] = useState(estado.aberto);
+  const [conteudoMontado, setConteudoMontado] = useState(abertoNaLoja);
+  // O painel no sítio (ou a sair). Separado do `aberto`: ao abrir, monta-se fechado
+  // e só no fotograma seguinte abre, para a transição ter de onde partir.
+  const [noSitio, setNoSitio] = useState(abertoNaLoja);
   const menosMovimento = useReducedMotion();
   const { width } = useWindowDimensions();
   const porCima = width < 1100;
@@ -92,52 +102,35 @@ export function PainelDoLeitor({ children, more, notify }: Pick<CommonPageProps,
     // deslizar nada: ver `focarSemDeslizar`.
     requestAnimationFrame(() => focarSemDeslizar(document.getElementById(ID_DA_SETA)));
   }, []);
-  // A página reserva os 340 px (encostado) ou o painel fica por cima dela.
-  const [encostado, setEncostado] = useState(estado.aberto && !porCima);
-  // A página acabou de mudar de largura: aparece de 0,7 a 1 num instante, e a
-  // grelha a arrumar-se de novo não se vê como um salto.
-  const [assentar, setAssentar] = useState(false);
-  const encostadoRef = useRef(encostado);
-  const mudarLargura = (v: boolean) => {
-    if (encostadoRef.current === v) return;
-    encostadoRef.current = v;
-    setEncostado(v);
-    if (menosMovimento) return;
-    setAssentar(true);
-    requestAnimationFrame(() => requestAnimationFrame(() => setAssentar(false)));
-  };
   /*
-   * Abrir e fechar (11/10, depois da 4.9.3: "abre, empurra tudo e dá teleport
-   * num frame"). Só se anima o `transform`; a página nunca muda de largura
-   * enquanto o painel se mexe:
-   *   - abrir: o painel desliza POR CIMA da página; quando chega, a página
-   *     encolhe por baixo dele (com o `assentar`), e o foco vai para o fechar;
-   *   - fechar: a página alarga logo, por baixo do painel, e ele desliza para
-   *     fora a destapá-la.
-   * Animar a largura (a 4.9.2) arrumava a página toda a cada fotograma.
+   * Abrir e fechar (23/11, a correção da maquete "Painel e leitor a abrir"; o João:
+   * "continua sem estar clean"). Encostado, o LUGAR do painel cresce e a página
+   * encolhe com ele, no mesmo movimento: a largura é a variável registada
+   * `--dt-painel-encostado` (`@property` na casca), que a casca anima com a curva
+   * de entrada, e que a página, o fundo dela por trás do painel e o recorte da área
+   * leem. A fila entra lá dentro um pouco depois; a fechar, apaga-se primeiro e o
+   * lugar fecha a seguir. Nada de fundo, sombra nem piscar (a 11/10 o painel
+   * deslizava por cima e a página encolhia de uma vez quando ele chegava).
+   * Por cima da página (janela estreita) continua a deslizar pelo `transform`.
+   * A página volta a mudar de largura em cada fotograma (o que a 4.9.2 deixou): as
+   * tabelas só desenham as linhas à vista.
    */
   useEffect(() => {
     const quadros: number[] = [];
     const tempos: ReturnType<typeof setTimeout>[] = [];
-    if (estado.aberto) {
+    if (abertoNaLoja) {
       setConteudoMontado(true);
-      if (menosMovimento) {
-        setNoSitio(true);
-        mudarLargura(!porCima);
-        quadros.push(requestAnimationFrame(() => focarSemDeslizar(fecharRef.current)));
-      } else {
-        quadros.push(requestAnimationFrame(() => { quadros.push(requestAnimationFrame(() => setNoSitio(true))); }));
-        tempos.push(setTimeout(() => { mudarLargura(!porCima); focarSemDeslizar(fecharRef.current); }, DURACAO_DA_RECOLHA));
-      }
+      if (menosMovimento) setNoSitio(true);
+      else quadros.push(requestAnimationFrame(() => { quadros.push(requestAnimationFrame(() => setNoSitio(true))); }));
+      if (!escondido) tempos.push(setTimeout(() => focarSemDeslizar(fecharRef.current), menosMovimento ? 0 : DURACAO_DA_ABERTURA));
     } else {
-      mudarLargura(false);
       setNoSitio(false);
       // O conteúdo fica até o painel acabar de sair.
-      tempos.push(setTimeout(() => setConteudoMontado(false), menosMovimento ? 0 : DURACAO_DA_RECOLHA));
+      tempos.push(setTimeout(() => setConteudoMontado(false), menosMovimento ? 0 : DURACAO_DO_FECHO));
     }
     return () => { quadros.forEach(cancelAnimationFrame); tempos.forEach(clearTimeout); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [estado.aberto, menosMovimento, porCima]);
+  }, [abertoNaLoja, menosMovimento]);
   useEffect(() => {
     if (!estado.aberto) return;
     const aoEscape = (e: KeyboardEvent) => {
@@ -149,44 +142,40 @@ export function PainelDoLeitor({ children, more, notify }: Pick<CommonPageProps,
     window.addEventListener('keydown', aoEscape);
     return () => window.removeEventListener('keydown', aoEscape);
   }, [estado.aberto, fechar]);
-  const porCimaAgora = !encostado;
-  // `clip`, e não `hidden`: um `hidden` ainda se deixa deslizar por código, e foi
-  // isso que empurrou a janela toda para a esquerda. SÓ nos lados (22/11): a
-  // cortar também em cima, a página do artista não subia para debaixo da barra
-  // da janela (o chapéu do 15/11 continuava cortado; a área da página já deixava
-  // passar, este invólucro não). Por baixo corta a área da página (`conteudo-da-pagina`).
+  // Encostado: a página reserva o lugar dele. Por cima (janela estreita), não.
+  const encostado = noSitio && !porCima;
+  const porCimaAgora = porCima;
   // O fundo da página passa por trás do painel encostado (23/11, o João: "a barra lateral
   // não está a absorver a cor do resto da página"): o painel é transparente, e as camadas
   // `fundo-da-pagina` (a cor do artista, a lavagem da playlist e a das Liked Songs) esticam
   // para a direita esta largura (casca.web.tsx). Por cima da página não: aí leva fundo.
-  return <div style={{ display: 'flex', flexDirection: 'row', flex: '1 1 0%', minWidth: 0, minHeight: 0, position: 'relative', overflowX: 'clip', overflowY: 'visible',
+  // A marca é fixa (o teste das animações lê-a), e o estado vai num atributo à parte.
+  return <div data-dt="painel-e-pagina" data-aberto={encostado ? '' : undefined} style={{ display: 'flex', flexDirection: 'row', flex: '1 1 0%', minWidth: 0, minHeight: 0, position: 'relative', overflowX: 'clip', overflowY: 'visible',
     ['--dt-painel-encostado' as any]: encostado ? 'var(--dt-painel, 340px)' : '0px' }}>
-    <div style={{
-      display: 'flex', flexDirection: 'column', flex: '1 1 0%', minWidth: 0, minHeight: 0,
-      opacity: assentar ? 0.7 : 1, transition: assentar ? 'none' : 'opacity 220ms var(--dt-curva)',
-    }}>{children}</div>
-    {/* Encostado (a página reserva o lugar) ou por cima dela. Na janela
-        estreita fica sempre por cima. */}
+    <div style={{ display: 'flex', flexDirection: 'column', flex: '1 1 0%', minWidth: 0, minHeight: 0 }}>{children}</div>
+    {/* Encostado (a página reserva o lugar, que cresce com ela) ou por cima dela.
+        Na janela estreita fica sempre por cima. */}
     <div id="painel-do-leitor" role="complementary" aria-label="Queue and lyrics" data-dt="painel-do-leitor"
       inert={!estado.aberto} aria-hidden={!estado.aberto} style={{
       display: 'flex', flexDirection: 'column', flexShrink: 0, minHeight: 0, overflow: 'hidden', zIndex: 30,
       position: porCimaAgora ? 'absolute' : 'relative', right: porCimaAgora ? 0 : undefined,
       top: porCimaAgora ? 0 : undefined, bottom: porCimaAgora ? 0 : undefined,
-      // A largura é a variável da raiz (31/10, `estadoDasBarras.web.ts`): o painel é ajustável e
-      // arrastar não passa pelo React.
-      width: 'var(--dt-painel, 340px)', maxWidth: '100%',
-      transform: `translateX(${noSitio ? 0 : 100}%)`,
+      // Encostado, a largura é a do lugar (a variável animada); por cima, a do painel (31/10,
+      // `estadoDasBarras.web.ts`: ajustável, e arrastar não passa pelo React).
+      width: porCimaAgora ? 'var(--dt-painel, 340px)' : 'var(--dt-painel-encostado, 0px)', maxWidth: '100%',
+      transform: porCimaAgora ? `translateX(${noSitio ? 0 : 100}%)` : undefined,
       pointerEvents: estado.aberto ? 'auto' : 'none',
       boxShadow: porCimaAgora && noSitio ? '-16px 0 44px rgba(0,0,0,0.3)' : undefined,
       // Encostado, o painel é a mesma superfície da página (9/11): sem fundo nem
-      // linha, separa-o o espaço. Por cima da página (a deslizar, ou na janela
-      // estreita) leva fundo, senão via-se a página através dele.
+      // linha, separa-o o espaço. Por cima da página leva fundo.
       backgroundColor: porCimaAgora ? FUNDO_POR_CIMA : 'transparent',
-      // A transição (o deslizar e a cor) está TODA no CSS da casca
-      // (`[data-dt~="painel-do-leitor"]`). Um `transition` aqui substituía a de lá
-      // por inteiro: de 9/11 a 22/11 o painel abria e fechava aos saltos, e a
-      // página com ele. O "menos movimento" do Windows desliga-a lá.
+      // As transições estão TODAS no CSS da casca (`painel-do-leitor`, `painel-dentro`,
+      // `painel-e-pagina`). Um `transition` aqui substituía as de lá por inteiro: de
+      // 9/11 a 22/11 o painel abria e fechava aos saltos. O "menos movimento" desliga-as lá.
     }}>
+    {/* O conteúdo, com a largura do painel e encostado à direita: o lugar abre-se por
+        cima dele. Entra depois do lugar, e apaga-se com o Now Playing por cima. */}
+    <div data-dt="painel-dentro" data-visivel={noSitio ? '' : undefined} data-escondido={escondido ? '' : undefined}>
     {(estado.aberto || conteudoMontado) && <SeparadorDoPainel />}
     {(estado.aberto || conteudoMontado) && <View style={[s.painel, porCima && { maxWidth: '100%' }]}>
       <View style={s.cabeca}>
@@ -222,6 +211,8 @@ export function PainelDoLeitor({ children, more, notify }: Pick<CommonPageProps,
       </View>
     </View>}
     </div>
+    </div>
+    {sobre}
   </div>;
 }
 

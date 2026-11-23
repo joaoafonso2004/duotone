@@ -71,7 +71,8 @@ assert.deepEqual(andar(SAIDA_DO_LEITOR_MS, false), { montado: false, aSair: fals
 // O RootNavigator usa-o para a camada e para a cor da janela.
 const nav = fs.readFileSync('src/navigation/RootNavigator.web.tsx', 'utf8').replace(/\r\n/g, '\n');
 assert.match(nav, /const saidaDoLeitor = useSaida\(nowPlayingOpen, SAIDA_DO_LEITOR_MS\);/);
-assert.match(nav, /\{saidaDoLeitor\.montado&&<View pointerEvents=\{saidaDoLeitor\.aSair\?'none':'auto'\}/, 'a sair já não apanha cliques');
+// Desde 23/11 vai no `sobre` do PainelDoLeitor: por cima da página e do painel.
+assert.match(nav, /sobre=\{saidaDoLeitor\.montado\?<View pointerEvents=\{saidaDoLeitor\.aSair\?'none':'auto'\} \{\.\.\.marcar\('np-camada', saidaDoLeitor\.aSair\?'np-a-sair':''\)\}/, 'a sair já não apanha cliques');
 assert.match(nav, /<FundoDaCapa onde="janela" aApagar=\{aApagarACor\}/, 'a cor da capa apaga-se');
 assert.match(nav, /marcar\('main-a-voltar'\)/, 'a superfície volta ao fundo dela ao mesmo passo');
 const casca = fs.readFileSync('src/desktop/casca.web.tsx', 'utf8').replace(/\r\n/g, '\n');

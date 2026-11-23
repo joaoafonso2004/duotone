@@ -206,11 +206,23 @@ caso('o estilo do painel não traz um transition (de 9/11 a 22/11 substituía o 
   assert.ok(i > 0, 'o painel');
   const estilo = PAINEL.slice(i, PAINEL.indexOf('}}>', i));
   assert.doesNotMatch(estilo, /\btransition\s*:/, 'um transition inline anula o do CSS');
-  assert.match(estilo, /transform: `translateX\(\$\{noSitio \? 0 : 100\}%\)`/, 'continua a deslizar pelo transform');
+  assert.match(estilo, /transform: porCimaAgora \? `translateX\(\$\{noSitio \? 0 : 100\}%\)` : undefined/, 'por cima da página continua a deslizar pelo transform');
+  // Encostado (23/11), a largura é a do lugar, a variável que a casca anima.
+  assert.match(estilo, /width: porCimaAgora \? 'var\(--dt-painel, 340px\)' : 'var\(--dt-painel-encostado, 0px\)'/);
 });
-caso('o CSS da casca anima o deslizar e a cor do painel, e não a arrastar a largura', () => {
-  assert.match(CASCA_LF, /\[data-dt~="painel-do-leitor"\] \{ transition: transform 240ms var\(--dt-curva\), background-color 220ms var\(--dt-curva\); will-change: transform; \}/);
-  assert.match(CASCA_LF, /html\[data-a-redimensionar\] \[data-dt~="painel-do-leitor"\]\{ transition: none !important; \}/);
+caso('o lugar do painel encostado cresce com a página (23/11, a maquete), e por cima desliza', () => {
+  // A largura do lugar é uma variável registada, para a transição a poder animar.
+  assert.match(CASCA_LF, /@property --dt-painel-encostado \{ syntax: '<length>'; inherits: true; initial-value: 0px; \}/);
+  assert.match(CASCA_LF, /\[data-dt~="painel-e-pagina"\]\{ transition: --dt-painel-encostado 300ms var\(--dt-travar\) 90ms; \}/, 'a fechar, depois de a fila se apagar');
+  assert.match(CASCA_LF, /\[data-dt~="painel-e-pagina"\]\[data-aberto\]\{ transition: --dt-painel-encostado 460ms var\(--dt-entrada\); \}/);
+  assert.match(PAINEL, /<div data-dt="painel-e-pagina" data-aberto=\{encostado \? '' : undefined\}/);
+  // A fila entra lá dentro depois do lugar, e apaga-se primeiro a fechar.
+  assert.match(CASCA_LF, /\[data-dt~="painel-dentro"\]\[data-visivel\]\{ opacity: 1; transform: none; visibility: visible;\n\s*transition: opacity 260ms var\(--dt-entrada\) 90ms, transform 460ms var\(--dt-entrada\) 60ms, visibility 0s; \}/);
+  assert.match(PAINEL, /<div data-dt="painel-dentro" data-visivel=\{noSitio \? '' : undefined\} data-escondido=\{escondido \? '' : undefined\}>/);
+  // Sem o piscar de 0,7 nem o fundo a acender quando chegava.
+  assert.ok(!/assentar/.test(PAINEL), 'o piscar voltou');
+  assert.match(CASCA_LF, /\[data-dt~="painel-do-leitor"\] \{ transition: transform 240ms var\(--dt-curva\); will-change: transform; \}/);
+  assert.match(CASCA_LF, /html\[data-a-redimensionar\] \[data-dt~="painel-do-leitor"\], html\[data-a-redimensionar\] \[data-dt~="painel-e-pagina"\]\{ transition: none !important; \}/, 'a arrastar a pega, segue o rato');
 });
 caso('o lugar da barra do leitor fecha-se com a mesma curva, a partir da altura dela', () => {
   assert.match(CASCA_LF, /\[data-dt~="saida-da-barra"\] \{ flex-shrink: 0; overflow: hidden; pointer-events: none;\n\s*animation: dt-barra-sai 320ms var\(--dt-curva\) both; \}/);
@@ -316,6 +328,38 @@ caso('os amigos da lateral entram, saem e trocam de lugar a deslizar', () => {
   assert.equal((am.match(/<View ref=\{lista\}/g) ?? []).length, 2, 'na lateral larga e na estreita');
   assert.match(am, /\{\.\.\.\(\{ dataSet: \{ dt: 'amigo', chave: a\.friendId \} \} as any\)\}/);
   assert.match(am, /dataSet: \{ \.\.\.comDica\([\s\S]{0,120}\.dataSet, chave: a\.friendId \}/, 'a chave junta-se à legenda, sem a apagar');
+});
+
+console.log('\no Now Playing a abrir (23/11, a maquete "Painel e leitor a abrir"; o João: "dá pop out")');
+caso('a capa voa da barra até à do leitor, e de volta, e a verdadeira espera escondida', () => {
+  const voo = emLf('src/desktop/vooDaCapa.web.ts');
+  const np = emLf('src/desktop/paginas/NowPlayingPage.web.tsx');
+  const nav = emLf('src/navigation/RootNavigator.web.tsx');
+  assert.match(voo, /export const ID_DA_CAPA_NA_BARRA = 'alvo-seguinte';/);
+  assert.match(CASCA_LF, /<View nativeID="alvo-seguinte"><CapaDaBarra/, 'a capa da barra tem o id de onde se parte');
+  assert.match(voo, /export const ID_DA_CAPA_NO_LEITOR = 'capa-do-leitor';/);
+  assert.match(np, /<View nativeID="capa-do-leitor" \{\.\.\.marcar\('capa-do-leitor'\)\}/, 'e a do leitor o de onde se chega');
+  assert.match(nav, /if \(nowPlayingOpen\) voarParaOLeitor\(\); else voarParaABarra\(\);/);
+  assert.match(voo, /export const A_VOAR = 'data-capa-a-voar';/);
+  assert.match(CASCA_LF, /html\[data-capa-a-voar\] \[data-dt~="capa-do-leitor"\]\{ opacity: 0; \}/);
+  // Espera a capa do leitor no sítio (o onLayout dele) e, sem ela, não voa nada.
+  assert.match(voo, /if \(alvo && antes && iguais\(alvo\.r, antes\)\) \{ partir\(alvo\); return; \}/);
+  assert.match(voo, /if \(\+\+n > MAX_FOTOGRAMAS_A_ESPERAR\) \{ acabar\(\); return; \}/);
+  // Só o transform (o compositor), com as curvas do PC.
+  assert.match(voo, /easing: curvaDoPc\('entrada'\)/);
+  assert.match(voo, /curvaDoPc\('travar'\)/);
+  assert.ok(!/\{ left: |\{ width: /.test(voo.slice(voo.indexOf('.animate('))), 'a animação mexe só no transform');
+  assert.match(voo, /!menosMovimentoAgora\(\)/, 'com menos movimento não voa');
+});
+caso('a página recua por baixo em vez de sumir, e o resto do leitor sobe em escada', () => {
+  const nav = emLf('src/navigation/RootNavigator.web.tsx');
+  assert.match(nav, /marcar\('pagina-sob-o-leitor', nowPlayingOpen\?'escondida':''\)/);
+  assert.ok(!/visibility: 'hidden'/.test(nav), 'a página já não some num fotograma');
+  assert.match(CASCA_LF, /\[data-dt~="pagina-sob-o-leitor"\]\[data-dt~="escondida"\]\{ opacity: 0; transform: scale\(\.975\); visibility: hidden;/);
+  assert.match(CASCA_LF, /\[data-dt~="np-camada"\] \[data-dt~="np-sobe"\]\{ animation: dt-np-sobe 460ms var\(--dt-entrada\) 200ms both; \}/);
+  // O leitor por cima da página E do painel: nada muda de tamanho a meio do voo.
+  assert.match(nav, /<PainelDoLeitor more=\{more\} notify=\{notify\} sobre=\{saidaDoLeitor\.montado\?/);
+  assert.match(nav, /style=\{\[StyleSheet\.absoluteFill,\{zIndex:35,backgroundColor:'transparent'\}\]\}/, 'por cima do painel (30)');
 });
 
 console.log(falhas === 0 ? '\nTudo bem.\n' : `\n${falhas} falha(s).\n`);

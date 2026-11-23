@@ -249,7 +249,22 @@ export function injectDesktopDocumentStyles() {
     .np-fila-mais { background: none; border: 0; padding: 6px; border-radius: ${RAIO.cartao}px; cursor: pointer; }
     .np-fila-mais:hover { background: ${ESTADO.hover}; }
     .np-fila-mais:focus-visible { opacity: 1; outline: 2px solid ${COR.texto}; }
-    [data-dt~="painel-do-leitor"] { transition: transform 240ms var(--dt-curva), background-color 220ms var(--dt-curva); will-change: transform; }
+    /* O painel da direita (23/11, a maquete "Painel e leitor a abrir"). Encostado, o lugar
+       dele é a largura registada --dt-painel-encostado, que anima com a curva de entrada (a
+       fechar, 90 ms depois de a fila se apagar): a página encolhe com ela, e o fundo da página
+       e o recorte da área leem-na também. Por cima da página (janela estreita) desliza pelo
+       transform. O conteúdo entra lá dentro depois do lugar, e apaga-se com o Now Playing. */
+    @property --dt-painel-encostado { syntax: '<length>'; inherits: true; initial-value: 0px; }
+    [data-dt~="painel-e-pagina"]{ transition: --dt-painel-encostado 300ms var(--dt-travar) 90ms; }
+    [data-dt~="painel-e-pagina"][data-aberto]{ transition: --dt-painel-encostado 460ms var(--dt-entrada); }
+    [data-dt~="painel-do-leitor"] { transition: transform 240ms var(--dt-curva); will-change: transform; }
+    [data-dt~="painel-dentro"]{ position: absolute; top: 0; right: 0; bottom: 0; width: var(--dt-painel, 340px); max-width: 100%;
+      display: flex; flex-direction: column; opacity: 0; transform: translateX(28px); visibility: hidden;
+      transition: opacity 120ms var(--dt-sair), transform 160ms var(--dt-sair), visibility 0s linear 160ms; }
+    [data-dt~="painel-dentro"][data-visivel]{ opacity: 1; transform: none; visibility: visible;
+      transition: opacity 260ms var(--dt-entrada) 90ms, transform 460ms var(--dt-entrada) 60ms, visibility 0s; }
+    [data-dt~="painel-dentro"][data-visivel][data-escondido]{ opacity: 0; transform: scale(.985); visibility: hidden;
+      transition: opacity 180ms var(--dt-sair), transform 260ms var(--dt-travar), visibility 0s linear 260ms; }
     /* As barras ajustaveis (31/10, desktop/SeparadorDeLargura.web.tsx): a pega e uma tira de 6 px
        POR DENTRO do bordo da lateral e do painel; o fio acende-se com o rato, o foco do teclado e o
        arrasto. Durante o arrasto o cursor e de arrasto em todo o lado, nada se seleciona, e o painel
@@ -268,7 +283,7 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="separador"][data-lado="baixo"]{ top: auto; left: 0; right: 0; bottom: 0; width: auto; height: 6px; cursor: row-resize; }
     [data-dt~="separador"][data-lado="baixo"]::after{ top: auto; bottom: 2px; left: ${ESP.md}px; right: ${ESP.md}px; width: auto; height: 2px; border-radius: 1px; }
     html[data-a-redimensionar="altura"], html[data-a-redimensionar="altura"] *{ cursor: row-resize !important; }
-    html[data-a-redimensionar] [data-dt~="painel-do-leitor"]{ transition: none !important; }
+    html[data-a-redimensionar] [data-dt~="painel-do-leitor"], html[data-a-redimensionar] [data-dt~="painel-e-pagina"]{ transition: none !important; }
     /* O fundo do Now Playing: a capa nova entra por cima da anterior. */
     [data-dt~="np-fundo"]{ animation: dt-np-fundo var(--dt-compasso, 700ms) var(--dt-curva) both; }
     /* A cor da capa a encher a janela ao abrir o Now Playing (26/9). */
@@ -279,6 +294,19 @@ export function injectDesktopDocumentStyles() {
        volta ao fundo dela ao mesmo tempo (desktop/useSaida.web.ts tem o tempo
        total, 420 ms). A página de baixo, ou a nova, já está lá por baixo. */
     [data-dt~="np-a-sair"]{ animation: dt-np-sai 240ms var(--dt-curva) both; }
+    /* E a entrar (23/11, a maquete "Painel e leitor a abrir"; o João: "dá pop out"): a capa voa
+       da barra (desktop/vooDaCapa.web.ts) e a verdadeira fica escondida enquanto a cópia voa; a
+       página de baixo recua e esconde-se (continua montada); o topo, os ícones e a fila sobem em
+       escada logo atrás da capa. A fechar, a página volta a crescer para o sítio. */
+    html[data-capa-a-voar] [data-dt~="capa-do-leitor"]{ opacity: 0; }
+    [data-dt~="pagina-sob-o-leitor"]{ transform-origin: 50% 30%;
+      transition: opacity 300ms var(--dt-entrada) 80ms, transform 420ms var(--dt-entrada) 80ms, visibility 0s; }
+    [data-dt~="pagina-sob-o-leitor"][data-dt~="escondida"]{ opacity: 0; transform: scale(.975); visibility: hidden;
+      transition: opacity 180ms var(--dt-sair), transform 260ms var(--dt-travar), visibility 0s linear 260ms; }
+    [data-dt~="np-camada"] [data-dt~="np-sobe"]{ animation: dt-np-sobe 460ms var(--dt-entrada) 200ms both; }
+    [data-dt~="np-camada"] [data-dt~="np-sobe-2"]{ animation-delay: 245ms; }
+    [data-dt~="np-camada"] [data-dt~="np-sobe-3"]{ animation-delay: 290ms; }
+    @keyframes dt-np-sobe{ from{ opacity: 0; transform: translateY(10px); } to{ opacity: 1; transform: none; } }
     @keyframes dt-np-sai{ from{ opacity:1; transform:none } to{ opacity:0; transform: scale(.985) } }
     [data-dt~="janela-cor"][data-dt~="a-apagar"]{ animation: dt-np-cor-sai 420ms var(--dt-curva) both; }
     @keyframes dt-np-cor-sai{ from{ opacity:1 } to{ opacity:0 } }
@@ -879,6 +907,9 @@ export function injectDesktopDocumentStyles() {
       [data-dt~="contador"], [data-dt~="conversa-entra"], [data-dt~="painel-amigo"], [data-dt~="msg-minha"], [data-dt~="msg-minha"] > div,
       [data-dt~="msg-dele"], [data-dt~="msg-dele"] > div, [data-dt~="msg-cascata"] > div{ animation: none !important; }
       [data-dt~="vira"], [data-dt~="conversa-com-painel"], [data-dt~="ouvinte"], [data-dt~="ouvinte-play"]{ transition: none !important; }
+      /* O painel e o Now Playing a abrir (23/11): o lugar e a página mudam logo, sem caminho. */
+      [data-dt~="painel-e-pagina"], [data-dt~="painel-dentro"], [data-dt~="pagina-sob-o-leitor"]{ transition: none !important; }
+      [data-dt~="np-camada"] [data-dt~="np-sobe"]{ animation: none !important; }
     }
   `;
   document.head.appendChild(style);

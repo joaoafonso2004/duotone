@@ -294,7 +294,7 @@ export function NowPlayingPage({
     </Pressable>
   );
   const icones = (
-    <View style={styles.npIcones}>
+    <View style={styles.npIcones} {...marcar('np-sobe', 'np-sobe-2')}>
       {/* As Faíscas a guardar e o Encolher a tirar, logo ao carregar (16/10). */}
       <AcaoDoLeitor rotulo={coracao.mostrada ? 'Remove from Liked Songs' : 'Add to Liked Songs'} ativo={coracao.mostrada}
         onPressIn={coracao.onPressIn} onPress={coracao.onPress} onPressOut={coracao.onPressOut}>
@@ -337,7 +337,7 @@ export function NowPlayingPage({
       {/* Mudar de música é uma passagem, não um corte (26/9, pedido do João): a
           Ocultação (C2) por cima da capa, e o título entra logo a seguir
           (`np-texto-entra`, na casca). */}
-      <View style={{ width: ladoCapa, height: ladoCapa }}>
+      <View nativeID="capa-do-leitor" {...marcar('capa-do-leitor')} style={{ width: ladoCapa, height: ladoCapa }}>
         {/* O botão direito na capa abre o menu da música (24/10), o curto do leitor. */}
         <View key={`entra:${faixaAtual}`} style={cuboEscondido ? { opacity: 0 } : undefined}
           {...({ onContextMenu: (e: any) => { e.preventDefault(); more(track, undefined, { leitor: 'capa' }); } } as any)}>
@@ -484,7 +484,7 @@ export function NowPlayingPage({
           num círculo discreto e a origem em duas linhas, como os leitores de
           música fazem -- "Playing from" pequeno por cima, a lista por baixo, e
           uma seta quando dá para a abrir. */}
-      <View style={styles.npTopo}>
+      <View style={styles.npTopo} {...marcar('np-sobe')}>
         <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={back}
           style={({ hovered }: any) => [styles.npVoltar, hovered && styles.npVoltarHover]}>
           <Ionicons name="chevron-back" size={18} color={COR.texto} />
@@ -529,7 +529,7 @@ export function NowPlayingPage({
       ) : cinema && duasColunas ? (
         <View style={cn.grelha}>
           <View style={cn.esquerda}>{heroiDoCinema}</View>
-          <View style={cn.direita}>
+          <View style={cn.direita} {...marcar('np-sobe', 'np-sobe-3')}>
             <View style={cn.cartao}>{conteudoDoCartao}</View>
             {pilulas}
           </View>
@@ -538,7 +538,7 @@ export function NowPlayingPage({
         <View style={styles.npGrelha}>
           {coluna}
           {/* A fila rola sozinha; a capa fica onde está. */}
-          <View style={styles.npFila}>
+          <View style={styles.npFila} {...marcar('np-sobe', 'np-sobe-3')}>
             {conteudoDoCartao}
           </View>
         </View>

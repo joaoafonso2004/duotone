@@ -152,13 +152,14 @@ assert.equal(render().linhasDaFila, 100, 'não monta toda a biblioteca ao abrir'
 fila.aoRolar({ nativeEvent: { contentOffset: { y: 5100 }, layoutMeasurement: { height: 600 }, contentSize: { height: 5600 } } });
 assert.equal(render().linhasDaFila, 200, 'acrescenta um lote ao chegar perto do fim');
 
-// A seta abria e fechava aos solavancos (11/10): animava-se a LARGURA da calha,
-// e a página toda voltava a ser arrumada a cada fotograma. Só o transform anima.
+// A seta abria e fechava aos solavancos (11/10): animava-se a LARGURA da calha.
+// Desde 23/11 o lugar encostado volta a crescer com a página (a variável registada
+// `--dt-painel-encostado`, ver o test-animacoes-do-pc.ts); por cima, só o transform.
 const casca = fs.readFileSync(require('node:path').join(__dirname, '../src/desktop/casca.web.tsx'), 'utf8');
 assert.match(casca, /\[data-dt~="painel-do-leitor"\] \{ transition: transform 240ms/);
 assert.doesNotMatch(casca, /painel-do-leitor"\] \{ transition: width/);
 const painel = fs.readFileSync(require('node:path').join(__dirname, '../src/desktop/PainelDoLeitor.web.tsx'), 'utf8');
-assert.match(painel, /transform: `translateX\(\$\{noSitio \? 0 : 100\}%\)`/, 'o painel desliza nos dois modos');
+assert.match(painel, /transform: porCimaAgora \? `translateX\(\$\{noSitio \? 0 : 100\}%\)` : undefined/, 'por cima da página o painel desliza');
 // A seta ficava no canto do conteúdo, por cima dos botões das páginas (11/10):
 // vive na barra de título, à esquerda do minimizar.
 assert.match(casca, /<View style=\{styles\.dragRegion as any\} \/>\s*\{comPainel \? <SetaDoPainel \/> : null\}/, 'a seta na barra de título, e só com a app aberta (não no login)');
