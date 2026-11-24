@@ -29,6 +29,7 @@ import { usePuxarParaAtualizar } from './PuxarParaAtualizar';
 import { guardarPerfil, ouvirPerfis, perfilEmCache } from '../lib/cachePerfil';
 import { SkeletonDoPerfil } from './Skeleton';
 import { TrackActionsSheet } from './TrackActionsSheet';
+import { DiscoDePlay } from './PlayDeMetal';
 import { hapticSelection } from '../lib/haptics';
 import { origemDoPerfil, type OrigemDaFila, type SeccaoDoPerfil } from '../lib/origemDaFila';
 import { SocialIconButton,socialStyles as s } from './socialUI';
@@ -396,7 +397,7 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef,aoMenuDaF
           style={({pressed}:any)=>[estilos.cartao,pressed&&{opacity:0.75}]}>
           <Ionicons name="radio-outline" size={26} color={accent}/>
           <View style={{flex:1,minWidth:0}}><Text style={estilos.rotulo}>Listening now</Text><Text numberOfLines={1} style={[s.text,{fontWeight:'600'}]}>{friend.currentlyPlaying.title}</Text></View>
-          <View style={estilos.play}><Ionicons name="play" size={20} color={colors.bg} style={{marginLeft:2}}/></View>
+          <DiscoDePlay lado={44}/>
         </Pressable>}
         {/* De quem não é amigo (10/11): só números -- desde quando, quanto, e quando
             ouviu pela última vez. O que ouve fica para os amigos. */}
@@ -424,7 +425,8 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef,aoMenuDaF
                 <Text numberOfLines={1} style={{fontSize:14,lineHeight:21,fontWeight:'600',color:colors.text}}>{tituloDaFaixa(highlights.moment)}</Text>
                 <Text numberOfLines={1} style={{fontSize:12,lineHeight:19,color:colors.textSecondary,marginTop:2}}>{displayArtist(highlights.moment)}</Text>
               </View>
-              <View style={estilos.play}>{aTirarMoment?<ActivityIndicator size="small" color={colors.bg}/>:<Ionicons name="play" size={20} color={colors.bg} style={{marginLeft:2}}/>}</View>
+              {/* O play de metal (24/11), como todos os da app. */}
+              <DiscoDePlay lado={44} ocupado={aTirarMoment}/>
             </Pressable>
             <SocialIconButton label={`Options for ${highlights.moment.title}`} icon="ellipsis-horizontal" onPress={()=>{if(highlights.moment)abrirMenu(highlights.moment,'momento');}}/>
             </View>

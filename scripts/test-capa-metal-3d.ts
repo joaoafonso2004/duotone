@@ -310,5 +310,14 @@ caso('a caixa plana tem as funções da pose pela mesma ordem, e guarda a volta 
   assert.equal(voltaDaCaixa(''), 0);
 });
 
+caso('a letra aceita cliques mal a volta acaba, sem esperar pela inclinação do rato (24/11)', () => {
+  const capa = ler('src/desktop/CapaMetal3D.web.tsx');
+  // O fim da volta só olha para a mola da volta: a da inclinação, com o rato a
+  // andar pela letra, quase nunca assenta, e as linhas ficavam desligadas.
+  assert.match(capa, /if \(!aArrastar && m\.rodando && molaAssente\(m\.virar\)\) \{\n\s+m\.virar\.x = m\.virar\.alvo = anguloCurto\(m\.virar\.x\); m\.virar\.v = 0;\n\s+m\.rodando = false; setARodar\(false\);/);
+  assert.match(capa, /pointerEvents: showLyrics && !aRodar \? 'auto' : 'none'/);
+  assert.match(capa, /visible=\{showLyrics && !aRodar\}/);
+});
+
 console.log(falhas === 0 ? '\nTudo bem.\n' : `\n${falhas} falha(s).\n`);
 process.exit(falhas === 0 ? 0 : 1);

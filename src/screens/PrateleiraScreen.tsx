@@ -1,8 +1,11 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BrilhoDoEcra } from '../components/BrilhoDoEcra';
 import { EmptyState } from '../components/EmptyState';
+import { PlayDeMetal } from '../components/PlayDeMetal';
 import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import { SkeletonDeFaixas } from '../components/Skeleton';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
@@ -12,7 +15,9 @@ import { useRecomendacoes } from '../state/recomendacoes';
 import { useMisturaDoDia } from '../state/misturaDoDia';
 import { usePlayer } from '../state/player';
 import { useSaved } from '../state/saved';
-import { MINI_PLAYER_HEIGHT } from '../theme';
+import { colors, MINI_PLAYER_HEIGHT, spacing } from '../theme';
+import { useTheme } from '../state/theme';
+import { hapticSelection } from '../lib/haptics';
 import type { Track } from '../types';
 import type { OrigemDaFila } from '../lib/origemDaFila';
 import {
@@ -23,6 +28,10 @@ import { useAparencia } from '../state/aparencia';
 import { alturaDaLinha } from '../lib/aparencia';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Prateleira'>;
+
+/** O Play e o Shuffle por cima da lista (24/11): a altura conta nas posições das linhas. */
+const LADO_DO_PLAY = 60;
+const ALTURA_DAS_ACOES = LADO_DO_PLAY + spacing.lg;
 
 /**
  * Uma prateleira de recomendações inteira, atrás do "See all".
@@ -54,7 +63,7 @@ export function PrateleiraScreen({ route }: Props) {
   // A altura das linhas segue as listas compactas (10/10, personalização).
   const alturaDaFila = alturaDaLinha(useAparencia((s) => s.listas));
   const posicaoDaLinha = React.useCallback((_: ArrayLike<Track> | null | undefined, index: number) => ({
-    length: alturaDaFila, offset: cab.espaco + alturaDaFila * index, index,
+    length: alturaDaFila, offset: cab.espaco + ALTURA_DAS_ACOES + alturaDaFila * index, index,
   }), [cab.espaco, alturaDaFila]);
   const { fonte, titulo } = route.params;
   const insets = useSafeAreaInsets();
@@ -78,6 +87,14 @@ export function PrateleiraScreen({ route }: Props) {
     : prateleiras.misturasProntas;
   // Tocar numa música: com "Start Radio from a song" é o Radio (ver `tocarMusica`).
   const tocarMusica = usePlayer((s) => s.tocarMusica);
+  // O Play e o Shuffle (24/11, o João: uma lista da Home "só mostra as músicas, não
+  // tem opção de tocar"). Os mesmos da página de uma playlist: o modo do shuffle é
+  // o do leitor, e o Play toca com ele.
+  const tocarLista = usePlayer((s) => s.tocarLista);
+  const ligado = usePlayer((s) => s.shuffle);
+  const inteligente = usePlayer((s) => s.shuffleInteligente);
+  const alternarShuffle = usePlayer((s) => s.toggleShuffle);
+  const theme = useTheme((s) => s.theme);
   const savedKeys=useSaved((s)=>s.keys);
   const [aberta, setAberta] = useState<Track | null>(null);
   // A Daily mix conta como o flow: é o mesmo `flowDoDia`, guardado por dia.
@@ -112,6 +129,20 @@ export function PrateleiraScreen({ route }: Props) {
           data={faixas}
           keyExtractor={(t) => `${t.source}:${t.sourceId}`}
           getItemLayout={posicaoDaLinha}
+          ListHeaderComponent={
+            <View style={styles.accoes}>
+              <PlayDeMetal lado={LADO_DO_PLAY} label={`Play ${titulo}`}
+                onPress={() => void tocarLista(faixas, ligado, inteligente, origemDaPrateleira(fonte, titulo))} />
+              <Pressable
+                style={[styles.shuffle, ligado && !inteligente && { borderColor: theme.color, backgroundColor: theme.soft }]}
+                accessibilityRole="button" accessibilityState={{ selected: ligado }}
+                accessibilityLabel={inteligente ? 'Smart shuffle on' : ligado ? 'Shuffle on' : 'Shuffle off'}
+                onPress={() => { hapticSelection(); alternarShuffle(); }}>
+                {inteligente && <BrilhoDoEcra />}
+                <Ionicons name="shuffle" size={20} color={ligado && !inteligente ? theme.color : colors.text} />
+              </Pressable>
+            </View>
+          }
           contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: insets.bottom + MINI_PLAYER_HEIGHT + 32 }}
           renderItem={({ item }) => (
             <TrackRow
@@ -135,3 +166,16 @@ export function PrateleiraScreen({ route }: Props) {
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  // A mesma linha da página de uma playlist: o Play ao centro e o Shuffle ao lado.
+  accoes: {
+    height: ALTURA_DAS_ACOES, paddingBottom: spacing.lg,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xl,
+  },
+  shuffle: {
+    width: 48, height: 48, borderRadius: 24, overflow: 'hidden',
+    backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderStrong,
+    alignItems: 'center', justifyContent: 'center',
+  },
+});

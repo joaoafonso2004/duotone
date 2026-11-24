@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { DissolverEmBaixo } from './DissolverEmBaixo';
+import { PlayDeMetal } from './PlayDeMetal';
 import { useFotoDoArtista } from '../hooks/useVizinhancaDoArtista';
 import { legendaDoDisco } from '../lib/musicasDoArtista';
 import { fotoNoTamanho } from '../lib/catalogo';
@@ -156,19 +157,11 @@ export function PilulaDeVidro({ icone, texto, label, onPress, ocupado = false }:
   );
 }
 
-/** O Play: o único botão branco da página. */
+/** O Play: o disco de metal, como todos os da app (24/11, `PlayDeMetal`). */
 export function BotaoDeTocar({ label, onPress, lado = 64, desligado = false }: {
   label: string; onPress: () => void; lado?: number; desligado?: boolean;
 }) {
-  return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: desligado }}
-      disabled={desligado} onPress={onPress}
-      style={({ pressed }) => [styles.tocar, { width: lado, height: lado, borderRadius: lado / 2 },
-        pressed && { transform: [{ scale: 0.96 }] }, desligado && { opacity: 0.5 }]}>
-      {/* O `marginLeft` acerta o centro ótico do triângulo. */}
-      <Ionicons name="play" size={Math.round(lado * 0.4)} color="#060608" style={{ marginLeft: Math.round(lado * 0.06) }} />
-    </Pressable>
-  );
+  return <PlayDeMetal lado={lado} label={label} onPress={onPress} desligado={desligado} />;
 }
 
 /** O título de uma secção; com `aoCarregar`, leva um "›" e abre o resto. */

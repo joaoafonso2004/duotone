@@ -12,6 +12,7 @@ import { useTheme } from '../state/theme';
 import { colors, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
 import { ArtworkCollage } from './ArtworkCollage';
+import { PlayDeMetal } from './PlayDeMetal';
 
 const LADO = 76;
 
@@ -99,19 +100,9 @@ export function CartaoDaMisturaDoDia({ aoAbrir, destaque = false }: {
           <Text numberOfLines={3} style={[type.caption, { color: 'rgba(255,255,255,0.78)' }]}>{legenda}</Text>
         </View>
         {!aFazer && (
-          <Pressable
-            onPress={tocar}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Play Daily mix"
-            style={({ pressed }) => ({
-              position: 'absolute', right: spacing.lg, bottom: spacing.lg,
-              width: 48, height: 48, borderRadius: 24, backgroundColor: '#fff',
-              alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.8 : 1,
-            })}
-          >
-            <Ionicons name="play" size={22} color="#060608" style={{ marginLeft: 2 }} />
-          </Pressable>
+          // O play de metal (24/11), como todos os da app.
+          <PlayDeMetal lado={48} label="Play Daily mix" onPress={tocar} hitSlop={8}
+            style={{ position: 'absolute', right: spacing.lg, bottom: spacing.lg }} />
         )}
       </Pressable>
     );
@@ -142,18 +133,7 @@ export function CartaoDaMisturaDoDia({ aoAbrir, destaque = false }: {
         </Text>
       </View>
       {!aFazer && (
-        <Pressable
-          onPress={tocar}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel="Play Daily mix"
-          style={({ pressed }) => ({
-            width: 44, height: 44, borderRadius: 22, backgroundColor: theme.color,
-            alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.8 : 1,
-          })}
-        >
-          <Ionicons name="play" size={20} color={colors.bg} style={{ marginLeft: 2 }} />
-        </Pressable>
+        <PlayDeMetal lado={44} label="Play Daily mix" onPress={tocar} hitSlop={8} />
       )}
     </Pressable>
   );

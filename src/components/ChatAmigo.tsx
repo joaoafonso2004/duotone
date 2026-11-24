@@ -4,6 +4,7 @@ import { BlurView } from 'expo-blur';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { BotaoGuardar } from './BotaoGuardar';
+import { DiscoDePlay } from './PlayDeMetal';
 import { CapaDaFaixaPartilhada, EtiquetaDaFaixaPartilhada } from './CapaDaFaixaPartilhada';
 import { FriendAvatar } from './FriendAvatar';
 import { SocialIconButton } from './socialUI';
@@ -149,7 +150,8 @@ export function FaixaPartilhada({
       {onTocar ? (
         <Toque escala={ESCALA.icone} hitSlop={6} onPress={onTocar} accessibilityRole="button"
           accessibilityLabel={`Play ${tituloDaFaixa(faixa)}`} style={styles.tocarCheio}>
-          <Ionicons name="play" size={14} color={colors.bg} style={{ marginLeft: 2 }} />
+          {/* O play de metal (24/11), como todos os da app. */}
+          <DiscoDePlay lado={34} />
         </Toque>
       ) : (
         <View style={styles.tocar}>
@@ -222,9 +224,6 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.text,
   },
   tocar: {
     width: 26,

@@ -91,6 +91,7 @@ import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { ArtworkCollage } from '../components/ArtworkCollage';
 import { LinhaArrastavel } from '../components/LinhaArrastavel';
 import { DeslizarParaTirar } from '../components/DeslizarParaTirar';
+import { PlayDeMetal } from '../components/PlayDeMetal';
 import { useArrastarLista } from '../hooks/useArrastarLista';
 import {
   comecarRascunho, desfazerTirada, haAlgoParaGravar, moverNoRascunho, planoDeGravacao, tirarDoRascunho,
@@ -662,23 +663,10 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             </View>
           ) : null}
           <View style={styles.actionRow}>
-            <Pressable
-              style={[styles.playButton, filaTocavel.length === 0 && { opacity: 0.4 }]}
-              disabled={filaTocavel.length === 0}
-              onPress={() => void tocarLista(filaTocavel, ligado, inteligente, origem)}
-            >
-              <LinearGradient
-                colors={theme.gradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.buttonGradient}
-              >
-                {/* Sem rotulo: um triangulo num circulo cheio nao precisa de
-                    dizer "Play". O `marginLeft` acerta o centro optico -- um
-                    triangulo centrado a matematica parece sempre a esquerda. */}
-                <Ionicons name="play" size={26} color={theme.textColorOnGradient} style={{ marginLeft: 3 }} />
-              </LinearGradient>
-            </Pressable>
+            {/* O play de metal (24/11), como todos os da app. Sem rótulo: um
+                triângulo num disco não precisa de dizer "Play". */}
+            <PlayDeMetal lado={60} label={`Play ${name}`} desligado={filaTocavel.length === 0}
+              onPress={() => void tocarLista(filaTocavel, ligado, inteligente, origem)} />
 
             <Pressable
               style={[

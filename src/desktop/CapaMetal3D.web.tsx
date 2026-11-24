@@ -311,6 +311,15 @@ export function CapaMetal3D({ track, size, artwork, front, showLyrics, onChange,
         passoDaMola(m.ry, m.molaInclina, dt / passos);
         if (!aArrastar) passoDaMola(m.virar, m.molaVirar, dt / passos);
       }
+      // A volta acabou: a letra aceita cliques JÁ, mesmo com a inclinação ainda a
+      // seguir o rato (24/11, o João: "clicar numa linha da lyric, maior parte das
+      // vezes não avança"). O fim da volta esperava pelas três molas, e a da
+      // inclinação, com o rato a ir para a linha, quase nunca assenta (0,004°): o
+      // `aRodar` ficava ligado e as linhas desligadas, com `pointerEvents: none`.
+      if (!aArrastar && m.rodando && molaAssente(m.virar)) {
+        m.virar.x = m.virar.alvo = anguloCurto(m.virar.x); m.virar.v = 0;
+        m.rodando = false; setARodar(false);
+      }
       if (molaAssente(m.rx) && molaAssente(m.ry) && (aArrastar || molaAssente(m.virar))) {
         m.rx.x = m.rx.alvo; m.rx.v = 0;
         m.ry.x = m.ry.alvo; m.ry.v = 0;

@@ -1,5 +1,6 @@
 import React,{useRef,useState} from 'react';
-import {Animated,PanResponder,Platform,Pressable,Text,TextInput,View} from 'react-native';
+import {Animated,Platform,Pressable,Text,TextInput,View} from 'react-native';
+import {PanGestureHandler,State,type PanGestureHandlerGestureEvent,type PanGestureHandlerStateChangeEvent} from 'react-native-gesture-handler';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type {Reaction} from '../api/social';
 import {hapticSelection} from '../lib/haptics';
@@ -35,6 +36,13 @@ const ARRASTO_MAXIMO=72;
  * O arrasto vive num `Animated.View` à VOLTA do Pressable, e não no Pressable:
  * espalhar os `panHandlers` no próprio Pressable substituía os dele e matava o
  * toque longo.
+ *
+ * O arrasto é do Gesture Handler (24/11, o João: "o chat faz scroll vertical e não
+ * me deixa o reply"). Era um `PanResponder`, em JavaScript: a lista da conversa,
+ * nativa, ficava com o dedo ao primeiro píxel na vertical e o gesto nunca chegava.
+ * Agora arranca aos 12 pt para a esquerda, falha se o dedo for antes 10 pt na
+ * vertical (fica o scroll) ou para a direita (fica o voltar), e uma vez ativo a
+ * lista já não rola.
  */
 export function MessageBubble({own,aberto,onAbrir,onResponder,onDuploToque,onMenu,style,children,rotulo}:{
   own:boolean; aberto:boolean; onAbrir:()=>void; onResponder?:()=>void;
@@ -54,24 +62,22 @@ export function MessageBubble({own,aberto,onAbrir,onResponder,onDuploToque,onMen
   const responder=useRef(onResponder);responder.current=onResponder;
   const armada=useRef(false);
   const voltar=()=>{armada.current=false;Animated.spring(arrasto,{toValue:0,useNativeDriver:true,bounciness:6}).start();};
-  const gesto=useRef(PanResponder.create({
-    // Só claramente horizontal e para a esquerda: um scroll da conversa nunca
-    // passa neste crivo, e a direita fica para o gesto de voltar.
-    onMoveShouldSetPanResponder:(_e,g)=>!!responder.current&&g.dx<-12&&Math.abs(g.dx)>Math.abs(g.dy)*2,
-    onPanResponderMove:(_e,g)=>{
-      const x=Math.max(-ARRASTO_MAXIMO,Math.min(0,g.dx));
-      arrasto.setValue(x);
-      const agora=x<=-LIMIAR_DA_RESPOSTA;
-      // O toque diz que largar agora responde, como no Instagram.
-      if(agora!==armada.current){armada.current=agora;if(agora)hapticSelection();}
-    },
-    onPanResponderRelease:()=>{if(armada.current)responder.current?.();voltar();},
-    onPanResponderTerminate:voltar,
-  })).current;
+  const mover=(e:PanGestureHandlerGestureEvent)=>{
+    const x=Math.max(-ARRASTO_MAXIMO,Math.min(0,e.nativeEvent.translationX));
+    arrasto.setValue(x);
+    const agora=x<=-LIMIAR_DA_RESPOSTA;
+    // O toque diz que largar agora responde, como no Instagram.
+    if(agora!==armada.current){armada.current=agora;if(agora)hapticSelection();}
+  };
+  const mudar=(e:PanGestureHandlerStateChangeEvent)=>{
+    const {state}=e.nativeEvent;
+    if(state===State.END){if(armada.current)responder.current?.();voltar();}
+    else if(state===State.CANCELLED||state===State.FAILED)voltar();
+  };
   const icone=arrasto.interpolate({inputRange:[-LIMIAR_DA_RESPOSTA,0],outputRange:[1,0],extrapolate:'clamp'});
   const botao=({pressed}:any)=>[{width:26,height:26,borderRadius:13,alignItems:'center',justifyContent:'center',
     backgroundColor:colors.surfaceHigh,borderWidth:1,borderColor:colors.borderStrong},pressed&&{opacity:0.7}];
-  return <Animated.View {...(web?{}:gesto.panHandlers)} style={{transform:[{translateX:arrasto}],maxWidth:'100%'}}>
+  const balao=<Animated.View style={{transform:[{translateX:arrasto}],maxWidth:'100%'}}>
     {!web&&onResponder?<Animated.View pointerEvents="none" style={{position:'absolute',right:-34,top:0,bottom:0,justifyContent:'center',opacity:icone}}>
       <Ionicons name="arrow-undo" size={18} color={colors.textSecondary}/>
     </Animated.View>:null}
@@ -98,6 +104,9 @@ export function MessageBubble({own,aberto,onAbrir,onResponder,onDuploToque,onMen
       {children}
     </Pressable>
   </Animated.View>;
+  if(web||!onResponder)return balao;
+  return <PanGestureHandler activeOffsetX={-12} failOffsetX={12} failOffsetY={[-10,10]}
+    onGestureEvent={mover} onHandlerStateChange={mudar}>{balao}</PanGestureHandler>;
 }
 
 /**
