@@ -8,6 +8,7 @@ import { FRASES_DOS_ALBUNS } from '../lib/albunsGuardados';
 import { menuDoLancamento, type AcaoDoLancamento } from '../lib/menuDoLancamento';
 import { useConnectivity } from '../state/connectivity';
 import { MusicasDoArtistaSheet } from '../components/MusicasDoArtistaSheet';
+import { useVoltarDaPagina } from '../components/PaginaDoQuadrado';
 import { useVizinhancaDoArtista } from '../hooks/useVizinhancaDoArtista';
 import { gruposDaBiblioteca } from '../state/gruposDaBiblioteca';
 import { useFocusEffect } from '@react-navigation/native';
@@ -52,6 +53,8 @@ type Props = NativeStackScreenProps<RootStackParamList, 'LibraryGroup'>;
 
 /** Detalhe de um álbum ou artista (vista sobre as faixas guardadas). */
 export function LibraryGroupScreen({ route, navigation }: Props) {
+  // Voltar encolhe até ao círculo de onde abriu, se abriu por um (24/11).
+  const voltar = useVoltarDaPagina();
   const { type, name } = route.params;
   const insets = useSafeAreaInsets();
   // A barra dos separadores MEDIDA (auditoria 1.3), não um 49 à mão.
@@ -316,7 +319,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
     </> : null}
   </>;
   const barraDoArtista = <View style={styles.barra} pointerEvents="box-none">
-    <BolaDeVidro icone="chevron-back" label="Back" onPress={() => navigation.goBack()} />
+    <BolaDeVidro icone="chevron-back" label="Back" onPress={voltar} />
     <View style={{ flex: 1 }} pointerEvents="none" />
     {faixasDaAba.length ? <Animated.View style={{ opacity: playPequeno }} pointerEvents={passouONome ? 'auto' : 'none'}
       accessibilityElementsHidden={!passouONome} importantForAccessibility={passouONome ? 'auto' : 'no-hide-descendants'}>
@@ -386,7 +389,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   if (type === 'artist') {
     return (
       // O nome grande da capa dá lugar ao pequeno na barra de cima (3/10).
-      <Screen encolhe={cab} tituloCompacto={{ texto: name, aparecerEm: fimDoNome }} onBack={() => navigation.goBack()} topLeft={barraDoArtista}>
+      <Screen encolhe={cab} tituloCompacto={{ texto: name, aparecerEm: fimDoNome }} onBack={voltar} topLeft={barraDoArtista}>
         <Animated.ScrollView onScroll={cab.onScroll} scrollEventThrottle={cab.scrollEventThrottle} showsVerticalScrollIndicator={false}
           onScrollEndDrag={verSeOPassou} onMomentumScrollEnd={verSeOPassou}
           // A página começa na foto, por baixo da barra (que flutua sobre ela).
@@ -433,7 +436,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
 
   // O álbum da biblioteca: o título encolhe ao rolar (3/10), e a lista das tuas.
   return (
-    <Screen encolhe={cab} title={name} subtitle={metaDoAlbum(tracks.length, loading)} onBack={() => navigation.goBack()}>
+    <Screen encolhe={cab} title={name} subtitle={metaDoAlbum(tracks.length, loading)} onBack={voltar}>
       <Animated.FlatList data={waiting ? [] : tracksDaAba}
         onScroll={cab.onScroll} scrollEventThrottle={cab.scrollEventThrottle} scrollIndicatorInsets={{ top: cab.espaco }} keyExtractor={(item) => `${item.source}:${item.sourceId}`}
         ListHeaderComponent={tracks.length > 0 ? <View style={{ paddingHorizontal: spacing.xl, marginBottom: spacing.md }}>

@@ -5,6 +5,7 @@ import React from 'react';
 import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { DissolverEmBaixo } from './DissolverEmBaixo';
 import { PlayDeMetal } from './PlayDeMetal';
+import { AlvoDoVoo } from './PaginaDoQuadrado';
 import { useFotoDoArtista } from '../hooks/useVizinhancaDoArtista';
 import { legendaDoDisco } from '../lib/musicasDoArtista';
 import { fotoNoTamanho } from '../lib/catalogo';
@@ -73,7 +74,8 @@ export function CapaDoArtista({ nome, foto, fas, tuas, accoes, aoMedirNome }: {
     if (aoMedirNome && baixoY.current != null && fimNoBloco.current != null) aoMedirNome(baixoY.current + fimNoBloco.current);
   };
   return (
-    <View style={{ height: altura }}>
+    // O círculo que voa da grelha dos artistas pousa aqui (24/11, `AlvoDoVoo`).
+    <AlvoDoVoo style={{ height: altura }}>
       <DissolverEmBaixo desde={0.5}>
         {foto ? (
           // Uma troca de imagem é um fundido lento (23/10): a página abre com a
@@ -116,7 +118,7 @@ export function CapaDoArtista({ nome, foto, fas, tuas, accoes, aoMedirNome }: {
         ) : null}
         {accoes ? <View style={styles.accoes}>{accoes}</View> : null}
       </View>
-    </View>
+    </AlvoDoVoo>
   );
 }
 

@@ -68,9 +68,10 @@ caso('o menu de uma playlist tem "Move to folder…" nas minhas', () => {
 caso('iPhone: a grelha com as pastas, a pasta aberta, e a folha de escolher a pasta', () => {
   const s = ler('src/screens/PlaylistsScreen.tsx');
   assert.match(s, /grelhaComPastas\(playlists\)/);
-  assert.match(s, /navigation\.push\('PastaDePlaylists', \{ nome: celula\.pasta\.nome \}\)/);
+  // Abre a partir do quadrado da pasta (24/11, entrar pelo quadrado): o push leva o voo.
+  assert.match(s, /navigation\.push\('PastaDePlaylists', \{ nome: celula\.pasta\.nome, \.\.\.\(voo \? \{ voo \} : \{\}\) \}\)/);
   assert.match(s, /const pastaAberta = route\.name === 'PastaDePlaylists' \? route\.params\?\.nome \?\? null : null;/);
-  assert.match(ler('src/navigation/RootNavigator.tsx'), /<Stack\.Screen name="PastaDePlaylists" component=\{PlaylistsScreen\} \/>/);
+  assert.match(ler('src/navigation/RootNavigator.tsx'), /<Stack\.Screen name="PastaDePlaylists" component=\{PlaylistsScreen\} options=\{abrePorUmQuadrado\} \/>/);
 });
 
 caso('PC: a grelha com as pastas, a rota, e o arrastar de uma playlist para cima de outra', () => {

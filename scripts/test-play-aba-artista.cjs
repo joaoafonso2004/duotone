@@ -58,6 +58,8 @@ const mocks = {
     LancamentoEmDestaque: 'Latest', ParecidosDoArtista: 'Similar', PilulaDeVidro: 'GlassPill', SobreOArtista: 'About',
   },
   '../components/MusicasDoArtistaSheet': { MusicasDoArtistaSheet: 'SongsSheet' },
+  // Voltar até ao quadrado de onde abriu (24/11): aqui, o goBack de sempre.
+  '../components/PaginaDoQuadrado': { useVoltarDaPagina: () => () => {} },
   '../hooks/useVizinhancaDoArtista': { useVizinhancaDoArtista: () => ({ fas: 5_100_000, parecidos: ['Bon Iver'] }) },
   '../components/BrilhoDoEcra': { BrilhoDoEcra: 'Glow' }, '../components/EmptyState': { EmptyState: 'Empty' },
   '../components/Skeleton': { SkeletonDeFaixas: 'Skeleton', SkeletonDePrateleira: 'ShelfSkeleton' },

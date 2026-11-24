@@ -47,6 +47,8 @@ import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import { usePuxarParaAtualizar } from '../components/PuxarParaAtualizar';
 import { usePlaylists } from '../state/playlists';
+import { entrarPeloQuadrado } from '../state/vooDoQuadrado';
+import { useVoltarDaPagina } from '../components/PaginaDoQuadrado';
 import { esquecerOrigem } from '../state/origemDasPlaylists';
 import { useTheme } from '../state/theme';
 import type { Playlist } from '../types';
@@ -68,6 +70,8 @@ type Celula = typeof PASTA_DOS_ALBUNS
   | { chave: string; tipo: 'playlist'; playlist: Playlist };
 
 export function PlaylistsScreen() {
+  // Uma pasta que abriu pelo quadrado volta a ele (24/11).
+  const voltar = useVoltarDaPagina();
   // Tocar no separador onde ja se esta volta ao topo (3/10, como no iOS).
   const topo = useRef<any>(null);
   useScrollToTop(topo);
@@ -128,6 +132,9 @@ export function PlaylistsScreen() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [optionsFor, setOptionsFor] = useState<Playlist | null>(null);
+  // A capa de cada cartão e o quadrado de cada pasta: a página abre a partir dele
+  // (24/11, entrar pelo quadrado, lib/vooDoQuadrado.ts).
+  const quadrados = useRef(new Map<string, View | null>()).current;
   // As pastas (16/11): a folha de escolher para onde vai uma playlist, a de uma
   // pasta (mudar o nome, desfazer), e o nome de uma pasta nova ou mudado.
   const [pastaPara, setPastaPara] = useState<Playlist | null>(null);
@@ -321,7 +328,7 @@ export function PlaylistsScreen() {
       title={pastaAberta ?? 'Playlists'}
       subtitle={pastaAberta ? FRASES_DAS_PASTAS.quantas(celulas.length)
         : loading?'Loading…':loadError?undefined:`${playlists.length} ${playlists.length === 1 ? 'playlist' : 'playlists'}`}
-      onBack={pastaAberta ? () => navigation.goBack() : undefined}
+      onBack={pastaAberta ? voltar : undefined}
       right={offline || pastaAberta ? undefined :
         <Pressable
           hitSlop={10}
@@ -387,7 +394,11 @@ export function PlaylistsScreen() {
             if (celula.tipo === 'pasta') {
               return (
                 <PastaDePlaylists nome={celula.pasta.nome} capas={celula.pasta.capas} quantas={celula.pasta.playlists.length} lado={cardSize}
-                  onPress={() => navigation.push('PastaDePlaylists', { nome: celula.pasta.nome })}
+                  quadradoRef={(v) => { quadrados.set(`pasta:${celula.pasta.nome}`, v); }}
+                  onPress={() => entrarPeloQuadrado(quadrados.get(`pasta:${celula.pasta.nome}`) ?? null, {
+                    raio: radii.lg, destino: 'titulo',
+                    navegar: (voo) => navigation.push('PastaDePlaylists', { nome: celula.pasta.nome, ...(voo ? { voo } : {}) }),
+                  })}
                   onLongPress={offline ? undefined : () => { hapticImpact(ImpactFeedbackStyle.Medium); setOpcoesDaPasta(celula.pasta.nome); }} />
               );
             }
@@ -395,12 +406,10 @@ export function PlaylistsScreen() {
             const naCopia = copia?.get(item.id);
             return (
             <Pressable
-              onPress={() =>
-                navigation.navigate('PlaylistDetail', {
-                  id: item.id,
-                  name: item.name,
-                })
-              }
+              onPress={() => entrarPeloQuadrado(quadrados.get(item.id) ?? null, {
+                capas: item.artworks, raio: radii.md, destino: 'centro',
+                navegar: (voo) => navigation.navigate('PlaylistDetail', { id: item.id, name: item.name, ...(voo ? { voo } : {}) }),
+              })}
               onLongPress={() => {
                 hapticImpact(ImpactFeedbackStyle.Medium);
                 setOptionsFor(item);
@@ -413,7 +422,9 @@ export function PlaylistsScreen() {
                 pressed && { opacity: 0.8 },
               ]}
             >
-              <ArtworkCollage artworks={item.artworks} size={cardSize} />
+              <View ref={(v) => { quadrados.set(item.id, v); }} collapsable={false}>
+                <ArtworkCollage artworks={item.artworks} size={cardSize} />
+              </View>
               <View style={styles.cardTitleRow}>
                 <Text numberOfLines={1} style={[type.headline, { flex: 1 }]}>
                   {item.name}

@@ -9,7 +9,8 @@ import { mostrarPorta, podeIrPara, type Destino, type Plataforma, type TipoDeDes
  * vez de receberem uma função por destino. O que a plataforma não tem fica
  * escondido pelo `podeIrPara` (`lib/destinos.ts`).
  */
-export type IrPara = (destino: Destino) => void;
+/** `voo` (24/11, só no iPhone): a página abre por um quadrado (`state/vooDoQuadrado.ts`). */
+export type IrPara = (destino: Destino, extra?: { voo?: string }) => void;
 
 const Contexto = createContext<IrPara | null>(null);
 export const DestinosProvider = Contexto.Provider;

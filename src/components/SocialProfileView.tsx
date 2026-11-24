@@ -31,6 +31,7 @@ import { SkeletonDoPerfil } from './Skeleton';
 import { TrackActionsSheet } from './TrackActionsSheet';
 import { DiscoDePlay } from './PlayDeMetal';
 import { hapticSelection } from '../lib/haptics';
+import { entrarPeloQuadrado } from '../state/vooDoQuadrado';
 import { origemDoPerfil, type OrigemDaFila, type SeccaoDoPerfil } from '../lib/origemDaFila';
 import { SocialIconButton,socialStyles as s } from './socialUI';
 import type { Track } from '../types';
@@ -72,6 +73,13 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef,aoMenuDaF
   const onSettings=mostrarPorta('definicoes')?()=>irPara({tipo:'definicoes'}):undefined;
   const onSocial=mostrarPorta('social')?()=>irPara({tipo:'social'}):undefined;
   const onPlaylist=podeIrPara('playlist')?(id:string,nome:string)=>irPara({tipo:'playlist',id,nome}):undefined;
+  // Entrar pelo quadrado (24/11): no iPhone a playlist e o artista abrem a partir da
+  // capa que se tocou. No PC não há a camada, e abrem como sempre.
+  const quadrados=useRef(new Map<string,View|null>()).current;
+  const abrirPlaylist=(id:string,nome:string,capas:string[])=>entrarPeloQuadrado(quadrados.get(`pl:${id}`)??null,{
+    capas,raio:radii.md,destino:'centro',navegar:(voo)=>irPara({tipo:'playlist',id,nome},voo?{voo}:undefined)});
+  const abrirArtista=(nome:string,capa:string|null)=>entrarPeloQuadrado(quadrados.get(`ar:${nome}`)??null,{
+    forma:'circulo',capas:[capa],destino:'larga',navegar:(voo)=>irPara({tipo:'artista',nome},voo?{voo}:undefined)});
   const [profile,setProfile]=useState<SocialProfile|null>(null),[most,setMost]=useState<ProfileTrack[]>([]),[recent,setRecent]=useState<ProfileTrack[]>([]);
   const [error,setError]=useState(''),[loading,setLoading]=useState(true),[editing,setEditing]=useState(false),[track,setTrack]=useState<Track|null>(null);
   const [todasPlaylists,setTodasPlaylists]=useState(false);
@@ -314,9 +322,9 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef,aoMenuDaF
     {visiblePlaylists.length>0&&<View style={{gap:12}}>{(todasPlaylists?playlistsOrdenadas:playlistsOrdenadas.slice(0,3)).map(pl=>{
       const marked=guardadas.has(pl.id),busy=ocupada===pl.id;
       return <View key={pl.id} style={[s.row,{gap:8,minWidth:0}]}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Open ${pl.name}`} disabled={!onPlaylist} onPress={()=>onPlaylist?.(pl.id,pl.name)}
+        <Pressable accessibilityRole="button" accessibilityLabel={`Open ${pl.name}`} disabled={!onPlaylist} onPress={()=>{if(onPlaylist)abrirPlaylist(pl.id,pl.name,pl.artworks);}}
           style={({pressed,hovered}:any)=>[estilos.linhaPlaylist,(pressed||hovered)&&{opacity:0.8}]}>
-          <ArtworkCollage artworks={pl.artworks} size={64}/>
+          <View ref={(v)=>{quadrados.set(`pl:${pl.id}`,v);}} collapsable={false}><ArtworkCollage artworks={pl.artworks} size={64}/></View>
           <View style={{flex:1,minWidth:0}}>
             <Text numberOfLines={1} style={{fontWeight:'600',fontSize:14,lineHeight:20,color:colors.text}}>{pl.name}</Text>
             <Text style={{fontSize:11,lineHeight:17,color:colors.textSecondary,marginTop:2}}>{pl.trackCount} {pl.trackCount===1?'track':'tracks'}</Text>
@@ -438,9 +446,9 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef,aoMenuDaF
               completas abrem na página própria. */}
           <View style={{gap:14}}>
             {titulo(own?'Your listening':'Listening',{rotulo:'Stats',onPress:onStats})}
-            {artistas.length>1&&fila(artistas.map(a=><Pressable key={a.nome} accessibilityRole="button" accessibilityLabel={a.nome} onPress={()=>onArtist(a.nome)}
+            {artistas.length>1&&fila(artistas.map(a=><Pressable key={a.nome} accessibilityRole="button" accessibilityLabel={a.nome} onPress={()=>abrirArtista(a.nome,a.capa??null)}
               style={({pressed}:any)=>({width:92,alignItems:'center',opacity:pressed?0.7:1})}>
-              <View style={{width:92,height:92,borderRadius:46,overflow:'hidden',backgroundColor:colors.surface,alignItems:'center',justifyContent:'center'}}>
+              <View ref={(v)=>{quadrados.set(`ar:${a.nome}`,v);}} collapsable={false} style={{width:92,height:92,borderRadius:46,overflow:'hidden',backgroundColor:colors.surface,alignItems:'center',justifyContent:'center'}}>
                 {a.capa?<Image source={{uri:capaParaLista(a.capa)!}} style={{width:92,height:92}}/>:<Ionicons name="person" size={30} color={colors.textSecondary}/>}
               </View>
               <Text numberOfLines={1} style={[s.text,{fontSize:14,fontWeight:'600',marginTop:8,textAlign:'center'}]}>{a.nome}</Text>

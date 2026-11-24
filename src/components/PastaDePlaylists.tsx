@@ -12,7 +12,7 @@ import { colors, radii, type } from '../theme';
  * as capas das primeiras quatro lá dentro, pequenas e em grelha. Do tamanho de
  * um cartão de playlist, com o nome e quantas tem por baixo.
  */
-export function PastaDePlaylists({ nome, capas, quantas, lado, onPress, onLongPress }: {
+export function PastaDePlaylists({ nome, capas, quantas, lado, onPress, onLongPress, quadradoRef }: {
   nome: string;
   capas: readonly string[];
   quantas: number;
@@ -22,6 +22,8 @@ export function PastaDePlaylists({ nome, capas, quantas, lado, onPress, onLongPr
   /** Só no PC (o par .web.tsx): o botão direito e o arrastar do HTML. Aqui não há. */
   eventos?: Record<string, unknown>;
   alvo?: boolean;
+  /** O quadrado da pasta: a página dela abre a partir dele (24/11, entrar pelo quadrado). */
+  quadradoRef?: (no: View | null) => void;
 }) {
   const dentro = lado * 0.78;
   const espaco = lado * 0.05;
@@ -34,7 +36,7 @@ export function PastaDePlaylists({ nome, capas, quantas, lado, onPress, onLongPr
       accessibilityLabel={`${nome}, folder, ${FRASES_DAS_PASTAS.quantas(quantas)}`}
       style={({ pressed }) => [{ width: lado }, pressed && { opacity: 0.8 }]}
     >
-      <View style={[styles.vidro, { width: lado, height: lado }]}>
+      <View ref={quadradoRef} collapsable={false} style={[styles.vidro, { width: lado, height: lado }]}>
         <View style={{ width: dentro, height: dentro, flexDirection: 'row', flexWrap: 'wrap', gap: espaco }}>
           {[0, 1, 2, 3].map((i) => {
             const uri = capaParaLista(capas[i] ?? null);

@@ -27,6 +27,7 @@ import { lembrarCanalDoArtista } from '../api/albunsDoArtista';
 import { YtPlaylistRecommendationSheet } from '../components/YtPlaylistRecommendationSheet';
 import { ORDEM_DAS_PRATELEIRAS, temRecomendacoes, useRecomendacoes, type NomeDaPrateleira } from '../state/recomendacoes';
 import { useRecentes } from '../state/recentes';
+import { entrarPeloQuadrado } from '../state/vooDoQuadrado';
 import { useMisturaDoDia } from '../state/misturaDoDia';
 import { capasDaFila, chaveDoRecente, recentesParaMostrar, type Recente } from '../lib/recentes';
 import { Toque } from '../components/Toque';
@@ -234,10 +235,21 @@ export function SearchScreen() {
   const secoesDaHome = useAparencia(useShallow((s) => secoesVisiveis(s)));
   const temMisturaDoDia = useMisturaDoDia((s) => !(s.estado === 'vazio' || (s.estado === 'pronto' && s.faixas.length === 0)));
   // O mesmo `destinoDoRecente` do "Jump back in" do PC (lib/destinos.ts).
+  // Entrar pelo quadrado (24/11): o que abre uma página da pilha abre a partir da
+  // capa do atalho; as Liked Songs são um separador e mudam como sempre.
+  const quadradosDaHome = React.useRef(new Map<string, View | null>()).current;
   const voltarA = useCallback((r: Recente) => {
     const destino = destinoDoRecente(r);
-    if (destino) irPara(destino);
-  }, [irPara]);
+    if (!destino) return;
+    const naPilha = r.tipo === 'playlist' || r.tipo === 'artista' || r.tipo === 'mistura' || r.tipo === 'prateleira' || r.tipo === 'album';
+    if (!naPilha) { irPara(destino); return; }
+    entrarPeloQuadrado(quadradosDaHome.get(r.chave) ?? null, {
+      forma: r.tipo === 'artista' ? 'circulo' : 'quadrado',
+      capas: r.tipo === 'artista' ? r.capas.slice(0, 1) : r.capas.length >= 4 ? r.capas.slice(0, 4) : r.capas.slice(0, 1),
+      destino: r.tipo === 'playlist' ? 'centro' : r.tipo === 'artista' ? 'larga' : 'titulo',
+      navegar: (voo) => irPara(destino, voo ? { voo } : undefined),
+    });
+  }, [irPara, quadradosDaHome]);
 
   const misturasDeEstilo = React.useMemo(
     () => misturas.filter((m) => m.id.startsWith('estilo:')),
@@ -362,8 +374,9 @@ export function SearchScreen() {
               key={m.id}
               ref={(r) => { molduras.current[m.id] = r; }}
               collapsable={false}
-              onPress={() => navigation.navigate('Prateleira', {
-                titulo: m.nome, fonte: { tipo: 'mistura', id: m.id },
+              onPress={() => entrarPeloQuadrado(quadradosDaHome.get(`mistura:${m.id}`) ?? null, {
+                capas: m.faixas.slice(0, 4).map((t) => t.artworkUrl), raio: radii.md, destino: 'titulo',
+                navegar: (voo) => navigation.navigate('Prateleira', { titulo: m.nome, fonte: { tipo: 'mistura', id: m.id }, ...(voo ? { voo } : {}) }),
               })}
               onLongPress={() => abrirMistura(m)}
               delayLongPress={350}
@@ -371,7 +384,8 @@ export function SearchScreen() {
             >
               {/* Mosaico de quatro. Uma capa so seria a de uma musica a fingir
                   que representa vinte e cinco. */}
-              <View style={[styles.mosaico, { width: CAIXA_DA_MISTURA, height: CAIXA_DA_MISTURA }]}>
+              <View ref={(v) => { quadradosDaHome.set(`mistura:${m.id}`, v); }} collapsable={false}
+                style={[styles.mosaico, { width: CAIXA_DA_MISTURA, height: CAIXA_DA_MISTURA }]}>
                 {m.faixas.slice(0, 4).map((t, i) => (
                   t.artworkUrl ? (
                     <Image
@@ -596,11 +610,13 @@ export function SearchScreen() {
                 ) : r.tipo === 'artista' ? (
                   <View style={[styles.atalhoCapa, styles.atalhoCoracao]}>
                     {r.capas[0] ? (
-                      <Image source={{ uri: capaParaLista(r.capas[0])! }} style={styles.atalhoRedonda} contentFit="cover" transition={200} />
+                      <View ref={(v) => { quadradosDaHome.set(r.chave, v); }} collapsable={false}>
+                        <Image source={{ uri: capaParaLista(r.capas[0])! }} style={styles.atalhoRedonda} contentFit="cover" transition={200} />
+                      </View>
                     ) : <Ionicons name="person" size={20} color={colors.textSecondary} />}
                   </View>
                 ) : (
-                  <View style={styles.atalhoCapa}>
+                  <View ref={(v) => { quadradosDaHome.set(r.chave, v); }} collapsable={false} style={styles.atalhoCapa}>
                     {(r.capas.length >= 4 ? r.capas.slice(0, 4) : r.capas.slice(0, 1)).map((c, i, todas) => (
                       <Image
                         key={i}
@@ -625,7 +641,10 @@ export function SearchScreen() {
         <View style={{ paddingHorizontal: spacing.xl, marginTop: temMisturaDoDia ? spacing.xl : 0 }}>
           <CartaoDaMisturaDoDia
             destaque
-            aoAbrir={() => navigation.navigate('Prateleira', { titulo: 'Daily mix', fonte: { tipo: 'doDia' } })}
+            aoAbrir={(capa) => entrarPeloQuadrado(capa?.no ?? null, {
+              capas: [capa?.uri], raio: radii.md, destino: 'titulo',
+              navegar: (voo) => navigation.navigate('Prateleira', { titulo: 'Daily mix', fonte: { tipo: 'doDia' }, ...(voo ? { voo } : {}) }),
+            })}
           />
         </View>
       );

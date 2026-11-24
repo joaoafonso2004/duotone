@@ -91,6 +91,7 @@ import { ArtworkCollage } from '../components/ArtworkCollage';
 import { LinhaArrastavel } from '../components/LinhaArrastavel';
 import { DeslizarParaTirar } from '../components/DeslizarParaTirar';
 import { PlayDeMetal } from '../components/PlayDeMetal';
+import { useVoltarDaPagina } from '../components/PaginaDoQuadrado';
 import { useArrastarLista } from '../hooks/useArrastarLista';
 import {
   comecarRascunho, desfazerTirada, haAlgoParaGravar, moverNoRascunho, planoDeGravacao, tirarDoRascunho,
@@ -107,6 +108,8 @@ import { acoesDaLinha, fraseDoMover } from '../lib/menuDaFaixa';
 type Props = NativeStackScreenProps<RootStackParamList, 'PlaylistDetail'>;
 
 export function PlaylistDetailScreen({ route, navigation }: Props) {
+  // Voltar encolhe até ao quadrado de onde abriu, se abriu por um (24/11).
+  const voltar = useVoltarDaPagina();
   // A barra de cima flutua sobre a capa e mostra o nome pequeno quando o
   // grande passa por baixo dela (3/10, o modo herói do Screen).
   const cab = useCabecalhoQueEncolhe();
@@ -837,7 +840,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
           </View>
         ) : (
           <View style={styles.molduraDeCima}>
-            <Pressable hitSlop={10} onPress={() => navigation.goBack()} style={{ marginLeft: -8 }} accessibilityLabel="Back">
+            <Pressable hitSlop={10} onPress={voltar} style={{ marginLeft: -8 }} accessibilityLabel="Back">
               <Ionicons name="chevron-back" size={26} color={colors.text} />
             </Pressable>
             <View style={styles.acoesDeCima}>

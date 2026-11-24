@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, Text, View } from 'react-native';
@@ -30,7 +30,8 @@ function capaDe(t: Track): string {
  * em vez de ocupar o topo com um vazio. Ver `lib/misturaDoDia.ts`.
  */
 export function CartaoDaMisturaDoDia({ aoAbrir, destaque = false }: {
-  aoAbrir: () => void;
+  /** Com a capa do cartão em destaque (24/11): a página abre a partir dela. */
+  aoAbrir: (capa?: { no: View | null; uri: string | null }) => void;
   /**
    * Na Home (3/10, variante A): a capa grande a encher o cartão, com o nome e
    * os artistas da mistura por cima. Sem isto, a linha compacta de sempre.
@@ -42,6 +43,7 @@ export function CartaoDaMisturaDoDia({ aoAbrir, destaque = false }: {
   const playTrack = usePlayer((s) => s.playTrack);
   const theme = useTheme((s) => s.theme);
   const capas = useMemo(() => faixas.map(capaDe).filter(Boolean).slice(0, 4), [faixas]);
+  const capaDoDestaque = useRef<View>(null);
   // "Isak, Dillaz, Morad and more": os primeiros artistas, sem repetir.
   const artistas = useMemo(() => {
     const nomes: string[] = [];
@@ -69,7 +71,7 @@ export function CartaoDaMisturaDoDia({ aoAbrir, destaque = false }: {
       : `${artistas.length ? `${artistas.join(', ')} and more · ` : ''}${faixas.length} songs`;
     return (
       <Pressable
-        onPress={aFazer ? undefined : aoAbrir}
+        onPress={aFazer ? undefined : () => aoAbrir({ no: capaDoDestaque.current, uri: capas[0] ?? null })}
         accessibilityRole="button"
         accessibilityLabel="Daily mix"
         style={({ pressed }) => ({
@@ -88,12 +90,14 @@ export function CartaoDaMisturaDoDia({ aoAbrir, destaque = false }: {
           style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
         />
         {capa ? (
-          <Image
-            source={{ uri: capa }}
-            style={{ position: 'absolute', left: spacing.lg, top: spacing.lg, width: 148, height: 148, borderRadius: radii.md }}
-            contentFit="cover"
-            transition={250}
-          />
+          <View ref={capaDoDestaque} collapsable={false} style={{ position: 'absolute', left: spacing.lg, top: spacing.lg, width: 148, height: 148 }}>
+            <Image
+              source={{ uri: capa }}
+              style={{ width: 148, height: 148, borderRadius: radii.md }}
+              contentFit="cover"
+              transition={250}
+            />
+          </View>
         ) : null}
         <View style={{ position: 'absolute', left: capa ? spacing.lg + 148 + spacing.md : spacing.lg, right: spacing.lg, top: spacing.lg, bottom: 76, gap: 4 }}>
           <Text numberOfLines={2} style={{ fontSize: 22, fontWeight: '800', color: '#fff' }}>Your Daily mix</Text>
@@ -110,7 +114,7 @@ export function CartaoDaMisturaDoDia({ aoAbrir, destaque = false }: {
 
   return (
     <Pressable
-      onPress={aFazer ? undefined : aoAbrir}
+      onPress={aFazer ? undefined : () => aoAbrir()}
       accessibilityRole="button"
       accessibilityLabel="Daily mix"
       style={({ pressed }) => ({

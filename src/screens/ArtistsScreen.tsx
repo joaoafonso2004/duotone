@@ -22,6 +22,7 @@ import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, MINI_PLAYER_HEIGHT, spacing, type } from '../theme';
 import { hapticSelection } from '../lib/haptics';
 import { useArtistasFavoritos } from '../state/artistasFavoritos';
+import { entrarPeloQuadrado } from '../state/vooDoQuadrado';
 import { ArtistFavoritesSyncStatus } from '../components/ArtistFavoritesSyncStatus';
 import { useAuth } from '../state/auth';
 import { useTheme } from '../state/theme';
@@ -140,13 +141,23 @@ export function ArtistsScreen() {
   const comNovidade = useNovosLancamentos((s) => s.comNovidade);
   // A imagem que cada cartão está a mostrar: a página do artista abre com ela.
   const imagens = useRef(new Map<string, string | null>()).current;
+  // O círculo de cada cartão: a página do artista abre a partir dele (24/11, entrar pelo quadrado).
+  const circulos = useRef(new Map<string, View | null>()).current;
   const renderArtist = (artist: ArtistGroup, shelf = false) => {
     const side = shelf ? 86 : Math.min(120, cardWidth);
     const novidade = comNovidade.has(artist.chave);
     return <Pressable accessibilityRole="button" accessibilityLabel={`${artist.name}, ${artist.count} songs${novidade ? ', new release' : ''}`}
-      onPress={() => navigation.navigate('LibraryGroup', { type: 'artist', name: artist.name, capa: imagens.get(artist.chave) ?? artist.artworkUrl })}
+      onPress={() => {
+        const capa = imagens.get(artist.chave) ?? artist.artworkUrl;
+        entrarPeloQuadrado(circulos.get(`${shelf ? 's' : 'g'}:${artist.chave}`) ?? null, {
+          forma: 'circulo', capas: [capa], destino: 'larga',
+          navegar: (voo) => navigation.navigate('LibraryGroup', { type: 'artist', name: artist.name, capa, ...(voo ? { voo } : {}) }),
+        });
+      }}
       style={({ pressed }) => [styles.card, { width: shelf ? 94 : cardWidth, opacity: pressed ? 0.6 : 1 }]}>
-      <ImagemDoArtista nome={artist.name} capa={artist.artworkUrl} lado={side} aoSaber={(imagem) => { imagens.set(artist.chave, imagem); }} />
+      <View ref={(v) => { circulos.set(`${shelf ? 's' : 'g'}:${artist.chave}`, v); }} collapsable={false}>
+        <ImagemDoArtista nome={artist.name} capa={artist.artworkUrl} lado={side} aoSaber={(imagem) => { imagens.set(artist.chave, imagem); }} />
+      </View>
       {novidade && <View pointerEvents="none" style={[styles.pontoNovo, { backgroundColor: corDoTema, left: ((shelf ? 94 : cardWidth) - side) / 2 + side * 0.08 }]} />}
       {/* Na prateleira de cima não: são círculos de 86 e já dizem quem se
           ouve mais. A estrela vive na grelha, que é a lista toda. */}

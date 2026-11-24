@@ -84,6 +84,8 @@ import type { NotificationTarget } from '../lib/inAppNotifications';
 import { PersonalizarScreen } from '../screens/PersonalizarScreen';
 
 import { CamadaDaOrbita } from '../components/CamadaDaOrbita';
+import { CamadaDoQuadrado } from '../components/CamadaDoQuadrado';
+import { PaginaDoQuadrado } from '../components/PaginaDoQuadrado';
 const OnlineArtists=withInternet(ArtistsScreen,'Artists');
 const OnlineImportYouTube=withInternet(ImportYouTubeScreen,'ImportYouTube');
 const OnlineListeningStats=withInternet(ListeningStatsScreen,'ListeningStats');
@@ -121,13 +123,14 @@ export type PilhaParamList = {
   /** Os álbuns guardados (15/11): a grelha que a pasta das Playlists abre. */
   AlbunsGuardados: undefined;
   /** Uma pasta de playlists (16/11): o ecrã das Playlists, só com as dela. */
-  PastaDePlaylists: { nome: string };
+  PastaDePlaylists: { nome: string; voo?: string };
   /** `editar`: abre já na edição (o "Edit playlist" do toque longo, 28/9). */
-  PlaylistDetail: { id: string; name: string; editar?: boolean; pessoas?: boolean };
+  /** `voo` (24/11): abriu por um quadrado, e a página espera a capa pousar (`PaginaDoQuadrado`). */
+  PlaylistDetail: { id: string; name: string; editar?: boolean; pessoas?: boolean; voo?: string };
   ImportYouTube: undefined;
   Artists: undefined;
   /** `capa`: a imagem que se tocou para abrir o artista; a página abre com ela (23/10). */
-  LibraryGroup: { type: 'album' | 'artist'; name: string; capa?: string | null };
+  LibraryGroup: { type: 'album' | 'artist'; name: string; capa?: string | null; voo?: string };
   /**
    * A lista completa de uma prateleira de recomendações ou de uma mistura.
    *
@@ -142,6 +145,7 @@ export type PilhaParamList = {
       | { tipo: 'mistura'; id: string }
       /** A Daily mix do iPhone. Ver `state/misturaDoDia.ts`. */
       | { tipo: 'doDia' };
+    voo?: string;
   };
 };
 
@@ -194,9 +198,27 @@ const stackScreenOptions = { headerShown: false } as const;
  * Cada ecrã leva a sua barreira de erros: um que rebente mostra "Reload" e os
  * outros (e o leitor, que vive fora deles) continuam. Ver `BarreiraDeErros`.
  */
-function envolverEcra({ route, children }: { route: { name: string }; children: React.ReactElement }) {
-  return <BarreiraDeErros onde={`ecra:${route.name}`}>{children}</BarreiraDeErros>;
+function envolverEcra({ route, navigation, children }: {
+  route: { name: string; params?: object };
+  navigation: { goBack: () => void; setOptions: (o: object) => void };
+  children: React.ReactElement;
+}) {
+  // Abriu por um quadrado (24/11): espera escondida que a capa pouse (`PaginaDoQuadrado`).
+  const voo = (route.params as { voo?: string } | undefined)?.voo;
+  return (
+    <BarreiraDeErros onde={`ecra:${route.name}`}>
+      {voo ? <PaginaDoQuadrado voo={voo} navigation={navigation}>{children}</PaginaDoQuadrado> : children}
+    </BarreiraDeErros>
+  );
 }
+
+/**
+ * As páginas que abrem por um quadrado (24/11): sem animação nativa quando trazem
+ * `voo`, porque quem as mostra é a camada do voo. Depois de abertas, a
+ * `PaginaDoQuadrado` volta a pôr a de sempre (o deslizar da borda).
+ */
+const abrePorUmQuadrado = ({ route }: { route: { params?: object } }) =>
+  ((route.params as { voo?: string } | undefined)?.voo ? { animation: 'none' as const } : {});
 
 /**
  * Os ecrãs que entram POR CIMA de uma secção. Vivem em TODAS as pilhas dos
@@ -215,11 +237,11 @@ function ecrasDaPilha() {
     <>
       {/* Sem withInternet desde 16/10 (auditoria 29): sem rede abre com a
           última cópia e toca o que está no iPhone. */}
-      <Stack.Screen name="PlaylistDetail" component={PlaylistDetailScreen} />
+      <Stack.Screen name="PlaylistDetail" component={PlaylistDetailScreen} options={abrePorUmQuadrado} />
       <Stack.Screen name="AlbunsGuardados" component={AlbunsGuardadosScreen} />
-      <Stack.Screen name="PastaDePlaylists" component={PlaylistsScreen} />
-      <Stack.Screen name="LibraryGroup" component={OnlineLibraryGroup} />
-      <Stack.Screen name="Prateleira" component={OnlinePrateleira} />
+      <Stack.Screen name="PastaDePlaylists" component={PlaylistsScreen} options={abrePorUmQuadrado} />
+      <Stack.Screen name="LibraryGroup" component={OnlineLibraryGroup} options={abrePorUmQuadrado} />
+      <Stack.Screen name="Prateleira" component={OnlinePrateleira} options={abrePorUmQuadrado} />
       <Stack.Screen name="FriendProfile" component={FriendProfileScreen} />
       <Stack.Screen name="VocesOsDois" component={OnlineVocesOsDois} />
       <Stack.Screen name="ListeningStats" component={OnlineListeningStats} />
@@ -363,8 +385,10 @@ function visibleConversation(): string | null {
  * de uma folha da raiz (a fila) não encontrava o ecrã e não fazia nada. O foco
  * que a navegação pede fecha a folha pelo caminho.
  */
-export function irParaNoIphone(destino: Destino): boolean {
-  const alvo = rotaNoIphone(destino);
+export function irParaNoIphone(destino: Destino, extra?: { voo?: string }): boolean {
+  const rota = rotaNoIphone(destino);
+  // `voo` (24/11): a página abre por um quadrado (`entrarPeloQuadrado`).
+  const alvo = rota && extra?.voo && rota.onde === 'pilha' ? { ...rota, params: { ...(rota.params as object), voo: extra.voo } } : rota;
   if (!alvo || !navigationRef.isReady()) return false;
   if (alvo.onde === 'separador') {
     navigationRef.dispatch(CommonActions.navigate({ name: 'Tabs', params: { screen: alvo.ecra, params: alvo.params }, pop: true }));
@@ -385,7 +409,7 @@ export function irParaNoIphone(destino: Destino): boolean {
   }
   return true;
 }
-const irPara = (d: Destino) => { irParaNoIphone(d); };
+const irPara = (d: Destino, extra?: { voo?: string }) => { irParaNoIphone(d, extra); };
 
 async function openNotification(target: NotificationTarget) {
   const userId = useAuth.getState().session?.user.id;
@@ -537,6 +561,8 @@ export function RootNavigator() {
                 })}
               />
             </Stack.Navigator>
+            {/* Entrar pelo quadrado (24/11): por cima das páginas, por baixo da base. */}
+            <CamadaDoQuadrado />
             {/* A base de baixo: o vidro do mini-player e dos separadores (3/10).
                 Por cima dos ecrãs e dentro da app de trás: recua com ela. */}
             <Doca />

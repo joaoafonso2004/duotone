@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { ArtworkCollage } from './ArtworkCollage';
+import { AlvoDoVoo } from './PaginaDoQuadrado';
 import { colors, radii, spacing, type } from '../theme';
 
 /**
@@ -78,10 +79,11 @@ export function CabecalhoDaPlaylist({
 
   return (
     <View style={styles.caixa}>
-      <View style={[styles.capa, artista && { borderRadius: lado / 2 }]}>
+      {/* A capa que voa do quadrado pousa aqui (24/11, `AlvoDoVoo`). */}
+      <AlvoDoVoo style={[styles.capa, artista && { borderRadius: lado / 2 }]}>
         {artista && artworks[0] ? <Image source={{ uri: artworks[0] }} style={{ width: lado, height: lado }} contentFit="cover" />
           : <ArtworkCollage artworks={artworks} size={lado} />}
-      </View>
+      </AlvoDoVoo>
 
       {/* Duas linhas, e o nome é a maior coisa da página. */}
       <Text numberOfLines={2} style={styles.nome}
