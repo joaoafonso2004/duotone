@@ -99,9 +99,18 @@ caso('o mosaico abre-se com o rato no cartão, só com transform, e parado com m
   const comum = ler('src/desktop/paginas/comum.web.tsx');
   for (const q of ['te', 'td', 'be', 'bd', 'e', 'd']) assert.match(comum, new RegExp(`${q}: marcar\\('mosaico-quadro', 'mq-${q}'\\)`));
   const casca = ler('src/desktop/casca.web.tsx');
-  assert.match(casca, /\[data-dt~="cartao"\]:hover \[data-dt~="mq-te"\]\{ transform: translate\(-2\.5px, -2\.5px\); \}/);
-  assert.match(casca, /\[data-dt~="cartao"\]:hover \[data-dt~="mosaico-img"\]\{ transform: scale\(1\.07\); \}/);
-  assert.match(casca, /\[data-dt~="mosaico-quadro"\]\{ transition: transform 600ms var\(--dt-curva\); \}/);
+  // 24/11 (a maquete "Hover dos Albums e das Playlists"): os quadros soltam-se 5 px, com
+  // os seus cantos, um a seguir ao outro, e a moldura escura apaga-se e já não os corta.
+  assert.match(casca, /\[data-dt~="cartao"\]:hover \[data-dt~="mq-te"\]\{ transform: translate\(-5px, -5px\); border-radius: 13px 8px 8px 8px; \}/);
+  assert.match(casca, /\[data-dt~="cartao"\]:hover \[data-dt~="mq-bd"\]\{ transform: translate\(5px, 5px\); border-radius: 8px 8px 13px 8px; transition-delay: 90ms; \}/);
+  assert.match(casca, /\[data-dt~="cartao"\]:hover \[data-dt~="mosaico-img"\]\{ transform: scale\(1\.05\); \}/);
+  assert.match(casca, /\[data-dt~="mosaico-quadro"\]\{ transition: transform 600ms var\(--dt-curva\), border-radius 600ms var\(--dt-curva\), box-shadow 600ms var\(--dt-curva\); \}/);
+  assert.match(casca, /\[data-dt~="mosaico"\]\{ overflow: visible !important;/);
+  assert.match(casca, /\[data-dt~="cartao"\]:hover \[data-dt~="mosaico"\]\{ background-color: transparent !important; border-color: transparent !important; box-shadow: none !important; \}/);
+  assert.equal((comum.match(/<View \{\.\.\.marcar\('mosaico'\)\} style=\{mosaico\}>/g) ?? []).length, 2, 'as duas formas do mosaico têm a marca');
+  // A pasta dos Albums abre-se como a "Separar" da maquete.
+  assert.match(casca, /\[data-dt~="cartao"\]:hover \[data-dt~="pasta-capa"\], \[data-dt~="cartao"\]:focus-visible \[data-dt~="pasta-capa"\]\{\n\s*opacity: 1; transform: translate\(var\(--dx\), var\(--dy\)\) rotate\(var\(--rodar-aberta\)\); \}/);
+  assert.match(ler('src/components/PastaDosAlbuns.web.tsx'), /data-dt="pasta-capa"/);
   assert.match(casca, /prefers-reduced-motion: reduce\)\{\s+\[data-dt~="cartao"\]:hover \[data-dt~="mosaico-quadro"\], \[data-dt~="cartao"\]:hover \[data-dt~="mosaico-img"\]\{ transform: none; \}/);
 });
 caso('a página de uma playlist: a cor da capa no topo, a entrar devagar', () => {

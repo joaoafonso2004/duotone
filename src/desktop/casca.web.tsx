@@ -649,23 +649,47 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="cartao"]:hover [data-dt~="play-cartao"], [data-dt~="cartao"]:focus-within [data-dt~="play-cartao"]{ opacity: 1; transform: none; }
 
     /* O mosaico de uma playlist abre-se (8/11, a maquete das Playlists de 30/10,
-       paginas/comum.web.tsx): com o rato no cartao cada quadro sai 2,5 px do
-       centro (a linha passa de 2 a 7 px) e a imagem cresce 7 % dentro dele. So
-       transform. No cabecalho da playlist (que nao e um cartao) fica parado. */
-    [data-dt~="mosaico-quadro"]{ transition: transform 600ms var(--dt-curva); }
+       paginas/comum.web.tsx). Desde 24/11 (a maquete "Hover dos Albums e das
+       Playlists"), com o rato no cartao os quadros soltam-se como capas separadas: a
+       moldura escura apaga-se (a cor da playlist, por tras, aparece nos intervalos),
+       cada quadro sai 5 px do centro com os seus cantos e a sua sombra, um a seguir ao
+       outro (30 ms; a fechar, juntos), e a imagem cresce 5 % dentro dele. Ate ai saiam
+       2,5 px e a moldura cortava-os pelas bordas: lia-se como as linhas a engrossar. Os
+       cantos de fora de cada quadro sao os da moldura, por isso ela ja nao corta. No
+       cabecalho da playlist (que nao e um cartao) fica parado. */
+    [data-dt~="mosaico"]{ overflow: visible !important;
+      transition: background-color 400ms var(--dt-curva), border-color 400ms var(--dt-curva), box-shadow 400ms var(--dt-curva); }
+    [data-dt~="cartao"]:hover [data-dt~="mosaico"]{ background-color: transparent !important; border-color: transparent !important; box-shadow: none !important; }
+    [data-dt~="mosaico-quadro"]{ transition: transform 600ms var(--dt-curva), border-radius 600ms var(--dt-curva), box-shadow 600ms var(--dt-curva); }
+    [data-dt~="mq-te"]{ border-radius: 13px 0 0 0; }
+    [data-dt~="mq-td"]{ border-radius: 0 13px 0 0; }
+    [data-dt~="mq-be"]{ border-radius: 0 0 0 13px; }
+    [data-dt~="mq-bd"]{ border-radius: 0 0 13px 0; }
+    [data-dt~="mq-e"]{ border-radius: 13px 0 0 13px; }
+    [data-dt~="mq-d"]{ border-radius: 0 13px 13px 0; }
     [data-dt~="mosaico-img"]{ transition: transform 800ms var(--dt-curva); }
-    [data-dt~="cartao"]:hover [data-dt~="mq-te"]{ transform: translate(-2.5px, -2.5px); }
-    [data-dt~="cartao"]:hover [data-dt~="mq-td"]{ transform: translate(2.5px, -2.5px); }
-    [data-dt~="cartao"]:hover [data-dt~="mq-be"]{ transform: translate(-2.5px, 2.5px); }
-    [data-dt~="cartao"]:hover [data-dt~="mq-bd"]{ transform: translate(2.5px, 2.5px); }
-    [data-dt~="cartao"]:hover [data-dt~="mq-e"]{ transform: translateX(-2.5px); }
-    [data-dt~="cartao"]:hover [data-dt~="mq-d"]{ transform: translateX(2.5px); }
-    [data-dt~="cartao"]:hover [data-dt~="mosaico-img"]{ transform: scale(1.07); }
+    [data-dt~="cartao"]:hover [data-dt~="mosaico-quadro"]{ box-shadow: 0 10px 22px rgba(0,0,0,.45); }
+    [data-dt~="cartao"]:hover [data-dt~="mq-te"]{ transform: translate(-5px, -5px); border-radius: 13px 8px 8px 8px; }
+    [data-dt~="cartao"]:hover [data-dt~="mq-td"]{ transform: translate(5px, -5px); border-radius: 8px 13px 8px 8px; transition-delay: 30ms; }
+    [data-dt~="cartao"]:hover [data-dt~="mq-be"]{ transform: translate(-5px, 5px); border-radius: 8px 8px 8px 13px; transition-delay: 60ms; }
+    [data-dt~="cartao"]:hover [data-dt~="mq-bd"]{ transform: translate(5px, 5px); border-radius: 8px 8px 13px 8px; transition-delay: 90ms; }
+    [data-dt~="cartao"]:hover [data-dt~="mq-e"]{ transform: translateX(-5px); border-radius: 13px 8px 8px 13px; }
+    [data-dt~="cartao"]:hover [data-dt~="mq-d"]{ transform: translateX(5px); border-radius: 8px 13px 13px 8px; transition-delay: 30ms; }
+    [data-dt~="cartao"]:hover [data-dt~="mosaico-img"]{ transform: scale(1.05); }
+    /* A pasta dos Albums abre-se (24/11, a mesma maquete, a "Separar"): as capas
+       afastam-se na diagonal em que estao, abrem o angulo e ficam opacas. Os dois
+       lugares vem no style de cada uma (--rodar, --dx...), de lib/albunsGuardados.ts.
+       So transform e opacidade. */
+    [data-dt~="pasta-capa"]{ opacity: var(--opacidade); transform: translate(0px, 0px) rotate(var(--rodar));
+      transition: transform 600ms var(--dt-curva), opacity 400ms var(--dt-curva); }
+    [data-dt~="cartao"]:hover [data-dt~="pasta-capa"], [data-dt~="cartao"]:focus-visible [data-dt~="pasta-capa"]{
+      opacity: 1; transform: translate(var(--dx), var(--dy)) rotate(var(--rodar-aberta)); }
     /* A cor da playlist por tras do cartao (a "aura" da maquete): so opacidade. */
     [data-dt~="cartao-aura"]{ opacity: 0; transition: opacity 600ms var(--dt-curva); }
     [data-dt~="cartao"]:hover [data-dt~="cartao-aura"], [data-dt~="cartao"]:focus-within [data-dt~="cartao-aura"]{ opacity: .85; }
     @media (prefers-reduced-motion: reduce){
       [data-dt~="cartao"]:hover [data-dt~="mosaico-quadro"], [data-dt~="cartao"]:hover [data-dt~="mosaico-img"]{ transform: none; }
+      [data-dt~="cartao"]:hover [data-dt~="pasta-capa"], [data-dt~="cartao"]:focus-visible [data-dt~="pasta-capa"]{ transform: translate(0px, 0px) rotate(var(--rodar)); }
     }
     /* A cor da playlist no topo da pagina dela chega depois de ler a capa: entra
        devagar, em vez de aparecer de repente (so opacidade). */

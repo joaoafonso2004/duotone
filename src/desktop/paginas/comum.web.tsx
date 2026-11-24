@@ -137,11 +137,11 @@ export function PlaylistArtwork({ artworks, lado = 200 }: { artworks: string[]; 
   }
 
   // Duas ou mais: quadros com uma linha escura de 2 px entre eles, como na maquete
-  // de 30/10. Num cartão, com o rato em cima, abrem-se (CSS `mosaico-*` na casca).
+  // de 30/10. Num cartão, com o rato em cima, soltam-se (CSS `mosaico-*` na casca).
   const mosaico = [moldura, styles.playlistArtMosaico];
   if (capas.length === 2) {
     return (
-      <View style={mosaico}>
+      <View {...marcar('mosaico')} style={mosaico}>
         <View style={styles.playlistArtRowMosaico}>
           <QuadroDoMosaico uri={capas[0]} onde="e" />
           <QuadroDoMosaico uri={capas[1]} onde="d" />
@@ -151,7 +151,7 @@ export function PlaylistArtwork({ artworks, lado = 200 }: { artworks: string[]; 
   }
 
   return (
-    <View style={mosaico}>
+    <View {...marcar('mosaico')} style={mosaico}>
       <View style={styles.playlistArtRowMosaico}>
         <QuadroDoMosaico uri={capas[0]} onde="te" />
         <QuadroDoMosaico uri={capas[1]} onde="td" />

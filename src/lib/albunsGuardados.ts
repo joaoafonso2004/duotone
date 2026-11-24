@@ -124,3 +124,14 @@ export const CAMADAS_DA_PASTA = [
 ] as const;
 /** O lado de cada capa, em percentagem do lado da pasta. */
 export const LADO_DA_CAPA_NA_PASTA = 78;
+/**
+ * A pasta aberta, com o rato em cima no PC (24/11, a maquete "Hover dos Albums e das
+ * Playlists", o João escolheu a "Separar"): as capas afastam-se ao longo da diagonal em
+ * que já estão (a de trás desce para a esquerda, a da frente sobe para a direita), abrem
+ * um pouco o ângulo e ficam todas opacas. Deslocações em percentagem do lado da pasta.
+ */
+export const CAMADAS_DA_PASTA_ABERTA = [
+  { direita: -6, baixo: 4, rodar: -9 },
+  { direita: 0, baixo: 0, rodar: -1 },
+  { direita: 6, baixo: -4, rodar: 8 },
+] as const;
