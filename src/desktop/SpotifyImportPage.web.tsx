@@ -18,7 +18,7 @@ import type { Playlist, Track } from '../types';
 import { SpotifyReview } from './SpotifyReview.web';
 import { ContaDoSpotifyPc } from './ContaDoSpotifyPc.web';
 import { BotaoVoltar, Button, ContentScroll, Field, Page } from './ui.web';
-import { COR, RAIO } from './tokens.web';
+import { COR, ESTADO, RAIO } from './tokens.web';
 
 import { avisarErro, avisarInfo } from '../lib/avisoDeRemocao';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
@@ -413,7 +413,10 @@ export function SpotifyImportPage({ back, notify }: { back: () => void; notify: 
                     <Pressable
                       key={p.id}
                       onPress={() => setTarget(p.id)}
-                      style={[s.choice, s.indent, target === p.id && { borderColor: COR.metalClaro }]}
+                      accessibilityRole={'radio' as any}
+                      accessibilityState={{ checked: target === p.id }}
+                      // O hover das linhas das Definições (24/11, a lista "Refinar o PC"): só mudavam depois do clique.
+                      style={({ hovered }: any) => [s.choice, s.indent, target === p.id && { borderColor: COR.metalClaro }, hovered && target !== p.id && { backgroundColor: ESTADO.hover }]}
                     >
                       <Ionicons
                         name={target === p.id ? 'checkmark-circle' : 'ellipse-outline'}
@@ -498,7 +501,9 @@ function Choice({
   return (
     <Pressable
       onPress={onPress}
-      style={[s.choice, selected && { backgroundColor: COR.metalSuave, borderColor: COR.metalClaro }]}
+      accessibilityRole={'radio' as any}
+      accessibilityState={{ checked: selected }}
+      style={({ hovered }: any) => [s.choice, selected && { backgroundColor: COR.metalSuave, borderColor: COR.metalClaro }, hovered && !selected && { backgroundColor: ESTADO.hover }]}
     >
       <Ionicons
         name={selected ? 'radio-button-on' : 'radio-button-off'}

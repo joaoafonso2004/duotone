@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Switch, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { SelectionPill } from '../components/SelectionPill';
 import { normalizar, ondaDoEqualizador, GANHO_MAXIMO, type Ganhos } from '../lib/equalizer';
 import {
@@ -10,7 +10,7 @@ import { mudarPresets, usePresets } from '../state/presets';
 import { styles } from './estilos.web';
 import { BandasDoEqualizador, pillPalette } from './PainelEqualizador.web';
 import { COR, ESP, RAIO } from './tokens.web';
-import { Button, Dialog, Field, IconButton } from './ui.web';
+import { Button, Dialog, Field, IconButton, Interruptor } from './ui.web';
 
 type Edicao = { id: string | null; modo: 'curva' | 'nome'; nome: string; curva: Ganhos };
 
@@ -104,12 +104,10 @@ export function GestorDePresets({ ganhosIniciais }: { ganhosIniciais: Ganhos }) 
                     : <IconButton name="trash-outline" label={`Delete ${p.nome}`} danger onPress={() => setAApagar(p)} />}
                 </>
               )}
-              <Switch
+              <Interruptor
                 accessibilityLabel={`Show ${p.nome} in the equaliser`}
                 value={!p.escondido}
                 onValueChange={(v) => mudarPresets((m, agora) => mostrarPreset(m, p.id, v, agora))}
-                trackColor={{ false: COR.elevado, true: COR.metalClaro }}
-                thumbColor={COR.fundo}
               />
             </View>
             {edicao?.id === p.id && edicao.modo === 'curva' ? editor(false) : null}

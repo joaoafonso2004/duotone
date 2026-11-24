@@ -453,5 +453,26 @@ caso('a página recua por baixo em vez de sumir, e o resto do leitor sobe em esc
   assert.match(nav, /style=\{\[StyleSheet\.absoluteFill,\{zIndex:35,backgroundColor:'transparent'\}\]\}/, 'por cima do painel (30)');
 });
 
+console.log('\no lote pequeno da lista "Refinar o PC" (24/11)');
+caso('um interruptor só, o de metal: nenhum Switch do RN sem cores nos ficheiros do PC', () => {
+  const ui = emLf('src/desktop/ui.web.tsx');
+  assert.match(ui, /export function Interruptor\(/);
+  assert.match(ui, /trackColor=\{\{ false: COR\.elevado, true: COR\.metalClaro \}\} thumbColor=\{COR\.fundo\}/);
+  const comSwitch = FICHEIROS.filter((f) => f !== 'src/desktop/ui.web.tsx' && /<Switch\b/.test(emLf(f)));
+  assert.deepEqual(comSwitch, [], 'os do Jam vinham no verde-azulado do react-native-web');
+  assert.equal((emLf('src/desktop/JanelaDoJam.web.tsx').match(/<Interruptor /g) ?? []).length, 4);
+});
+caso('mudar de secção nas Definições: o cartão novo entra; ao abrir as Definições, não', () => {
+  const definicoes = emLf('src/desktop/paginas/SettingsPage.web.tsx');
+  assert.match(definicoes, /<View key=\{aberta\} \{\.\.\.\(mudouDeSeccao \? marcar\('seccao-entra'\) : \{\}\)\} style=\{styles\.definicoesPainel\}>/);
+  assert.match(definicoes, /const escolher = \(id: IdDaSeccao\) => \{ seccaoAberta = id; setSeccao\(id\); setMudouDeSeccao\(true\); \};/);
+  assert.match(CASCA_LF, /\[data-dt~="seccao-entra"\]\{ animation: dt-seccao 320ms var\(--dt-curva\) both; \}/);
+  assert.match(CASCA_LF, /\[data-dt~="texto-sai"\], \[data-dt~="seccao-entra"\]\{ animation: none !important; \}/, 'com menos movimento, não anda');
+});
+caso('as escolhas do import do Spotify reagem ao rato, como as linhas das Definições', () => {
+  const spotify = emLf('src/desktop/SpotifyImportPage.web.tsx');
+  assert.equal((spotify.match(/hovered && [^\]]*ESTADO\.hover/g) ?? []).length, 2);
+});
+
 console.log(falhas === 0 ? '\nTudo bem.\n' : `\n${falhas} falha(s).\n`);
 process.exit(falhas === 0 ? 0 : 1);

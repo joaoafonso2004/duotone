@@ -13,7 +13,7 @@ import { removeOwnProfileMedia } from '../../lib/profileMedia';
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, Switch, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { APP_VERSION } from '../../lib/buildInfo';
 import { EVENTO_PROCURAR_ATUALIZACAO } from '../../lib/avisoDeVersao';
@@ -41,7 +41,7 @@ import { usePlayer } from '../../state/player';
 import { useTheme } from '../../state/theme';
 import { styles } from '../estilos.web';
 import { COR, ESP } from '../tokens.web';
-import { Button, ContentScroll, Dialog } from '../ui.web';
+import { Button, ContentScroll, Dialog, Interruptor, marcar } from '../ui.web';
 import { RecuperarPassword } from '../RecuperarPassword.web';
 import { BarraVelocidade } from '../BarraVelocidade.web';
 import { AtalhosDoTeclado } from '../AtalhosDoTeclado.web';
@@ -395,7 +395,10 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   const temAtalhos = !!window.duotoneDesktop?.lerAtalhos;
   const seccoes = SECCOES.filter((s) => (s.id !== 'windows' || temWindows) && (s.id !== 'atalhos' || temAtalhos));
   const aberta = seccoes.some((s) => s.id === seccao) ? seccao : 'reproducao';
-  const escolher = (id: IdDaSeccao) => { seccaoAberta = id; setSeccao(id); };
+  // Mudar de secção (24/11, a lista "Refinar o PC"): o cartão novo entra (`seccao-entra`,
+  // na casca) em vez de trocar no mesmo fotograma. Ao abrir as Definições não: a página já entra.
+  const [mudouDeSeccao, setMudouDeSeccao] = useState(false);
+  const escolher = (id: IdDaSeccao) => { seccaoAberta = id; setSeccao(id); setMudouDeSeccao(true); };
 
   return (
     <View style={{ flex: 1, minWidth: 0 }}>
@@ -415,7 +418,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                 </Pressable>
               ))}
             </View>
-            <View style={styles.definicoesPainel}>
+            <View key={aberta} {...(mudouDeSeccao ? marcar('seccao-entra') : {})} style={styles.definicoesPainel}>
               {aberta === 'reproducao' && <SettingsCard title="Playback">
                 {/* Quantas músicas novas o Smart Shuffle mete (26/9). */}
                 <ChoiceLine label={ROTULOS.smartShuffle} description="How many new songs it adds to what you're playing."
@@ -653,7 +656,7 @@ export function SettingAction({ label, description, onPress, danger = false, dis
  */
 export function Efeito({ texto }: { texto?: string | null }) { if (!texto) return null; return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 5 }}><View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: COR.texto, opacity: 0.6 }} /><Text style={{ color: COR.texto, fontSize: 12, lineHeight: 17, flex: 1 }}>{texto}</Text></View>; }
 
-export function ToggleLine({ label, description, value, onChange, efeito }: { label: string; description: string; value: boolean; onChange: (v: boolean) => void; efeito?: string | null }) { return <View style={styles.settingLine}><View style={{ flex: 1 }}><Text style={styles.settingLabel}>{label}</Text><Text style={styles.settingDescription}>{description}</Text><Efeito texto={efeito} /></View><Switch accessibilityLabel={label} value={value} onValueChange={onChange} trackColor={{ false: COR.elevado, true: COR.metalClaro }} thumbColor={COR.fundo} /></View>; }
+export function ToggleLine({ label, description, value, onChange, efeito }: { label: string; description: string; value: boolean; onChange: (v: boolean) => void; efeito?: string | null }) { return <View style={styles.settingLine}><View style={{ flex: 1 }}><Text style={styles.settingLabel}>{label}</Text><Text style={styles.settingDescription}>{description}</Text><Efeito texto={efeito} /></View><Interruptor accessibilityLabel={label} value={value} onValueChange={onChange} /></View>; }
 
 export function ChoiceLine({ label, description, value, choices, onChange, efeito }: { label: string; description?: string; value: string; choices: [string, string][]; onChange: (v: string) => void; efeito?: string | null }) { return <View style={[styles.settingLine, { alignItems: 'flex-start' }]}><View style={{ flex: 1, marginTop: 8, paddingRight: ESP.md }}><Text style={styles.settingLabel}>{label}</Text>{description ? <Text style={styles.settingDescription}>{description}</Text> : null}<Efeito texto={efeito} /></View><View style={styles.smallSegment}>{choices.map(([id, text]) => <Pressable key={id} onPress={() => onChange(id)} style={[styles.smallSegmentItem, value === id && styles.smallSegmentActive]}><Text style={[styles.smallSegmentText, value === id && { color: COR.texto }]}>{text}</Text></Pressable>)}</View></View>; }
 

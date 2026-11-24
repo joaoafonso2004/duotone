@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React from 'react';
-import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { presentes } from '../lib/sessaoViva';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { usePlayer } from '../state/player';
@@ -8,7 +8,7 @@ import { useSocial } from '../state/social';
 import { usePessoasDaSessao } from '../hooks/usePessoasDaSessao';
 import { FriendAvatar } from '../components/FriendAvatar';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
-import { Button, Dialog, Artwork } from './ui.web';
+import { Button, Dialog, Artwork, Interruptor } from './ui.web';
 import { COR, ESP, FONT, RAIO, TIPO } from './tokens.web';
 import { efeitoDaAutoFila } from '../lib/jam';
 import { useMenuDoAmigoNoPc } from '../components/MenuDoAmigoNoPc';
@@ -112,7 +112,7 @@ export function JanelaDoJam({ open, onClose, notify }: {
           <Text style={styles.title}>Queue the whole list</Text>
           <Text style={styles.meta}>{efeitoDaAutoFila(autoFila, anfitriao)}</Text>
         </View>
-        <Switch value={autoFila} onValueChange={definirAutoFila} />
+        <Interruptor value={autoFila} onValueChange={definirAutoFila} accessibilityLabel="Queue the whole list" />
       </View>
 
       {sessao?.eqPartilhado != null ? <>
@@ -124,7 +124,7 @@ export function JanelaDoJam({ open, onClose, notify }: {
               ? anfitriao && eqRemoto ? 'Your other device is sharing its EQ.' : 'Everyone hears the host’s live EQ.'
               : 'Everyone keeps their own EQ.'}</Text>
           </View>
-          {anfitriao ? <Switch value={sessao.eqPartilhado} disabled={eqAAlterar}
+          {anfitriao ? <Interruptor value={sessao.eqPartilhado} disabled={eqAAlterar}
             accessibilityLabel="Share my equalizer with the Jam"
             onValueChange={v => void partilharEq(v).catch(() => avisarErro("Couldn't change the Jam EQ."))} /> : null}
         </View>
@@ -136,11 +136,13 @@ export function JanelaDoJam({ open, onClose, notify }: {
         <Text style={styles.section}>CONTROL</Text>
         <View style={styles.setting}>
           <View style={{ flex: 1 }}><Text style={styles.title}>Guests can control</Text><Text style={styles.meta}>Play, pause and skip. Everyone can always add songs.</Text></View>
-          <Switch value={!!sessao?.convidadosControlam} onValueChange={(value) => void darControlo(value).catch(() => avisarErro("Couldn't change Jam control."))} />
+          <Interruptor value={!!sessao?.convidadosControlam} accessibilityLabel="Guests can control"
+            onValueChange={(value) => void darControlo(value).catch(() => avisarErro("Couldn't change Jam control."))} />
         </View>
         <View style={[styles.setting, !podeAlternarAux && { opacity: .55 }]}>
           <View style={{ flex: 1 }}><Text style={styles.title}>Pass the aux</Text><Text style={styles.meta}>{podeAlternarAux ? 'One song each, in turn.' : 'Another person needs to join first.'}</Text></View>
-          <Switch value={!!sessao?.auxDe} disabled={!podeAlternarAux} onValueChange={(value) => void rodarAux(value).catch(() => avisarErro("Couldn't pass the aux."))} />
+          <Interruptor value={!!sessao?.auxDe} disabled={!podeAlternarAux} accessibilityLabel="Pass the aux"
+            onValueChange={(value) => void rodarAux(value).catch(() => avisarErro("Couldn't pass the aux."))} />
         </View>
       </> : null}
 

@@ -3,7 +3,7 @@ import { useSaida } from './useSaida.web';
 import {StateIcon} from '../components/StateIcon';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { ReactNode, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { colors } from '../theme';
 import type { Track } from '../types';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
@@ -139,6 +139,17 @@ export function IconButton({ name, label, onPress, onPressIn, onPressOut, desenh
       </>;
     }}
   </P>;
+}
+
+/**
+ * O interruptor do PC (24/11, a lista "Refinar o PC"): o de metal das Definições, em todo o
+ * lado. O `Switch` do RN sem cores vinha no verde-azulado do react-native-web (os do Jam).
+ */
+export function Interruptor({ value, onValueChange, disabled = false, accessibilityLabel }: {
+  value: boolean; onValueChange: (v: boolean) => void; disabled?: boolean; accessibilityLabel?: string;
+}) {
+  return <Switch value={value} onValueChange={onValueChange} disabled={disabled} accessibilityLabel={accessibilityLabel}
+    trackColor={{ false: COR.elevado, true: COR.metalClaro }} thumbColor={COR.fundo} />;
 }
 
 /**

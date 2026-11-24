@@ -638,6 +638,10 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="bloco"]:nth-child(5){ animation-delay: 240ms; }
     [data-dt~="bloco"]:nth-child(6){ animation-delay: 300ms; }
     [data-dt~="bloco"]:nth-child(n+7){ animation-delay: 360ms; }
+    /* Mudar de secção nas Definições (24/11, a lista "Refinar o PC"): o cartão novo sobe
+       8 px e acende, mais curto do que os blocos de uma página; o que sai não espera. */
+    @keyframes dt-seccao{ from{ opacity: 0; transform: translateY(8px); } to{ opacity: 1; transform: none; } }
+    [data-dt~="seccao-entra"]{ animation: dt-seccao 320ms var(--dt-curva) both; }
 
     /* A decada (30/10): o numero e so contorno, e enche-se com o rato no cartao. */
     [data-dt~="decada-nome"]{ transition: color 500ms var(--dt-curva), -webkit-text-stroke-color 500ms var(--dt-curva); }
@@ -959,7 +963,7 @@ export function injectDesktopDocumentStyles() {
       /* O painel e o Now Playing a abrir (23/11): o lugar e a página mudam logo, sem caminho. */
       [data-dt~="painel-dentro"], [data-dt~="pagina-sob-o-leitor"]{ transition: none !important; }
       [data-dt~="np-camada"] [data-dt~="np-sobe"]{ animation: none !important; }
-      [data-dt~="barra-e"], [data-dt~="texto-entra"], [data-dt~="texto-sai"]{ animation: none !important; }
+      [data-dt~="barra-e"], [data-dt~="texto-entra"], [data-dt~="texto-sai"], [data-dt~="seccao-entra"]{ animation: none !important; }
       [data-dt~="texto-sai"]{ opacity: 0 !important; }
     }
   `;
