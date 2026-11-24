@@ -41,6 +41,8 @@ function ensaiar(inicial) {
         efeitos.push(() => { s.limpar?.(); s.deps = deps; s.limpar = fn(); });
       }
     },
+    // A página mede a área antes do primeiro desenho (24/11); aqui não há DOM, corre como os outros.
+    useLayoutEffect(fn, deps) { React.useEffect(fn, deps); },
   };
   const duplos = {
     react: React, 'react-native': { View: 'View', Text: 'Text', Pressable: 'Pressable', ScrollView: 'ScrollView' },
