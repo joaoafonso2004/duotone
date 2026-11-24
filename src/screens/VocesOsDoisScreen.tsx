@@ -130,7 +130,7 @@ export function VocesOsDoisScreen({ route, navigation }: Props) {
           {misturaDosDois.length > 0 && (
             <PillButton
               label={`Play a mix of you two · ${misturaDosDois.length} songs`}
-              onPress={() => playTrack(misturaDosDois[0], misturaDosDois, true, false, contextoDaPrateleira('amigos'))}
+              onPress={() => playTrack(misturaDosDois[0], misturaDosDois, true, false, contextoDaPrateleira('amigos'), { tipo: 'prateleira', nome: nome ? `You and ${primeiro}` : 'You two' })}
             />
           )}
 

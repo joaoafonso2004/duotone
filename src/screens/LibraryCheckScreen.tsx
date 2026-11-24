@@ -308,7 +308,7 @@ function LinhaIndisponivel({ item }: { item: Indisponivel }) {
                 ouvido. Toca no leitor normal; num Jam não, porque tocar ali é
                 sugerir à sala. */}
             <PillButton label="Listen" variant="ghost" small disabled={emJam || offline}
-              onPress={() => { hapticSelection(); void usePlayer.getState().playTrack(item.copia!, [item.copia!]); }} />
+              onPress={() => { hapticSelection(); void usePlayer.getState().playTrack(item.copia!, [item.copia!], undefined, undefined, undefined, { tipo: 'prateleira', nome: 'Library check' }); }} />
             <PillButton label="Replace" small disabled={offline} loading={aTratar}
               onPress={() => { hapticSelection(); void substituirPelaCopia(item); }} />
             {emJam ? <Text style={[type.caption, { flex: 1 }]}>Not during a Jam</Text> : null}

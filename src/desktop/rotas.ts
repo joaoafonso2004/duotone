@@ -74,7 +74,13 @@ export interface CommonPageProps {
 
 /** De onde abriu o menu de uma faixa (o `more`). */
 /** `leitor` (24/10): a música que toca, na barra do leitor ou na capa do Now Playing. */
-export type OrigemDoMenu = { fila?: number; playlist?: { id: string; podeEditar: boolean }; leitor?: 'barra' | 'capa' };
+export type OrigemDoMenu = {
+  fila?: number; playlist?: { id: string; podeEditar: boolean }; leitor?: 'barra' | 'capa';
+  /** A música do momento do teu perfil: o menu ganha o "Remove from profile" (24/11). */
+  momentoDoPerfil?: { aoTirar: () => void };
+  /** De onde é a lista onde o menu abriu: o "Play now" leva-a para o topo do leitor (24/11). */
+  de?: OrigemDaFila;
+};
 
 export type NavegarFn = (route: Route) => void;
 

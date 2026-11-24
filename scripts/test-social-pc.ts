@@ -209,24 +209,34 @@ console.log('\no menu de uma música da app no perfil e no Social (PC)');
 const PERFIL = ler('src/components/SocialProfileView.tsx');
 const PAGINA_PERFIL = ler('src/desktop/paginas/ProfilePage.web.tsx');
 const NAVEGADOR = ler('src/navigation/RootNavigator.web.tsx');
-caso('as reticências do perfil abrem o menu novo no PC e a folha de sempre no iPhone (que não passa a prop)', () => {
-  assert.match(PERFIL, /onPress=\{\(\)=>aoMenuDaFaixa\?aoMenuDaFaixa\(entry\):setTrack\(entry\)\}\/>/);
-  assert.match(PERFIL, /aoMenuDaFaixa\?:\(track:Track\)=>void;/);
+// 24/11: o iPhone deixou a folha antiga "Track actions" (SocialTrackActions) e abre
+// o menu das listas (TrackActionsSheet); o PC continua no `more`. Um caminho só,
+// `abrirMenu`, que leva também de onde a música vem (o "Play now" diz no leitor).
+caso('as reticências do perfil abrem o menu novo no PC e o das listas no iPhone (que não passa a prop)', () => {
+  assert.match(PERFIL, /onPress=\{\(\)=>abrirMenu\(entry,recentes\?'recentes':'mais-tocadas'\)\}\/>/);
+  assert.match(PERFIL, /if\(aoMenuDaFaixa\)\{aoMenuDaFaixa\(t,momento\?\{de,momentoDoPerfil:\{aoTirar:\(\)=>void tirarMoment\(\)\}\}:\{de\}\);return;\}/);
+  assert.match(PERFIL, /<TrackActionsSheet visible=\{!!track\}/);
 });
 caso('o botão direito numa música do perfil abre o mesmo menu', () => {
-  assert.match(PERFIL, /\{\.\.\.\(aoMenuDaFaixa\?\(\{onContextMenu:\(e:any\)=>\{e\.preventDefault\?\.\(\);aoMenuDaFaixa\(entry\);\}\} as any\):\{\}\)\}>/);
+  assert.match(PERFIL, /\{\.\.\.\(aoMenuDaFaixa\?\(\{onContextMenu:\(e:any\)=>\{e\.preventDefault\?\.\(\);abrirMenu\(entry,recentes\?'recentes':'mais-tocadas'\);\}\} as any\):\{\}\)\}>/);
 });
-caso('a música do momento de um amigo usa o menu novo; a tua mantém o "Remove from profile" da folha antiga', () => {
-  assert.match(PERFIL, /if\(aoMenuDaFaixa&&!own&&highlights\.moment\)\{aoMenuDaFaixa\(highlights\.moment\);return;\}setTrackDoMomento\(true\);setTrack\(highlights\.moment\);/);
+caso('a música do momento abre o menu de sempre; a tua com o "Remove from profile"', () => {
+  assert.match(PERFIL, /onPress=\{\(\)=>\{if\(highlights\.moment\)abrirMenu\(highlights\.moment,'momento'\);\}\}/);
+  assert.match(PERFIL, /const momento=seccao==='momento'&&own;/);
+  assert.match(PERFIL, /momentoDoPerfil=\{own&&trackDoMomento\?\{aoTirar:\(\)=>void tirarMoment\(\)\}:null\}/);
 });
 caso('a casca passa-lhe o `more` (o menu de qualquer lista), no perfil, no de um amigo e no Social', () => {
-  assert.match(NAVEGADOR, /<ProfilePage aoMenuDaFaixa=\{\(t\) => void more\(t\)\} \/>/);
-  assert.match(NAVEGADOR, /<ProfilePage userId=\{route\.userId\} back=\{back\} aoMenuDaFaixa=\{\(t\) => void more\(t\)\} \/>/);
-  assert.match(NAVEGADOR, /<SocialPage friendId=\{route\.friendId\} groupId=\{route\.groupId\} visible=\{!nowPlayingOpen && !jamOpen\} aoMenuDaFaixa=\{\(t\) => void more\(t\)\} \{\.\.\.common\} \/>/, 'e o comum: tocar e partilhar o álbum de uma mensagem (16/11)');
+  assert.match(NAVEGADOR, /<ProfilePage aoMenuDaFaixa=\{\(t, origem\) => void more\(t, undefined, origem\)\} \/>/);
+  assert.match(NAVEGADOR, /<ProfilePage userId=\{route\.userId\} back=\{back\} aoMenuDaFaixa=\{\(t, origem\) => void more\(t, undefined, origem\)\} \/>/);
+  assert.match(NAVEGADOR, /<SocialPage friendId=\{route\.friendId\} groupId=\{route\.groupId\} visible=\{!nowPlayingOpen && !jamOpen\} aoMenuDaFaixa=\{\(t, origem\) => void more\(t, undefined, origem\)\} \{\.\.\.common\} \/>/, 'e o comum: tocar e partilhar o álbum de uma mensagem (16/11)');
   assert.match(PAGINA_PERFIL, /aoMenuDaFaixa=\{aoMenuDaFaixa\}\/>/);
 });
 caso('no Social, o cartão de quem ouve, a música de uma mensagem e as de um grupo abrem o menu novo', () => {
-  assert.equal((HUB.match(/aoMenuDaFaixa\?aoMenuDaFaixa\(/g) ?? []).length, 3);
+  assert.match(HUB, /onTrack=\{t=>\{if\(aoMenuDaFaixa\)aoMenuDaFaixa\(t\);else\{setOrigemDoMenu\(null\);setTrack\(t\);\}\}\}/);
+  assert.match(HUB, /onPress=\{\(\)=>menuDaConversa\(m\.trackData!\)\}/, 'a música de uma mensagem');
+  assert.match(HUB, /onTrack=\{menuDaConversa\}/, 'e as de um grupo');
+  assert.match(HUB, /if\(aoMenuDaFaixa\)aoMenuDaFaixa\(t,\{de\}\);else\{setOrigemDoMenu\(de\);setTrack\(t\);\}/);
+  assert.match(HUB, /<TrackActionsSheet visible=\{!!track\} track=\{track\} origem=\{origemDoMenu\}/);
 });
 
 if (falhas) { console.log(`\n${falhas} falha(s)`); process.exit(1); }

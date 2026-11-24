@@ -2,6 +2,8 @@ import {
   comecaListaNova,
   origemAoTocar,
   fraseDeVoltar,
+  origemDoPerfil,
+  ROTULO_DO_JAM,
   rotuloDaOrigem,
   valeGuardarAFilaDeixada,
   type OrigemDaFila,
@@ -95,6 +97,33 @@ console.log('\nvoltar à fila que se deixou (9/11)');
   check('voltar usa o caminho do "Continue here" (retoma no segundo certo nos dois motores)',
     /get\(\)\.adoptSession\(\{ track: f\.faixa, queue: f\.queue, queueIndex: f\.queueIndex, positionMs: f\.posicaoMs \}\);/.test(loja));
   check('fechar o leitor larga a fila guardada', /if \(!await get\(\)\.prepararFecho\(\)\) return;\n\s+set\(\{ filaAnterior: null \}\);/.test(loja));
+}
+
+console.log('\no perfil, o Jam e os ecrãs que tocavam sem dizer de onde (24/11)');
+{
+  const lerFicheiro = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  const minha = origemDoPerfil('momento', { proprio: true, userId: 'eu', nome: 'João Afonso', username: 'joao' });
+  check('a tua música do momento diz "Your" e leva ao teu perfil (sem id)',
+    minha.tipo === 'perfil' && minha.nome === 'Your song of the moment' && minha.id === undefined, JSON.stringify(minha));
+  const dela = origemDoPerfil('mais-tocadas', { proprio: false, userId: 'u2', nome: 'Ana Sofia Reis', username: 'ana' });
+  check('a de um amigo diz o primeiro nome e leva ao perfil dele',
+    dela.nome === 'Ana’s most played' && dela.id === 'u2', JSON.stringify(dela));
+  check('sem nome, o @', origemDoPerfil('recentes', { proprio: false, userId: 'u3', nome: '  ', username: 'rui' }).nome === 'rui’s recent plays');
+  check('o que o amigo ouve e o que vem a seguir',
+    origemDoPerfil('a-ouvir', { proprio: false, userId: 'u2', nome: 'Ana' }).nome === 'What Ana’s playing'
+      && origemDoPerfil('a-seguir', { proprio: false, userId: 'u2', nome: 'Ana' }).nome === 'Ana’s up next');
+  const r = rotuloDaOrigem(dela, normal);
+  check('o perfil tem página: o topo do leitor leva lá', r?.antes === 'From' && r?.alvo?.tipo === 'perfil', JSON.stringify(r));
+  check('o Jam diz "Jam" e não tem página (o toque abre o painel)', ROTULO_DO_JAM.nome === 'Jam' && ROTULO_DO_JAM.alvo === null);
+  const topo = lerFicheiro('src/components/PlayerRoot.tsx');
+  check('no leitor do iPhone, num Jam o topo é o do Jam (era só o símbolo)', /const origemNoTopo = temSessao \? ROTULO_DO_JAM : rotuloDaOrigem\(/.test(topo));
+  check('e tocar nele abre o painel do Jam', /if \(temSessao\) \{ setSessaoAberta\(true\); return; \}/.test(topo));
+  const home = lerFicheiro('src/screens/SearchScreen.tsx');
+  check('as prateleiras da Home tocam com a origem (a mesma do "See all")',
+    /const origem:OrigemDaFila=\{tipo:'prateleira',nome:title,id:nome\};/.test(home)
+      && (home.match(/tocarMusica\(track, data, true, contextoDe\(track\), origem\)/g) ?? []).length === 3);
+  check('a pesquisa toca com o "From search"',
+    (home.match(/tocarMusica\((?:t, naBiblioteca|item, undefined), true, undefined, origemDaPesquisa\)/g) ?? []).length === 2);
 }
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);

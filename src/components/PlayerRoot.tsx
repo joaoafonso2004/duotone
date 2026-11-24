@@ -72,7 +72,7 @@ import { comecarRadioDaMusica } from '../state/radioDaFaixa';
 import { FundoEmGradiente } from './FundoEmGradiente';
 import { FundoDoPoster } from './FundoDoPoster';
 import { lyricsCacheKey, useLyrics } from '../state/lyrics';
-import { rotuloDaOrigem } from '../lib/origemDaFila';
+import { ROTULO_DO_JAM, rotuloDaOrigem } from '../lib/origemDaFila';
 import { trackKey as chaveDaFaixaNaFila } from '../lib/shuffle';
 import { desvioDaMusica, useDoca } from '../state/doca';
 import { pedirFluidez, segurarFluidez } from '../state/fluidez';
@@ -455,8 +455,9 @@ export function PlayerRoot() {
   useSincroniaDaSessao();
   const [sessaoAberta, setSessaoAberta] = useState(false);
   const temSessao = useOuvirJuntos((s) => !!s.sessao);
-  // Num Jam manda a fila partilhada: não há "de onde vem" (como no PC).
-  const origemNoTopo = temSessao ? null : rotuloDaOrigem(origemDaFila, { sugerida: sugeridaAgora, doRadio: doRadioAgora });
+  // Num Jam manda a fila partilhada: o topo diz "Jam" e abre o painel dele (24/11;
+  // era só o símbolo). O PC continua a calar-se: lá o Jam tem a sua barra.
+  const origemNoTopo = temSessao ? ROTULO_DO_JAM : rotuloDaOrigem(origemDaFila, { sugerida: sugeridaAgora, doRadio: doRadioAgora });
   const destinoDoTopo = destinoDaOrigem(origemNoTopo?.alvo ?? null);
   const filaDaSessao = useOuvirJuntos((s) => s.fila);
   const convidadosControlam = useOuvirJuntos((s) => s.sessao?.convidadosControlam);
@@ -1633,9 +1634,12 @@ export function PlayerRoot() {
               // pendurado à esquerda dele, fora da conta do centro.
               <Toque
                 escala={ESCALA.cartao}
-                disabled={!destinoDoTopo}
-                onPress={() => { if (destinoDoTopo) { setExpanded(false); irParaNoIphone(destinoDoTopo); } }}
-                accessibilityRole={destinoDoTopo ? 'link' : undefined}
+                disabled={!destinoDoTopo && !temSessao}
+                onPress={() => {
+                  if (temSessao) { setSessaoAberta(true); return; }
+                  if (destinoDoTopo) { setExpanded(false); irParaNoIphone(destinoDoTopo); }
+                }}
+                accessibilityRole={destinoDoTopo ? 'link' : temSessao ? 'button' : undefined}
                 accessibilityLabel={`${olhoDaOrigem(origemNoTopo.antes)} ${origemNoTopo.nome}`}
                 style={styles.origemDoTopo}
               >

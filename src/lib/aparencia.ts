@@ -343,8 +343,9 @@ export function olhoDaOrigem(antes: string): string {
 /** Para onde leva tocar no nome da origem no iPhone (um `Destino`), ou `null`. */
 export function destinoDaOrigem(alvo: { tipo: string; id?: string | null; nome: string } | null):
   | { tipo: 'playlist'; id: string; nome: string } | { tipo: 'mistura'; id: string; nome: string }
-  | { tipo: 'artista'; nome: string } | { tipo: 'gostadas' } | null {
+  | { tipo: 'artista'; nome: string } | { tipo: 'gostadas' } | { tipo: 'perfil'; userId?: string } | null {
   if (!alvo) return null;
+  if (alvo.tipo === 'perfil') return alvo.id ? { tipo: 'perfil', userId: alvo.id } : { tipo: 'perfil' };
   if (alvo.tipo === 'playlist' && alvo.id) return { tipo: 'playlist', id: alvo.id, nome: alvo.nome };
   if (alvo.tipo === 'mistura' && alvo.id) return { tipo: 'mistura', id: alvo.id, nome: alvo.nome };
   if (alvo.tipo === 'artista') return { tipo: 'artista', nome: alvo.nome };

@@ -66,7 +66,8 @@ export function RetrospetivaScreen({ navigation, route }: Props) {
       artworkUrl: t.artworkUrl,
       durationSeconds: null,
     };
-    tocarMusica(faixa, [faixa], true);
+    // O topo do leitor diz de onde vem (24/11): o mesmo nome do ecrã.
+    tocarMusica(faixa, [faixa], true, undefined, { tipo: 'prateleira', nome: 'Year in review' });
   };
 
   const faixaDoAno = r?.base.topTracks[0] ?? null;

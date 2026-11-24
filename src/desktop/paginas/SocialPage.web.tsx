@@ -4,7 +4,7 @@ import { SocialHub } from '../../components/SocialHub';
 import { AcaoDeTexto } from '../../components/SocialPc.web';
 import type { AlbumDaPagina } from '../../api/albunsDoArtista';
 import { legendaDoAlbumPartilhado } from '../../lib/albumPartilhado';
-import type { CommonPageProps } from '../rotas';
+import type { CommonPageProps, OrigemDoMenu } from '../rotas';
 import type { Track } from '../../types';
 import { useDialogoDoAlbum } from './BibliotecaPages.web';
 
@@ -16,7 +16,7 @@ import { useDialogoDoAlbum } from './BibliotecaPages.web';
  */
 export function SocialPage({friendId,groupId,visible=true,aoMenuDaFaixa,...props}: {friendId?:string;groupId?:string;visible?:boolean;
   /** O menu de uma música da app (30/10): as músicas do Social deixam de abrir a folha antiga. */
-  aoMenuDaFaixa?:(t:Track)=>void} & CommonPageProps) {
+  aoMenuDaFaixa?:(t:Track,origem?:OrigemDoMenu)=>void} & CommonPageProps) {
   const dialogo = useDialogoDoAlbum(props);
   const [novaConversa, setNovaConversa] = useState(false);
   return <>

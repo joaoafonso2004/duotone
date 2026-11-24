@@ -71,13 +71,15 @@ export function PesquisaNaLinha({ titulo, textoInicial, acao, aoEscolher, aoFech
         </Text>
       ) : faixas.map((t) => (
         <Resultado key={`${t.source}:${t.sourceId}`} faixa={t} acao={acao} aoEscolher={aoEscolher}
-          ouvirDesligado={ouvirDesligado} aoOuvir={aoOuvir} />
+          ouvirDesligado={ouvirDesligado} aoOuvir={aoOuvir} procurado={texto} />
       ))}
     </View>
   );
 }
 
-function Resultado({ faixa, acao, aoEscolher, ouvirDesligado, aoOuvir }: {
+function Resultado({ faixa, acao, aoEscolher, ouvirDesligado, aoOuvir, procurado }: {
+  /** O texto procurado: o "From search “…”" do topo do leitor (24/11). */
+  procurado: string;
   faixa: Track; acao: { tipo: 'mais' | 'replace'; rotulo: (t: string) => string };
   aoEscolher: (faixa: Track) => Promise<void>; ouvirDesligado: boolean; aoOuvir?: (faixa: Track) => void;
 }) {
@@ -113,7 +115,7 @@ function Resultado({ faixa, acao, aoEscolher, ouvirDesligado, aoOuvir }: {
         </View>
         {ouvirDesligado ? null : (
           <Pressable accessibilityRole="button" accessibilityLabel={`Play ${titulo}`} hitSlop={6} style={styles.icone}
-            onPress={() => { hapticSelection(); if (aoOuvir) aoOuvir(faixa); else void usePlayer.getState().playTrack(faixa, [faixa]); }}>
+            onPress={() => { hapticSelection(); if (aoOuvir) aoOuvir(faixa); else void usePlayer.getState().playTrack(faixa, [faixa], undefined, undefined, undefined, { tipo: 'pesquisa', nome: procurado.trim() }); }}>
             <Ionicons name="play" size={18} color={colors.text} />
           </Pressable>
         )}

@@ -275,6 +275,11 @@ function DesktopShell() {
    *  recusava, e o menu do leitor ou do painel herdava-o da página de baixo. */
   const [trackMenuPlaylist, setTrackMenuPlaylist] = useState<OrigemDoMenu['playlist'] | null>(null);
   const [trackMenuLeitor, setTrackMenuLeitor] = useState<OrigemDoMenu['leitor'] | null>(null);
+  // A música do momento do teu perfil (24/11): o "Remove from profile" e quem o faz.
+  const [trackMenuMomento, setTrackMenuMomento] = useState(false);
+  const tirarDoPerfilNoMenu = useRef<(() => void) | null>(null);
+  /** De onde é a lista onde o menu abriu, para o "Play now" (24/11). */
+  const deDoMenu = useRef<OrigemDaFila | null>(null);
   const semRede = useConnectivity((s) => s.offline);
   const emJam = useOuvirJuntos((s) => !!s.sessao);
   const filaDoLeitor = usePlayer((s) => s.queue);
@@ -631,6 +636,9 @@ function DesktopShell() {
     setTrackMenuFila(typeof origem?.fila === 'number' ? origem.fila : null);
     setTrackMenuPlaylist(origem?.playlist ?? null);
     setTrackMenuLeitor(origem?.leitor ?? null);
+    tirarDoPerfilNoMenu.current = origem?.momentoDoPerfil?.aoTirar ?? null;
+    setTrackMenuMomento(!!origem?.momentoDoPerfil);
+    deDoMenu.current = origem?.de ?? null;
     // Abre onde se clicou (5/10, MenuDeContexto.web.tsx): clique direito ou "…".
     setPontoDoMenu(ultimoClique());
     setTrackMenuOpen(true);
@@ -699,6 +707,7 @@ function DesktopShell() {
     fila: trackMenuFila !== null ? { emJam, mudou: filaMudou } : null,
     sugestao: !!trackMenuContext || eSugestao(trackMenu),
     emJam,
+    momentoDoPerfil: trackMenuMomento && trackMenuFila === null,
   }) : [];
   const fazerNoMenu = (id: IdDaAcao) => {
     const t = trackMenu;
@@ -709,7 +718,7 @@ function DesktopShell() {
         setTrackMenuOpen(false);
         // Na fila, o mesmo que clicar na linha; nas listas, o que já fazia.
         if (trackMenuFila !== null) void usePlayer.getState().playTrack(t, usePlayer.getState().queue);
-        else tocarMusica(t, undefined, trackMenuContext ?? undefined);
+        else tocarMusica(t, undefined, trackMenuContext ?? undefined, deDoMenu.current ?? undefined);
         return;
       // A Órbita (C4, 31/10): a capa voa para onde a música foi; sem voo (menos
       // movimento, nada à vista), a frase -- a mesma nas duas plataformas.
@@ -729,6 +738,7 @@ function DesktopShell() {
         void naoInteressa(t).then(() => notify(AVISO_DO_NAO_INTERESSA)).catch((e: any) => avisarErro(mensagemDeErro(e, "Couldn't save this preference.")));
         return;
       case 'tirar-da-playlist': void removeFromCurrentPlaylist(); return;
+      case 'tirar-do-perfil': setTrackMenuOpen(false); tirarDoPerfilNoMenu.current?.(); return;
       case 'tirar-da-fila': {
         setTrackMenuOpen(false);
         // Relê na hora: um índice antigo nunca pode tirar outra música.
@@ -812,10 +822,10 @@ function DesktopShell() {
     case 'stats': page = <StatsPage key={route.userId} back={back} play={play} userId={route.userId} />; break;
     case 'retrospetiva': page = <RetrospetivaPage key={`${route.userId}:${route.ano}`} back={back} play={play} userId={route.userId} ano={route.ano} />; break;
     case 'voces-os-dois': page = <VocesOsDoisPage key={route.userId} userId={route.userId} nome={route.nome} back={back} play={play} />; break;
-    case 'import': page = <ImportPage back={back} notify={notify} navigate={navigate} />; break; case 'spotify-import': page = <SpotifyImportPage back={back} notify={notify} />; break; case 'profile': page = <ProfilePage aoMenuDaFaixa={(t) => void more(t)} />; break; case 'settings': page = <SettingsPage notify={notify} navigate={navigate} />; break;
+    case 'import': page = <ImportPage back={back} notify={notify} navigate={navigate} />; break; case 'spotify-import': page = <SpotifyImportPage back={back} notify={notify} />; break; case 'profile': page = <ProfilePage aoMenuDaFaixa={(t, origem) => void more(t, undefined, origem)} />; break; case 'settings': page = <SettingsPage notify={notify} navigate={navigate} />; break;
     case 'library-check': page = <LibraryCheckPage back={back} play={play} />; break;
-    case 'social': page = <SocialPage friendId={route.friendId} groupId={route.groupId} visible={!nowPlayingOpen && !jamOpen} aoMenuDaFaixa={(t) => void more(t)} {...common} />; break;
-    case 'friend-profile': page = <ProfilePage userId={route.userId} back={back} aoMenuDaFaixa={(t) => void more(t)} />; break;
+    case 'social': page = <SocialPage friendId={route.friendId} groupId={route.groupId} visible={!nowPlayingOpen && !jamOpen} aoMenuDaFaixa={(t, origem) => void more(t, undefined, origem)} {...common} />; break;
+    case 'friend-profile': page = <ProfilePage userId={route.userId} back={back} aoMenuDaFaixa={(t, origem) => void more(t, undefined, origem)} />; break;
     case 'now-playing': page = <NowPlayingPage fundoNaJanela={corNaJanela} share={openShareDialog} play={play} tocarMusica={tocarMusica} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={abrirPlaylistsSozinhas} />; break;
   }
 

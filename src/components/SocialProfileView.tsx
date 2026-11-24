@@ -28,7 +28,9 @@ import { CimaDoPerfil } from './CimaDoPerfil';
 import { usePuxarParaAtualizar } from './PuxarParaAtualizar';
 import { guardarPerfil, ouvirPerfis, perfilEmCache } from '../lib/cachePerfil';
 import { SkeletonDoPerfil } from './Skeleton';
-import { SocialTrackActions } from './SocialTrackActions';
+import { TrackActionsSheet } from './TrackActionsSheet';
+import { hapticSelection } from '../lib/haptics';
+import { origemDoPerfil, type OrigemDaFila, type SeccaoDoPerfil } from '../lib/origemDaFila';
 import { SocialIconButton,socialStyles as s } from './socialUI';
 import type { Track } from '../types';
 import type { Playlist } from '../types';
@@ -39,9 +41,10 @@ import { useMenuDoAmigoNoPc } from './MenuDoAmigoNoPc';
 export function SocialProfileView({userId,onBack,active=true,scrollRef,aoMenuDaFaixa}:{userId:string;onBack?:()=>void;active?:boolean;
   /**
    * O PC (30/10): o menu de uma música da app (o do botão direito de qualquer lista), nas reticências
-   * e no botão direito de cada linha. Sem ela (o iPhone) fica a folha de sempre, `SocialTrackActions`.
+   * e no botão direito de cada linha. Sem ela (o iPhone) fica o menu das listas, `TrackActionsSheet`
+   * (24/11: era a folha antiga "Track actions"). `de` é a secção, para o "Play now" a dizer no leitor.
    */
-  aoMenuDaFaixa?:(track:Track)=>void;
+  aoMenuDaFaixa?:(track:Track,origem?:{de?:OrigemDaFila;momentoDoPerfil?:{aoTirar:()=>void}})=>void;
   /** A lista do perfil, para o separador do iPhone a levar ao topo (3/10). */
   scrollRef?:React.RefObject<any>}) {
   const web=Platform.OS==='web';
@@ -214,6 +217,23 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef,aoMenuDaF
     finally{ setATirarMoment(false); }
   };
 
+  /** De onde vem uma música tocada aqui (24/11): o topo do leitor dizia só o símbolo. */
+  const origemDe=(seccao:SeccaoDoPerfil)=>origemDoPerfil(seccao,{proprio:own,userId,nome:profile?.profile.name,username:profile?.profile.username});
+  const [origemDoMenu,setOrigemDoMenu]=useState<OrigemDaFila|null>(null);
+  /**
+   * O menu de uma música do perfil (24/11): no PC o da app, no iPhone o das
+   * listas -- o mesmo das Liked Songs e da Home, com o segurar. A música do
+   * momento, no teu perfil, ganha o "Remove from profile".
+   */
+  const abrirMenu=(t:Track,seccao:SeccaoDoPerfil)=>{
+    const de=origemDe(seccao);
+    const momento=seccao==='momento'&&own;
+    if(aoMenuDaFaixa){aoMenuDaFaixa(t,momento?{de,momentoDoPerfil:{aoTirar:()=>void tirarMoment()}}:{de});return;}
+    setOrigemDoMenu(de);setTrackDoMomento(momento);setTrack(t);
+  };
+  /** Segurar abre o menu, como em todas as listas do iPhone. No PC é o botão direito. */
+  const segurar=(t:Track,seccao:SeccaoDoPerfil)=>web?{}:{delayLongPress:350,onLongPress:()=>{hapticSelection();abrirMenu(t,seccao);}};
+
   /** Guardar (ou largar) a playlist de outra pessoa. Fica uma copia minha. */
   const alternarCopia=async(pl:Playlist)=>{
     if(mutation.current || loading || sectionErrors.copies) return;
@@ -240,9 +260,10 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef,aoMenuDaF
   const [fimDoNome,setFimDoNome]=useState(330);
 
   const row=(entry:ProfileTrack,index:number,recentes=false)=><View key={`${entry.source}:${entry.sourceId}`} style={[s.row,{gap:12,minHeight:58}]}
-    {...(aoMenuDaFaixa?({onContextMenu:(e:any)=>{e.preventDefault?.();aoMenuDaFaixa(entry);}} as any):{})}>
+    {...(aoMenuDaFaixa?({onContextMenu:(e:any)=>{e.preventDefault?.();abrirMenu(entry,recentes?'recentes':'mais-tocadas');}} as any):{})}>
     {!recentes&&<Text style={[s.muted,{width:20,textAlign:'center',fontVariant:['tabular-nums']}]}>{index+1}</Text>}
-    <Pressable accessibilityRole="button" accessibilityLabel={`Play ${entry.title}`} onPress={()=>void usePlayer.getState().tocarMusica(entry,recentes?recent:most)}
+    <Pressable accessibilityRole="button" accessibilityLabel={`Play ${entry.title}`} onPress={()=>void usePlayer.getState().tocarMusica(entry,recentes?recent:most,undefined,undefined,origemDe(recentes?'recentes':'mais-tocadas'))}
+      {...segurar(entry,recentes?'recentes':'mais-tocadas')}
       style={({pressed,hovered}:any)=>[s.row,{flex:1,minWidth:0,borderRadius:radii.md,gap:12},(pressed||hovered)&&{backgroundColor:colors.surfacePressed}]}>
       <View style={{width:46,height:46,borderRadius:radii.sm,overflow:'hidden',backgroundColor:colors.surface,alignItems:'center',justifyContent:'center'}}>
         {entry.artworkUrl?<Image source={{uri:capaParaLista(entry.artworkUrl)!}} style={{width:46,height:46}}/>:<Ionicons name="musical-notes" color={colors.textSecondary} size={22}/>}
@@ -251,7 +272,7 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef,aoMenuDaF
       {/* Nas mais tocadas o número é a contagem e diz alguma coisa; nas
           recentes a data não acrescentava nada. */}
       {!recentes&&<Text style={[s.muted,{fontVariant:['tabular-nums']}]}>{entry.count}</Text>}
-    </Pressable><SocialIconButton label={`Options for ${entry.title}`} icon="ellipsis-horizontal" onPress={()=>aoMenuDaFaixa?aoMenuDaFaixa(entry):setTrack(entry)}/>
+    </Pressable><SocialIconButton label={`Options for ${entry.title}`} icon="ellipsis-horizontal" onPress={()=>abrirMenu(entry,recentes?'recentes':'mais-tocadas')}/>
   </View>;
   const visiblePlaylists=playlists.filter(p=>!own||p.visibleOnProfile);
   const playlistsOrdenadas=[...visiblePlaylists].sort((a,b)=>{
@@ -336,7 +357,9 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef,aoMenuDaF
   const vistaRecente=tudoRecente
     ? recent.map((e,i)=>row(e,i,true))
     : fila(recent.slice(0,20).map(e=><Pressable key={`${e.source}:${e.sourceId}`} accessibilityRole="button" accessibilityLabel={`Play ${e.title}`}
-        onPress={()=>void usePlayer.getState().tocarMusica(e,recent)} style={({pressed}:any)=>({opacity:pressed?0.7:1})}>
+        onPress={()=>void usePlayer.getState().tocarMusica(e,recent,undefined,undefined,origemDe('recentes'))} {...segurar(e,'recentes')}
+        {...(aoMenuDaFaixa?({onContextMenu:(ev:any)=>{ev.preventDefault?.();abrirMenu(e,'recentes');}} as any):{})}
+        style={({pressed}:any)=>({opacity:pressed?0.7:1})}>
         <View style={{width:76,height:76,borderRadius:radii.sm,overflow:'hidden',backgroundColor:colors.surface,alignItems:'center',justifyContent:'center'}}>
           {e.artworkUrl?<Image source={{uri:capaParaLista(e.artworkUrl)!}} style={{width:76,height:76}}/>:<Ionicons name="musical-notes" color={colors.textSecondary} size={22}/>}
         </View>
@@ -369,7 +392,7 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef,aoMenuDaF
       {!!error&&sectionFailure(error)}
       {profile&&<>
         {friend?.currentlyPlaying&&profile.canView&&<Pressable accessibilityRole="button" accessibilityLabel={`Play ${friend.currentlyPlaying.title}`}
-          onPress={()=>{const t=friend.currentlyPlaying;if(t)void usePlayer.getState().playTrack({...t,id:t.id??undefined,album:null});}}
+          onPress={()=>{const t=friend.currentlyPlaying;if(t)void usePlayer.getState().playTrack({...t,id:t.id??undefined,album:null},undefined,undefined,undefined,undefined,origemDe('a-ouvir'));}}
           style={({pressed}:any)=>[estilos.cartao,pressed&&{opacity:0.75}]}>
           <Ionicons name="radio-outline" size={26} color={accent}/>
           <View style={{flex:1,minWidth:0}}><Text style={estilos.rotulo}>Listening now</Text><Text numberOfLines={1} style={[s.text,{fontWeight:'600'}]}>{friend.currentlyPlaying.title}</Text></View>
@@ -390,7 +413,9 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef,aoMenuDaF
           {highlights.moment&&<View style={{gap:11}}>
             <Text style={estilos.rotuloEditorial}>Song of the moment</Text>
             <View style={[s.row,{gap:8}]}>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Play ${highlights.moment.title}`} onPress={()=>void usePlayer.getState().tocarMusica(highlights.moment!,[highlights.moment!])}
+            <Pressable accessibilityRole="button" accessibilityLabel={`Play ${highlights.moment.title}`} onPress={()=>void usePlayer.getState().tocarMusica(highlights.moment!,[highlights.moment!],undefined,undefined,origemDe('momento'))}
+              {...segurar(highlights.moment,'momento')}
+              {...(aoMenuDaFaixa?({onContextMenu:(e:any)=>{e.preventDefault?.();if(highlights.moment)abrirMenu(highlights.moment,'momento');}} as any):{})}
               style={[s.row,{flex:1,minWidth:0,gap:12}]}>
               {highlights.moment.artworkUrl
                 ? <Image source={{uri:capaParaLista(highlights.moment.artworkUrl)!}} style={{width:64,height:64,borderRadius:radii.sm}}/>
@@ -401,7 +426,7 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef,aoMenuDaF
               </View>
               <View style={estilos.play}>{aTirarMoment?<ActivityIndicator size="small" color={colors.bg}/>:<Ionicons name="play" size={20} color={colors.bg} style={{marginLeft:2}}/>}</View>
             </Pressable>
-            <SocialIconButton label={`Options for ${highlights.moment.title}`} icon="ellipsis-horizontal" onPress={()=>{if(aoMenuDaFaixa&&!own&&highlights.moment){aoMenuDaFaixa(highlights.moment);return;}setTrackDoMomento(true);setTrack(highlights.moment);}}/>
+            <SocialIconButton label={`Options for ${highlights.moment.title}`} icon="ellipsis-horizontal" onPress={()=>{if(highlights.moment)abrirMenu(highlights.moment,'momento');}}/>
             </View>
           </View>}
           {playlistsSection}
@@ -441,8 +466,8 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef,aoMenuDaF
     <CimaDoPerfil nome={nome} rolagem={rolagem} fimDoNome={fimDoNome} own={own} unread={unread}
       onBack={onBack} onSocial={onSocial} onSettings={onSettings} onStats={abrirEstatisticas}/>
     {editing&&profile&&<ProfileEditor profile={profile} highlights={highlightsLoaded&&!sectionErrors.playlists?highlights:null} playlists={playlists} onClose={()=>setEditing(false)} onSaved={()=>{void load(true);void useSocial.getState().refresh();}}/>}
-    <SocialTrackActions track={track} onClose={()=>{setTrack(null);setTrackDoMomento(false);}} onArtist={onArtist}
-      extra={own&&trackDoMomento?[{rotulo:'Remove from profile',icone:'close-circle-outline',destrutiva:true,aoCarregar:()=>void tirarMoment()}]:undefined}/>
+    <TrackActionsSheet visible={!!track} track={track} onClose={()=>{setTrack(null);setTrackDoMomento(false);}}
+      momentoDoPerfil={own&&trackDoMomento?{aoTirar:()=>void tirarMoment()}:null} origem={origemDoMenu}/>
   </View>;
 }
 

@@ -122,7 +122,8 @@ await repor(false);
     ['src/screens/SongsScreen.tsx', /tocarMusica\(item, sortedTracks/],
     // `filaTocavel`: as visíveis, e sem rede só as que estão no iPhone (16/10).
     ['src/screens/PlaylistDetailScreen.tsx', /tocarMusica\(item, filaTocavel/],
-    ['src/screens/SearchScreen.tsx', /tocarMusica\(track, data, true, contextoDe\(track\)\)/],
+    // Com a prateleira como origem (24/11): o topo do leitor dizia só o símbolo.
+    ['src/screens/SearchScreen.tsx', /tocarMusica\(track, data, true, contextoDe\(track\), origem\)/],
     // O artista (a grelha e a folha com todas) e o álbum (23/10).
     ['src/screens/LibraryGroupScreen.tsx', /tocarMusica\(t, musicas, true, undefined, origemDaPagina\)[\s\S]*tocarMusica\(item, tracksDaAba, true/],
     ['src/screens/PrateleiraScreen.tsx', /tocarMusica\(item, faixas/],

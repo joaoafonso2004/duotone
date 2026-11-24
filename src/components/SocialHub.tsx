@@ -27,7 +27,8 @@ import { colors, SOCIAL_GUTTER, type } from './socialTokens';
 import { useSocialBottomPadding } from './useSocialBottomPadding';
 import { useTheme } from '../state/theme';
 import { SocialButton,SocialIconButton,socialStyles as s } from './socialUI';
-import { SocialTrackActions } from './SocialTrackActions';
+import { TrackActionsSheet } from './TrackActionsSheet';
+import type { OrigemDaFila } from '../lib/origemDaFila';
 import { SharedAlbumCard, SharedPlaylistCard } from './SharedPlaylistCard';
 import type { AlbumPartilhado } from '../lib/albumPartilhado';
 import { MessageBubble,ReactionRow } from './ReactionRow';
@@ -60,8 +61,12 @@ import type { Playlist,Track } from '../types';
 export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,novaConversa,procurar,conversationTarget,onCloseConversation,aoMenuDaFaixa,aoAbrirAlbum}:{visible?:boolean;initialFriend?:string;initialGroup?:string;
   /** Um álbum mandado numa mensagem (16/11): cada plataforma abre o seu (a folha do iPhone, o diálogo do PC). */
   aoAbrirAlbum?:(album:AlbumPartilhado)=>void;
-  /** O PC (30/10): o menu de uma música da app, em vez da folha `SocialTrackActions`. */
-  aoMenuDaFaixa?:(track:Track)=>void;
+  /**
+   * O PC (30/10): o menu de uma música da app. Sem ela (o iPhone) é o menu das listas,
+   * `TrackActionsSheet` (24/11: era a folha antiga "Track actions"). `de` é a conversa,
+   * para o "Play now" a dizer no topo do leitor.
+   */
+  aoMenuDaFaixa?:(track:Track,origem?:{de?:OrigemDaFila})=>void;
   /** A lupa do cabeçalho do Social no iPhone (9/10). */
   procurar?: boolean;
   conversationTarget?: {kind:'friend'|'group';id:string};
@@ -72,7 +77,6 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
   const web=Platform.OS==='web';
   const { irPara }=useDestinos();
   const onProfile=(userId:string)=>irPara({tipo:'perfil',userId});
-  const onArtist=(nome:string)=>irPara({tipo:'artista',nome});
   const onPlaylist=(id:string)=>irPara({tipo:'playlist',id,nome:'Shared playlist'});
   const canRead = () => appEstaVisivel() && (!web || document.hasFocus());
   const [width,setWidth]=useState(0);
@@ -85,6 +89,7 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
   const [tab,setTab]=useState<'friends'|'add'>('friends'),[query,setQuery]=useState(''),[results,setResults]=useState<PublicProfile[]>([]);
   const [error,setError]=useState(''),[busy,setBusy]=useState(false),[messages,setMessages]=useState<SharedItem[]>([]),[chatLoading,setChatLoading]=useState(false);
   const [older,setOlder]=useState(false),[hasOlder,setHasOlder]=useState(false);
+  const [origemDoMenu,setOrigemDoMenu]=useState<OrigemDaFila|null>(null);
   const [track,setTrack]=useState<Track|null>(null),[confirm,setConfirm]=useState<{id:string;group:boolean;conversa?:boolean}|null>(null);
   /** O texto da pesquisa da lista, e a folha do `+`. */
   const [comecarLocal,setComecarLocal]=useState(false);
@@ -345,6 +350,8 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
   });
   const pending=social.friends.filter(f=>f.status==='pending');
   const title=friend?.name || group?.name || 'Chat';
+  /** O menu de uma música da conversa (24/11), com o "From chat with …" no "Play now". */
+  const menuDaConversa=(t:Track)=>{const de=origemDaConversa({tipo:group?'grupo':'amigo',nome:title});if(aoMenuDaFaixa)aoMenuDaFaixa(t,{de});else{setOrigemDoMenu(de);setTrack(t);}};
   const puxar=usePuxarParaAtualizar(()=>useSocial.getState().refresh(),cabecalho?.espaco??0);
   const requests=<>
     {pending.length>0&&<Text style={s.label}>Friend requests</Text>}
@@ -361,7 +368,7 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
       {social.loading&&!accepted.length&&<SkeletonDeConversas/>}
       <SocialOverview key={myId??'signed-out'} friends={accepted} groups={social.groups} contacts={social.contacts}
         activity={social.activity} previews={social.conversationPreviews} unread={unread} now={social.now} myId={myId}
-        loading={social.loading} requests={requests} aberta={web?key:undefined} onOpen={open} onProfile={onProfile} onTrack={t=>aoMenuDaFaixa?aoMenuDaFaixa(t):setTrack(t)}
+        loading={social.loading} requests={requests} aberta={web?key:undefined} onOpen={open} onProfile={onProfile} onTrack={t=>{if(aoMenuDaFaixa)aoMenuDaFaixa(t);else{setOrigemDoMenu(null);setTrack(t);}}}
         pedidos={pending.filter(f=>!f.isSender).length} procurar={web?undefined:procurar} gutter={web?SOCIAL_GUTTER:24}
         onRemoveFriend={id=>setConfirm({id,group:false})}
         onFriendMenu={web?(id,_ancora,e)=>abrirMenuDoAmigo(id,e):(id,ancora)=>setMenuDoAmigo({id,ancora})}
@@ -408,7 +415,7 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
     if(group){
       corpo=<GroupMessage message={m} own={m.sender.id===myId} showSender={!seguida(m,index)} citacao={citacao(m)} onResponder={()=>responderA(m)} destacada={destacada===m.id}
           onMenu={abrirMenuDaMensagem?e=>abrirMenuDaMensagem(m,e):undefined} playlist={m.playlistId?playlistsDoChat.get(m.playlistId):undefined}
-          reactions={reacoes.get(m.id)??[]} myId={myId} aReagir={aReagir===m.id} onReagir={emoji=>void reagir(m.id,emoji)} onAbrirReacoes={()=>setAReagir(a=>a===m.id?null:m.id)} onFecharReacoes={()=>setAReagir(null)} onProfile={onProfile} onTrack={t=>aoMenuDaFaixa?aoMenuDaFaixa(t):setTrack(t)} onPlaylist={onPlaylist} onAlbum={aoAbrirAlbum}/>;
+          reactions={reacoes.get(m.id)??[]} myId={myId} aReagir={aReagir===m.id} onReagir={emoji=>void reagir(m.id,emoji)} onAbrirReacoes={()=>setAReagir(a=>a===m.id?null:m.id)} onFecharReacoes={()=>setAReagir(null)} onProfile={onProfile} onTrack={menuDaConversa} onPlaylist={onPlaylist} onAlbum={aoAbrirAlbum}/>;
     }else if(m.itemType==='sessao'&&m.sessionId){
       corpo=<ConviteDeSessao id={m.sessionId} mensagem={m.message} minha={minha} quem={m.sender.name}/>;
     }else if(m.playlistId&&m.message?.trim()===MENSAGEM_DO_CONVITE){
@@ -451,7 +458,7 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
           }}>
         {cit}
         {!!m.message&&<Text selectable style={[s.text,{flexShrink:1,paddingHorizontal:comCartao?3:0},claro&&{color:colors.bg}]}>{m.message}</Text>}
-        {m.trackData&&<FaixaPartilhada faixa={m.trackData} minha={minha} onPress={()=>aoMenuDaFaixa?aoMenuDaFaixa(m.trackData!):setTrack(m.trackData)}
+        {m.trackData&&<FaixaPartilhada faixa={m.trackData} minha={minha} onPress={()=>menuDaConversa(m.trackData!)}
           onTocar={()=>void usePlayer.getState().tocarMusica(m.trackData!,
             // As músicas desta conversa, pela ordem dela, e de onde vêm (10/11): o
             // "From chat with …" do leitor e a seguinte da conversa. Era só esta, sem origem.
@@ -594,7 +601,7 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
         {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
       </ScrollView>
     </DialogoDoSocial>
-    <SocialTrackActions track={track} onClose={()=>setTrack(null)} onArtist={onArtist}/>
+    <TrackActionsSheet visible={!!track} track={track} origem={origemDoMenu} onClose={()=>setTrack(null)}/>
     <EnviarMusica visible={enviarMusica&&!!conversation} onClose={()=>setEnviarMusica(false)} onEnviar={(tipo,item)=>void enviarItem(tipo,item)}/>
   </View>;
 }

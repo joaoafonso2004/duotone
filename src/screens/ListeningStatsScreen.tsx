@@ -78,7 +78,8 @@ export function ListeningStatsScreen({ navigation, route }: Props) {
       artworkUrl: t.artworkUrl,
       durationSeconds: null,
     };
-    tocarMusica(track, [track], true);
+    // O topo do leitor diz de onde vem (24/11): o mesmo nome do ecrã.
+    tocarMusica(track, [track], true, undefined, { tipo: 'prateleira', nome: route.params?.userId ? 'Listening stats' : 'Your listening' });
   };
 
   return (

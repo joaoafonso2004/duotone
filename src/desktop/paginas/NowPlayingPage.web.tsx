@@ -281,6 +281,7 @@ export function NowPlayingPage({
     : alvo.tipo === 'mistura' && alvo.id ? () => navigate({ name: 'mistura', id: alvo.id!, titulo: alvo.nome })
     : alvo.tipo === 'artista' ? () => navigate({ name: 'artist', value: alvo.nome })
     : alvo.tipo === 'guardadas' ? () => navigate({ name: 'songs' })
+    : alvo.tipo === 'perfil' ? () => navigate(alvo.id ? { name: 'friend-profile', userId: alvo.id } : { name: 'profile' })
     : undefined;
 
   // O nome do artista (abre a página dele) e os seis ícones: os mesmos no

@@ -7,6 +7,7 @@ import { useWindowDimensions } from 'react-native';
 import { hapticNotification } from '../lib/haptics';
 import type { Track } from '../types';
 import { contextoParaAnalytics, type DiscoveryContext } from '../lib/contextoDaDescoberta';
+import type { OrigemDaFila } from '../lib/origemDaFila';
 import { registar } from '../lib/eventos';
 import { menuCompacto, menuDaFaixa, type AcaoDoMenu, type IdDaAcao } from '../lib/menuDaFaixa';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
@@ -55,6 +56,13 @@ interface Props {
   playlist?: { podeEditar: boolean; aoTirar: (track: Track) => void } | null;
   /** Depois de guardar ou tirar da biblioteca, para a lista que o abriu reler. */
   aoMudarBiblioteca?: () => void;
+  /** A música do momento do teu perfil: acrescenta "Remove from profile" (24/11). */
+  momentoDoPerfil?: { aoTirar: () => void } | null;
+  /**
+   * De onde se abriu o menu, para o "Play now" dizer de onde a música vem no
+   * topo do leitor (24/11; sem isto ficava só o símbolo).
+   */
+  origem?: OrigemDaFila | null;
 }
 
 /**
@@ -71,7 +79,7 @@ interface Props {
  * todos pedem este e passam só o que é deles: a playlist onde está, e o que
  * reler depois de guardar.
  */
-export function TrackActionsSheet({ visible, track, onClose, actions = [], cabecalho, discoveryContext, playlist, aoMudarBiblioteca }: Props) {
+export function TrackActionsSheet({ visible, track, onClose, actions = [], cabecalho, discoveryContext, playlist, aoMudarBiblioteca, momentoDoPerfil, origem }: Props) {
   const offline = useOfflineMode();
   const { width, height } = useWindowDimensions();
   const [recommendationTrack, setRecommendationTrack] = React.useState<Track | null>(null);
@@ -97,6 +105,7 @@ export function TrackActionsSheet({ visible, track, onClose, actions = [], cabec
     playlist: playlist ? { podeEditar: playlist.podeEditar } : null,
     sugestao: !!discoveryContext || eSugestao(track),
     emJam,
+    momentoDoPerfil: !!momentoDoPerfil,
   }) : [];
 
   const fazer = (id: IdDaAcao) => {
@@ -105,7 +114,7 @@ export function TrackActionsSheet({ visible, track, onClose, actions = [], cabec
     onClose();
     const player = usePlayer.getState();
     switch (id) {
-      case 'tocar-agora': void player.tocarMusica(t, [t], true, discoveryContext ?? undefined); return;
+      case 'tocar-agora': void player.tocarMusica(t, [t], true, discoveryContext ?? undefined, origem ?? undefined); return;
       // A resposta é a Órbita (C4, 31/10): a capa voa para o mini leitor. Era mudo (A2).
       case 'tocar-a-seguir': player.playNext(t); pedirOrbita({ destino: 'seguinte', capa: capaParaLista(t.artworkUrl), titulo: tituloDaFaixa(t) }); return;
       case 'por-na-fila': player.addToQueue(t); pedirOrbita({ destino: 'fila', capa: capaParaLista(t.artworkUrl), titulo: tituloDaFaixa(t) }); return;
@@ -131,6 +140,7 @@ export function TrackActionsSheet({ visible, track, onClose, actions = [], cabec
           .catch((e: any) => avisarErro(mensagemDeErro(e, "Couldn't save this preference.")));
         return;
       case 'tirar-da-playlist': playlist?.aoTirar(t); return;
+      case 'tirar-do-perfil': momentoDoPerfil?.aoTirar(); return;
       case 'tirar-da-fila': return;
     }
   };

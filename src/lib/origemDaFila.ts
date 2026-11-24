@@ -9,7 +9,9 @@
 export type TipoDeOrigem =
   | 'playlist' | 'guardadas' | 'artista' | 'album' | 'mistura' | 'prateleira' | 'pesquisa'
   /** As músicas de uma conversa (5/11, lib/musicasDaConversa.ts): sem página para onde voltar. */
-  | 'conversa';
+  | 'conversa'
+  /** O perfil de alguém (24/11): a música do momento, as mais tocadas, as recentes. `id` é a pessoa; sem ele, o teu. */
+  | 'perfil';
 
 export type OrigemDaFila = {
   tipo: TipoDeOrigem;
@@ -65,7 +67,7 @@ export type RotuloDaOrigem = {
 };
 
 /** Só estas têm página. Um álbum abre num diálogo, uma prateleira não é página. */
-const NAVEGAVEIS: ReadonlySet<TipoDeOrigem> = new Set(['playlist', 'guardadas', 'artista', 'mistura']);
+const NAVEGAVEIS: ReadonlySet<TipoDeOrigem> = new Set(['playlist', 'guardadas', 'artista', 'mistura', 'perfil']);
 
 function alvoDe(o: OrigemDaFila): OrigemDaFila | null {
   if (!NAVEGAVEIS.has(o.tipo)) return null;
@@ -94,6 +96,35 @@ export function rotuloDaOrigem(
   if (origem.tipo === 'pesquisa') return { antes: 'From search', nome: `“${origem.nome}”`, alvo: null };
   if (origem.tipo === 'album') return { antes: 'From album', nome: origem.nome, alvo: null };
   return { antes: 'From', nome: origem.nome, alvo: alvoDe(origem) };
+}
+
+/**
+ * Num Jam (24/11): a fila é a da sala, e o topo do leitor do iPhone diz "Jam" (o
+ * toque abre o painel dele). Era só o símbolo, como numa música sem origem.
+ */
+export const ROTULO_DO_JAM: RotuloDaOrigem = { antes: 'From', nome: 'Jam', alvo: null };
+
+export type SeccaoDoPerfil = 'momento' | 'mais-tocadas' | 'recentes' | 'a-ouvir' | 'a-seguir';
+
+/**
+ * De onde vem uma música tocada num perfil (24/11): "Ana’s song of the moment".
+ *
+ * Tocava sem origem e o topo do leitor ficava só com o símbolo. O nome é o
+ * primeiro (o topo tem uma linha só); sem nome nenhum, o @. No teu perfil é
+ * "Your ...", e a origem leva ao teu perfil (sem `id`).
+ */
+export function origemDoPerfil(
+  seccao: SeccaoDoPerfil,
+  quem: { proprio: boolean; userId: string; nome?: string | null; username?: string | null },
+): OrigemDaFila {
+  const primeiro = (quem.nome ?? '').trim().split(/\s+/)[0] || (quem.username ?? '').trim() || 'Friend';
+  const de = quem.proprio ? 'Your' : `${primeiro}’s`;
+  const nome = seccao === 'momento' ? `${de} song of the moment`
+    : seccao === 'mais-tocadas' ? `${de} most played`
+    : seccao === 'recentes' ? `${de} recent plays`
+    : seccao === 'a-seguir' ? `${de} up next`
+    : quem.proprio ? 'Your listening' : `What ${primeiro}’s playing`;
+  return quem.proprio ? { tipo: 'perfil', nome } : { tipo: 'perfil', nome, id: quem.userId };
 }
 
 /**

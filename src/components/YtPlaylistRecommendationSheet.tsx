@@ -29,6 +29,7 @@ import { displayArtist, extractArtist } from '../lib/artistName';
 import { eAlbumDoYouTubeMusic, FRASES_DOS_ALBUNS } from '../lib/albunsGuardados';
 import { alternarAlbumGuardado, useAlbumGuardado } from '../state/albunsGuardados';
 import type { Track } from '../types';
+import type { OrigemDaFila } from '../lib/origemDaFila';
 import { avisarErro, avisarFeito, contarMusicas } from '../lib/avisoDeRemocao';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
 
@@ -126,6 +127,10 @@ export function YtPlaylistRecommendationSheet({
 
   // O coração dos álbuns (15/11): guarda-o na pasta dos álbuns, como álbum.
   const eAlbum = !isInternalPlaylist && (!!album || eAlbumDoYouTubeMusic(playlistId));
+  /** De onde vem o que se toca daqui (24/11): o topo do leitor dizia só o símbolo. */
+  const nomeDaLista = loadedTitle ?? playlistTitle ?? '';
+  const origem: OrigemDaFila = isInternalPlaylist && playlistId ? { tipo: 'playlist', nome: nomeDaLista, id: playlistId }
+    : eAlbum ? { tipo: 'album', nome: nomeDaLista } : { tipo: 'prateleira', nome: nomeDaLista };
   const guardado = useAlbumGuardado(eAlbum ? playlistId : null);
   const [aGuardarAlbum, setAGuardarAlbum] = useState(false);
   const artistaDoAlbum = album?.artista ?? (tracks[0] ? displayArtist(tracks[0]) : null);
@@ -149,7 +154,7 @@ export function YtPlaylistRecommendationSheet({
 
   const handlePlay = () => {
     if (tracks.length === 0) return;
-    playTrack(tracks[0], tracks, true);
+    playTrack(tracks[0], tracks, true, false, undefined, origem);
     onClose();
   };
 
@@ -254,7 +259,7 @@ export function YtPlaylistRecommendationSheet({
             renderItem={({ item }) => (
               <TrackRow
                 track={item}
-                onPress={() => tocarMusica(item, tracks, true)}
+                onPress={() => tocarMusica(item, tracks, true, undefined, origem)}
                 // O toque longo abre o menu da música (8/11): o mesmo das Liked
                 // Songs. Aqui só tocava; segurar não fazia nada.
                 onAction={() => setAcao(item)}
@@ -265,7 +270,7 @@ export function YtPlaylistRecommendationSheet({
       )}
       {/* O menu de uma música abre-se DENTRO da folha: uma folha ao lado desta
           não aparecia por cima dela (o mesmo da MusicasDoArtistaSheet). */}
-      <TrackActionsSheet visible={!!acao} track={acao} onClose={() => setAcao(null)} />
+      <TrackActionsSheet visible={!!acao} track={acao} origem={origem} onClose={() => setAcao(null)} />
     </BottomSheet>
   );
 }

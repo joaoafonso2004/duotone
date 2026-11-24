@@ -65,6 +65,7 @@ import { usePlayer } from '../state/player';
 import { colors, ESCALA_MAXIMA, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import { useTheme } from '../state/theme';
 import type { Track } from '../types';
+import type { OrigemDaFila } from '../lib/origemDaFila';
 import {
   contextoDaPrateleira, contextoParaAnalytics, notaDaPrateleira, type DiscoveryContext,
 } from '../lib/contextoDaDescoberta';
@@ -183,6 +184,8 @@ export function SearchScreen() {
   const savedKeys = useSaved((s) => s.keys);
 
   const [query, setQuery] = useState('');
+  /** O "From search “…”" do topo do leitor, como no PC (24/11). */
+  const origemDaPesquisa: OrigemDaFila = { tipo: 'pesquisa', nome: query.trim() };
   // Só a descoberta: as "Songs of the day" saíram da Home do iPhone (3/10, a
   // pedido do João). No PC continuam a ter página própria.
   const vista = 'discover' as const;
@@ -190,6 +193,8 @@ export function SearchScreen() {
   const [escolherAberto, setEscolherAberto] = useState(false);
   const [actionTrack, setActionTrack] = useState<Track | null>(null);
   const [actionContext,setActionContext]=useState<DiscoveryContext|null>(null);
+  /** De onde é a música do menu, para o "Play now" a dizer no topo do leitor (24/11). */
+  const [actionOrigem,setActionOrigem]=useState<OrigemDaFila|null>(null);
   const [history, setHistory] = useState<string[]>([]);
   
   // Search focus state
@@ -403,7 +408,9 @@ export function SearchScreen() {
     // e o que diz "isto aqui e outra coisa" sem precisar de o escrever.
     const emLista = lista && chegou;
     const contextoDe=(track:Track)=>contextoDaPrateleira(nome,savedKeys.has(`${track.source}:${track.sourceId}`));
-    const abrirAcoes=(track:Track)=>{setActionTrack(track);setActionContext(contextoDe(track));};
+    // De onde vem (24/11): o topo do leitor ficava só com o símbolo. A mesma do "See all".
+    const origem:OrigemDaFila={tipo:'prateleira',nome:title,id:nome};
+    const abrirAcoes=(track:Track)=>{setActionTrack(track);setActionContext(contextoDe(track));setActionOrigem(origem);};
     return (
       <View style={styles.recsSection}>
         <View style={[styles.sectionHeader, { alignItems: 'flex-start' }]}>
@@ -446,7 +453,7 @@ export function SearchScreen() {
                     track={track}
                     mostrarDuracao={false}
                     refrao
-                    onPress={() => tocarMusica(track, data, true, contextoDe(track))}
+                    onPress={() => tocarMusica(track, data, true, contextoDe(track), origem)}
                     onAction={() => abrirAcoes(track)}
                   />
                 ))}
@@ -468,7 +475,7 @@ export function SearchScreen() {
             {data.map((track) => (
               <Pressable
                 key={`${track.source}:${track.sourceId}`}
-                onPress={() => tocarMusica(track, data, true, contextoDe(track))}
+                onPress={() => tocarMusica(track, data, true, contextoDe(track), origem)}
                 onLongPress={() => { hapticSelection(); abrirAcoes(track); }}
                 delayLongPress={350}
                 style={({ pressed }) => [styles.cartaoLargo, pressed && { opacity: 0.8 }]}
@@ -496,7 +503,7 @@ export function SearchScreen() {
           {data.map((track) => (
             <Pressable
               key={`${track.source}:${track.sourceId}`}
-              onPress={() => tocarMusica(track, data, true, contextoDe(track))}
+              onPress={() => tocarMusica(track, data, true, contextoDe(track), origem)}
               onLongPress={() => {
                 hapticSelection();
                 abrirAcoes(track);
@@ -901,9 +908,9 @@ export function SearchScreen() {
                     acompanharATocar
                     onPress={() => {
                       Keyboard.dismiss();
-                      tocarMusica(t, naBiblioteca, true);
+                      tocarMusica(t, naBiblioteca, true, undefined, origemDaPesquisa);
                     }}
-                    onAction={() => setActionTrack(t)}
+                    onAction={() => { setActionTrack(t); setActionOrigem(origemDaPesquisa); }}
                   />
                 ))}
                 {results.length > 0 && (
@@ -943,9 +950,9 @@ export function SearchScreen() {
                   Keyboard.dismiss();
                   // Só a faixa escolhida, nunca os resultados: ver o mesmo
                   // sítio no BibliotecaPages.web.tsx. O rádio continua daqui.
-                  tocarMusica(item, undefined, true);
+                  tocarMusica(item, undefined, true, undefined, origemDaPesquisa);
                 }}
-                onAction={() => setActionTrack(item)}
+                onAction={() => { setActionTrack(item); setActionOrigem(origemDaPesquisa); }}
                 actionIcon="add-circle-outline"
               />
             )}
@@ -978,7 +985,8 @@ export function SearchScreen() {
         visible={!!actionTrack}
         track={actionTrack}
         discoveryContext={actionContext}
-        onClose={() => {setActionTrack(null);setActionContext(null);}}
+        origem={actionOrigem}
+        onClose={() => {setActionTrack(null);setActionContext(null);setActionOrigem(null);}}
       />
 
       <MenuFlutuante

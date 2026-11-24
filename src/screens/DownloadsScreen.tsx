@@ -200,16 +200,18 @@ export function DownloadsScreen({ navigation }: Props) {
     () => [...linhas.filter((l) => l.situacao === 'descarregada').map((l) => l.faixa), ...tambemAqui],
     [linhas, tambemAqui],
   );
+  /** O topo do leitor diz de onde vem (24/11); era só o símbolo. */
+  const origem = { tipo: 'prateleira' as const, nome: 'Downloads' };
   const tocar = (faixa: Track) => {
     const dentro = tocaveis.some((t) => t.sourceId === faixa.sourceId);
     if (!dentro && offline) return;
-    void tocarMusica(faixa, dentro ? tocaveis : [faixa], true);
+    void tocarMusica(faixa, dentro ? tocaveis : [faixa], true, undefined, origem);
   };
   const tocarTudo = (baralhar: boolean) => {
     if (!tocaveis.length) return;
     hapticSelection();
-    if (baralhar) void playShuffled(tocaveis);
-    else void playTrack(tocaveis[0], tocaveis, true);
+    if (baralhar) void playShuffled(tocaveis, false, origem);
+    else void playTrack(tocaveis[0], tocaveis, true, false, undefined, origem);
   };
 
   return (

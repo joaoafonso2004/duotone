@@ -20,6 +20,7 @@ import { useAuth } from '../../state/auth';
 import { useTheme } from '../../state/theme';
 import { abrirResumoDoMes, nomeDoResumo } from '../../components/ResumoDoMes';
 import type { Track } from '../../types';
+import type { OrigemDoMenu } from '../rotas';
 import { useDestinos } from '../../navigation/destinos';
 import { styles } from '../estilos.web';
 import { BotaoVoltar,
@@ -134,7 +135,7 @@ export function StatsChart({ buckets, color }: { buckets: TimelineBucket[]; colo
 /** Para onde o perfil leva é o `irPara` da casca (5/10, lib/destinos.ts). */
 export function ProfilePage({userId,back,aoMenuDaFaixa}:{userId?:string;back?:()=>void;
   /** O menu de uma música da app (30/10): as reticências e o botão direito das músicas do perfil. */
-  aoMenuDaFaixa?:(t:Track)=>void}) {
+  aoMenuDaFaixa?:(t:Track,origem?:OrigemDoMenu)=>void}) {
   const ownId=useAuth(s=>s.session?.user.id);
   const target=userId || ownId;
   return <View style={{flex:1,minHeight:0}}>{target&&<SocialProfileView key={target} userId={target} onBack={userId?back:undefined} aoMenuDaFaixa={aoMenuDaFaixa}/>}</View>;

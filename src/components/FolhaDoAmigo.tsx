@@ -14,6 +14,7 @@ import { mensagemDeErro } from '../lib/mensagemDeErro';
 import { ESCALA } from '../lib/movimento';
 import { posicaoDoAmigo } from '../lib/posicaoDoAmigo';
 import type { FaixaDoAmigo, FaixaSimples } from '../lib/seguirAmigo';
+import { origemDoPerfil, type SeccaoDoPerfil } from '../lib/origemDaFila';
 import { musicActivityLabel } from '../lib/socialActivity';
 import { useDestinos } from '../navigation/destinos';
 import { capaGrande, ouvirCapasGrandes, preCarregarCapasGrandes } from '../state/capasGrandes';
@@ -124,6 +125,10 @@ export function FolhaDoAmigo() {
   useEffect(() => { setEnviadas(new Set()); }, [amigoId]);
 
   const nome = amigo ? amigo.name || amigo.username : '';
+  /** De onde vem o que se toca daqui (24/11): o topo do leitor dizia só o símbolo. */
+  const origemDe = (seccao: SeccaoDoPerfil) => amigo
+    ? origemDoPerfil(seccao, { proprio: false, userId: amigo.friendId, nome: amigo.name, username: amigo.username })
+    : undefined;
   const fechar = () => fecharFolhaDoAmigo();
   /** Fecha primeiro e só depois navega: uma folha a fechar por cima de uma página nova fica órfã. */
   const fecharE = (fn: () => void) => { fechar(); setTimeout(fn, 320); };
@@ -201,7 +206,7 @@ export function FolhaDoAmigo() {
 
           <View style={styles.accoes}>
             <Toque escala={ESCALA.botao} accessibilityRole="button" accessibilityLabel="Play this song"
-              onPress={() => { fechar(); void usePlayer.getState().tocarMusica(faixa, undefined, true); }} style={styles.accao}>
+              onPress={() => { fechar(); void usePlayer.getState().tocarMusica(faixa, undefined, true, undefined, origemDe('a-ouvir')); }} style={styles.accao}>
               <Ionicons name="play" size={15} color={colors.text} /><Text style={styles.accaoTexto}>Play</Text>
             </Toque>
             <Toque escala={ESCALA.botao} accessibilityRole="button" accessibilityLabel={coracao.mostrada ? 'Remove from Liked Songs' : 'Add to Liked Songs'}
@@ -234,7 +239,7 @@ export function FolhaDoAmigo() {
                 return (
                   <Toque key={`${t.source}:${t.sourceId}`} escala={ESCALA.cartao} accessibilityRole="button"
                     accessibilityLabel={`Play ${tituloDaFaixa(t)}`}
-                    onPress={() => { fechar(); void usePlayer.getState().tocarMusica(t, undefined, true); }} style={styles.proxima}>
+                    onPress={() => { fechar(); void usePlayer.getState().tocarMusica(t, undefined, true, undefined, origemDe('a-seguir')); }} style={styles.proxima}>
                     {mini ? <Image source={{ uri: mini }} style={styles.miniCapa} contentFit="cover" /> : <View style={[styles.miniCapa, styles.semCapa]} />}
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text numberOfLines={1} style={type.body}>{tituloDaFaixa(t)}</Text>

@@ -93,7 +93,8 @@ caso('o que o menu faz no iPhone: as faixas como as lê a folha do álbum, e o j
 caso('segurar uma música dentro do álbum abre o menu da música, dentro da folha', () => {
   const folha = ler('src/components/YtPlaylistRecommendationSheet.tsx');
   assert.match(folha, /onAction=\{\(\) => setAcao\(item\)\}/);
-  assert.match(folha, /<TrackActionsSheet visible=\{!!acao\} track=\{acao\} onClose=\{\(\) => setAcao\(null\)\} \/>\n\s+<\/BottomSheet>/,
+  // `origem` (24/11): o "Play now" do menu diz no leitor de que álbum vem.
+  assert.match(folha, /<TrackActionsSheet visible=\{!!acao\} track=\{acao\} origem=\{origem\} onClose=\{\(\) => setAcao\(null\)\} \/>\n\s+<\/BottomSheet>/,
     'dentro da BottomSheet: uma folha ao lado desta não aparecia por cima dela');
 });
 

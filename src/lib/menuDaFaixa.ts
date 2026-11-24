@@ -43,7 +43,8 @@ export type IdDaAcao =
   | 'nao-interessa'
   | 'recomendacoes'
   | 'tirar-da-playlist'
-  | 'tirar-da-fila';
+  | 'tirar-da-fila'
+  | 'tirar-do-perfil';
 
 /** A ordem de todos os menus. As de contexto e destrutivas ficam no fim. */
 export const ORDEM: readonly IdDaAcao[] = [
@@ -61,6 +62,7 @@ export const ORDEM: readonly IdDaAcao[] = [
   'recomendacoes',
   'tirar-da-playlist',
   'tirar-da-fila',
+  'tirar-do-perfil',
 ];
 
 /** Nomes do Ionicons, escritos aqui para nenhum menu escolher o seu. */
@@ -131,6 +133,11 @@ export interface ContextoDoMenu {
    * descoberta): ganha o "Not interested" (7/10), também no leitor.
    */
   sugestao?: boolean;
+  /**
+   * A música do momento do TEU perfil (24/11): ganha o "Remove from profile". Era a
+   * única ação da folha antiga "Track actions", que o perfil ainda abria no iPhone.
+   */
+  momentoDoPerfil?: boolean;
 }
 
 export interface AcaoDoMenu {
@@ -167,6 +174,7 @@ function aplicaSe(id: IdDaAcao, c: ContextoDoMenu): boolean {
     case 'descarregar': return c.plataforma === 'ios' && c.podeDescarregar && c.onde !== 'leitor';
     case 'tirar-da-playlist': return c.onde === 'lista' && !!c.playlist;
     case 'tirar-da-fila': return c.onde === 'fila' && !!c.fila;
+    case 'tirar-do-perfil': return c.onde === 'lista' && !!c.momentoDoPerfil;
     default: return true;
   }
 }
@@ -204,6 +212,7 @@ function descrever(id: IdDaAcao, c: ContextoDoMenu): AcaoDoMenu {
       c.playlist && !c.playlist.podeEditar ? MOTIVOS.soODono : semRede, true);
     case 'tirar-da-fila': return acao('Remove from queue', 'trash-outline',
       c.fila?.emJam ? MOTIVOS.filaDoJam : c.fila?.mudou ? MOTIVOS.filaMudou : null, true);
+    case 'tirar-do-perfil': return acao('Remove from profile', 'close-circle-outline', semRede, true);
   }
 }
 
@@ -224,7 +233,7 @@ export const GRUPO: Readonly<Record<IdDaAcao, number>> = {
   'guardar': 1, 'por-em-playlist': 1,
   'ver-artista': 2, 'partilhar': 2, 'descarregar': 2,
   'nao-interessa': 3, 'recomendacoes': 3,
-  'tirar-da-playlist': 4, 'tirar-da-fila': 4,
+  'tirar-da-playlist': 4, 'tirar-da-fila': 4, 'tirar-do-perfil': 4,
 };
 
 /** Os quadrados do menu compacto, pela ordem, com o nome curto que lá cabe. */

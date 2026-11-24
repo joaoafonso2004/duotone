@@ -121,10 +121,14 @@ caso('o menu e o coração do PC leem o conjunto em memória', () => {
   assert.match(nav, /const currentIsSaved = useSaved\(/);
   assert.match(nav, /guardada: guardadasLidas \? isSaved : null,/);
 });
+// O chat e o perfil abrem o menu das listas desde 24/11 (a folha antiga
+// "Track actions", SocialTrackActions, saiu): o mesmo conjunto em memória.
 caso('o menu das músicas do chat também', () => {
-  const acoes = ler('src/components/SocialTrackActions.tsx');
+  const acoes = ler('src/components/TrackActionsSheet.tsx');
   assert.doesNotMatch(acoes, /checkIsSaved/);
-  assert.match(acoes, /const guardada = track && lidas \? naLoja : null;/);
+  assert.match(acoes, /guardada: lida \? naLoja : null,/);
+  assert.doesNotMatch(ler('src/components/SocialHub.tsx'), /SocialTrackActions/);
+  assert.doesNotMatch(ler('src/components/SocialProfileView.tsx'), /SocialTrackActions/);
 });
 
 console.log(falhas ? `\n  ${falhas} caso(s) a falhar.\n` : '\n  Todos os casos passaram.\n');
