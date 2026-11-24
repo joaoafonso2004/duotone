@@ -22,7 +22,7 @@ caso('o toque longo tem tocar, partilhar, editar e apagar', () => {
   // Desde 5/10 as linhas vêm do menu partilhado com o PC (lib/menuDaPlaylist.ts).
   assert.match(grelha, /menuDaPlaylist\(\{ plataforma: 'ios', onde: 'cartao'/);
   const rotulos = menuDaPlaylist({ plataforma: 'ios', onde: 'cartao', temFaixas: true, minha: true }).map((a) => a.rotulo);
-  for (const rotulo of ['Play', 'Shuffle', 'Add to queue', 'Share with a friend…', 'QR code / Copy link', 'Edit playlist', 'Delete playlist']) {
+  for (const rotulo of ['Play', 'Shuffle', 'Add to queue', 'Share with a friend…', 'Edit playlist', 'Delete playlist']) {
     assert.ok(rotulos.includes(rotulo), `falta "${rotulo}"`);
   }
   assert.match(grelha, /navigate\('PlaylistDetail', \{ id: p\.id, name: p\.name, editar: true \}\)/, 'o Edit abre a página já a editar');

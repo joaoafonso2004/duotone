@@ -71,7 +71,8 @@ caso('o plugin é o mesmo que já compilou no CI (5.0.0), e a app trata os links
   const hook = ler('src/hooks/useAtalhosDoIcone.ts');
   assert.match(hook, /void Linking\.getInitialURL\(\)\.then\(\(url\) => \{\n\s+const acao = acaoDoLink\(url\);/);
   assert.match(hook, /Linking\.addEventListener\('url', \(\{ url \}\) => \{/);
-  assert.match(ler('src/navigation/RootNavigator.tsx'), /filter: \(url\) => !eLinkDeControlo\(url\),/, 'a navegação não procura um ecrã "controlo"');
+  // E também não o da playlist (24/11, o QR): esse abre a página pelo mesmo hook.
+  assert.match(ler('src/navigation/RootNavigator.tsx'), /filter: \(url\) => !eLinkDeControlo\(url\) && !eLinkDaPlaylist\(url\),/, 'a navegação não procura um ecrã "controlo"');
 });
 
 console.log('\n3 · tocar no leitor do ecrã bloqueado abre a app');

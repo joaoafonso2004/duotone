@@ -75,7 +75,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { TrackRow } from '../components/TrackRow';
-import { YtPlaylistShareSheet } from '../components/YtPlaylistShareSheet';
 import { ShareFriendSheet } from '../components/ShareFriendSheet';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
 import { correspondeAPesquisa } from '../lib/searchText';
@@ -158,12 +157,10 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   // A pesquisa vive numa lupa na barra de cima (28/9): sempre à mão numa
   // playlist longa, sem empurrar a capa para baixo.
   const [procurarAberto, setProcurarAberto] = useState(false);
-  const [partilharAberto, setPartilharAberto] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [shareOpen, setShareOpen] = useState(false);
   const [shareFriendOpen, setShareFriendOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [mergeItems, setMergeItems] = useState<Playlist[]>([]);
@@ -724,13 +721,15 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             </Pressable>}
 
             {/* Partilhar é o que mais se faz a uma playlist, e estava escondido no
-                More (28/9). O More passou para o ••• da barra de cima. */}
+                More (28/9). O More passou para o ••• da barra de cima. Abre logo o
+                "Send to friends" (24/11): o QR e o link vivem lá dentro, e o menu
+                com as duas maneiras de partilhar ficou com uma só. */}
             {!offline&&<Pressable
               style={styles.toolbarItem}
               accessibilityRole="button"
               onPress={() => {
                 hapticSelection();
-                setPartilharAberto(true);
+                setShareFriendOpen(true);
               }}
             >
               <Ionicons name="share-social-outline" size={19} color={colors.text} />
@@ -1008,17 +1007,6 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
         </View>
       ) : null}
 
-      {/* O Share da barra (28/9): as duas maneiras de partilhar. */}
-      <TrackActionsSheet
-        visible={partilharAberto}
-        track={null}
-        cabecalho={cabecalhoDoMenu}
-        onClose={() => setPartilharAberto(false)}
-        actions={[
-          { icon: 'people-outline', label: 'Share with a friend…', onPress: () => { setPartilharAberto(false); setShareFriendOpen(true); } },
-          { icon: 'share-social-outline', label: 'QR code / Copy link', onPress: () => { setPartilharAberto(false); setShareOpen(true); } },
-        ]}
-      />
 
       {/* O ••• de cima: o mesmo menu do toque longo nas Playlists, menos o tocar.
           O Rename saiu (28/9): o nome edita-se no Edit, com a ordem. */}
@@ -1039,7 +1027,6 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             else if (a.id === 'cancelar-download') void cancelarDownloadDaLista(chaveDoDownload);
             else if (a.id === 'tirar-downloads') setTirarDownloadsAberto(true);
             if (a.id === 'partilhar') setShareFriendOpen(true);
-            else if (a.id === 'partilhar-link') setShareOpen(true);
             else if (a.id === 'editar') abrirEdicao();
             else if (a.id === 'apagar') setDeleteOpen(true);
             else if (a.id === 'colaboradores') setPessoasAbertas(true);
@@ -1104,12 +1091,6 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
         onClose={() => setShareFriendOpen(false)}
       />
 
-      <YtPlaylistShareSheet
-        visible={shareOpen}
-        onClose={() => setShareOpen(false)}
-        playlistId={id}
-        playlistName={name}
-      />
 
 
       <ConfirmSheet

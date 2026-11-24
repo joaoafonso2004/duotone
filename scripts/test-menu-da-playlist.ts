@@ -28,7 +28,8 @@ caso('dentro dela não se repetem os botões grandes, mas há o juntar', () => {
   assert.ok(r.includes('juntar'));
 });
 caso('a de outra pessoa só se partilha', () => {
-  assert.deepEqual(ids({ ...base, minha: false, onde: 'pagina' }), ['partilhar', 'partilhar-link']);
+  // O QR e o link vivem dentro do partilhar desde 24/11: a opção à parte saiu.
+  assert.deepEqual(ids({ ...base, minha: false, onde: 'pagina' }), ['partilhar']);
   assert.deepEqual(ids({ ...base, minha: false, onde: 'pagina', plataforma: 'pc' }), ['partilhar', 'fixar']);
 });
 caso('fixar só no PC, e diz o estado', () => {
@@ -56,7 +57,7 @@ caso('colaborativa: o dono gere quem colabora, antes de apagar', () => {
 });
 caso('colaborativa: quem colabora edita e junta, sai, e não apaga nem renomeia', () => {
   const ios = ids({ ...base, minha: false, colaboro: true, onde: 'pagina' });
-  assert.deepEqual(ios, ['partilhar', 'partilhar-link', 'editar', 'juntar', 'colaboradores', 'sair']);
+  assert.deepEqual(ios, ['partilhar', 'editar', 'juntar', 'colaboradores', 'sair']);
   const pc = ids({ ...base, minha: false, colaboro: true, onde: 'pagina', plataforma: 'pc' });
   assert.ok(!pc.includes('editar'), 'no PC o editar é o nome, e o nome é do dono');
   assert.ok(!pc.includes('apagar'));

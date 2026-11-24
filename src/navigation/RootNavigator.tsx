@@ -5,6 +5,7 @@ import type { NavigatorScreenParams } from '@react-navigation/native';
 import { CommonActions } from '@react-navigation/native';
 import { rotaNoIphone, type Destino } from '../lib/destinos';
 import { eLinkDeControlo } from '../lib/atalhosDoIcone';
+import { eLinkDaPlaylist } from '../lib/linkDaPlaylist';
 import { DestinosProvider } from './destinos';
 import { registarToque } from '../lib/ultimoToque';
 import {useReducedMotion} from '../hooks/useReducedMotion';
@@ -330,7 +331,8 @@ const linking: LinkingOptions<RootStackParamList> = {
   prefixes: ['duotone://'],
   // Os botões do ecrã bloqueado (10/11) não são páginas: tocam, pelo
   // `useAtalhosDoIcone`. Sem isto a navegação procurava um ecrã "controlo".
-  filter: (url) => !eLinkDeControlo(url),
+  // O link de uma playlist (24/11, o QR) também é dele: abre a página da playlist.
+  filter: (url) => !eLinkDeControlo(url) && !eLinkDaPlaylist(url),
   config: {
     screens: {
       // O Social passou a viver DENTRO dos separadores, por isso o caminho

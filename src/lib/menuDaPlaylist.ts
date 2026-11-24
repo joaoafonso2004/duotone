@@ -12,7 +12,7 @@
 
 export type IdDaAcaoDaPlaylist =
   | 'tocar' | 'baralhar' | 'fila'
-  | 'partilhar' | 'partilhar-link' | 'fixar'
+  | 'partilhar' | 'fixar'
   | 'editar' | 'juntar' | 'apagar' | 'pasta'
   | 'colaboradores' | 'sair'
   | 'descarregar' | 'cancelar-download' | 'tirar-downloads';
@@ -78,9 +78,9 @@ export function menuDaPlaylist(s: SituacaoDaPlaylist): AcaoDaPlaylist[] {
   if (s.plataforma === 'ios' && s.onde === 'pagina' && s.temFaixas && s.download) {
     acoes.push(...acoesDoDownload(s.download));
   }
+  // O QR e o link passaram para dentro desta (24/11, o botão no cartão do que vai):
+  // a opção "QR code / Copy link" e a folha dela saíram.
   acoes.push({ id: 'partilhar', rotulo: 'Share with a friend…', icone: 'people-outline', inicioDeGrupo: acoes.length > 0 });
-  // O QR e o link vivem na folha de partilha do iPhone; no PC não há.
-  if (s.plataforma === 'ios') acoes.push({ id: 'partilhar-link', rotulo: 'QR code / Copy link', icone: 'share-social-outline' });
   // Os atalhos da lateral só existem no PC.
   if (s.plataforma === 'pc') acoes.push({ id: 'fixar', rotulo: s.fixada ? 'Unpin from sidebar' : 'Pin to sidebar', icone: 'pin-outline' });
   const colaboro = !s.minha && !!s.colaboro;

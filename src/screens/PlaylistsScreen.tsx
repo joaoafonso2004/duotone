@@ -40,7 +40,6 @@ import { SkeletonDePlaylists } from '../components/Skeleton';
 import { SocialButton } from '../components/socialUI';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { ShareFriendSheet } from '../components/ShareFriendSheet';
-import { YtPlaylistShareSheet } from '../components/YtPlaylistShareSheet';
 import { usePlayer } from '../state/player';
 import { hapticImpact, hapticNotification, ImpactFeedbackStyle } from '../lib/haptics';
 import { avisarRemocao, avisarErro, avisarFeito } from '../lib/avisoDeRemocao';
@@ -150,7 +149,6 @@ export function PlaylistsScreen() {
   };
   // As duas partilhas do toque longo (28/9): estavam só no More de dentro.
   const [partilharCom, setPartilharCom] = useState<Playlist | null>(null);
-  const [qrDe, setQrDe] = useState<Playlist | null>(null);
   const [deleteFor, setDeleteFor] = useState<Playlist | null>(null);
   const [importSharedOpen, setImportSharedOpen] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
@@ -233,7 +231,6 @@ export function PlaylistsScreen() {
     if (!p) return;
     if (id === 'tocar' || id === 'baralhar' || id === 'fila') void usarPlaylist(p, id);
     else if (id === 'partilhar') setPartilharCom(p);
-    else if (id === 'partilhar-link') setQrDe(p);
     else if (id === 'editar') navigation.navigate('PlaylistDetail', { id: p.id, name: p.name, editar: true });
     else if (id === 'apagar') setDeleteFor(p);
     else if (id === 'colaboradores') navigation.navigate('PlaylistDetail', { id: p.id, name: p.name, pessoas: true });
@@ -466,13 +463,6 @@ export function PlaylistsScreen() {
         itemType="playlist"
         item={partilharCom ? { id: partilharCom.id } : null}
         onClose={() => setPartilharCom(null)}
-      />
-
-      <YtPlaylistShareSheet
-        visible={!!qrDe}
-        onClose={() => setQrDe(null)}
-        playlistId={qrDe?.id ?? ''}
-        playlistName={qrDe?.name ?? ''}
       />
 
       {/* Para que pasta vai esta playlist (16/11): as que há, uma nova, ou sair da que tem. */}

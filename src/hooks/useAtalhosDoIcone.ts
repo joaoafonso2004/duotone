@@ -4,6 +4,17 @@ import { ouvirAtalhosDoIcone } from '../../modules/duotone-atalhos';
 import { executarAtalhoDoIcone } from '../state/atalhosDoIcone';
 import { acaoDoLink } from '../lib/atalhosDoIcone';
 import { avisarInfo } from '../lib/avisoDeRemocao';
+import { playlistDoLink } from '../lib/linkDaPlaylist';
+import { irParaNoIphone } from '../navigation/RootNavigator';
+
+/**
+ * O link de uma playlist (24/11, o QR do "Send to friends"): abre a página dela.
+ * No arranque a navegação pode ainda não estar pronta; tenta-se mais umas vezes.
+ */
+function abrirPlaylistDoLink(id: string, tentativas = 12): void {
+  if (irParaNoIphone({ tipo: 'playlist', id, nome: 'Playlist' })) return;
+  if (tentativas > 0) setTimeout(() => abrirPlaylistDoLink(id, tentativas - 1), 250);
+}
 
 /** O link que abriu a app já foi tratado: o hook volta a montar quando a conta muda. */
 let linkInicialTratado = false;
@@ -29,11 +40,15 @@ export function useAtalhosDoIcone(userId: string | null): void {
       void Linking.getInitialURL().then((url) => {
         const acao = acaoDoLink(url);
         if (acao) executar(acao);
+        const playlist = playlistDoLink(url);
+        if (playlist) abrirPlaylistDoLink(playlist);
       }).catch(() => {});
     }
     const link = Linking.addEventListener('url', ({ url }) => {
       const acao = acaoDoLink(url);
       if (acao) executar(acao);
+      const playlist = playlistDoLink(url);
+      if (playlist) abrirPlaylistDoLink(playlist);
     });
     return () => { pararIcone(); link.remove(); };
   }, [userId]);

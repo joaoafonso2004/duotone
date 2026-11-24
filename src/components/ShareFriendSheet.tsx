@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Animated, Pressable, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useShallow } from 'zustand/react/shallow';
 import {
   getFriendships, getGrupos, shareComGrupo, shareItem,
@@ -11,7 +11,11 @@ import { tipoDoAlbumPartilhado } from '../lib/albumPartilhado';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
-import { ESCALA } from '../lib/movimento';
+import { ENTRADA, ESCALA } from '../lib/movimento';
+import { linkDaPlaylist } from '../lib/linkDaPlaylist';
+import { pedirFluidez } from '../state/fluidez';
+import { QrDoDuotone } from './QrDoDuotone';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import { ordenarConversas } from '../lib/ordemDasConversas';
 import { correspondeAPesquisa } from '../lib/searchText';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
@@ -72,13 +76,25 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
   const [sugerida, setSugerida] = useState(false);
   const [aAbrir, setAAbrir] = useState(false);
   const fecharDepois = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // O QR (24/11, a opção A de docs/entrar-e-qr-maquete.html): um botão no cartão do
+  // que vai, e o QR no lugar dos amigos, na mesma folha. Era a folha "QR code / Copy
+  // link" à parte (YtPlaylistShareSheet), que nunca se usou. Só nas playlists: é o
+  // único link que a app sabe abrir (lib/linkDaPlaylist.ts).
+  const [verQr, setVerQr] = useState(false);
+  /** A altura da lista dos amigos: o QR ocupa a mesma, e a folha não salta. */
+  const [alturaDoCorpo, setAlturaDoCorpo] = useState(0);
+  const botaoDoQr = useRef<View>(null);
+  const deOndeVemOQr = useRef<{ x: number; y: number } | null>(null);
+  const vooDoQr = useRef(new Animated.Value(1)).current;
+  const reduzido = useReducedMotion();
+  const desvioDoQr = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
 
   // A store do Social já tem tudo quando a app arrancou com conta. Se ainda
   // estiver vazia (abriu-se a partilha antes de ela carregar), pede-se uma vez.
   const vazia = social.friends.length === 0 && social.groups.length === 0;
   useEffect(() => {
     if (!visible) return;
-    setProcura(''); setMensagem(''); setEscolhidos([]); setEstado('escolher'); setErro(''); setSugerida(false);
+    setProcura(''); setMensagem(''); setEscolhidos([]); setEstado('escolher'); setErro(''); setSugerida(false); setVerQr(false);
     let vivo = true;
     if (vazia && !deFora) {
       setACarregar(true);
@@ -181,6 +197,44 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
     }
   };
 
+  const playlistDoQr = itemType === 'playlist' && typeof item?.id === 'string' ? item.id as string : null;
+  const plDoQr = playlistDoQr ? playlists.find((p) => p.id === playlistDoQr) : undefined;
+  const nomeDoQr: string = plDoQr?.name ?? item?.name ?? 'this playlist';
+  const abrirQr = () => {
+    hapticSelection();
+    // O QR cresce a partir do botão: guarda-se onde ele está antes de a vista mudar,
+    // e o QR nasce invisível (sem isto via-se um fotograma no sítio final).
+    const botao = botaoDoQr.current;
+    if (!botao) { vooDoQr.setValue(1); desvioDoQr.setValue({ x: 0, y: 0 }); setVerQr(true); return; }
+    botao.measureInWindow((x, y, w, h) => {
+      deOndeVemOQr.current = { x: x + w / 2, y: y + h / 2 };
+      vooDoQr.setValue(0);
+      setVerQr(true);
+    });
+  };
+  const quandoOQrAparece = (alvo: View | null) => {
+    const de = deOndeVemOQr.current;
+    deOndeVemOQr.current = null;
+    if (!de) return;
+    // Com menos movimento aparece no sítio, sem voo.
+    if (!alvo || reduzido) { vooDoQr.setValue(1); desvioDoQr.setValue({ x: 0, y: 0 }); return; }
+    alvo.measureInWindow((x, y, w, h) => {
+      desvioDoQr.setValue({ x: de.x - (x + w / 2), y: de.y - (y + h / 2) });
+      vooDoQr.setValue(0);
+      pedirFluidez(900);
+      const mola = { ...ENTRADA, useNativeDriver: true };
+      Animated.parallel([
+        Animated.spring(vooDoQr, { toValue: 1, ...mola }),
+        Animated.spring(desvioDoQr, { toValue: { x: 0, y: 0 }, ...mola }),
+      ]).start();
+    });
+  };
+  const partilharLink = () => {
+    if (!playlistDoQr) return;
+    void Share.share({ message: `${nomeDoQr} on Duotone: ${linkDaPlaylist(playlistDoQr)}` }).catch(() => {});
+  };
+  const qrRef = useRef<View>(null);
+
   // Um álbum (16/11) diz-se álbum (um single ou um EP também: são discos).
   const titulo = itemType === 'track' ? 'Send to friends'
     : itemType === 'album' ? 'Send album to friends'
@@ -214,16 +268,36 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
   };
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} titulo={titulo}>
-      {estado === 'enviado' ? (
+    <BottomSheet visible={visible} onClose={onClose} titulo={verQr ? undefined : titulo}>
+      {verQr && playlistDoQr ? (
+        <View style={[styles.vistaQr, { minHeight: alturaDoCorpo }]}>
+          <View style={styles.qrCabeca}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Back to friends" hitSlop={10}
+              onPress={() => { hapticSelection(); setVerQr(false); }} style={({ pressed }) => [styles.qrVoltar, pressed && { opacity: 0.6 }]}>
+              <Ionicons name="chevron-back" size={24} color={colors.text} />
+            </Pressable>
+            <Text style={type.title}>Scan to open</Text>
+          </View>
+          <Animated.View ref={qrRef} onLayout={() => quandoOQrAparece(qrRef.current)}
+            style={{ opacity: vooDoQr, transform: [...desvioDoQr.getTranslateTransform(), { scale: vooDoQr.interpolate({ inputRange: [0, 1], outputRange: [0.12, 1] }) }] }}>
+            <QrDoDuotone texto={linkDaPlaylist(playlistDoQr)} lado={196} capa={plDoQr?.artworks?.[0] ?? null} rotulo={`QR code for ${nomeDoQr}`} />
+          </Animated.View>
+          <Text style={[type.caption, styles.qrTexto]}>{`Point a friend’s iPhone camera here to open ${nomeDoQr} in Duotone. It opens for friends who can see it.`}</Text>
+          <Toque escala={ESCALA.botao} onPress={partilharLink} accessibilityRole="button" style={[styles.secundario, styles.qrPartilhar]}>
+            <Ionicons name="share-outline" size={17} color={colors.textSecondary} />
+            <Text style={styles.secundarioTexto}>Share link…</Text>
+          </Toque>
+        </View>
+      ) : estado === 'enviado' ? (
         <View style={styles.feito}>
           <View style={styles.visto}><Ionicons name="checkmark" size={24} color={colors.online} /></View>
           <Text style={[type.headline, { textAlign: 'center' }]}>{feito}</Text>
           <Text style={type.caption}>It’s in their chats.</Text>
         </View>
       ) : (
-        <View>
-          <OQueVai itemType={itemType} item={item} playlists={playlists} />
+        <View onLayout={(e) => setAlturaDoCorpo(e.nativeEvent.layout.height)}>
+          <OQueVai itemType={itemType} item={item} playlists={playlists}
+            qr={playlistDoQr ? { ref: botaoDoQr, aoCarregar: abrirQr } : undefined} />
 
           <Input
             icon="search"
@@ -316,10 +390,12 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
 }
 
 /** O que se vai mandar: a capa, o nome e o artista (ou a playlist). */
-function OQueVai({ itemType, item, playlists }: {
+function OQueVai({ itemType, item, playlists, qr }: {
   itemType: 'playlist' | 'track' | 'album';
   item: any;
   playlists: readonly { id: string; artworks: string[]; trackCount: number }[];
+  /** O botão do QR, no fim do cartão (24/11): só nas playlists. */
+  qr?: { ref: React.RefObject<View | null>; aoCarregar: () => void };
 }) {
   if (!item) return null;
   if (itemType === 'album') {
@@ -365,11 +441,24 @@ function OQueVai({ itemType, item, playlists }: {
         <Text numberOfLines={1} style={styles.oQueTitulo}>{item.name}</Text>
         {pl ? <Text numberOfLines={1} style={type.caption}>{pl.trackCount} {pl.trackCount === 1 ? 'song' : 'songs'}</Text> : null}
       </View>
+      {qr ? (
+        <Pressable ref={qr.ref} accessibilityRole="button" accessibilityLabel="Show QR code" hitSlop={8} onPress={qr.aoCarregar}
+          style={({ pressed }) => [styles.botaoQr, pressed && { opacity: 0.6 }]}>
+          <Ionicons name="qr-code-outline" size={20} color={colors.textSecondary} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  // O QR (24/11).
+  botaoQr: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  vistaQr: { alignItems: 'center', gap: spacing.md },
+  qrCabeca: { alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.xs },
+  qrVoltar: { width: 32, height: 32, marginLeft: -8, alignItems: 'center', justifyContent: 'center' },
+  qrTexto: { textAlign: 'center', maxWidth: 270 },
+  qrPartilhar: { alignSelf: 'stretch', marginTop: 0 },
   oQue: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: 10, marginBottom: spacing.md,
     borderRadius: radii.lg, borderCurve: 'continuous', backgroundColor: colors.surface,
