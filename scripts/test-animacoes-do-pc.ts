@@ -277,7 +277,7 @@ caso('a barra da seleção, a BottomSheet e os diálogos em portal saem numa Sai
   assert.match(saida, /if \(aberto\) ultimo\.current = children\(\);/, 'o conteúdo só se escreve aberto');
 });
 caso('o menu deixa uma cópia a desvanecer, sem ids, sem rato e sem mais nada a mexer', () => {
-  assert.match(emLf('src/desktop/MenuDeContexto.web.tsx'), /useLayoutEffect\(\(\) => \(\) => \{ sairComFantasma\(caixa\.current\); sairComFantasma\(painel\.current\); \}, \[\]\);/);
+  assert.match(emLf('src/desktop/MenuDeContexto.web.tsx'), /useLayoutEffect\(\(\) => \(\) => \{\n\s*sairComFantasma\(caixa\.current\); sairComFantasma\(painel\.current\);/);
   const f = emLf('src/desktop/fantasma.web.ts');
   assert.match(f, /if \(!el \|\| !el\.isConnected \|\| typeof document === 'undefined' \|\| menosMovimentoAgora\(\)\) return;/);
   assert.match(f, /copia\.querySelectorAll\('\[id\]'\)\.forEach\(\(n\) => n\.removeAttribute\('id'\)\);/);
@@ -472,6 +472,21 @@ caso('mudar de secção nas Definições: o cartão novo entra; ao abrir as Defi
 caso('as escolhas do import do Spotify reagem ao rato, como as linhas das Definições', () => {
   const spotify = emLf('src/desktop/SpotifyImportPage.web.tsx');
   assert.equal((spotify.match(/hovered && [^\]]*ESTADO\.hover/g) ?? []).length, 2);
+});
+caso('um menu aberto pelo rato não deixa o contorno do teclado no cartão onde se carregou', () => {
+  const menu = emLf('src/desktop/MenuDeContexto.web.tsx');
+  assert.match(menu, /window\.addEventListener\('keydown', \(\) => \{ ultimaEntrada = 'teclado'; \}, true\);/);
+  assert.match(menu, /if \(e\.type === 'mousedown' \|\| e\.clientX !== 0 \|\| e\.clientY !== 0\) ultimaEntrada = 'rato';/, 'o contextmenu do teclado vem em 0,0');
+  assert.match(menu, /if \(abertoPeloRato\) queueMicrotask\(\(\) => largarOFocoDoRato\(quemTinhaOFoco\)\);/, 'depois do commit, que devolvia o foco');
+  assert.match(menu, /if \(!quem \|\| quem !== document\.activeElement \|\| quem === document\.body\) return;/, 'só se ainda tiver o foco');
+});
+caso('as prateleiras param no começo de um cartão: setas, arrasto e trackpad', () => {
+  const ui = emLf('src/desktop/ui.web.tsx');
+  assert.match(ui, /el\.scrollTo\(\{ left: alvo, behavior: rolarSuave\(\) \? 'smooth' : 'auto' \}\);/, 'as setas');
+  assert.ok(!/el\.scrollBy\(/.test(ui), 'já não andam um salto qualquer');
+  assert.match(ui, /el\.scrollTo\(\{ left: pertoDe\(paragensDaPrateleira\(el\), el\.scrollLeft\), behavior:/, 'o largar de um arrasto');
+  assert.match(ui, /if \(!arrastou\.current\) el\.style\.scrollSnapType = 'none';/, 'a arrastar, segue o rato');
+  assert.match(CASCA_LF, /\[data-carrossel\]\{ scroll-snap-type: x mandatory; \}\n\s*\[data-carrossel\] > div > \*\{ scroll-snap-align: start; \}/, 'o trackpad e a roda');
 });
 
 console.log(falhas === 0 ? '\nTudo bem.\n' : `\n${falhas} falha(s).\n`);

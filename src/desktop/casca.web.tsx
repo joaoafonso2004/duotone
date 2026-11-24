@@ -642,6 +642,11 @@ export function injectDesktopDocumentStyles() {
        8 px e acende, mais curto do que os blocos de uma página; o que sai não espera. */
     @keyframes dt-seccao{ from{ opacity: 0; transform: translateY(8px); } to{ opacity: 1; transform: none; } }
     [data-dt~="seccao-entra"]{ animation: dt-seccao 320ms var(--dt-curva) both; }
+    /* As prateleiras param no começo de um cartão (24/11, a mesma lista): as setas e o
+       largar de um arrasto já o fazem (useCarrossel, ui.web.tsx); isto é para o rolar do
+       trackpad e da roda. O atributo põe-no o useCarrossel. */
+    [data-carrossel]{ scroll-snap-type: x mandatory; }
+    [data-carrossel] > div > *{ scroll-snap-align: start; }
 
     /* A decada (30/10): o numero e so contorno, e enche-se com o rato no cartao. */
     [data-dt~="decada-nome"]{ transition: color 500ms var(--dt-curva), -webkit-text-stroke-color 500ms var(--dt-curva); }

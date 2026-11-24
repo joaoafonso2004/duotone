@@ -46,10 +46,29 @@ function pontoDe(n: any): PontoNoEcra | null {
   }
   return { x, y };
 }
+/**
+ * Se a última coisa que se fez foi com o rato ou com o teclado (24/11, a lista "Refinar
+ * o PC"). O botão direito foca o cartão onde carrega; fechado o menu com o Esc (ou com a
+ * janela a perder o foco), esse cartão ficava com o contorno de quem anda pelo teclado.
+ * Um menu aberto pelo rato tira-lhe o foco ao fechar; um aberto pelo teclado (Shift+F10,
+ * a tecla de menu) deixa-o lá, que é onde quem anda pelo teclado o quer.
+ */
+let ultimaEntrada: 'rato' | 'teclado' = 'rato';
 if (typeof window !== 'undefined') {
-  const guardar = (e: MouseEvent) => { ultimo = pontoDe(e) ?? ultimo; };
+  const guardar = (e: MouseEvent) => {
+    ultimo = pontoDe(e) ?? ultimo;
+    // O `contextmenu` do teclado vem em 0,0 e não é do rato.
+    if (e.type === 'mousedown' || e.clientX !== 0 || e.clientY !== 0) ultimaEntrada = 'rato';
+  };
   window.addEventListener('mousedown', guardar, true);
   window.addEventListener('contextmenu', guardar, true);
+  window.addEventListener('keydown', () => { ultimaEntrada = 'teclado'; }, true);
+}
+/** Tirar o foco ao que o botão direito focou, se ainda o tem e não é um campo. */
+function largarOFocoDoRato(quem: Element | null): void {
+  if (!quem || quem !== document.activeElement || quem === document.body) return;
+  if ((quem as HTMLElement).isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(quem.tagName)) return;
+  (quem as HTMLElement).blur?.();
 }
 export function ultimoClique(): PontoNoEcra {
   if (ultimo) return ultimo;
@@ -117,9 +136,17 @@ export function MenuDeContexto({ rato, rotulo, cabecalho, linhas, corpo, submenu
   const abertoAgora = useRef(aberto);
   abertoAgora.current = aberto;
   const relogio = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Aberto pelo rato, o cartão onde se carregou fica sem o foco ao fechar (`ultimaEntrada`).
+  const [quemTinhaOFoco] = useState<Element | null>(() => (typeof document !== 'undefined' ? document.activeElement : null));
+  const [abertoPeloRato] = useState(() => ultimaEntrada === 'rato');
   // A saída (22/11): quem o abriu desmonta-o; antes de os nós saírem, fica uma
   // cópia a desvanecer (desktop/fantasma.web.ts). O painel do lado também.
-  useLayoutEffect(() => () => { sairComFantasma(caixa.current); sairComFantasma(painel.current); }, []);
+  useLayoutEffect(() => () => {
+    sairComFantasma(caixa.current); sairComFantasma(painel.current);
+    // Depois do commit: o React guarda quem tinha o foco antes de mexer no DOM e
+    // devolve-lho no fim (o `restoreSelection`), e um blur aqui era desfeito logo a seguir.
+    if (abertoPeloRato) queueMicrotask(() => largarOFocoDoRato(quemTinhaOFoco));
+  }, []);
 
   const parar = () => { if (relogio.current) { clearTimeout(relogio.current); relogio.current = null; } };
   const depois = (f: () => void) => { parar(); relogio.current = setTimeout(f, ESPERA_DO_SUBMENU); };

@@ -394,6 +394,22 @@ export function Artwork({ track, size = 44 }: { track: Track; size?: number }) {
  * ficavam simplesmente inalcancaveis com um rato. Daqui saem as duas maneiras
  * de la chegar: as setas, que se veem, e o arrasto, que se tenta.
  */
+/**
+ * Onde uma prateleira pode parar: no começo de cada cartão (24/11, a lista "Refinar o PC").
+ * As setas andavam "quase um ecrã" e o arrasto largava em qualquer ponto, e a ponta
+ * esquerda ficava com um bocado de capa e de título. O fim da lista também é paragem.
+ */
+function paragensDaPrateleira(el: HTMLElement): number[] {
+  const conteudo = el.firstElementChild as HTMLElement | null;
+  const cartoes = conteudo ? (Array.from(conteudo.children) as HTMLElement[]) : [];
+  const fim = Math.max(0, el.scrollWidth - el.clientWidth);
+  if (!cartoes.length) return [0];
+  const base = cartoes[0].offsetLeft;
+  return [...cartoes.map((c) => Math.min(fim, c.offsetLeft - base)), fim];
+}
+const pertoDe = (lista: number[], x: number) => lista.reduce((a, p) => (Math.abs(p - x) < Math.abs(a - x) ? p : a), lista[0]);
+const rolarSuave = () => typeof window !== 'undefined' && !window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+
 function useCarrossel() {
   const ref = useRef<any>(null);
   // A lista entra pelo `ref` de chamada, e nao por um `useRef` lido no
@@ -419,6 +435,8 @@ function useCarrossel() {
       setPodeDireita(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
     };
     medir();
+    // O rolar do trackpad e da roda também pára num cartão (`carrossel` na casca).
+    el.setAttribute('data-carrossel', '');
 
     let aArrastar = false;
     let xInicial = 0;
@@ -437,10 +455,21 @@ function useCarrossel() {
       if (!aArrastar) return;
       const dx = e.clientX - xInicial;
       if (!arrastou.current && Math.abs(dx) < LIMIAR_ARRASTO_PX) return;
+      // A arrastar, a prateleira segue o rato sem saltar de cartão em cartão.
+      if (!arrastou.current) el.style.scrollSnapType = 'none';
       arrastou.current = true;
       el.scrollLeft = scrollInicial - dx;
     };
-    const largou = () => { aArrastar = false; };
+    // Ao largar, vai até ao começo do cartão mais perto, e volta a parar nos cartões.
+    let assentar: ReturnType<typeof setTimeout> | null = null;
+    const largou = () => {
+      const vinhaAArrastar = aArrastar && arrastou.current;
+      aArrastar = false;
+      if (!vinhaAArrastar) return;
+      el.scrollTo({ left: pertoDe(paragensDaPrateleira(el), el.scrollLeft), behavior: rolarSuave() ? 'smooth' : 'auto' });
+      if (assentar) clearTimeout(assentar);
+      assentar = setTimeout(() => { el.style.scrollSnapType = ''; }, 450);
+    };
     // Na fase de CAPTURA, para chegar antes do React: um arrasto que acaba em
     // cima de um cartao nao pode contar como carregar nele.
     const clicou = (e: MouseEvent) => {
@@ -462,6 +491,7 @@ function useCarrossel() {
     if (conteudo) observador?.observe(conteudo);
 
     return () => {
+      if (assentar) clearTimeout(assentar);
       el.removeEventListener('scroll', medir);
       el.removeEventListener('pointerdown', carregou);
       window.removeEventListener('pointermove', moveu);
@@ -476,11 +506,17 @@ function useCarrossel() {
     const el: HTMLElement | null = bruto?.getScrollableNode?.() ?? bruto ?? null;
     if (!el) return;
     // Quase um ecra de cada vez, deixando um cartao a espreitar — e assim que
-    // se percebe que a lista continua.
+    // se percebe que a lista continua. Desde 24/11 pára no começo de um cartão: o
+    // último que cabe nesse salto (a andar para trás, o primeiro), e sempre pelo
+    // menos um cartão de cada vez.
     const salto = Math.max(200, el.clientWidth - 168);
-    const suave = typeof window !== 'undefined'
-      && !window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
-    el.scrollBy({ left: sentido * salto, behavior: suave ? 'smooth' : 'auto' });
+    const destino = el.scrollLeft + sentido * salto;
+    const paragens = paragensDaPrateleira(el).filter((p) => (sentido === 1 ? p > el.scrollLeft + 1 : p < el.scrollLeft - 1));
+    if (!paragens.length) return;
+    const alvo = sentido === 1
+      ? Math.max(...paragens.filter((p) => p <= destino), Math.min(...paragens))
+      : Math.min(...paragens.filter((p) => p >= destino), Math.max(...paragens));
+    el.scrollTo({ left: alvo, behavior: rolarSuave() ? 'smooth' : 'auto' });
   };
 
   return { ref: ligar, podeEsquerda, podeDireita, deslizar, arrastou };
