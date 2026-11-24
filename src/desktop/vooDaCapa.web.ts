@@ -135,15 +135,16 @@ function passagem(a: Keyframe, b: Keyframe, de: number, ate: number): Keyframe[]
  * (a fechar) enquanto voa: a inclinação (a mesma lista de funções, `caixaPlana`), a sombra
  * no chão e o canto da face, de `raioNaBarra` (o da miniatura, nas medidas da cópia) ao da
  * caixa. Corre ao mesmo tempo que o voo, com o tempo direito (o voo é que tem a curva).
- * Sem a caixa (o cubo plano) não há nada a fazer.
+ * Sem a caixa (o cubo plano) só os cantos mudam (`cantosDaCapaPlana`).
  */
 function caixaAVoar(copia: HTMLElement, sentido: 'abrir' | 'fechar', duracao: number, raioNaBarra: number): Animation[] {
-  const caixa = copia.querySelector<HTMLElement>('[data-dt~="m3-caixa"]');
-  const pose = caixa?.style.transform;
-  if (!caixa || !pose) return [];
   const abrir = sentido === 'abrir';
-  const { de, ate } = abrir ? CAIXA_A_ABRIR : CAIXA_A_FECHAR;
   const tempo: KeyframeAnimationOptions = { duration: duracao, easing: 'linear', fill: 'both' };
+  const caixa = copia.querySelector<HTMLElement>('[data-dt~="m3-caixa"]');
+  if (!caixa) return cantosDaCapaPlana(copia, abrir, tempo, raioNaBarra);
+  const pose = caixa.style.transform;
+  if (!pose) return [];
+  const { de, ate } = abrir ? CAIXA_A_ABRIR : CAIXA_A_FECHAR;
   const plana: Keyframe = { transform: caixaPlana(voltaDaCaixa(pose)) };
   const emPose: Keyframe = { transform: pose };
   const sem: Keyframe = { opacity: 0 };
@@ -156,6 +157,27 @@ function caixaAVoar(copia: HTMLElement, sentido: 'abrir' | 'fechar', duracao: nu
     const naBarra: Keyframe = { borderRadius: `${raioNaBarra.toFixed(2)}px` };
     const naCaixa: Keyframe = { borderRadius: getComputedStyle(face).borderTopLeftRadius || '0px' };
     anims.push(face.animate(abrir ? passagem(naBarra, naCaixa, 0, CANTO_A_ABRIR) : passagem(naCaixa, naBarra, ate, 1), tempo));
+  });
+  return anims;
+}
+
+/**
+ * Os cantos da capa plana (sem a "3D cover", 24/11): a face do cubo (20) e a capa lá dentro
+ * (14) têm os cantos do Now Playing, que encolhidos até à barra ficavam mais vivos do que os
+ * da miniatura (2,5 px contra 4). Passam de uns aos outros nos mesmos tempos da caixa. São
+ * os elementos da cópia da largura dela com cantos redondos em píxeis (um círculo não).
+ */
+function cantosDaCapaPlana(copia: HTMLElement, abrir: boolean, tempo: KeyframeAnimationOptions, raioNaBarra: number): Animation[] {
+  const largura = copia.offsetWidth;
+  const naBarra: Keyframe = { borderRadius: `${raioNaBarra.toFixed(2)}px` };
+  const anims: Animation[] = [];
+  copia.querySelectorAll<HTMLElement>('div').forEach((el) => {
+    if (el.offsetWidth < largura * 0.9) return;
+    const canto = getComputedStyle(el).borderTopLeftRadius;
+    const px = canto.endsWith('px') ? parseFloat(canto) : NaN;
+    if (!(px > 0 && px <= largura * 0.2)) return;
+    const naCapa: Keyframe = { borderRadius: canto };
+    anims.push(el.animate(abrir ? passagem(naBarra, naCapa, 0, CANTO_A_ABRIR) : passagem(naCapa, naBarra, CAIXA_A_FECHAR.ate, 1), tempo));
   });
   return anims;
 }

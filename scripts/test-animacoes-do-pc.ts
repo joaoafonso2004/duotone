@@ -411,6 +411,9 @@ caso('a caixa passa de plana a 3D a meio do voo, e de 3D a plana a voltar (24/11
   assert.match(voo, /\.forEach\(\(chao\) => \{\n\s*anims\.push\(chao\.animate\(abrir \? passagem\(sem, com, de, ate\) : passagem\(com, sem, de, ate\), tempo\)\);/);
   assert.match(voo, /RAIO\.ctrl \* \(copia\.width \/ barra\.width\)/);
   assert.match(CASCA_LF, /<View ref=\{caixa\} style=\{\{ width: 52, height: 52, borderRadius: RAIO\.ctrl, overflow: 'hidden' \}\}>/, 'que é este');
+  // Sem a "3D cover", a capa plana: só os cantos, os da face e os da capa lá dentro (um círculo não).
+  assert.match(voo, /if \(!caixa\) return cantosDaCapaPlana\(copia, abrir, tempo, raioNaBarra\);/);
+  assert.match(voo, /if \(!\(px > 0 && px <= largura \* 0\.2\)\) return;/);
 });
 caso('pousa sem piscar: a página mede-se antes do primeiro desenho, e a troca só se faz com as duas iguais (24/11)', () => {
   const voo = emLf('src/desktop/vooDaCapa.web.ts');
