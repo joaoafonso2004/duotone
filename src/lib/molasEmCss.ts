@@ -112,6 +112,22 @@ export function curvasDoPc(): Record<NomeDaCurva, CurvaCss> {
   return calculadas;
 }
 
+let passagem: string | null = null;
+/**
+ * A passagem de uma forma a outra a meio de um voo (24/11: a capa que voa para o Now Playing
+ * passa de plana a 3D, vooDaCapa.web.ts): devagar nas pontas e depressa ao meio, o
+ * `smoothstep` da maquete. Não é mola nem entra no `:root`: só a Web Animations API a usa,
+ * num troço do voo, cujo andamento é a mola dele.
+ */
+export function curvaDaPassagem(): string {
+  if (!passagem) {
+    const pontos: Ponto[] = [];
+    for (let i = 0; i <= 200; i++) { const t = i / 200; pontos.push({ t, x: t * t * (3 - 2 * t) }); }
+    passagem = emLinear(pontos, 1);
+  }
+  return passagem;
+}
+
 /** Uma curva para a Web Animations API, que não lê variáveis CSS. */
 export function curvaDoPc(nome: NomeDaCurva): string {
   return curvasDoPc()[nome].curva;

@@ -1,4 +1,4 @@
-import { curvaDoPc } from '../lib/molasEmCss';
+import { curvaDaPassagem, curvaDoPc } from '../lib/molasEmCss';
 import { caixaPlana, voltaDaCaixa } from '../lib/capaMetal3D';
 import { menosMovimentoAgora } from '../hooks/useReducedMotion';
 import { RAIO } from './tokens.web';
@@ -56,8 +56,6 @@ const CAIXA_A_ABRIR = { de: 0.12, ate: 0.72 } as const;
 const CAIXA_A_FECHAR = { de: 0, ate: 0.5 } as const;
 /** O canto da face: o da miniatura da barra no primeiro quarto do voo a abrir; a fechar, na metade plana. */
 const CANTO_A_ABRIR = 0.25;
-/** Entre plana e 3D, devagar nas pontas (o `suave` da maquete). */
-const SUAVE = 'cubic-bezier(.45, 0, .55, 1)';
 /** O acerto, se a capa verdadeira mudou de sítio a meio do voo (a janela a mudar de tamanho). */
 const DURACAO_DO_ACERTO = 160;
 const MAX_ACERTOS = 2;
@@ -125,7 +123,8 @@ const iguais = (a: DOMRect, b: DOMRect) =>
 function passagem(a: Keyframe, b: Keyframe, de: number, ate: number): Keyframe[] {
   const quadros: Keyframe[] = [];
   if (de > 0) quadros.push({ ...a, offset: 0 });
-  quadros.push({ ...a, offset: de, easing: SUAVE }, { ...b, offset: ate });
+  // Entre uma forma e a outra, devagar nas pontas (o `suave` da maquete).
+  quadros.push({ ...a, offset: de, easing: curvaDaPassagem() }, { ...b, offset: ate });
   if (ate < 1) quadros.push({ ...b, offset: 1 });
   return quadros;
 }
