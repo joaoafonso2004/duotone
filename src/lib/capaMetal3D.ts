@@ -35,14 +35,31 @@ export const POSE_DO_METAL = {
 } as const;
 
 /**
- * A transformação da caixa (o `m3-caixa`): a mesma no motor (CapaMetal3D.web.tsx) e na
- * capa que voa da barra para o Now Playing (vooDaCapa.web.ts, 23/11), que acaba nesta pose
- * e por isso passa de plana a 3D a voar. `lado` em píxeis, ângulos em graus.
+ * A transformação da caixa (o `m3-caixa`), escrita pelo motor (CapaMetal3D.web.tsx). A capa
+ * que voa da barra para o Now Playing (vooDaCapa.web.ts) parte de `caixaPlana` e acaba
+ * nesta pose, e a voltar faz o caminho ao contrário. `lado` em píxeis, ângulos em graus.
  */
 export function transformDaCaixa(lado: number, rotX: number, rotY: number, volta = 0): string {
   return `translate3d(${(POSE_DO_METAL.deslocacaoX * lado).toFixed(2)}px,${(POSE_DO_METAL.deslocacaoY * lado).toFixed(2)}px,0) ` +
     `rotateX(${rotX.toFixed(3)}deg) rotateY(${rotY.toFixed(3)}deg) rotateZ(${POSE_DO_METAL.rotateZ}deg) ` +
     `scale(${POSE_DO_METAL.escala}) rotateY(${volta.toFixed(3)}deg)`;
+}
+/**
+ * A caixa plana (24/11, a maquete "Capa a voar 2D↔3D"): sem deslocação, sem inclinação e do
+ * tamanho da capa, como a miniatura da barra. Tem as MESMAS funções de `transformDaCaixa`,
+ * pela mesma ordem: assim o browser interpola cada uma (a inclinação cresce aos poucos) em
+ * vez de decompor a matriz. A `volta` (a meia volta da letra) não se achata.
+ */
+export function caixaPlana(volta = 0): string {
+  return `translate3d(0px,0px,0) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(1) rotateY(${volta.toFixed(3)}deg)`;
+}
+/**
+ * A `volta` de uma transformação de `transformDaCaixa` (o último `rotateY`), escrita por nós
+ * ou como o browser a devolve no `style` ("rotateY(-180deg)"). Sem ela, 0.
+ */
+export function voltaDaCaixa(transform: string): number {
+  const m = /rotateY\(\s*(-?\d+(?:\.\d+)?)deg\s*\)\s*$/.exec(transform.trim());
+  return m ? Number(m[1]) : 0;
 }
 /** A perspetiva do palco, em píxeis. */
 export const perspetivaDaCaixa = (lado: number): number => Math.round(lado * POSE_DO_METAL.perspectiva);

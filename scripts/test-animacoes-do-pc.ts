@@ -379,7 +379,7 @@ caso('a capa voa da barra até à do leitor, e de volta, e a verdadeira espera e
   // Só o transform (o compositor), com as curvas do PC.
   assert.match(voo, /easing: curvaDoPc\('entrada'\)/);
   assert.match(voo, /curvaDoPc\('travar'\)/);
-  assert.ok(!/\{ left: |\{ width: /.test(voo.slice(voo.indexOf('.animate('))), 'a animação mexe só no transform');
+  assert.ok(!/\{ left: |\{ width: /.test(voo.slice(voo.indexOf('.animate('))), 'o voo mexe no transform, e não no left nem no width');
   assert.match(voo, /!menosMovimentoAgora\(\)/, 'com menos movimento não voa');
 });
 caso('com a "3D cover" voa a caixa inteira, já em 3D, e aterra igual à verdadeira (23/11)', () => {
@@ -397,6 +397,33 @@ caso('com a "3D cover" voa a caixa inteira, já em 3D, e aterra igual à verdade
   assert.match(voo, /anim = copia\.animate\(\[\{ transform: deslocarAte\(de, alvo\.r\) \}, \{ transform: 'none' \}\]/);
   // O motor da caixa e a pose ficam num sítio só.
   assert.match(emLf('src/desktop/CapaMetal3D.web.tsx'), /caixa\.style\.transform = transformDaCaixa\(lado, rotX, rotY, volta\);/);
+});
+caso('a caixa passa de plana a 3D a meio do voo, e de 3D a plana a voltar (24/11, a maquete "Capa a voar 2D↔3D")', () => {
+  const voo = emLf('src/desktop/vooDaCapa.web.ts');
+  // A abrir ganha a pose entre 12 % e 72 % do caminho; a fechar perde-a até meio.
+  assert.match(voo, /const CAIXA_A_ABRIR = \{ de: 0\.12, ate: 0\.72 \} as const;/);
+  assert.match(voo, /const CAIXA_A_FECHAR = \{ de: 0, ate: 0\.5 \} as const;/);
+  assert.match(voo, /dentro = caixaAVoar\(copia, 'abrir', DURACAO_A_ABRIR, raioDaBarraNaCopia\(alvo\.r, de\)\);/);
+  assert.match(voo, /const dentro = caixaAVoar\(copia, 'fechar', DURACAO_A_FECHAR, raioDaBarraNaCopia\(noLeitor\.r, naBarra\.r\)\);/);
+  // A plana tem as mesmas funções da pose: a inclinação cresce aos poucos.
+  assert.match(voo, /const plana: Keyframe = \{ transform: caixaPlana\(voltaDaCaixa\(pose\)\) \};/);
+  // A sombra no chão acompanha a caixa, e o canto da face é o da miniatura na barra.
+  assert.match(voo, /\.forEach\(\(chao\) => \{\n\s*anims\.push\(chao\.animate\(abrir \? passagem\(sem, com, de, ate\) : passagem\(com, sem, de, ate\), tempo\)\);/);
+  assert.match(voo, /RAIO\.ctrl \* \(copia\.width \/ barra\.width\)/);
+  assert.match(CASCA_LF, /<View ref=\{caixa\} style=\{\{ width: 52, height: 52, borderRadius: RAIO\.ctrl, overflow: 'hidden' \}\}>/, 'que é este');
+});
+caso('pousa sem piscar: a página mede-se antes do primeiro desenho, e a troca só se faz com as duas iguais (24/11)', () => {
+  const voo = emLf('src/desktop/vooDaCapa.web.ts');
+  const np = emLf('src/desktop/paginas/NowPlayingPage.web.tsx');
+  // A capa vinha pequena: a página nascia com a área por omissão e só a media depois.
+  assert.match(np, /useLayoutEffect\(\(\) => \{\n\s*const el = paginaRef\.current as HTMLElement \| null;/);
+  assert.match(np, /<View ref=\{paginaRef\} style=\{styles\.npPagina\} onLayout=/);
+  // Se a verdadeira mudou de sítio a meio do voo, a cópia vai lá ter antes de pousar.
+  assert.match(voo, /if \(agora && !iguais\(agora\.r, onde\) && acertos < MAX_ACERTOS\) \{/);
+  // Na troca, a caixa da cópia fica na pose da verdadeira, e a sombra dela sai antes
+  // de a verdadeira aparecer (duas sombras escureciam o chão).
+  assert.match(voo, /if \(daCopia && verdadeira\?\.style\.transform\) daCopia\.style\.transform = verdadeira\.style\.transform;/);
+  assert.match(voo, /copia\.querySelectorAll\('\[data-dt~="m3-chao"\]'\)\.forEach\(\(chao\) => chao\.remove\(\)\);\n\s*raiz\.removeAttribute\(A_VOAR\);/);
 });
 caso('a página recua por baixo em vez de sumir, e o resto do leitor sobe em escada', () => {
   const nav = emLf('src/navigation/RootNavigator.web.tsx');

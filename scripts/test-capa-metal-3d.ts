@@ -12,8 +12,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   FORCA_DO_BRILHO, INCLINACAO_MAXIMA, LANCAR, POSE_DO_METAL, anguloCurto, anguloDoArrasto, anguloDoLado,
-  brilhoDaAresta, criarArestasDoEfeito, destinoAoLargar, inclinacao, molaAssente, mostraALetra, passoDaMola, ratoNaCapa,
-  type EstadoDaMola,
+  brilhoDaAresta, caixaPlana, criarArestasDoEfeito, destinoAoLargar, inclinacao, molaAssente, mostraALetra, passoDaMola, ratoNaCapa,
+  transformDaCaixa, voltaDaCaixa, type EstadoDaMola,
 } from '../src/lib/capaMetal3D.ts';
 import { CAPA_FLUTUANTE } from '../src/lib/capaFlutuante3D.ts';
 import { ENTRADA, ESTADO, SOLTAR } from '../src/lib/movimento.ts';
@@ -297,6 +297,17 @@ caso('a face da caixa tem os cantos vivos; o cubo plano fica com o raio de sempr
   assert.match(GLITCH, /borderRadius: raio,/);
   assert.match(LEITOR, /<CapaMetal3D [^]*?<GlitchArtwork [^\n]*raio=\{0\}/);
   assert.match(LEITOR, /<ArtworkLyricsCube [^\n]*\n\s*front=\{<GlitchArtwork uri=\{capaGrande\} lado=\{ladoCapa\} modo=\{glitch\} intensidade=\{effectIntensity\} \/>\} \/>/);
+});
+
+console.log('\na capa que voa (24/11)');
+caso('a caixa plana tem as funções da pose pela mesma ordem, e guarda a volta da letra', () => {
+  const funcoes = (t: string) => [...t.matchAll(/([a-zA-Z0-9]+)\(/g)].map((m) => m[1]);
+  assert.deepEqual(funcoes(caixaPlana(180)), funcoes(transformDaCaixa(400, 32.5, 25.5, 180)));
+  assert.match(caixaPlana(), /^translate3d\(0px,0px,0\) rotateX\(0deg\) rotateY\(0deg\) rotateZ\(0deg\) scale\(1\) rotateY\(0\.000deg\)$/);
+  assert.equal(voltaDaCaixa(transformDaCaixa(400, 32.5, 25.5, 180)), 180);
+  assert.equal(voltaDaCaixa('translate3d(8.8px, -15.6px, 0px) rotateX(32.5deg) rotateY(25.5deg) rotateZ(-6.1deg) scale(0.93) rotateY(-180deg)'), -180, 'como o browser a devolve no style');
+  assert.equal(voltaDaCaixa(caixaPlana(0)), 0);
+  assert.equal(voltaDaCaixa(''), 0);
 });
 
 console.log(falhas === 0 ? '\nTudo bem.\n' : `\n${falhas} falha(s).\n`);

@@ -5,7 +5,7 @@ import { useFilaDoLeitor } from '../useFilaDoLeitor.web';
 import {ArtworkLyricsCube} from '../../components/ArtworkLyricsCube';
 import { CapaMetal3D, lateraisDaCaixa, useCapaMetal } from '../CapaMetal3D.web';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import {
   getGlitchMode, type GlitchMode,
@@ -181,6 +181,18 @@ export function NowPlayingPage({
   // A capa mede-se pela ÁREA da página (a janela menos a lateral e o leitor),
   // e não pela janela: é essa que tem de caber. Ver lib/leitorDoPc.ts.
   const [area, setArea] = useState({ largura: 0, altura: 0 });
+  // A área mede-se já ao montar, antes do primeiro desenho (24/11). Só com o `onLayout`
+  // (o do RNW chega um ou dois fotogramas depois) a página nascia com a capa do tamanho
+  // por omissão: a capa que voa da barra media esse sítio, pousava uns 12 % mais pequena,
+  // e a verdadeira aparecia maior por cima (o João: "a capa vem pequena e pisca e fica
+  // grande"). O `offsetWidth` é a mesma medida do `onLayout`, que depois não muda nada.
+  const paginaRef = useRef<any>(null);
+  useLayoutEffect(() => {
+    const el = paginaRef.current as HTMLElement | null;
+    if (!el || !(el.offsetWidth > 1)) return;
+    const largura = el.offsetWidth, altura = el.offsetHeight;
+    setArea((a) => (Math.abs(a.largura - largura) > 1 || Math.abs(a.altura - altura) > 1 ? { largura, altura } : a));
+  }, [!!current]);
   // A preferencia e lida uma vez e depois vem por evento, como a opacidade dos
   // paineis: as Definicoes sao outro ecra e este fica montado.
   const [eqAberto, setEqAberto] = useState(false);
@@ -472,7 +484,7 @@ export function NowPlayingPage({
   );
 
   return (
-    <View style={styles.npPagina} onLayout={(e) => {
+    <View ref={paginaRef} style={styles.npPagina} onLayout={(e) => {
       const { width: largura, height: altura } = e.nativeEvent.layout;
       setArea((a) => (Math.abs(a.largura - largura) > 1 || Math.abs(a.altura - altura) > 1 ? { largura, altura } : a));
     }}>
