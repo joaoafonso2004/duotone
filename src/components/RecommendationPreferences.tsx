@@ -1,6 +1,9 @@
 import React,{useState} from 'react';
-import { ScrollView,Text,View } from 'react-native';
-import { SocialButton,SocialModal,socialStyles as s } from './socialUI';
+import { Platform,ScrollView,Text,View } from 'react-native';
+import { SocialButton,socialStyles as s } from './socialUI';
+// No iPhone o `SocialModal` de sempre; no PC o diálogo do PC (24/11, a lista "Refinar o PC"):
+// era a janela do telemóvel, com borda e o fade do react-native-web.
+import { DialogoDoSocial } from './SocialPc';
 import { artistPreferenceKey,setRecommendationFeedback,useRecommendationFeedback } from '../state/recommendationFeedback';
 import { displayArtist } from '../lib/artistName';
 import type { Feedback } from '../lib/recommendationFeedback';
@@ -30,8 +33,9 @@ export function RecommendationPreferences({visible,track,reason,onClose}:{visibl
       :(on?'Suggest this artist normally':'Suggest less of this artist');
   const icone=(p:Feedback,on:boolean)=>on?'checkmark-circle'
     :p.kind==='artist_more'?'add-circle-outline':'remove-circle-outline';
-  return <SocialModal visible={visible} title="Recommendations" onClose={onClose}>
-    <ScrollView contentContainerStyle={{padding:24,gap:16}}>
+  return <DialogoDoSocial visible={visible} title="Recommendations" onClose={onClose} largura={520}>
+    {/* O diálogo do PC já tem a margem dele. */}
+    <ScrollView style={Platform.OS==='web'?{flexShrink:1}:undefined} contentContainerStyle={{padding:Platform.OS==='web'?0:24,gap:16}}>
       <Text style={s.muted}>Shape your suggestions, daily flow, radio and smart shuffle. Asking for more of an artist also brings in music around them, even if you have none of their songs saved. You can still search for and play these songs yourself.</Text>
       {track&&reason?<View style={s.listRow}><View style={{flex:1,minWidth:0}}><Text style={s.muted}>Why this track</Text><Text style={s.text}>{reason}</Text></View></View>:null}
       {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
@@ -50,5 +54,5 @@ export function RecommendationPreferences({visible,track,reason,onClose}:{visibl
         </View>)}
       </View>}
     </ScrollView>
-  </SocialModal>;
+  </DialogoDoSocial>;
 }

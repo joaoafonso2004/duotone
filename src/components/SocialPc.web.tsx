@@ -16,7 +16,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Dialog, marcar } from '../desktop/ui.web';
+import { Button, Dialog, marcar } from '../desktop/ui.web';
 import { COR, ESP, ESTADO, FONT, RAIO, TIPO, flutuante } from '../desktop/tokens.web';
 import { CapaDuotone } from '../desktop/duotone.web';
 import { SeparadorDoPainelDoAmigo } from '../desktop/SeparadorDeLargura.web';
@@ -32,7 +32,7 @@ import { posicaoDoAmigo } from '../lib/posicaoDoAmigo';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { SOCIAL_COM_PAINEL } from '../lib/largurasDasBarras';
-import type { CabecalhoDaConversaProps, CampoDeEscreverProps, DialogoDoSocialProps, LayoutDaConversaProps } from './socialPcTipos';
+import type { BotoesDoDialogoProps, CabecalhoDaConversaProps, CampoDeEscreverProps, DialogoDoSocialProps, LayoutDaConversaProps } from './socialPcTipos';
 
 /** Quanto leva o painel a sair (a curva `sair`, 180 a 200 ms). */
 const SAIDA_DO_PAINEL_MS = 190;
@@ -40,7 +40,17 @@ const SAIDA_DO_PAINEL_MS = 190;
 const PROXIMAS_NO_PAINEL = 5;
 
 export function DialogoDoSocial({ visible, title, onClose, children, largura }: DialogoDoSocialProps) {
-  return <Dialog open={visible} title={title} onClose={onClose} width={largura ?? 460}>{children}</Dialog>;
+  // Um conteúdo comprido rola dentro do diálogo, como na folha do PC (BottomSheet.web.tsx):
+  // o `Dialog` não tem altura máxima, e as Recommendations e o Edit profile passavam da janela.
+  return <Dialog open={visible} title={title} onClose={onClose} width={largura ?? 460}>
+    <View style={{ maxHeight: 'calc(100dvh - 160px)', minHeight: 0, flexShrink: 1 } as any}>{children}</View>
+  </Dialog>;
+}
+
+export function BotoesDoDialogo({ botoes }: BotoesDoDialogoProps) {
+  return <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 9, marginTop: 20 }}>
+    {botoes.map((b) => <Button key={b.rotulo} secondary={!b.principal} disabled={b.desligado} ocupado={b.ocupado} onPress={b.aoCarregar}>{b.rotulo}</Button>)}
+  </View>;
 }
 
 /** Uma ação de texto com ícone, sem contorno nem fundo (o `AcaoDaConversa`, com as fontes da app). */

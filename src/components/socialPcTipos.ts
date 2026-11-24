@@ -10,6 +10,14 @@ import type { Track } from '../types';
  */
 export type DialogoDoSocialProps = { visible: boolean; title: string; onClose: () => void; children: React.ReactNode; largura?: number };
 
+/**
+ * Os botões do fundo de um diálogo do PC (24/11, a lista "Refinar o PC"): no iPhone as
+ * mesmas ações vivem no cabeçalho da folha (Cancel | título | Save), e aqui não há nada.
+ */
+export type BotoesDoDialogoProps = {
+  botoes: { rotulo: string; aoCarregar: () => void; principal?: boolean; desligado?: boolean; ocupado?: boolean }[];
+};
+
 export type CabecalhoDaConversaProps = {
   titulo: string;
   amigo: SocialFriend | null;

@@ -6,10 +6,14 @@
 import React from 'react';
 import { View } from 'react-native';
 import { SocialModal } from './socialUI';
-import type { CabecalhoDaConversaProps, CampoDeEscreverProps, DialogoDoSocialProps, LayoutDaConversaProps } from './socialPcTipos';
+import type { BotoesDoDialogoProps, CabecalhoDaConversaProps, CampoDeEscreverProps, DialogoDoSocialProps, LayoutDaConversaProps } from './socialPcTipos';
 
 export function DialogoDoSocial({ visible, title, onClose, children }: DialogoDoSocialProps) {
   return <SocialModal visible={visible} title={title} onClose={onClose}>{children}</SocialModal>;
+}
+
+export function BotoesDoDialogo(_: BotoesDoDialogoProps): React.ReactElement | null {
+  return null;
 }
 
 export function CabecalhoDaConversaPc(_: CabecalhoDaConversaProps): React.ReactElement | null {

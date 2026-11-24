@@ -204,6 +204,7 @@ const { ProfileEditor } = load('src/components/ProfileEditor.tsx', {
   './ArtworkCollage': {}, './MenuFlutuante': { MenuFlutuante },
   '../state/social': {}, '../state/theme': { useTheme: fn => fn({ theme: { color: '#fff' } }) },
   './socialUI': { SocialModal: 'SocialModal', socialStyles: {} },
+  './SocialPc': { DialogoDoSocial: 'DialogoDoSocial', BotoesDoDialogo: 'BotoesDoDialogo' },
   './socialTokens': { colors: {}, radii: {} },
 });
 const profile = { profile: { id: 'me', name: 'João', username: 'joao' } };

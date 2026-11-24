@@ -20,6 +20,7 @@ import type { PlayerAction } from './PlayerActionsSheet';
 import { useSocial } from '../state/social';
 import { useTheme } from '../state/theme';
 import { SocialModal,socialStyles as s } from './socialUI';
+import { BotoesDoDialogo,DialogoDoSocial } from './SocialPc';
 import type { Playlist,Track } from '../types';
 import { colors,radii } from './socialTokens';
 
@@ -222,8 +223,9 @@ export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{pr
     {direita}
   </View>;
 
-  return <SocialModal visible wide title="Edit profile" header={cabecalho} onClose={()=>{if(!stage)onClose();}}>
-    <ScrollView style={{flexShrink:1}} scrollEnabled={!adjustingImage} keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom:40,paddingTop:12}}>
+  const fecharSePuder=()=>{if(!stage)onClose();};
+  const conteudo=<>
+    <ScrollView style={{flexShrink:1}} scrollEnabled={!adjustingImage} keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom:Platform.OS==='web'?8:40,paddingTop:12}}>
       {/* A capa e a foto como no perfil: a foto sobreposta à capa. Tocar numa
           abre o menu; uma imagem acabada de escolher arrasta-se e aproxima-se
           ali mesmo. */}
@@ -342,7 +344,18 @@ export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{pr
     </ScrollView>
     <MenuFlutuante visivel={!!menu} ancora={menu?.ancora??null} accoes={accoesDoMenu}
       aoFechar={()=>setMenu(null)} aoFechado={()=>{const fn=depois.current;depois.current=null;fn?.();}}/>
-  </SocialModal>;
+  </>;
+
+  // No PC (24/11, a lista "Refinar o PC"): o diálogo do PC, com o Cancel e o Save no fundo,
+  // como os outros. Era a folha do iPhone, com a barra Cancel | título | Save por cima.
+  if (Platform.OS==='web') return <DialogoDoSocial visible title="Edit profile" largura={680} onClose={fecharSePuder}>
+    {conteudo}
+    <BotoesDoDialogo botoes={[
+      {rotulo:'Cancel',aoCarregar:onClose,desligado:!!stage},
+      {rotulo:'Save',principal:true,aoCarregar:()=>void save(),desligado:!podeGuardar&&!stage,ocupado:!!stage},
+    ]}/>
+  </DialogoDoSocial>;
+  return <SocialModal visible wide title="Edit profile" header={cabecalho} onClose={fecharSePuder}>{conteudo}</SocialModal>;
 }
 
 const e=StyleSheet.create({

@@ -188,8 +188,15 @@ caso('a cor da conversa é a camada do Now Playing, só com "Whole window", e o 
 caso('os diálogos do Social são o Dialog do PC (com a saída), e o SocialModal de sempre no iPhone', () => {
   assert.ok(!/<SocialModal /.test(HUB), 'o SocialHub já não chama o SocialModal diretamente');
   assert.equal((HUB.match(/<DialogoDoSocial /g) ?? []).length, 5);
-  assert.match(PAINEL, /return <Dialog open=\{visible\} title=\{title\} onClose=\{onClose\} width=\{largura \?\? 460\}>\{children\}<\/Dialog>;/);
+  assert.match(PAINEL, /return <Dialog open=\{visible\} title=\{title\} onClose=\{onClose\} width=\{largura \?\? 460\}>\n\s*<View style=\{\{ maxHeight: 'calc\(100dvh - 160px\)', minHeight: 0, flexShrink: 1 \} as any\}>\{children\}<\/View>\n\s*<\/Dialog>;/, 'um conteúdo comprido rola dentro, como na folha');
   assert.match(ler('src/components/SocialPc.tsx'), /return <SocialModal visible=\{visible\} title=\{title\} onClose=\{onClose\}>\{children\}<\/SocialModal>;/);
+  // 24/11 (a lista "Refinar o PC"): as Recommendations e o Edit profile também, e os botões das folhas.
+  assert.match(ler('src/components/RecommendationPreferences.tsx'), /return <DialogoDoSocial visible=\{visible\} title="Recommendations" onClose=\{onClose\} largura=\{520\}>/);
+  const editor = ler('src/components/ProfileEditor.tsx');
+  assert.match(editor, /if \(Platform\.OS==='web'\) return <DialogoDoSocial visible title="Edit profile" largura=\{680\} onClose=\{fecharSePuder\}>/);
+  assert.match(editor, /return <SocialModal visible wide title="Edit profile" header=\{cabecalho\} onClose=\{fecharSePuder\}>\{conteudo\}<\/SocialModal>;/, 'o iPhone fica igual');
+  assert.match(PAINEL, /export function BotoesDoDialogo\(\{ botoes \}: BotoesDoDialogoProps\)/);
+  assert.match(ler('src/components/PillButton.web.tsx'), /<Button onPress=\{onPress\} secondary=\{variant === 'ghost'\} danger=\{variant === 'danger'\} disabled=\{disabled\} ocupado=\{loading\}>/);
 });
 caso('as mensagens entram (B4): a tua sobe com a SOLTAR, a dele chega com a ENTRADA, e ao abrir em cascata', () => {
   assert.match(HUB, /const entrada=!naoVista\?null:primeiraLeva\?\(index<10\?'cascata' as const:null\):minha\?'minha' as const:'dele' as const;/);
