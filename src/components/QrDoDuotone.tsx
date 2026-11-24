@@ -3,6 +3,7 @@ import React, { useMemo } from 'react';
 import { PixelRatio, StyleSheet, View } from 'react-native';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { ladoDoCentro, matrizDoQr, riscosDaLinha } from '../lib/matrizDoQr';
+import { radii } from '../theme';
 
 /** O papel do QR: claro, para qualquer câmara o ler (o escuro da app não serve). */
 const PAPEL = '#F3F3F5';
@@ -43,9 +44,9 @@ export function QrDoDuotone({ texto, lado, capa, rotulo }: { texto: string; lado
 
 const styles = StyleSheet.create({
   cartao: {
-    backgroundColor: PAPEL, borderRadius: 22,
+    backgroundColor: PAPEL, borderRadius: radii.xl,
     shadowColor: '#000', shadowOpacity: 0.45, shadowRadius: 17, shadowOffset: { width: 0, height: 14 },
   },
-  centro: { position: 'absolute', backgroundColor: PAPEL, borderRadius: 9, padding: 3 },
-  capa: { flex: 1, borderRadius: 6 },
+  centro: { position: 'absolute', backgroundColor: PAPEL, borderRadius: radii.sm, padding: 3 },
+  capa: { flex: 1, borderRadius: radii.sm },
 });
