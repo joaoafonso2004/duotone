@@ -169,6 +169,19 @@ function DentroDaLateral({ qual, lado, espessura, capa, capaQueSai, guardar }: {
   </>;
 }
 
+/**
+ * Onde o rato esteve por último na janela (24/11). A caixa monta-se com o Now Playing a
+ * abrir e só ouvia o rato quando ele mexia: chegava na pose de repouso e, ao primeiro
+ * movimento, dava um salto para a inclinação (o João: "não vir parada e depois dar snap
+ * ao reagir ao rato"). Um ouvinte passivo que só guarda dois números; fora da janela, nada.
+ */
+let ratoX = NaN;
+let ratoY = NaN;
+if (typeof document !== 'undefined') {
+  document.addEventListener('pointermove', (e) => { ratoX = e.clientX; ratoY = e.clientY; }, { passive: true });
+  document.documentElement?.addEventListener('pointerleave', () => { ratoX = NaN; ratoY = NaN; });
+}
+
 type PontoQuente = { i: HTMLElement; lado: LadoDaCaixa; face: 1 | -1; vertical: boolean; inverter: boolean; comprimento: number; ganho: number; lustro: boolean };
 /** Os pontos quentes da caixa, lidos do DOM uma vez (e de novo se a caixa mudou). */
 function pontosQuentes(caixa: HTMLElement, lado: number): PontoQuente[] {
@@ -253,6 +266,8 @@ export function CapaMetal3D({ track, size, artwork, front, showLyrics, onChange,
   const acordarRef = useRef<() => void>(() => {});
   const pintarRef = useRef<() => void>(() => {});
   const rodarRef = useRef<() => void>(() => {});
+  const inclinarRef = useRef<() => void>(() => {});
+  const nasceuEm = useRef(0);
 
   useEffect(() => {
     const m = motor.current!;
@@ -446,6 +461,17 @@ export function CapaMetal3D({ track, size, artwork, front, showLyrics, onChange,
     caixa.addEventListener('lostpointercapture', aoPerderACaptura);
     window.addEventListener('pointerup', aoLargarEmQualquerSitio);
     document.addEventListener('visibilitychange', aoVoltarAJanela);
+    // O rato já pode estar sobre a capa quando ela monta (o Now Playing a abrir): a caixa
+    // nasce inclinada para ele, sem mola, e a capa que voa (vooDaCapa.web.ts) leva já essa pose.
+    const inclinarJaParaORato = () => {
+      if (!Number.isFinite(ratoX)) return;
+      seguirORato(ratoX, ratoY);
+      m.rx.x = m.rx.alvo; m.rx.v = 0;
+      m.ry.x = m.ry.alvo; m.ry.v = 0;
+    };
+    inclinarRef.current = inclinarJaParaORato;
+    nasceuEm.current = performance.now();
+    inclinarJaParaORato();
     pintar();
     return () => {
       if (m.raf) cancelAnimationFrame(m.raf);
@@ -475,8 +501,14 @@ export function CapaMetal3D({ track, size, artwork, front, showLyrics, onChange,
     }
     acordarRef.current();
   }, [showLyrics, reduzido]);
-  // A pose é em lados da capa: o tamanho muda com a janela.
-  useEffect(() => { pintarRef.current(); }, [size]);
+  // A pose é em lados da capa: o tamanho muda com a janela. Ao abrir, o Now Playing nasce
+  // com o tamanho por omissão e acerta-o antes do primeiro desenho, já com a caixa montada:
+  // a inclinação para o rato conta-se outra vez com o tamanho certo (com o primeiro, a zona
+  // do rato era maior e inclinava-se para um rato que já estava fora dela).
+  useEffect(() => {
+    if (performance.now() - nasceuEm.current < 1500) inclinarRef.current();
+    pintarRef.current();
+  }, [size]);
 
   const t = size * POSE_DO_METAL.espessura;
   const meio = meioDaCaixa(size);

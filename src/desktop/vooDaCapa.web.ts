@@ -136,20 +136,28 @@ function passagem(a: Keyframe, b: Keyframe, de: number, ate: number): Keyframe[]
  * no chão e o canto da face, de `raioNaBarra` (o da miniatura, nas medidas da cópia) ao da
  * caixa. Corre ao mesmo tempo que o voo, com o tempo direito (o voo é que tem a curva).
  * Sem a caixa (o cubo plano) só os cantos mudam (`cantosDaCapaPlana`).
+ *
+ * `seguir` (a abrir): a verdadeira, escondida por baixo, continua a seguir o rato enquanto a
+ * cópia voa. A cada fotograma a cópia vai buscar a pose dela (a inclinação, a sombra que
+ * foge e o brilho das arestas), e chega já com a inclinação do rato, sem salto nenhum ao pousar.
  */
-function caixaAVoar(copia: HTMLElement, sentido: 'abrir' | 'fechar', duracao: number, raioNaBarra: number): Animation[] {
+type CaixaAVoar = { anims: Animation[]; seguir: (capa: HTMLElement | null) => void };
+const NADA_A_SEGUIR = (): void => {};
+const BRILHOS_DAS_ARESTAS = '[data-dt~="m3-fio"] > i, [data-dt~="m3-labio"] > i, [data-dt~="m3-lustro"] > i';
+function caixaAVoar(copia: HTMLElement, sentido: 'abrir' | 'fechar', duracao: number, raioNaBarra: number): CaixaAVoar {
   const abrir = sentido === 'abrir';
   const tempo: KeyframeAnimationOptions = { duration: duracao, easing: 'linear', fill: 'both' };
   const caixa = copia.querySelector<HTMLElement>('[data-dt~="m3-caixa"]');
-  if (!caixa) return cantosDaCapaPlana(copia, abrir, tempo, raioNaBarra);
+  if (!caixa) return { anims: cantosDaCapaPlana(copia, abrir, tempo, raioNaBarra), seguir: NADA_A_SEGUIR };
   const pose = caixa.style.transform;
-  if (!pose) return [];
+  if (!pose) return { anims: [], seguir: NADA_A_SEGUIR };
   const { de, ate } = abrir ? CAIXA_A_ABRIR : CAIXA_A_FECHAR;
   const plana: Keyframe = { transform: caixaPlana(voltaDaCaixa(pose)) };
-  const emPose: Keyframe = { transform: pose };
+  const quadrosDaCaixa = (p: string) => (abrir ? passagem(plana, { transform: p }, de, ate) : passagem({ transform: p }, plana, de, ate));
   const sem: Keyframe = { opacity: 0 };
   const com: Keyframe = { opacity: 1 };
-  const anims = [caixa.animate(abrir ? passagem(plana, emPose, de, ate) : passagem(emPose, plana, de, ate), tempo)];
+  const daCaixa = caixa.animate(quadrosDaCaixa(pose), tempo);
+  const anims = [daCaixa];
   copia.querySelectorAll<HTMLElement>('[data-dt~="m3-chao"]').forEach((chao) => {
     anims.push(chao.animate(abrir ? passagem(sem, com, de, ate) : passagem(com, sem, de, ate), tempo));
   });
@@ -158,7 +166,19 @@ function caixaAVoar(copia: HTMLElement, sentido: 'abrir' | 'fechar', duracao: nu
     const naCaixa: Keyframe = { borderRadius: getComputedStyle(face).borderTopLeftRadius || '0px' };
     anims.push(face.animate(abrir ? passagem(naBarra, naCaixa, 0, CANTO_A_ABRIR) : passagem(naCaixa, naBarra, ate, 1), tempo));
   });
-  return anims;
+  let poseSeguida = pose;
+  const seguir = (capa: HTMLElement | null) => {
+    const agora = capa?.querySelector<HTMLElement>('[data-dt~="m3-caixa"]')?.style.transform;
+    if (!capa || !agora) return;
+    if (agora !== poseSeguida) { poseSeguida = agora; (daCaixa.effect as KeyframeEffect).setKeyframes(quadrosDaCaixa(agora)); }
+    const chaoDela = capa.querySelector<HTMLElement>('[data-dt~="m3-chao"]');
+    const chaoDaCopia = copia.querySelector<HTMLElement>('[data-dt~="m3-chao"]');
+    if (chaoDela && chaoDaCopia) chaoDaCopia.style.transform = chaoDela.style.transform;
+    const dela = capa.querySelectorAll<HTMLElement>(BRILHOS_DAS_ARESTAS);
+    const daCopia = copia.querySelectorAll<HTMLElement>(BRILHOS_DAS_ARESTAS);
+    if (dela.length === daCopia.length) dela.forEach((b, k) => { daCopia[k].style.transform = b.style.transform; daCopia[k].style.opacity = b.style.opacity; });
+  };
+  return { anims, seguir: abrir ? seguir : NADA_A_SEGUIR };
 }
 
 /**
@@ -198,6 +218,7 @@ export function voarParaOLeitor(): void {
   let copia: HTMLDivElement | null = null;
   let anim: Animation | null = null;
   let dentro: Animation[] = [];
+  let seguir: CaixaAVoar['seguir'] = NADA_A_SEGUIR;
   const acabar = () => { raiz.removeAttribute(A_VOAR); copia?.remove(); copia = null; if (cancelarAtual === cancelar) cancelarAtual = null; };
   const cancelar = () => { cancelado = true; cancelAnimationFrame(quadro); anim?.cancel(); dentro.forEach((a) => a.cancel()); acabar(); };
   cancelarAtual = cancelar;
@@ -216,8 +237,15 @@ export function voarParaOLeitor(): void {
     copia = copiaDaCapa(alvo.el, alvo.r);
     anim = copia.animate([{ transform: deslocarAte(de, alvo.r) }, { transform: 'none' }],
       { duration: DURACAO_A_ABRIR, easing: curvaDoPc('entrada'), fill: 'both' });
-    dentro = caixaAVoar(copia, 'abrir', DURACAO_A_ABRIR, raioDaBarraNaCopia(alvo.r, de));
+    ({ anims: dentro, seguir } = caixaAVoar(copia, 'abrir', DURACAO_A_ABRIR, raioDaBarraNaCopia(alvo.r, de)));
     anim.onfinish = () => chegar(alvo.r, alvo.r, 0);
+    quadro = requestAnimationFrame(acompanhar);
+  };
+  // Até pousar, a cópia acompanha a pose da verdadeira (o rato).
+  const acompanhar = () => {
+    if (cancelado || !copia) return;
+    seguir(document.getElementById(ID_DA_CAPA_NO_LEITOR));
+    quadro = requestAnimationFrame(acompanhar);
   };
   // A capa verdadeira pode já não estar onde estava ao partir (a janela mudou de tamanho
   // a meio do voo): a cópia vai lá ter primeiro. `base` é onde a cópia foi posta.
@@ -238,6 +266,7 @@ export function voarParaOLeitor(): void {
   // cima da outra escureciam o chão durante a troca, e via-se piscar.
   const pousar = (capa: HTMLElement | undefined) => {
     if (!copia) return;
+    cancelAnimationFrame(quadro);
     dentro.forEach((a) => a.cancel());
     dentro = [];
     const daCopia = copia.querySelector<HTMLElement>('[data-dt~="m3-caixa"]');
@@ -263,7 +292,7 @@ export function voarParaABarra(): void {
   raiz.setAttribute(A_VOAR, '');
   const anim = copia.animate([{ transform: 'none' }, { transform: deslocarAte(naBarra.r, noLeitor.r) }],
     { duration: DURACAO_A_FECHAR, easing: CURVA_A_FECHAR(), fill: 'both' });
-  const dentro = caixaAVoar(copia, 'fechar', DURACAO_A_FECHAR, raioDaBarraNaCopia(noLeitor.r, naBarra.r));
+  const dentro = caixaAVoar(copia, 'fechar', DURACAO_A_FECHAR, raioDaBarraNaCopia(noLeitor.r, naBarra.r)).anims;
   let fim: Animation | null = null;
   const acabar = () => { raiz.removeAttribute(A_VOAR); copia.remove(); if (cancelarAtual === cancelar) cancelarAtual = null; };
   const cancelar = () => { anim.cancel(); dentro.forEach((a) => a.cancel()); fim?.cancel(); acabar(); };

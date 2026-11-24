@@ -403,8 +403,8 @@ caso('a caixa passa de plana a 3D a meio do voo, e de 3D a plana a voltar (24/11
   // A abrir ganha a pose entre 12 % e 72 % do caminho; a fechar perde-a até meio.
   assert.match(voo, /const CAIXA_A_ABRIR = \{ de: 0\.12, ate: 0\.72 \} as const;/);
   assert.match(voo, /const CAIXA_A_FECHAR = \{ de: 0, ate: 0\.5 \} as const;/);
-  assert.match(voo, /dentro = caixaAVoar\(copia, 'abrir', DURACAO_A_ABRIR, raioDaBarraNaCopia\(alvo\.r, de\)\);/);
-  assert.match(voo, /const dentro = caixaAVoar\(copia, 'fechar', DURACAO_A_FECHAR, raioDaBarraNaCopia\(noLeitor\.r, naBarra\.r\)\);/);
+  assert.match(voo, /\(\{ anims: dentro, seguir \} = caixaAVoar\(copia, 'abrir', DURACAO_A_ABRIR, raioDaBarraNaCopia\(alvo\.r, de\)\)\);/);
+  assert.match(voo, /const dentro = caixaAVoar\(copia, 'fechar', DURACAO_A_FECHAR, raioDaBarraNaCopia\(noLeitor\.r, naBarra\.r\)\)\.anims;/);
   // A plana tem as mesmas funções da pose: a inclinação cresce aos poucos.
   assert.match(voo, /const plana: Keyframe = \{ transform: caixaPlana\(voltaDaCaixa\(pose\)\) \};/);
   // A sombra no chão acompanha a caixa, e o canto da face é o da miniatura na barra.
@@ -412,8 +412,22 @@ caso('a caixa passa de plana a 3D a meio do voo, e de 3D a plana a voltar (24/11
   assert.match(voo, /RAIO\.ctrl \* \(copia\.width \/ barra\.width\)/);
   assert.match(CASCA_LF, /<View ref=\{caixa\} style=\{\{ width: 52, height: 52, borderRadius: RAIO\.ctrl, overflow: 'hidden' \}\}>/, 'que é este');
   // Sem a "3D cover", a capa plana: só os cantos, os da face e os da capa lá dentro (um círculo não).
-  assert.match(voo, /if \(!caixa\) return cantosDaCapaPlana\(copia, abrir, tempo, raioNaBarra\);/);
+  assert.match(voo, /if \(!caixa\) return \{ anims: cantosDaCapaPlana\(copia, abrir, tempo, raioNaBarra\), seguir: NADA_A_SEGUIR \};/);
   assert.match(voo, /if \(!\(px > 0 && px <= largura \* 0\.2\)\) return;/);
+});
+caso('a capa chega já com a inclinação do rato, sem salto (24/11, o João: "não vir parada e depois dar snap")', () => {
+  const voo = emLf('src/desktop/vooDaCapa.web.ts');
+  const caixa = emLf('src/desktop/CapaMetal3D.web.tsx');
+  // A caixa sabe onde o rato está antes de ele mexer, e nasce inclinada para ele, sem mola.
+  assert.match(caixa, /document\.addEventListener\('pointermove', \(e\) => \{ ratoX = e\.clientX; ratoY = e\.clientY; \}, \{ passive: true \}\);/);
+  assert.match(caixa, /const inclinarJaParaORato = \(\) => \{\n\s*if \(!Number\.isFinite\(ratoX\)\) return;\n\s*seguirORato\(ratoX, ratoY\);\n\s*m\.rx\.x = m\.rx\.alvo; m\.rx\.v = 0;\n\s*m\.ry\.x = m\.ry\.alvo; m\.ry\.v = 0;\n\s*\};/);
+  assert.match(caixa, /inclinarJaParaORato\(\);\n\s*pintar\(\);\n\s*return \(\) => \{/);
+  // E outra vez quando o Now Playing acerta o tamanho, logo a seguir a montar.
+  assert.match(caixa, /if \(performance\.now\(\) - nasceuEm\.current < 1500\) inclinarRef\.current\(\);\n\s*pintarRef\.current\(\);\n\s*\}, \[size\]\);/);
+  // A abrir, a cópia vai buscar a pose da verdadeira a cada fotograma até pousar.
+  assert.match(voo, /if \(agora !== poseSeguida\) \{ poseSeguida = agora; \(daCaixa\.effect as KeyframeEffect\)\.setKeyframes\(quadrosDaCaixa\(agora\)\); \}/);
+  assert.match(voo, /seguir\(document\.getElementById\(ID_DA_CAPA_NO_LEITOR\)\);\n\s*quadro = requestAnimationFrame\(acompanhar\);/);
+  assert.match(voo, /return \{ anims, seguir: abrir \? seguir : NADA_A_SEGUIR \};/, 'a fechar não segue nada: a cópia achata-se');
 });
 caso('pousa sem piscar: a página mede-se antes do primeiro desenho, e a troca só se faz com as duas iguais (24/11)', () => {
   const voo = emLf('src/desktop/vooDaCapa.web.ts');
