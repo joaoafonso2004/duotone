@@ -77,3 +77,104 @@ export function sombraNaLateral(lado: LadoDaCaixa, sentido: 1 | -1): { entra: [n
   if (lado === vai) return { entra: [0.8, 1], sai: [0.55, 0.9] };
   return { entra: [0.45, 0.85], sai: [0.25, 0.6] };
 }
+
+// --- O iPhone (25/11): a mesma passagem no leitor aberto e no mini. ---
+
+/**
+ * O `cubic-bezier(x1, y1, x2, y2)` do CSS: dado o tempo (0 a 1), quanto andou.
+ * O `x` resolve-se por bisseção (a curva é monótona no tempo).
+ */
+export function bezierCubica(x1: number, y1: number, x2: number, y2: number): (t: number) => number {
+  const eixo = (a: number, b: number, s: number) => 3 * a * s * (1 - s) ** 2 + 3 * b * s * s * (1 - s) + s ** 3;
+  return (t: number) => {
+    if (t <= 0) return 0;
+    if (t >= 1) return 1;
+    let baixo = 0, alto = 1, s = t;
+    for (let i = 0; i < 40; i++) {
+      s = (baixo + alto) / 2;
+      if (eixo(x1, x2, s) < t) baixo = s; else alto = s;
+    }
+    return eixo(y1, y2, s);
+  };
+}
+
+/** A curva de quem sai, a do `sair` do PC (`molasEmCss.ts`): acelera e desaparece. */
+const SAIR = bezierCubica(0.5, 0, 0.75, 0);
+/** A mola ENTRADA (`movimento.ts`), com que o disco sai pelo outro lado. */
+const MOLA_DA_SAIDA = { stiffness: 190, damping: 22, mass: 1 } as const;
+
+function posicaoNaMola(t: number): number {
+  let x = 0, v = 0;
+  const dt = 0.001;
+  for (let s = 0; s < t; s += dt) {
+    const a = (-MOLA_DA_SAIDA.stiffness * (x - 1) - MOLA_DA_SAIDA.damping * v) / MOLA_DA_SAIDA.mass;
+    v += a * dt;
+    x += v * dt;
+  }
+  return x;
+}
+
+/** Quanto a mola da saída leva a assentar (a 0,5 % do fim, e parada), em ms. */
+export function duracaoDaSaida(): number {
+  let x = 0, v = 0, t = 0, quieta = 0;
+  const dt = 0.001;
+  while (t < 2) {
+    const a = (-MOLA_DA_SAIDA.stiffness * (x - 1) - MOLA_DA_SAIDA.damping * v) / MOLA_DA_SAIDA.mass;
+    v += a * dt; x += v * dt; t += dt;
+    if (Math.abs(x - 1) < 0.005 && Math.abs(v) < 0.05) { if (++quieta > 20) break; } else quieta = 0;
+  }
+  return Math.round(t * 1000);
+}
+
+export type CurvaDaOcultacao = {
+  duracaoMs: number;
+  /** Em que fração do total o disco tapa a capa: é aí que a velha sai. */
+  totalidade: number;
+  inputRange: number[];
+  /**
+   * Onde está o disco, em lados dele: 1 do lado de onde vem, 0 a tapar a capa,
+   * -1 já fora pelo outro lado. Vezes o sentido e o lado do disco dá o `translateX`.
+   */
+  posicao: number[];
+};
+
+/**
+ * A passagem toda numa curva só, para UMA animação nativa a percorrer (como o
+ * recuo, `curvaDoSkip`): uma `fase` de 0 a 1, linear, e a posição amostrada. Duas
+ * animações em sequência esperavam pelo JavaScript entre uma e outra, e no skip
+ * ele está ocupado com a faixa nova (o recuo ficava 150 ms parado, 2/10).
+ */
+export function curvaDaOcultacao(): CurvaDaOcultacao {
+  const entrada = OCULTACAO.entradaMs;
+  const saida = duracaoDaSaida();
+  const total = entrada + saida;
+  const totalidade = entrada / total;
+  const inputRange: number[] = [];
+  const posicao: number[] = [];
+  const PASSOS_A_ENTRAR = 12, PASSOS_A_SAIR = 28;
+  for (let i = 0; i <= PASSOS_A_ENTRAR; i++) {
+    const t = i / PASSOS_A_ENTRAR;
+    inputRange.push(+(t * totalidade).toFixed(5));
+    posicao.push(+(1 - SAIR(t)).toFixed(5));
+  }
+  for (let i = 1; i <= PASSOS_A_SAIR; i++) {
+    // Mais pontos no começo, onde a mola anda depressa.
+    const t = (i / PASSOS_A_SAIR) ** 1.6;
+    inputRange.push(+(totalidade + t * (1 - totalidade)).toFixed(5));
+    posicao.push(+(-posicaoNaMola((t * saida) / 1000)).toFixed(5));
+  }
+  // O último ponto é o fim, com o disco assente fora da capa.
+  posicao[posicao.length - 1] = -1;
+  return { duracaoMs: total, totalidade, inputRange, posicao };
+}
+
+/**
+ * O disco do iPhone: o `radial-gradient` do RN (`experimental_backgroundImage`).
+ * A borda esbate-se para a MESMA cor transparente, e não para o `transparent`
+ * (preto a zero), que no Core Graphics escurecia a orla.
+ */
+export function gradienteDoDisco(cor: string): string {
+  const m = /^rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(cor);
+  const fim = m ? `rgba(${m[1]},${m[2]},${m[3]},0)` : 'rgba(6,6,8,0)';
+  return `radial-gradient(circle, ${cor} 52%, ${fim} 70%)`;
+}

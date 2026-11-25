@@ -7,7 +7,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  COR_DO_DISCO_SEM_CAPA, corDoDisco, fundoDoDisco, OCULTACAO, SOMBRA_NA_LATERAL, sentidoDaOcultacao, sombraNaLateral, trajetoDoDisco,
+  bezierCubica, COR_DO_DISCO_SEM_CAPA, corDoDisco, curvaDaOcultacao, duracaoDaSaida, fundoDoDisco, gradienteDoDisco, OCULTACAO,
+  SOMBRA_NA_LATERAL, sentidoDaOcultacao, sombraNaLateral, trajetoDoDisco,
 } from '../src/lib/ocultacao.ts';
 
 let falhas = 0;
@@ -128,6 +129,56 @@ caso('o mini leitor recebe o sentido, e o processo principal deixa-o passar', ()
   assert.equal((ler('src/janelaMini.web.tsx').match(/<CapaDoMini /g) ?? []).length, 2);
   assert.match(ler('src/desktop/usePonteDoLeitor.web.ts'), /sentido: sentidoDaOcultacao\(p\.saltoDaFaixa, Date\.now\(\)\),/);
   assert.match(ler('electron/miniLeitor.cjs'), /sentido: r\.sentido === -1 \? -1 : 1,/);
+});
+
+// --- O iPhone (25/11) ---
+
+caso('iPhone: o cubic-bezier do sair acelera (devagar ao princípio, todo no fim)', () => {
+  const sair = bezierCubica(0.5, 0, 0.75, 0);
+  assert.equal(sair(0), 0);
+  assert.equal(sair(1), 1);
+  assert.ok(sair(0.5) < 0.15, `a meio do tempo ainda andou pouco (${sair(0.5)})`);
+  for (let t = 0.05; t <= 1; t += 0.05) assert.ok(sair(t) >= sair(t - 0.05), 'nunca recua');
+});
+
+caso('iPhone: a passagem é uma curva só, 220 ms a entrar e a mola ENTRADA a sair', () => {
+  const c = curvaDaOcultacao();
+  const saida = duracaoDaSaida();
+  assert.ok(saida > 450 && saida < 800, `a mola assenta em ~0,6 s (${saida})`);
+  assert.equal(c.duracaoMs, OCULTACAO.entradaMs + saida);
+  assert.equal(c.inputRange.length, c.posicao.length);
+  assert.equal(c.inputRange[0], 0);
+  assert.equal(c.inputRange[c.inputRange.length - 1], 1);
+  for (let i = 1; i < c.inputRange.length; i++) assert.ok(c.inputRange[i] > c.inputRange[i - 1], 'o inputRange do interpolate sobe sempre');
+  assert.equal(c.posicao[0], 1, 'começa fora, do lado de onde vem');
+  assert.equal(c.posicao[c.inputRange.indexOf(+c.totalidade.toFixed(5))], 0, 'na totalidade o disco tapa a capa');
+  assert.equal(c.posicao[c.posicao.length - 1], -1, 'acaba fora, do outro lado');
+  assert.ok(Math.abs(c.totalidade - OCULTACAO.entradaMs / c.duracaoMs) < 1e-9);
+});
+
+caso('iPhone: o disco esbate-se para a sua própria cor transparente', () => {
+  assert.equal(gradienteDoDisco('rgb(59,10,12)'), 'radial-gradient(circle, rgb(59,10,12) 52%, rgba(59,10,12,0) 70%)');
+  assert.match(gradienteDoDisco(COR_DO_DISCO_SEM_CAPA), /rgba\(6,6,8,0\) 70%\)$/);
+});
+
+caso('iPhone: a peça — uma animação nativa, a velha sempre montada, e as regras do recuo', () => {
+  const p = ler('src/components/OcultacaoDaCapa.tsx');
+  assert.match(p, /Animated\.timing\(fase, \{ toValue: 1, duration: CURVA\.duracaoMs, easing: Easing\.linear, useNativeDriver: true \}\)/);
+  assert.equal((p.match(/Animated\.(timing|spring|sequence)\(/g) ?? []).length, 1, 'nada de sequência: a meio esperava pelo JavaScript');
+  assert.match(p, /pedirFluidez\(CURVA\.duracaoMs/, 'pede os 120 Hz');
+  assert.match(p, /!reduzir/, 'com Reduzir movimento fica o cruzamento');
+  assert.match(p, /!luasNoEcra\(\)/, 'com as Duas luas não passa');
+  assert.match(p, /AppState\.currentState === 'active'/, 'em segundo plano não passa');
+  assert.match(p, /ligadaAntes\.current && ligada/, 'a primeira faixa (abrir) não passa');
+  assert.match(p, /const velha = s\.velha \?\? capa;/, 'a imagem de cima fica montada com a capa que se vê');
+  assert.match(p, /experimental_backgroundImage: gradienteDoDisco\(cor\)/);
+});
+
+caso('iPhone: no leitor aberto (só com a capa à frente, não no Poster) e no mini', () => {
+  const l = ler('src/components/PlayerRoot.tsx');
+  assert.match(l, /<OcultacaoDaCapa chave=\{transicao\?\.chave \?\? null\} sentido=\{transicao\?\.sentido === -1 \? -1 : 1\} lado=\{size\} capa=\{artSource\} corDe=\{track\.artworkUrl \?\? null\} ligada=\{aVista && !showLyrics\}><CapaComTransicao uri=\{artSource\}/);
+  assert.equal((l.match(/<OcultacaoDaCapa/g) ?? []).length, 2, 'o leitor aberto e o mini; o Poster pousado fica de fora');
+  assert.match(l, /ligada=\{!origemDaEntrada\}/, 'no mini, não no pouso de uma música vinda de uma lista');
 });
 
 if (falhas) { console.log(`\n${falhas} falha(s)`); process.exit(1); }
