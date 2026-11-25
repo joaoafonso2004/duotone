@@ -1,5 +1,8 @@
-import React,{memo,useEffect,useRef} from 'react';
+import React,{memo,useEffect,useMemo,useRef,useState} from 'react';
 import {Animated,Pressable,StyleSheet} from 'react-native';
+import {atrasoDaLinha,MOLA_DA_LETRA,ouvirSaltoDaLetra} from '../lib/molaDaLetra';
+import {pedirFluidez} from '../state/fluidez';
+import {useAparencia} from '../state/aparencia';
 import type {Track} from '../types';
 
 /**
@@ -21,8 +24,39 @@ export const LinhaDaLetra=memo(function LinhaDaLetra({text,timeMs,index,estado,o
   const active=estado==='ativa';
   const opacity=useRef(new Animated.Value(active?1:0.4)).current;
   useEffect(()=>{const animation=Animated.timing(opacity,{toValue:active?1:0.4,duration:reduced?0:220,useNativeDriver:true});animation.start();return()=>animation.stop();},[active,reduced]);
-  return <Pressable disabled={!visible} onLayout={e=>onLayout(index,e.nativeEvent.layout.y)} accessibilityRole="button" accessibilityLabel={text?`Play from: ${text}`:'Instrumental break'} accessibilityState={{selected:active}} onPress={()=>onPress(timeMs)} style={styles.line}>
-    <Animated.Text style={[styles.words,tamanho,{opacity}]}>{text||'♪'}</Animated.Text>
+  // A letra com mola (25/11, item 4 do plano, `lib/molaDaLetra.ts`): quando o
+  // scroll salta, esta linha põe-se onde estava e volta com uma mola, mais tarde
+  // quanto mais abaixo da linha nova; e a linha cantada cresce, presa à esquerda.
+  const comMola=useAparencia(s=>s.letraComMola)&&!reduced;
+  const desvio=useRef(new Animated.Value(0)).current;
+  const escala=useRef(new Animated.Value(1)).current;
+  const [largura,setLargura]=useState(0);
+  useEffect(()=>{
+    if(!comMola)return undefined;
+    return ouvirSaltoDaLetra(({delta,ativa})=>{
+      const atraso=atrasoDaLinha(index,ativa);
+      desvio.stopAnimation();
+      if(atraso===null){desvio.setValue(0);return;}
+      if(index===ativa)pedirFluidez(900+MOLA_DA_LETRA.linhasAbaixo*MOLA_DA_LETRA.atrasoPorLinhaMs);
+      desvio.setValue(delta);
+      Animated.spring(desvio,{toValue:0,stiffness:MOLA_DA_LETRA.rigidez,damping:MOLA_DA_LETRA.amortecimento,mass:1,delay:atraso,useNativeDriver:true}).start();
+    });
+  },[comMola,index,desvio]);
+  useEffect(()=>{
+    if(!comMola){escala.setValue(1);return undefined;}
+    const a=Animated.spring(escala,{toValue:active?MOLA_DA_LETRA.escalaAtiva:1,stiffness:MOLA_DA_LETRA.rigidez,damping:MOLA_DA_LETRA.amortecimento,mass:1,useNativeDriver:true});
+    a.start();return()=>a.stop();
+  },[active,comMola,escala]);
+  // A escala é ao centro: o translateX segura a borda esquerda no sítio. Uma
+  // interpolação por linha, depois de ela se medir, e não uma por desenho
+  // (`test-leitor-alocacoes-ui.cjs`: avançar um verso não pode alocar por linha).
+  const transform=useMemo(()=>comMola?[
+    {translateY:desvio},
+    ...(largura>0?[{translateX:escala.interpolate({inputRange:[1,MOLA_DA_LETRA.escalaAtiva],outputRange:[0,largura*(MOLA_DA_LETRA.escalaAtiva-1)/2]})}]:[]),
+    {scale:escala},
+  ]:undefined,[comMola,largura,desvio,escala]);
+  return <Pressable disabled={!visible} onLayout={e=>{onLayout(index,e.nativeEvent.layout.y);const w=e.nativeEvent.layout.width;if(Math.abs(w-largura)>0.5)setLargura(w);}} accessibilityRole="button" accessibilityLabel={text?`Play from: ${text}`:'Instrumental break'} accessibilityState={{selected:active}} onPress={()=>onPress(timeMs)} style={styles.line}>
+    <Animated.Text style={[styles.words,tamanho,{opacity,transform}]}>{text||'♪'}</Animated.Text>
   </Pressable>;
 });
 

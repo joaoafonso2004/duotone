@@ -1,5 +1,6 @@
 import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
-import {ActivityIndicator,Pressable,ScrollView,StyleSheet,Text,View} from 'react-native';
+import {ActivityIndicator,Platform,Pressable,ScrollView,StyleSheet,Text,View} from 'react-native';
+import {avisarSaltoDaLetra} from '../lib/molaDaLetra';
 import {usePlayer} from '../state/player';
 import {ensureLyrics,lyricsCacheKey,useLyrics} from '../state/lyrics';
 import {activeLyricIndex} from '../lib/lyricsParser';
@@ -42,6 +43,10 @@ export function LyricsView({track,visible,escala=1}:{track:Track;visible:boolean
   const reduced=useReducedMotion(),scroll=useRef<ScrollView>(null),offsets=useRef<Record<number,number>>({});
   // O tamanho escolhido (10/10, personalização: S, M -- o de sempre -- ou L).
   const tamanhoEscolhido=useAparencia(s=>s.tamanhoDasLetras);
+  // A letra com mola (25/11, item 4 do plano): só no iPhone (o PC tem a dele), com a opção.
+  const molaLigada=useAparencia(s=>s.letraComMola);
+  const comMola=Platform.OS==='ios'&&molaLigada&&!reduced;
+  const ultimoY=useRef<number|null>(null);
   const tamanho=useMemo(()=>{
     const t=tamanhoDasLetras(tamanhoEscolhido);
     if(escala===1)return t;
@@ -62,7 +67,7 @@ export function LyricsView({track,visible,escala=1}:{track:Track;visible:boolean
   // Os tempos das linhas: onde o refrão começa (a risca do PC).
   const tempos=useMemo(()=>lines.map(l=>l.timeMs),[lines]);
   const linhaDoRefrao=useLinhaDoRefrao(track,synced?tempos:SEM_LINHAS);
-  useEffect(()=>{offsets.current={};previous.current=-1;setManual(false);void ensureLyrics(track);},[key]);
+  useEffect(()=>{offsets.current={};previous.current=-1;ultimoY.current=null;setManual(false);void ensureLyrics(track);},[key]);
   useEffect(()=>()=>{if(resume.current)clearTimeout(resume.current);},[]);
   useEffect(()=>{
     // A face escondida continua a acompanhar a música. `visible` só controla
@@ -70,10 +75,18 @@ export function LyricsView({track,visible,escala=1}:{track:Track;visible:boolean
     if(manual||!synced)return;
     const y=offsets.current[index];
     if(index>=0&&y===undefined)return;
-    scroll.current?.scrollTo({y:Math.max(0,(y??0)-height*0.28),animated:!reduced&&previous.current>=0&&Math.abs(index-previous.current)<5});
+    const alvo=Math.max(0,(y??0)-height*0.28);
+    const seguido=!reduced&&previous.current>=0&&Math.abs(index-previous.current)<5;
+    if(comMola&&seguido&&ultimoY.current!==null&&Math.abs(alvo-ultimoY.current)<height){
+      // Salta de uma vez, e cada linha recupera o salto com a sua mola (`LinhaDaLetra`).
+      scroll.current?.scrollTo({y:alvo,animated:false});
+      if(Math.abs(alvo-ultimoY.current)>0.5)avisarSaltoDaLetra(alvo-ultimoY.current,index);
+    }else scroll.current?.scrollTo({y:alvo,animated:seguido});
+    ultimoY.current=alvo;
     previous.current=index;
-  },[index,manual,height,revision,synced,reduced]);
-  const pauseFollowing=()=>{setManual(true);if(resume.current)clearTimeout(resume.current);resume.current=setTimeout(()=>setManual(false),5000);};
+  },[index,manual,height,revision,synced,reduced,comMola]);
+  // A mão no scroll: o próximo salto já não parte de onde a letra estava.
+  const pauseFollowing=()=>{ultimoY.current=null;setManual(true);if(resume.current)clearTimeout(resume.current);resume.current=setTimeout(()=>setManual(false),5000);};
   const retry=()=>void ensureLyrics(track,true);
   return <View style={styles.root}>
     {!entry||entry.status==='loading'?<View style={styles.center}><ActivityIndicator color="#fff" /><Text style={styles.note}>Loading lyrics…</Text></View>:

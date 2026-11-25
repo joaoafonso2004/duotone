@@ -98,6 +98,12 @@ export type Aparencia = {
   tamanhoDasLetras: 'p' | 'm' | 'g';
   /** Abrir o leitor já nas letras, quando a música as tem. */
   abrirNasLetras: boolean;
+  /**
+   * A letra com mola, linha a linha (25/11, item 4 do plano de melhorias): cada
+   * linha segue a de cima com um atraso, e a que se canta cresce. Só no iPhone,
+   * ligada de origem; desligada, a letra rola de uma vez, como antes.
+   */
+  letraComMola: boolean;
   /** As secções da Home, pela ordem escolhida (todas, também as escondidas). */
   secoesDaHome: SecaoDaHome[];
   escondidasDaHome: SecaoDaHome[];
@@ -107,7 +113,7 @@ export const PADRAO: Aparencia = {
   fundoApp: 'dark', listas: 'comfortable', rotulos: true,
   topo: 'marca', titulo: 'centro', barra: 'fina', play: 'metal', metalNoPlay: true, controlos: 'destaque', posterImagem: 'artista', posterMono: false,
   botoes: ['fila', 'visibilidade', 'eq'], flutuar: true, fundoLeitor: 'capa', brilho: 50,
-  titulos: 'padrao', tamanhoDasLetras: 'm', abrirNasLetras: false,
+  titulos: 'padrao', tamanhoDasLetras: 'm', abrirNasLetras: false, letraComMola: true,
   secoesDaHome: [...SECOES_DA_HOME], escondidasDaHome: [],
 };
 
@@ -171,7 +177,7 @@ export function alternarBotao(botoes: readonly BotaoDoLeitor[], b: BotaoDoLeitor
   return botoes.length >= MAXIMO_DE_BOTOES ? [...botoes] : [...botoes, b];
 }
 
-type ChaveComValores = Exclude<keyof Aparencia, 'botoes' | 'brilho' | 'rotulos' | 'flutuar' | 'posterMono' | 'abrirNasLetras' | 'secoesDaHome' | 'escondidasDaHome' | 'metalNoPlay'>;
+type ChaveComValores = Exclude<keyof Aparencia, 'botoes' | 'brilho' | 'rotulos' | 'flutuar' | 'posterMono' | 'abrirNasLetras' | 'letraComMola' | 'secoesDaHome' | 'escondidasDaHome' | 'metalNoPlay'>;
 const VALORES: { [K in ChaveComValores]: readonly Aparencia[K][] } = {
   fundoApp: ['dark', 'oled'],
   listas: ['comfortable', 'compact'],
@@ -200,6 +206,7 @@ export function lerAparencia(guardado: unknown): Aparencia {
   if (typeof g.flutuar === 'boolean') fora.flutuar = g.flutuar;
   if (typeof g.posterMono === 'boolean') fora.posterMono = g.posterMono;
   if (typeof g.abrirNasLetras === 'boolean') fora.abrirNasLetras = g.abrirNasLetras;
+  if (typeof g.letraComMola === 'boolean') fora.letraComMola = g.letraComMola;
   // O play de metal passou a ser o de origem (23/11): o `cheio` de antes dele vira metal, uma vez.
   if (fora.play === 'cheio' && g.metalNoPlay !== true) fora.play = 'metal';
   if (typeof g.brilho === 'number' && Number.isFinite(g.brilho)) fora.brilho = Math.min(100, Math.max(0, Math.round(g.brilho)));

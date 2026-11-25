@@ -45,13 +45,14 @@ class Valor {
 const Animated = { Value: Valor, Text: 'Animated.Text', View: 'Animated.View',
   add: () => new Valor(), subtract: () => new Valor(), multiply: () => new Valor(), event: () => () => {},
 };
-const rn = { Animated, Easing: {}, StyleSheet: { create: s => s }, ActivityIndicator: 'ActivityIndicator',
+const rn = { Animated, Easing: {}, Platform: { OS: 'ios' }, StyleSheet: { create: s => s }, ActivityIndicator: 'ActivityIndicator',
   Pressable: 'Pressable', ScrollView: 'ScrollView', Text: 'Text', View: 'View' };
 
 const h = hooks();
 const linhas = Array.from({ length: 100 }, (_, i) => ({ text: `Verso ${i}`, timeMs: i * 2000 }));
 const player = { positionMs: 4000, seekTo: ms => { player.positionMs = ms; } };
-const aparencia = { tamanhoDasLetras: 'm' };
+// Com a letra com mola ligada (a de origem, 25/11): avançar um verso continua sem alocar por linha.
+const aparencia = { tamanhoDasLetras: 'm', letraComMola: true };
 const letra = { entries: { ensaio: { status: 'ready', data: { parsedLines: linhas, timingAvailable: true } } } };
 const { LyricsView } = carregar('src/components/LyricsView.tsx', {
   react: h.React, 'react-native': rn,
@@ -63,8 +64,11 @@ const { LyricsView } = carregar('src/components/LyricsView.tsx', {
   '../state/aparencia': { useAparencia: selector => selector(aparencia) },
   '@expo/vector-icons/Ionicons': 'Icon',
   '../lib/frasesDosEstados': carregar('src/lib/frasesDosEstados.ts'),
+  '../lib/molaDaLetra': carregar('src/lib/molaDaLetra.ts'),
   // A linha é um par de plataforma (1/11): aqui a do iPhone, a verdadeira.
-  './LinhaDaLetra': carregar('src/components/LinhaDaLetra.tsx', { react: h.React, 'react-native': rn }),
+  './LinhaDaLetra': carregar('src/components/LinhaDaLetra.tsx', { react: h.React, 'react-native': rn,
+    '../lib/molaDaLetra': carregar('src/lib/molaDaLetra.ts'), '../state/fluidez': { pedirFluidez() {} },
+    '../state/aparencia': { useAparencia: selector => selector(aparencia) } }),
 });
 const props = { track: { sourceId: 'ensaio' }, visible: true };
 const desenhar = () => todos(h.render(LyricsView, props)).filter(n => n.type?.name === 'LinhaDaLetra');

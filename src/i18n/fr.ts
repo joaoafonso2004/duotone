@@ -659,6 +659,7 @@ export const FR: Readonly<Record<string, string>> = {
   "Browse playlists": "Parcourir les playlists",
   "Find new releases": "Voir les nouveautés",
   "Find songs to add": "Trouver des titres à ajouter",
+  "Flowing lyrics": "Paroles fluides",
   "Downloads": "Téléchargements",
   "Drag ≡ to reorder · Swipe left to remove": "Faites glisser ≡ pour réordonner · Balayez vers la gauche pour retirer",
   "Drag sideways to turn": "Faites glisser sur le côté pour tourner",

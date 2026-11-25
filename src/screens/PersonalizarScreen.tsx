@@ -71,7 +71,7 @@ export function PersonalizarScreen({ navigation }: Props) {
   const ap = useAparencia(useShallow((s) => ({
     fundoApp: s.fundoApp, listas: s.listas, rotulos: s.rotulos, topo: s.topo, titulo: s.titulo, barra: s.barra,
     play: s.play, metalNoPlay: s.metalNoPlay, controlos: s.controlos, posterImagem: s.posterImagem, posterMono: s.posterMono, botoes: s.botoes, flutuar: s.flutuar, fundoLeitor: s.fundoLeitor, brilho: s.brilho,
-    titulos: s.titulos, tamanhoDasLetras: s.tamanhoDasLetras, abrirNasLetras: s.abrirNasLetras,
+    titulos: s.titulos, tamanhoDasLetras: s.tamanhoDasLetras, abrirNasLetras: s.abrirNasLetras, letraComMola: s.letraComMola,
     secoesDaHome: s.secoesDaHome, escondidasDaHome: s.escondidasDaHome,
   })));
   const capa = useCapaIOS((s) => s.style);
@@ -203,6 +203,8 @@ export function PersonalizarScreen({ navigation }: Props) {
         <Grupo titulo="Lyrics" rodape={ap.abrirNasLetras ? 'Now Playing opens on the lyrics when the song has them.' : null}>
           {linha('tamanhoDasLetras')}
           <LinhaInterruptor icone="chatbox-ellipses-outline" rotulo="Open on lyrics" valor={ap.abrirNasLetras} aoMudar={(v) => mudar('abrirNasLetras', v)} />
+          {/* A letra com mola (25/11, item 4 do plano): quem a lê é o `LyricsView`. */}
+          <LinhaInterruptor icone="water-outline" rotulo="Flowing lyrics" valor={ap.letraComMola} aoMudar={(v) => mudar('letraComMola', v)} />
         </Grupo>
 
         <Grupo titulo="Buttons below" rodape={`Up to ${MAXIMO_DE_BOTOES}, in the order you turn them on.`}>
