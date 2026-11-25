@@ -30,8 +30,8 @@ export const VEU_MAXIMO = 0.55;
 export const FOLGA_DA_COR = 1.12;
 /** A troca final: a camada apaga-se e a página acende, ao mesmo tempo. */
 export const TROCA_MS = 180;
-/** Ao voltar: a cor tapa a página antes de ela sair. */
-export const TAPAR_MS = 130;
+/** Ao voltar: a cor tapa a página antes de ela sair (130 até 25/11: a espera antes de encolher sentia-se). */
+export const TAPAR_MS = 90;
 /** Se a página não disser nada (rebentou, ou demorou), aparece na mesma ao fim disto. */
 export const ESPERA_MAXIMA_MS = 1200;
 

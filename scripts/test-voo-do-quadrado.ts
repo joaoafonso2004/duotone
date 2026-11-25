@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  corTapa, curvaDaMola, duracaoDaMola, momentoDeAbrir, MOLA_DO_VOO, vooDaCapa, vooDaCor,
+  corTapa, curvaDaMola, duracaoDaMola, momentoDeAbrir, MOLA_DO_VOO, TAPAR_MS, vooDaCapa, vooDaCor,
 } from '../src/lib/vooDoQuadrado.ts';
 import { ENTRADA } from '../src/lib/movimento.ts';
 
@@ -86,6 +86,22 @@ caso('voltar pelo botão encolhe até ao quadrado', () => {
   assert.match(artista, /<BolaDeVidro icone="chevron-back" label="Back" onPress=\{voltar\} \/>/);
   assert.equal(artista.match(/onBack=\{voltar\}/g)?.length, 2);
   assert.match(ler('src/screens/PlaylistsScreen.tsx'), /onBack=\{pastaAberta \? voltar : undefined\}/);
+});
+
+caso('sem o atraso entre o toque e o voo, a entrar e a voltar (25/11)', () => {
+  const estado = ler('src/state/vooDoQuadrado.ts');
+  // A medida é síncrona quando o binário a tem (getBoundingClientRect), e o voo pede-se no mesmo toque.
+  assert.match(estado, /export function medirJa\(no: View \| null\): Retangulo \| null \| undefined/);
+  assert.match(estado, /const ja = medirJa\(no\);\n {2}if \(ja !== undefined\) comecar\(ja\);\n {2}else void medirNoEcra\(no\)\.then\(comecar\);/);
+  const camada = ler('src/components/CamadaDoQuadrado.tsx');
+  // As molas arrancam no efeito de layout da camada, e não num fotograma depois.
+  assert.match(camada, /useLayoutEffect\(\(\) => \{\n\s+const a = arrancar\.current;/);
+  assert.match(camada, /arrancar\.current = \{ id: pedido\.id, modo: 'entrar', f: \(\) => Animated\.spring\(p, \{ toValue: 1/);
+  const voltar = camada.slice(camada.indexOf("modo: 'voltar', f:"));
+  // A voltar, encolhe logo a seguir a sair, com a medida da entrada; a nova só acerta o alvo.
+  assert.match(voltar, /pedido\.sair\(\);[\s\S]{0,400}Animated\.spring\(p, \{ toValue: 0/);
+  assert.ok(voltar.indexOf('Animated.spring(p, { toValue: 0') < voltar.indexOf('d.medirDe()'), 'encolher não espera pela medida nova');
+  assert.ok(TAPAR_MS <= 100, `a cor tapa depressa (${TAPAR_MS} ms)`);
 });
 
 console.log(falhas ? `\n  ${falhas} caso(s) falharam.\n` : '\n  Todos os casos passaram.\n');

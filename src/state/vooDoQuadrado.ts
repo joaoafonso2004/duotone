@@ -71,8 +71,27 @@ export function marcarAlvo(id: string, alvo: Retangulo, medir: () => Promise<Ret
   avisar(id);
 }
 
+/**
+ * A medida de uma vista, já (25/11): a nova arquitetura dá o `getBoundingClientRect`
+ * síncrono, em coordenadas da janela. O `measureInWindow` é uma ida e volta ao
+ * nativo, e era o primeiro dos fotogramas parados entre o toque e o voo (o "delay
+ * chato" do João). `undefined` = este binário não o tem: medir à moda antiga.
+ */
+export function medirJa(no: View | null): Retangulo | null | undefined {
+  const medir = (no as unknown as { getBoundingClientRect?: () => { x: number; y: number; width: number; height: number } } | null)?.getBoundingClientRect;
+  if (!no || typeof medir !== 'function') return undefined;
+  try {
+    const r = medir.call(no);
+    return r.width > 0 && r.height > 0 ? { x: r.x, y: r.y, width: r.width, height: r.height } : null;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Mede uma vista no ecrã; `null` se já não estiver montada ou não tiver tamanho. */
 export function medirNoEcra(no: View | null): Promise<Retangulo | null> {
+  const ja = medirJa(no);
+  if (ja !== undefined) return Promise.resolve(ja);
   return new Promise((resolve) => {
     if (!no) { resolve(null); return; }
     try {
@@ -93,7 +112,7 @@ export function entrarPeloQuadrado(no: View | null, opcoes: {
   destino: DestinoDaCapa;
   navegar: (voo: string | undefined) => void;
 }): void {
-  void medirNoEcra(no).then((de) => {
+  const comecar = (de: Retangulo | null) => {
     if (!de) { opcoes.navegar(undefined); return; }
     const id = novoIdDeVoo();
     const forma = opcoes.forma ?? 'quadrado';
@@ -108,5 +127,10 @@ export function entrarPeloQuadrado(no: View | null, opcoes: {
     mudarFase(id, 'a-entrar');
     const aceite = pedirVoo({ tipo: 'entrar', id, de, raio: dados.get(id)!.raio, capa: dados.get(id)!.capa, navegar: () => opcoes.navegar(id) });
     if (!aceite) { mudarFase(id, null); opcoes.navegar(undefined); }
-  });
+  };
+  // No mesmo toque, sem esperar por uma promessa (que só corre depois do que o
+  // toque ainda tem para fazer): o voo pede-se já.
+  const ja = medirJa(no);
+  if (ja !== undefined) comecar(ja);
+  else void medirNoEcra(no).then(comecar);
 }

@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../hooks/useReducedMotion';
@@ -56,6 +56,19 @@ export function CamadaDoQuadrado() {
   const atual = useRef<{ id: string; pousou: boolean; trocou: boolean; temporizadores: ReturnType<typeof setTimeout>[] } | null>(null);
   const contexto = useRef({ ecra, topo: insets.top, reduzido });
   contexto.current = { ecra, topo: insets.top, reduzido };
+  /**
+   * A animação a arrancar quando a camada do voo já está desenhada (25/11). Era um
+   * `requestAnimationFrame` depois do `setVoo`: mais um fotograma parado entre o
+   * toque e o voo. Num efeito de layout da camada, as vistas animadas (filhas) já
+   * se ligaram ao driver nativo, e a mola começa antes de o ecrã se pintar.
+   */
+  const arrancar = useRef<{ id: string; modo: VooNoEcra['modo']; f: () => void } | null>(null);
+  useLayoutEffect(() => {
+    const a = arrancar.current;
+    if (!a || !voo || voo.id !== a.id || voo.modo !== a.modo) return;
+    arrancar.current = null;
+    a.f();
+  }, [voo]);
 
   useEffect(() => {
     const limpar = () => {
@@ -107,10 +120,8 @@ export function CamadaDoQuadrado() {
         });
         const duracao = duracaoDaMola();
         pedirFluidez(duracao + 400);
-        // Um fotograma para a camada existir antes de a mola começar.
-        requestAnimationFrame(() => {
-          Animated.spring(p, { toValue: 1, ...ENTRADA, useNativeDriver: true }).start();
-        });
+        // A mola começa quando a camada já existe, no mesmo desenho (`arrancar`).
+        arrancar.current = { id: pedido.id, modo: 'entrar', f: () => Animated.spring(p, { toValue: 1, ...ENTRADA, useNativeDriver: true }).start() };
         depois(momentoDeAbrir(d.de, e, d.forma, d.raio) + 16, pedido.navegar);
         depois(duracao, () => { if (atual.current?.id === pedido.id) { atual.current.pousou = true; tentarTrocar(pedido.id); } });
         // Se a página nunca disser nada, aparece na mesma.
@@ -124,6 +135,7 @@ export function CamadaDoQuadrado() {
       limpar();
       atual.current = { id: pedido.id, pousou: true, trocou: true, temporizadores: [] };
       mudarFase(pedido.id, 'a-voltar');
+      const acabar = () => { if (atual.current?.id === pedido.id) { limpar(); setVoo(null); mudarFase(pedido.id, null); } };
       void (d.medirAlvo ? d.medirAlvo() : Promise.resolve(null)).then((alvoAgora) => {
         // A capa só volta se ainda estiver à vista (a lista pode tê-la levado para cima).
         const visivel = alvoAgora && alvoAgora.y + alvoAgora.height > 0 && alvoAgora.y < e.height;
@@ -134,29 +146,29 @@ export function CamadaDoQuadrado() {
           capa: visivel ? d.capa : null, alvo: visivel ? alvoAgora! : alvoPrevisto(d.destino, e, topo), apaga: false,
         });
         pedirFluidez(TAPAR_MS + duracaoDaMola() + 400);
-        requestAnimationFrame(() => {
+        arrancar.current = { id: pedido.id, modo: 'voltar', f: () => {
           Animated.timing(camada, { toValue: 1, duration: TAPAR_MS, useNativeDriver: true }).start(() => {
+            if (atual.current?.id !== pedido.id) return;
             pedido.sair();
-            // A página de trás volta à janela no fotograma seguinte: só aí se mede o cartão.
+            // Encolhe JÁ para o cartão de onde saiu (a medida da entrada), e não
+            // depois de dois fotogramas e de medir outra vez: era o atraso a voltar.
+            // A página de trás volta à janela no fotograma seguinte; se o cartão
+            // mudou de sítio (a lista rolou), o alvo acerta-se a meio.
+            Animated.spring(p, { toValue: 0, ...ENTRADA, useNativeDriver: true }).start(({ finished }) => { if (finished) acabar(); });
             requestAnimationFrame(() => {
               void d.medirDe().then((de) => {
                 if (atual.current?.id !== pedido.id) return;
                 if (!de) {
-                  Animated.timing(camada, { toValue: 0, duration: TROCA_MS, useNativeDriver: true }).start(() => {
-                    if (atual.current?.id === pedido.id) { limpar(); setVoo(null); mudarFase(pedido.id, null); }
-                  });
+                  p.stopAnimation();
+                  Animated.timing(camada, { toValue: 0, duration: TROCA_MS, useNativeDriver: true }).start(acabar);
                   return;
                 }
-                setVoo((v) => (v && v.id === pedido.id ? { ...v, de } : v));
-                requestAnimationFrame(() => {
-                  Animated.spring(p, { toValue: 0, ...ENTRADA, useNativeDriver: true }).start(() => {
-                    if (atual.current?.id === pedido.id) { limpar(); setVoo(null); mudarFase(pedido.id, null); }
-                  });
-                });
+                const mexeu = Math.abs(de.x - d.de.x) > 2 || Math.abs(de.y - d.de.y) > 2 || Math.abs(de.width - d.de.width) > 2;
+                if (mexeu) setVoo((v) => (v && v.id === pedido.id ? { ...v, de } : v));
               });
             });
           });
-        });
+        } };
       });
       return true;
     });
