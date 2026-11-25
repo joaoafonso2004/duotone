@@ -97,6 +97,7 @@ export function Abertura() {
   // e uma propriedade `transform` não leva duas curvas.
   const giro = useRef(new Animated.Value(0)).current;
   const desvanecer = useRef(new Animated.Value(0)).current;
+  const respirar = useRef(new Animated.Value(0)).current;
   const { width, height } = useWindowDimensions();
   // 236 pt num iPhone de 393 (o logo fica com 2/3 disso); no PC, 320 px.
   const lado = Math.min(320, Math.round(Math.min(width, height) * 0.6));
@@ -140,6 +141,22 @@ export function Abertura() {
   useEffect(() => {
     if ((tocou && pronta) || noTeto || reduzido) sair();
   }, [tocou, pronta, noTeto, reduzido, sair]);
+
+  // A animação acabou e a sessão ainda não chegou (a rede lenta, item 19 do plano
+  // de 25/11): o logo respira em vez de ficar parado. A camada envolve o WebP E o
+  // portal, por isso a saída parte da mesma escala nos dois e a troca não salta;
+  // ao sair, o ciclo pára onde estiver.
+  useEffect(() => {
+    if (NA_WEB || !comPortal || !tocou || pronta || fase !== 'a-tocar') return undefined;
+    const curva = Easing.inOut(Easing.sin);
+    const ciclo = Animated.loop(Animated.sequence([
+      Animated.timing(respirar, { toValue: 1, duration: ABERTURA.respirarMs, easing: curva, useNativeDriver: true }),
+      Animated.timing(respirar, { toValue: 0, duration: ABERTURA.respirarMs, easing: curva, useNativeDriver: true }),
+    ]));
+    pedirFluidez(ABERTURA.tetoMs);
+    ciclo.start();
+    return () => ciclo.stop();
+  }, [tocou, pronta, fase, comPortal, respirar]);
 
   useEffect(() => {
     if (fase !== 'a-sair') return;
@@ -220,6 +237,8 @@ export function Abertura() {
       ? { opacity: saindo ? 0 : 1, ...transicao('opacity', PORTAL.desvanecerMs, 'linear') }
       : { opacity: desvanecer.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) };
   const Camada: any = NA_WEB ? View : Animated.View;
+  const respira = NA_WEB || !comPortal ? null
+    : { transform: [{ scale: respirar.interpolate({ inputRange: [0, 1], outputRange: [1, 1 + ABERTURA.respirar] }) }] };
 
   // As tiras que tapam o resto do ecrã enquanto o vazio não lá chega.
   //
@@ -260,6 +279,7 @@ export function Abertura() {
     >
       <Pressable onPress={sair} style={styles.centro} pointerEvents={saindo ? 'none' : 'auto'}>
         <Camada style={giroDoLogo}>
+          <Camada style={respira}>
           <Camada style={[{ width: lado, height: lado }, logo]}>
             {/* Tapam o ecrã à volta do portal e crescem com ele. */}
             {tiras.map((tira, i) => (
@@ -296,6 +316,7 @@ export function Abertura() {
                 onError={sair}
               />
             </Camada>
+          </Camada>
           </Camada>
         </Camada>
       </Pressable>

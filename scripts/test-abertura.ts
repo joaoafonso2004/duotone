@@ -170,5 +170,17 @@ check(
 // e chegar la.
 check('a ida ao ecra e curta', PORTAL.zoomMs > 200 && PORTAL.zoomMs <= ABERTURA.animacaoMs, `${PORTAL.zoomMs} ms`);
 
+// A rede lenta (25/11, item 19 do plano de melhorias): o logo respira enquanto
+// a sessão não chega, de leve, e numa camada que envolve o WebP e o portal.
+check('com a rede lenta o logo respira, de leve', ABERTURA.respirar > 0 && ABERTURA.respirar <= 0.03 && ABERTURA.respirarMs >= 700,
+  `${ABERTURA.respirar * 100}% em ${ABERTURA.respirarMs} ms`);
+{
+  const peca = readFileSync(new URL('../src/components/Abertura.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  check('só respira depois de tocar e antes de a sessão chegar',
+    /if \(NA_WEB \|\| !comPortal \|\| !tocou \|\| pronta \|\| fase !== 'a-tocar'\) return undefined;/.test(peca));
+  check('a camada que respira envolve o WebP e o portal (a troca não salta)',
+    /<Camada style=\{respira\}>\n\s+<Camada style=\{\[\{ width: lado, height: lado \}, logo\]\}>/.test(peca));
+}
+
 console.log(bad ? `\n  ${bad} falha(s)` : `\n  Todos os casos passaram.`);
 process.exit(bad ? 1 : 0);

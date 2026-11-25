@@ -38,6 +38,14 @@ export const ABERTURA = {
    * carregamento de sempre.
    */
   tetoMs: 4000,
+  /**
+   * Com a rede lenta (25/11, item 19 do plano de melhorias): o logo acabou e a
+   * sessão ainda não chegou. Em vez de ficar parado, respira -- cresce 2,5 % e
+   * volta, devagar --, até a sessão chegar ou o teto. A saída (o portal) parte
+   * de onde ele estiver.
+   */
+  respirar: 0.025,
+  respirarMs: 900,
 } as const;
 
 /**
