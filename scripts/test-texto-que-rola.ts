@@ -32,8 +32,22 @@ caso('a peça: driver nativo, Reduzir movimento parado, e algarismos de largura 
   assert.match(p, /useNativeDriver: true/);
   assert.match(p, /if \(reduzido\) return <Text style=\{style\}>\{texto\}<\/Text>;/);
   assert.match(p, /fontVariant: \['tabular-nums'\]/);
-  assert.match(p, /pedirFluidez\(duracaoDoRolar\(texto\) \+ 100\)/);
+  assert.match(p, /pedirFluidez\(duracaoDoRolar\(texto\) \+ atrasoMs \+ 100\)/);
   assert.match(p, /accessibilityLabel=\{texto\}/, 'o VoiceOver lê o número, não as colunas');
+});
+
+caso('um número que muda roda a partir do que estava; a contagem não rola ao abrir', () => {
+  const p = ler('src/components/TextoQueRola.tsx');
+  assert.match(p, /const casas = useRef<Animated\.Value\[\]>\(\[\]\)\.current;/, 'as colunas duram entre textos');
+  assert.match(p, /const semRolar = primeira\.current && !rolarAoMontar;/);
+  assert.match(ler('src/components/CabecalhoDaPlaylist.tsx'), /<TextoQueRola style=\{styles\.meta\} texto=\{meta \?\? linhaDeMeta\(faixas, duracaoSegundos\)\} rolarAoMontar=\{false\} \/>/);
+});
+
+caso('o resumo do mês rola no driver nativo, e não redesenha a cada fotograma', () => {
+  const r = ler('src/components/PaginasDoResumo.tsx');
+  assert.match(r, /return <TextoQueRola texto=\{alvo\.toLocaleString\('en'\)\} style=\{style\} atrasoMs=\{450\} \/>;/);
+  assert.doesNotMatch(r, /addListener\(\(\{ value \}\) => setN/);
+  assert.match(r, /<TextoQueRola style=\{e\.ladrilhoNumero\} texto=\{String\(resumo\.seguidos\)\}/);
 });
 
 caso('onde entra: A tua escuta e o You two', () => {

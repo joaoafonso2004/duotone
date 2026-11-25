@@ -1,3 +1,4 @@
+import { TextoQueRola } from './TextoQueRola';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import React, { useEffect, useRef, useState } from 'react';
@@ -61,18 +62,14 @@ function Entra({ i, reduzido, style, children }: { i: number; reduzido: boolean;
   );
 }
 
-/** Um número que conta de zero até `alvo` (1,3 s, a abrandar no fim). */
-function Conta({ alvo, reduzido, style }: { alvo: number; reduzido: boolean; style: StyleProp<any> }) {
-  const [n, setN] = useState(reduzido ? alvo : 0);
-  useEffect(() => {
-    if (reduzido) { setN(alvo); return; }
-    const v = new Animated.Value(0);
-    const id = v.addListener(({ value }) => setN(Math.round(alvo * value)));
-    const a = Animated.timing(v, { toValue: 1, duration: 1300, delay: 450, easing: Easing.out(Easing.cubic), useNativeDriver: false });
-    a.start();
-    return () => { a.stop(); v.removeListener(id); };
-  }, [alvo, reduzido]);
-  return <Text style={style}>{n.toLocaleString('en')}</Text>;
+/**
+ * Um número que rola como um conta-quilómetros até `alvo` (25/11, item 5 do plano
+ * de melhorias, `TextoQueRola`). Era uma contagem que redesenhava o texto a cada
+ * fotograma (1,3 s de `setState`); agora corre no driver nativo. Com Reduzir
+ * movimento, o número parado (o `TextoQueRola` lê-o sozinho).
+ */
+function Conta({ alvo, style }: { alvo: number; reduzido: boolean; style: StyleProp<any> }) {
+  return <TextoQueRola texto={alvo.toLocaleString('en')} style={style} atrasoMs={450} />;
 }
 
 /** Um valor de 0 a 1 que corre uma vez ao montar (no driver nativo). */
@@ -432,11 +429,11 @@ function PaginaDoRitmo({ resumo, escala, reduzido }: PropsDaPagina) {
       ) : null}
       <View style={e.ladrilhos}>
         <Entra i={3} reduzido={reduzido} style={e.ladrilho}>
-          <Text style={e.ladrilhoNumero}>{resumo.seguidos}</Text>
+          <TextoQueRola style={e.ladrilhoNumero} texto={String(resumo.seguidos)} atrasoMs={350} />
           <View style={e.ladrilhoLinha}><Ionicons name="flame" size={15} color="#fff" /><Text style={e.ladrilhoTexto}>{resumo.seguidos === 1 ? 'day in a row' : 'days in a row'}</Text></View>
         </Entra>
         <Entra i={4} reduzido={reduzido} style={e.ladrilho}>
-          <Text style={e.ladrilhoNumero}>{segundo.valor.toLocaleString('en')}</Text>
+          <TextoQueRola style={e.ladrilhoNumero} texto={segundo.valor.toLocaleString('en')} atrasoMs={420} />
           <View style={e.ladrilhoLinha}><Ionicons name={segundo.icone} size={15} color="#fff" /><Text style={e.ladrilhoTexto}>{segundo.texto}</Text></View>
         </Entra>
       </View>

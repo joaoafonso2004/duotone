@@ -127,7 +127,9 @@ assert.ok(!/Animated\.parallel/.test(story + paginas), 'nada de Animated.paralle
 assert.match(paginas, /tituloDaFaixa\(\{ source: m\.source, title: m\.titulo, artist: m\.artista \}\)/);
 assert.match(paginas, /const capa = \(uri: string \| null\) => capaParaLista\(uri\);/);
 // Com menos movimento nada voa nem conta.
-assert.match(paginas, /const \[n, setN\] = useState\(reduzido \? alvo : 0\);/);
+// O número rola como um conta-quilómetros (25/11), que já fica parado com menos movimento.
+assert.match(paginas, /return <TextoQueRola texto=\{alvo\.toLocaleString\('en'\)\} style=\{style\} atrasoMs=\{450\} \/>;/);
+assert.match(readFileSync(new URL('../src/components/TextoQueRola.tsx', import.meta.url), 'utf8'), /if \(reduzido\) return <Text style=\{style\}>\{texto\}<\/Text>;/);
 assert.match(paginas, /useRef\(new Animated\.Value\(reduzido \? 1 : 0\)\)/);
 // O teclado só no PC, e os atalhos da janela parados enquanto ela está aberta.
 const teclas = ler('src/components/teclasDoResumo.web.ts');

@@ -1,3 +1,4 @@
+import { TextoQueRola } from './TextoQueRola';
 import React from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
@@ -88,7 +89,8 @@ export function CabecalhoDaPlaylist({
       {/* Duas linhas, e o nome é a maior coisa da página. */}
       <Text numberOfLines={2} style={styles.nome}
         onLayout={aoMedirNome ? (e) => aoMedirNome(e.nativeEvent.layout.y + e.nativeEvent.layout.height) : undefined}>{nome}</Text>
-      {meta === null ? null : <Text style={styles.meta}>{meta ?? linhaDeMeta(faixas, duracaoSegundos)}</Text>}
+      {/* A contagem rola quando muda (juntar ou tirar uma música), não ao abrir (25/11, item 5). */}
+      {meta === null ? null : <TextoQueRola style={styles.meta} texto={meta ?? linhaDeMeta(faixas, duracaoSegundos)} rolarAoMontar={false} />}
 
       {accoes ? <View style={styles.accoes}>{accoes}</View> : null}
     </View>
