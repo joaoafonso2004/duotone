@@ -216,6 +216,27 @@ caso('O Open Now Playing só existe na barra', () => {
   }
 });
 
+console.log('\na tua música do momento, no perfil (24/11)');
+caso('o "Remove from profile" só aparece na tua música do momento, nas duas plataformas', () => {
+  for (const plataforma of ['ios', 'pc'] as const) {
+    assert.ok(!ids({ plataforma }).includes('tirar-do-perfil'), `${plataforma}: numa lista qualquer não há`);
+    const tirar = achar('tirar-do-perfil', { plataforma, momentoDoPerfil: true });
+    assert.equal(tirar.rotulo, 'Remove from profile');
+    assert.equal(tirar.destrutiva, true);
+  }
+});
+caso('fora de uma lista (leitor, fila) nunca aparece', () => {
+  assert.ok(!ids({ onde: 'leitor', momentoDoPerfil: true }).includes('tirar-do-perfil'));
+  assert.ok(!ids({ onde: 'fila', fila: { emJam: false, mudou: false }, momentoDoPerfil: true }).includes('tirar-do-perfil'));
+});
+caso('sem rede fica à vista, apagado, a dizer porquê', () => {
+  assert.ok(achar('tirar-do-perfil', { momentoDoPerfil: true, semRede: true }).indisponivel);
+});
+caso('é o resto do menu de sempre, mais uma linha (não a folha antiga)', () => {
+  assert.deepEqual(ids({ momentoDoPerfil: true }).filter((id) => id !== 'tirar-do-perfil'), ids());
+  assert.equal(GRUPO['tirar-do-perfil'], GRUPO['tirar-da-playlist']);
+});
+
 if (falhas) {
   console.error(`\n  ${falhas} caso(s) falharam.\n`);
   process.exit(1);

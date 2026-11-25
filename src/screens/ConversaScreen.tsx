@@ -10,6 +10,7 @@ import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { YtPlaylistRecommendationSheet } from '../components/YtPlaylistRecommendationSheet';
 import type { AlbumPartilhado } from '../lib/albumPartilhado';
 import type { Track } from '../types';
+import type { OrigemDaFila } from '../lib/origemDaFila';
 import { colors } from '../components/socialTokens';
 import { useSocial } from '../state/social';
 
@@ -18,7 +19,8 @@ export function ConversaScreen({route,navigation}:NativeStackScreenProps<RootSta
   const safe=useSafeAreaInsets(), focused=useIsFocused();
   const target=route.params;
   // O menu de uma música da conversa é o das listas (10/11): era a folha antiga "Track actions".
-  const [menu,setMenu]=React.useState<Track|null>(null);
+  const [menu,setMenu]=React.useState<{track:Track;de?:OrigemDaFila}|null>(null);
+  // `de`: a conversa ou o amigo de onde é a música, para o "Play now" o dizer no topo do leitor (25/11).
   // Um álbum mandado numa mensagem (16/11): a folha dos álbuns da página do artista, com o coração.
   const [album,setAlbum]=React.useState<AlbumPartilhado|null>(null);
   useFocusEffect(React.useCallback(()=>{
@@ -38,9 +40,9 @@ export function ConversaScreen({route,navigation}:NativeStackScreenProps<RootSta
     <View style={{flex:1,minHeight:0,paddingBottom:safe.bottom}}>
       {/* Um perfil, um artista ou uma playlist abrem por cima, na mesma pilha:
           voltar regressa à conversa (o `irPara` do SocialHub). */}
-      <SocialHub conversationTarget={target} visible={focused} onCloseConversation={()=>navigation.goBack()} aoMenuDaFaixa={setMenu} aoAbrirAlbum={setAlbum}/>
+      <SocialHub conversationTarget={target} visible={focused} onCloseConversation={()=>navigation.goBack()} aoMenuDaFaixa={(track,o)=>setMenu({track,de:o?.de})} aoAbrirAlbum={setAlbum}/>
     </View>
-    <TrackActionsSheet visible={!!menu} track={menu} onClose={()=>setMenu(null)}/>
+    <TrackActionsSheet visible={!!menu} track={menu?.track??null} origem={menu?.de??null} onClose={()=>setMenu(null)}/>
     <YtPlaylistRecommendationSheet visible={!!album} playlistId={album?.id??null} playlistTitle={album?.titulo??null} playlistArtwork={album?.capa??null}
       album={album?{artista:album.artista,ano:album.ano,tipo:album.tipo}:undefined} onClose={()=>setAlbum(null)}/>
   </EvitarTeclado>;

@@ -20,7 +20,7 @@ import { useAuth } from '../../state/auth';
 import { useTheme } from '../../state/theme';
 import { abrirResumoDoMes, nomeDoResumo } from '../../components/ResumoDoMes';
 import type { Track } from '../../types';
-import type { OrigemDoMenu } from '../rotas';
+import type { CommonPageProps, OrigemDoMenu } from '../rotas';
 import { useDestinos } from '../../navigation/destinos';
 import { styles } from '../estilos.web';
 import { BotaoVoltar,
@@ -34,7 +34,7 @@ const V = View as any;
 
 export const STATS_PERIODS: [StatsPeriod, string][] = [['30d', 'Last 30 days'], ['6m', 'Last 6 months'], ['all', 'All time']];
 
-export function StatsPage({ back, play, userId }: { userId?:string; back: () => void; play: (t: Track, q?: Track[]) => void }) {
+export function StatsPage({ back, play, userId }: { userId?:string; back: () => void; play: CommonPageProps['play'] }) {
   const { irPara, podeIrPara } = useDestinos();
   const theme = useTheme((s) => s.theme);
   const ownId = useAuth(s => s.session?.user.id);
@@ -54,7 +54,8 @@ export function StatsPage({ back, play, userId }: { userId?:string; back: () => 
   const stats = result?.stats;
   const playTop = (t: { source: string; sourceId: string; title: string; artist: string | null; artworkUrl: string | null }) => {
     const track: Track = { source: t.source as Track['source'], sourceId: t.sourceId, title: t.title, artist: t.artist, album: null, artworkUrl: t.artworkUrl, durationSeconds: null };
-    play(track, [track]);
+    // O topo do leitor diz de onde vem (25/11): o mesmo nome da página.
+    play(track, [track], undefined, { tipo: 'prateleira', nome: userId && userId !== ownId ? 'Listening stats' : 'Your listening' });
   };
 
   const periodPicker = <View style={styles.smallSegment}>{STATS_PERIODS.map(([value, label]) => (

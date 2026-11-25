@@ -101,7 +101,8 @@ caso('o menu de uma faixa não assume que a playlist é tua', () => {
   // E tira da playlist de onde o menu abriu, não da rota que está por baixo.
   assert.match(nav, /removeTrackFromPlaylist\(trackMenuPlaylist\.id, trackMenu\.id\)/);
   const pagina = ler('src/desktop/paginas/PlaylistPages.web.tsx');
-  assert.match(pagina, /props\.more\(t, contexto, \{ playlist: \{ id, podeEditar: canEdit \} \}\)/);
+  // E diz de que playlist é, para o "Play now" do menu (25/11).
+  assert.match(pagina, /props\.more\(t, contexto, \{ playlist: \{ id, podeEditar: canEdit \}, de: \{ tipo: 'playlist', nome: playlistTitle, id \} \}\)/);
 });
 
 console.log('\n7: a página inicial é a Home nos dois');

@@ -1164,6 +1164,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
       <TrackActionsSheet
         visible={!!actionTrack}
         track={actionTrack}
+        origem={origem}
         onClose={() => setActionTrack(null)}
         playlist={{ podeEditar: canEdit, aoTirar: tirarDaPlaylist }}
       />

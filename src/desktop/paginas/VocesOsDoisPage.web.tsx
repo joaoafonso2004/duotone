@@ -5,8 +5,8 @@ import { lerMisturaDosDois, lerVocesOsDois, valeAPena, type VocesOsDois } from '
 import { contextoDaPrateleira } from '../../lib/contextoDaDescoberta';
 import { useAuth } from '../../state/auth';
 import { useTheme } from '../../state/theme';
-import type { DiscoveryContext } from '../../lib/contextoDaDescoberta';
 import type { Track } from '../../types';
+import type { CommonPageProps } from '../rotas';
 import { styles } from '../estilos.web';
 import { BotaoVoltar, Button, ContentScroll, Empty, Page } from '../ui.web';
 import { Carregando } from '../Carregando.web';
@@ -22,7 +22,7 @@ const V = View as any;
  */
 export function VocesOsDoisPage({ userId, nome, back, play }: {
   userId: string; nome?: string; back: () => void;
-  play: (t: Track, q?: Track[], contexto?: DiscoveryContext) => void;
+  play: CommonPageProps['play'];
 }) {
   const tema = useTheme((s) => s.theme);
   const meuId = useAuth((s) => s.session?.user?.id);
@@ -63,7 +63,7 @@ export function VocesOsDoisPage({ userId, nome, back, play }: {
           </V>
 
           {mistura.length > 0 && <View style={{ alignItems: 'flex-start' }}>
-            <Button icon="play" onPress={() => play(mistura[0], mistura, contextoDaPrateleira('amigos'))}>{`Play a mix of you two · ${mistura.length} songs`}</Button>
+            <Button icon="play" onPress={() => play(mistura[0], mistura, contextoDaPrateleira('amigos'), { tipo: 'prateleira', nome: nome ? `You and ${primeiro}` : 'You two' })}>{`Play a mix of you two · ${mistura.length} songs`}</Button>
           </View>}
 
           {d.obsessao && <Linha capa={d.obsessao.capa} icone="flame-outline" etiqueta="Your shared obsession" titulo={d.obsessao.nome} nota={`${d.obsessao.meu} plays vs ${d.obsessao.teu}`} />}

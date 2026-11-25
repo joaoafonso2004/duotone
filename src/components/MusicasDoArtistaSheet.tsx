@@ -10,6 +10,7 @@ import { correspondeAPesquisa } from '../lib/searchText';
 import type { OrdemDoArtista } from '../lib/prefs';
 import { colors, ESCALA_MAXIMA, radii, spacing } from '../theme';
 import type { Track } from '../types';
+import type { OrigemDaFila } from '../lib/origemDaFila';
 import { FRASES_DOS_ESTADOS } from '../lib/frasesDosEstados';
 
 type Item = { tipo: 'grupo'; rotulo: string } | { tipo: 'faixa'; faixa: Track };
@@ -23,7 +24,7 @@ const chave = (t: Track) => `${t.source}:${t.sourceId}`;
  * procurar e ordenar não fazem pedidos.
  */
 export function MusicasDoArtistaSheet({
-  visible, onClose, musicas, ordem, mostrarOrdem, aoMudarOrdem, detalhe, aoTocar, aoTocarTudo, aoMudarBiblioteca,
+  visible, onClose, musicas, ordem, mostrarOrdem, aoMudarOrdem, detalhe, aoTocar, aoTocarTudo, aoMudarBiblioteca, origem,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -37,6 +38,8 @@ export function MusicasDoArtistaSheet({
   aoTocar: (t: Track) => void;
   aoTocarTudo: (baralhar: boolean) => void;
   aoMudarBiblioteca?: () => void;
+  /** De onde são (o artista), para o "Play now" do menu o dizer no topo do leitor (25/11). */
+  origem?: OrigemDaFila | null;
 }) {
   const { height } = useWindowDimensions();
   const [pesquisa, setPesquisa] = React.useState('');
@@ -91,7 +94,7 @@ export function MusicasDoArtistaSheet({
               onPress={() => aoTocar(item.faixa)} onAction={() => setAcao(item.faixa)} />}
       />
       {/* O menu de uma música abre-se DENTRO da folha: uma folha ao lado desta não aparecia por cima dela. */}
-      <TrackActionsSheet visible={!!acao} track={acao} onClose={() => setAcao(null)} aoMudarBiblioteca={aoMudarBiblioteca} />
+      <TrackActionsSheet visible={!!acao} track={acao} origem={origem} onClose={() => setAcao(null)} aoMudarBiblioteca={aoMudarBiblioteca} />
     </BottomSheet>
   );
 }

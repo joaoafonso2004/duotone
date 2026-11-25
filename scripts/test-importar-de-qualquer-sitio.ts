@@ -265,7 +265,8 @@ await caso('PC: cada uma é um botão que pesquisa ali mesmo, com ▶ e +, e a s
   assert.match(peca, /useMusicSearch\(texto, \(\) => \{\}\)/, 'a mesma pesquisa da página Search');
   assert.match(peca, /useEffect\(\(\) => \{ pesquisarAgora\(\); \}, \[\]\);/, 'a primeira vai já');
   assert.match(peca, /<Field icon="search" value=\{texto\} onChangeText=\{setTexto\}/, 'o nome corrige-se');
-  assert.match(peca, /onPress=\{\(\) => \(aoOuvir \? aoOuvir\(faixa\) : void usePlayer\.getState\(\)\.tocarLista\(\[faixa\], false\)\)\}/);
+  // O ▶ diz de onde vem (25/11): o "From search “…”" com o texto procurado.
+  assert.match(peca, /onPress=\{\(\) => \(aoOuvir \? aoOuvir\(faixa\) : void usePlayer\.getState\(\)\.tocarLista\(\[faixa\], false, false, \{ tipo: 'pesquisa', nome: procurado\.trim\(\) \}\)\)\}/);
   assert.match(b, /aoEscolher=\{\(faixa\) => useImportacoes\.getState\(\)\.resolverFalta\(imp\.id, n, faixa\)\}/);
   // A aberta fica no mesmo índice: quando a dela sai, a seguinte ocupa-o e pesquisa.
   assert.match(b, /<PesquisaNaLinha key=\{`\$\{i\}:\$\{n\}`\} titulo=\{n\}/);

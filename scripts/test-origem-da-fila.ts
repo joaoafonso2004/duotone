@@ -126,5 +126,52 @@ console.log('\no perfil, o Jam e os ecrãs que tocavam sem dizer de onde (24/11)
     (home.match(/tocarMusica\((?:t, naBiblioteca|item, undefined), true, undefined, origemDaPesquisa\)/g) ?? []).length === 2);
 }
 
+console.log('\no "Play now" dos menus, o Radio e o PC (25/11)');
+{
+  const ler = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  const radio = rotuloDaOrigem({ tipo: 'radio', nome: 'Radio' }, normal);
+  check('a semente de um Radio diz "Radio", como as que ele mete, e não tem página',
+    radio?.antes === 'From' && radio?.nome === 'Radio' && radio?.alvo === null, JSON.stringify(radio));
+  check('e o Radio começa-a com essa origem (era só o símbolo)',
+    /playTrack\(track, \[track\], false, false, undefined, \{ tipo: 'radio', nome: 'Radio' \}\)/.test(ler('src/state/radioDaFaixa.ts')));
+  for (const ecra of ['src/screens/ConversaScreen.tsx', 'src/screens/SocialScreen.tsx']) {
+    const s = ler(ecra);
+    check(`${ecra.split('/').pop()}: o menu de uma música da conversa leva a conversa ao "Play now"`,
+      s.includes('aoMenuDaFaixa={(track,o)=>setMenu({track,de:o?.de})}') && s.includes('origem={menu?.de??null}'));
+  }
+  const menus: [string, RegExp][] = [
+    ['src/screens/SongsScreen.tsx', /track=\{actionTrack\}\n\s+origem=\{ORIGEM_GUARDADAS\}/],
+    ['src/screens/PlaylistDetailScreen.tsx', /track=\{actionTrack\}\n\s+origem=\{origem\}/],
+    ['src/screens/LibraryGroupScreen.tsx', /track=\{actionTrack\}\n\s+origem=\{origemDaPagina\}/],
+    ['src/screens/PrateleiraScreen.tsx', /origem=\{origemDaPrateleira\(fonte, titulo\)\}/],
+    ['src/components/MusicasDoArtistaSheet.tsx', /<TrackActionsSheet visible=\{!!acao\} track=\{acao\} origem=\{origem\}/],
+  ];
+  for (const [f, re] of menus) check(`${f.split('/').pop()}: o menu de uma música diz de onde ela é`, re.test(ler(f)));
+  const prateleira = ler('src/desktop/ui.web.tsx');
+  check('PC: o botão direito numa prateleira leva o nome dela (os dois desenhos)',
+    (prateleira.match(/onMore\?\.\(t, contexto\?\.\(t\), \{ de: \{ tipo: 'prateleira', nome: titulo \} \}\)/g) ?? []).length === 2);
+  const biblioteca = ler('src/desktop/paginas/BibliotecaPages.web.tsx');
+  // As prateleiras passam o `more` tal e qual: é a Shelf que lhe junta o nome (o caso de cima).
+  check('PC: as tabelas da biblioteca (pesquisa, Liked Songs, mistura, artista, álbum) abrem o menu a dizer de onde',
+    (biblioteca.match(/more\(t, c, \{ de: /g) ?? []).length === 6
+      && (biblioteca.match(/onMore=\{more\}/g) ?? []).length === (biblioteca.match(/<Shelf /g) ?? []).length
+      && !/onMore=\{props\.more\}/.test(biblioteca));
+  check('PC: a playlist também', /podeEditar: canEdit \}, de: \{ tipo: 'playlist', nome: playlistTitle, id \}/.test(ler('src/desktop/paginas/PlaylistPages.web.tsx')));
+  const soltos: [string, RegExp][] = [
+    ['src/desktop/paginas/ProfilePage.web.tsx', /nome: userId && userId !== ownId \? 'Listening stats' : 'Your listening'/],
+    ['src/desktop/paginas/RetrospetivaPage.web.tsx', /nome: 'Year in review'/],
+    ['src/desktop/paginas/VocesOsDoisPage.web.tsx', /nome: nome \? `You and \$\{primeiro\}` : 'You two'/],
+    ['src/desktop/paginas/LibraryCheckPage.web.tsx', /nome: 'Library check'[\s\S]*nome: 'Library check'/],
+    ['src/desktop/PesquisaNaLinha.web.tsx', /tocarLista\(\[faixa\], false, false, \{ tipo: 'pesquisa', nome: procurado\.trim\(\) \}\)/],
+    ['src/desktop/MenuDoAmigo.web.tsx', /origemDoPerfil\('a-ouvir'[\s\S]*nome: `You and /],
+    ['src/desktop/AtalhosNaLateral.web.tsx', /\{ tipo: 'prateleira', nome: 'Pinned' \}/],
+    ['src/desktop/SobreAMusica.web.tsx', /temArtista \? \{ tipo: 'artista', nome: d\.nome \} : null/],
+    ['src/components/MenuDaMensagem.web.tsx', /opcoes\.deDaConversa\?\.\(\)/],
+    ['src/components/NotificationBanner.web.tsx', /origemDaConversa\(\{ tipo: 'amigo', nome: item\.title \}\)/],
+    ['src/components/SocialOverview.web.tsx', /props\.onTrack\(t, origemDoPerfil\('a-ouvir'/],
+  ];
+  for (const [f, re] of soltos) check(`PC, ${f.split('/').pop()}: toca a dizer de onde`, re.test(ler(f)));
+}
+
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);

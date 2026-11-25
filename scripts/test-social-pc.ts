@@ -72,7 +72,8 @@ console.log('\nquem está a ouvir');
 caso('uma linha por amigo, a cores enquanto ouve e a dois tons quando ouviu há pouco', () => {
   assert.match(LISTA, /<CapaDuotone uri=\{cover\} viva=\{a\.listening\} style=\{\{ borderRadius: RAIO\.cartao \}\}\/>/);
   assert.match(LISTA, /const mostrados = listening\.slice\(0, CARTOES_A_OUVIR\);/);
-  assert.match(LISTA, /<QuemOuve amigo=\{f\} agora=\{props\.now\} aoTrack=\{props\.onTrack\} aoAbrir=\{\(\) => props\.onOpen\('friend', f\.friendId\)\}/);
+  // A música dele leva o "What Ana’s playing" para o "Play now" do menu (25/11).
+  assert.match(LISTA, /<QuemOuve amigo=\{f\} agora=\{props\.now\} aoTrack=\{\(t\) => props\.onTrack\(t, origemDoPerfil\('a-ouvir', \{ proprio: false, userId: f\.friendId, nome: f\.name, username: f\.username \}\)\)\} aoAbrir=\{\(\) => props\.onOpen\('friend', f\.friendId\)\}/);
 });
 caso('a etiqueta mono conta quem ouve agora, e sem ninguém diz "RECENTLY PLAYED"', () => {
   assert.match(LISTA, /\{aOuvirAgora \? `LISTENING NOW · \$\{aOuvirAgora\}` : 'RECENTLY PLAYED'\}/);
@@ -232,7 +233,9 @@ caso('a casca passa-lhe o `more` (o menu de qualquer lista), no perfil, no de um
   assert.match(PAGINA_PERFIL, /aoMenuDaFaixa=\{aoMenuDaFaixa\}\/>/);
 });
 caso('no Social, o cartão de quem ouve, a música de uma mensagem e as de um grupo abrem o menu novo', () => {
-  assert.match(HUB, /onTrack=\{t=>\{if\(aoMenuDaFaixa\)aoMenuDaFaixa\(t\);else\{setOrigemDoMenu\(null\);setTrack\(t\);\}\}\}/);
+  assert.match(HUB, /onTrack=\{\(t,de\)=>\{if\(aoMenuDaFaixa\)aoMenuDaFaixa\(t,\{de\}\);else\{setOrigemDoMenu\(de\?\?null\);setTrack\(t\);\}\}\}/);
+  // O Play do menu de uma mensagem (botão direito, PC) também diz de que conversa é (25/11).
+  assert.match(HUB, /deDaConversa:\(\)=>origemDaConversa\(\{tipo:group\?'grupo':'amigo',nome:friend\?\.name\|\|group\?\.name\|\|''\}\)/);
   assert.match(HUB, /onPress=\{\(\)=>menuDaConversa\(m\.trackData!\)\}/, 'a música de uma mensagem');
   assert.match(HUB, /onTrack=\{menuDaConversa\}/, 'e as de um grupo');
   assert.match(HUB, /if\(aoMenuDaFaixa\)aoMenuDaFaixa\(t,\{de\}\);else\{setOrigemDoMenu\(de\);setTrack\(t\);\}/);

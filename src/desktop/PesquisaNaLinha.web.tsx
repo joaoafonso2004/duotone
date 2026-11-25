@@ -62,11 +62,13 @@ export function PesquisaNaLinha({ titulo, textoInicial, acao, aoEscolher, aoFech
       : !faixas.length
         ? <Text style={{ ...TIPO.legenda, color: COR.textoMedio, padding: ESP.sm }}>{errorMsg ?? `${FRASES_DA_PESQUISA.semResultados}. ${FRASES_DA_PESQUISA.semResultadosCorpo}`}</Text>
         : faixas.map((t) => <Resultado key={`${t.source}:${t.sourceId}`} faixa={t} acao={acao} aoEscolher={aoEscolher}
-            ouvirDesligado={ouvirDesligado} aoOuvir={aoOuvir} />)}
+            ouvirDesligado={ouvirDesligado} aoOuvir={aoOuvir} procurado={texto} />)}
   </View>;
 }
 
-function Resultado({ faixa, acao, aoEscolher, ouvirDesligado, aoOuvir }: {
+function Resultado({ faixa, acao, aoEscolher, ouvirDesligado, aoOuvir, procurado }: {
+  /** O texto procurado: o "From search “…”" do topo do leitor (25/11). */
+  procurado: string;
   faixa: Track; acao: { tipo: 'mais' | 'replace'; rotulo: (t: string) => string };
   aoEscolher: (faixa: Track) => Promise<void>; ouvirDesligado: boolean; aoOuvir?: (faixa: Track) => void;
 }) {
@@ -94,7 +96,7 @@ function Resultado({ faixa, acao, aoEscolher, ouvirDesligado, aoOuvir }: {
       </Text>
     </View>
     {ouvirDesligado ? null : <IconButton name="play" label={`Play ${titulo}`}
-      onPress={() => (aoOuvir ? aoOuvir(faixa) : void usePlayer.getState().tocarLista([faixa], false))} />}
+      onPress={() => (aoOuvir ? aoOuvir(faixa) : void usePlayer.getState().tocarLista([faixa], false, false, { tipo: 'pesquisa', nome: procurado.trim() }))} />}
     {acao.tipo === 'replace'
       ? <Button ocupado={aFazer} onPress={() => void fazer()}>Replace</Button>
       : aFazer

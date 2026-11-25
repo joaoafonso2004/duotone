@@ -164,6 +164,8 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
   const {abrirMenuDaMensagem,menuDaMensagem}=useMenuDaMensagem({
     aoReagir:(m,emoji)=>void reagir(m.id,emoji),
     aoResponder:(m)=>responderA(m),
+    // O Play da mensagem diz de onde vem (25/11): "From chat with …".
+    deDaConversa:()=>origemDaConversa({tipo:group?'grupo':'amigo',nome:friend?.name||group?.name||''}),
     minhaReacao:(m)=>(reacoes.get(m.id)??[]).find(r=>r.userId===myId)?.emoji??null,
   });
   // E num amigo da lista (PC, 24/10): o menu da lateral.
@@ -368,7 +370,7 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
       {social.loading&&!accepted.length&&<SkeletonDeConversas/>}
       <SocialOverview key={myId??'signed-out'} friends={accepted} groups={social.groups} contacts={social.contacts}
         activity={social.activity} previews={social.conversationPreviews} unread={unread} now={social.now} myId={myId}
-        loading={social.loading} requests={requests} aberta={web?key:undefined} onOpen={open} onProfile={onProfile} onTrack={t=>{if(aoMenuDaFaixa)aoMenuDaFaixa(t);else{setOrigemDoMenu(null);setTrack(t);}}}
+        loading={social.loading} requests={requests} aberta={web?key:undefined} onOpen={open} onProfile={onProfile} onTrack={(t,de)=>{if(aoMenuDaFaixa)aoMenuDaFaixa(t,{de});else{setOrigemDoMenu(de??null);setTrack(t);}}}
         pedidos={pending.filter(f=>!f.isSender).length} procurar={web?undefined:procurar} gutter={web?SOCIAL_GUTTER:24}
         onRemoveFriend={id=>setConfirm({id,group:false})}
         onFriendMenu={web?(id,_ancora,e)=>abrirMenuDoAmigo(id,e):(id,ancora)=>setMenuDoAmigo({id,ancora})}

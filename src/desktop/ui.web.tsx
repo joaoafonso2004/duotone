@@ -654,7 +654,7 @@ const CAPA_MINIMA_DA_GRELHA = 150;
 
 export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto, grelha, capa, lado: ladoDoCarrossel = 148 }: {
   titulo: string; nota?: string; tracks: Track[];
-  onPlay: (track: Track, fila: Track[], discoveryContext?: DiscoveryContext, origem?: OrigemDaFila) => void; onMore?: (track: Track, discoveryContext?: DiscoveryContext) => void;
+  onPlay: (track: Track, fila: Track[], discoveryContext?: DiscoveryContext, origem?: OrigemDaFila) => void; onMore?: (track: Track, discoveryContext?: DiscoveryContext, origem?: { de?: OrigemDaFila }) => void;
   /** Uma etiqueta por cima de cada capa ("New to you"). Só onde é uma promessa cumprida. */
   selo?: string;
   contexto?: (track:Track)=>DiscoveryContext;
@@ -703,7 +703,7 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto, gr
             dataSet={{ ...marcar('cartao').dataSet, ...faixaDoRato(t) }}
             onPointerDown={((e: any) => comecarArrasto(e, t)) as any}
             onPress={() => onPlay(t, tracks, contexto?.(t), { tipo: 'prateleira', nome: titulo })}
-            onContextMenu={((e: any) => { e.preventDefault(); onMore?.(t, contexto?.(t)); }) as any}
+            onContextMenu={((e: any) => { e.preventDefault(); onMore?.(t, contexto?.(t), { de: { tipo: 'prateleira', nome: titulo } }); }) as any}
             style={({ hovered, pressed }: any) => [ui.shelfCard, { width: lado }, hovered && ui.shelfCardHover, pressed && ui.pressed]}>
             <View>
               {capa ? capa(t, lado) : <Artwork track={t} size={lado} />}
@@ -745,7 +745,7 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto, gr
           // Num carrossel, puxar para o lado desliza-o: a música só se pega puxando para cima ou para baixo.
           onPointerDown={((e: any) => comecarArrasto(e, t, {}, { soVertical: true })) as any}
           onPress={() => { if (arrastou.current) return; onPlay(t, tracks, contexto?.(t), { tipo: 'prateleira', nome: titulo }); }}
-          onContextMenu={((e: any) => { e.preventDefault(); onMore?.(t,contexto?.(t)); }) as any}
+          onContextMenu={((e: any) => { e.preventDefault(); onMore?.(t, contexto?.(t), { de: { tipo: 'prateleira', nome: titulo } }); }) as any}
           style={({ hovered, pressed }: any) => [ui.shelfCard, { width: ladoDoCarrossel }, hovered && ui.shelfCardHover, pressed && ui.pressed]}>
           <View>
             {capa ? capa(t, ladoDoCarrossel) : <Artwork track={t} size={ladoDoCarrossel} />}

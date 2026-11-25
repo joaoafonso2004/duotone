@@ -6,6 +6,7 @@ import { fraseDoAno } from '../../lib/retrospetiva';
 import { displayArtist, tituloDaFaixa } from '../../lib/artistName';
 import { useTheme } from '../../state/theme';
 import type { Track } from '../../types';
+import type { CommonPageProps } from '../rotas';
 import { styles } from '../estilos.web';
 import { BotaoVoltar, ContentScroll, Empty, Page } from '../ui.web';
 import { Carregando } from '../Carregando.web';
@@ -21,7 +22,7 @@ const V = View as any;
  * mesma frase do ano; o desenho é o das estatísticas do PC.
  */
 export function RetrospetivaPage({ back, play, userId, ano: anoInicial }: {
-  back: () => void; play: (t: Track, q?: Track[]) => void; userId?: string; ano?: number;
+  back: () => void; play: CommonPageProps['play']; userId?: string; ano?: number;
 }) {
   const theme = useTheme((s) => s.theme);
   const [ano, setAno] = useState<number | undefined>(anoInicial);
@@ -40,7 +41,8 @@ export function RetrospetivaPage({ back, play, userId, ano: anoInicial }: {
   const r = resultado?.retrospetiva;
   const tocar = (t: { source: string; sourceId: string; title: string; artist: string | null; artworkUrl: string | null }) => {
     const faixa: Track = { source: t.source as Track['source'], sourceId: t.sourceId, title: t.title, artist: t.artist, album: null, artworkUrl: t.artworkUrl, durationSeconds: null };
-    play(faixa, [faixa]);
+    // O topo do leitor diz de onde vem (25/11): o mesmo nome da página.
+    play(faixa, [faixa], undefined, { tipo: 'prateleira', nome: 'Year in review' });
   };
   const faixaDoAno = r?.base.topTracks[0] ?? null;
   const artistaDoAno = r?.base.topArtists[0] ?? null;

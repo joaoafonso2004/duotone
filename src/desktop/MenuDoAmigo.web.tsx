@@ -22,6 +22,7 @@ import { useDestinos } from '../navigation/destinos';
 import { COR, FONT } from './tokens.web';
 import { Button, Dialog } from './ui.web';
 import { novaEscolha } from '../lib/ultimaEscolha';
+import { origemDoPerfil } from '../lib/origemDaFila';
 
 import { avisarErro, avisarInfo } from '../lib/avisoDeRemocao';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
@@ -74,7 +75,8 @@ export function MenuDoAmigo({ amigo, sessaoDele, rato, aoFechar, aoPedirRemover,
           await ouvirComAmigo(amigo, sessaoDele);
           break;
         case 'tocar':
-          if (faixa) await usePlayer.getState().tocarMusica(faixa, [faixa], false, undefined, null);
+          // O topo do leitor diz de onde vem (25/11): "What Ana’s playing", como no perfil.
+          if (faixa) await usePlayer.getState().tocarMusica(faixa, [faixa], false, undefined, origemDoPerfil('a-ouvir', { proprio: false, userId: amigo.friendId, nome: amigo.name, username: amigo.username }));
           break;
         case 'fila':
           if (faixa) { usePlayer.getState().addToQueue(faixa); notify(fraseDaOrbita('fila', tituloDaFaixa(faixa))); }
@@ -108,7 +110,7 @@ export function MenuDoAmigo({ amigo, sessaoDele, rato, aoFechar, aoPedirRemover,
           const mistura = await lerMisturaDosDois(eu, amigo.friendId);
           if (!aindaVale()) break;
           if (!mistura.length) { avisarInfo(`Not enough listening yet for a mix with ${nome}.`); break; }
-          await usePlayer.getState().playTrack(mistura[0], mistura, false, false, contextoDaPrateleira('amigos'), null);
+          await usePlayer.getState().playTrack(mistura[0], mistura, false, false, contextoDaPrateleira('amigos'), { tipo: 'prateleira', nome: `You and ${nome.split(' ')[0] || nome}` });
           notify(`Playing a mix of you and ${nome}.`);
           break;
         }

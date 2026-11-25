@@ -9,6 +9,7 @@ import { useDestinos } from '../navigation/destinos';
 import { useArtistasFavoritos } from '../state/artistasFavoritos';
 import { usePlayer } from '../state/player';
 import type { Track } from '../types';
+import type { OrigemDaFila } from '../lib/origemDaFila';
 import { COR, ESP, ESTADO, FONT, RAIO, TIPO } from './tokens.web';
 import { Artwork, Button } from './ui.web';
 
@@ -18,7 +19,7 @@ import { Artwork, Button } from './ui.web';
  * (nenhuma das nossas fontes a tem), sem créditos (o YouTube não os dá), e sem um bloco se o
  * dado não existe. O que vem de onde e quanto custa: `hooks/useSobreAMusica.ts`.
  */
-export function SobreAMusica({ track, more, notify }: { track: Track; more?: (t: Track) => void; notify?: (s: string) => void }) {
+export function SobreAMusica({ track, more, notify }: { track: Track; more?: (t: Track, contexto?: undefined, origem?: { de?: OrigemDaFila }) => void; notify?: (s: string) => void }) {
   const d = useSobreAMusica(track);
   const { irPara } = useDestinos();
   useEffect(() => { void useArtistasFavoritos.getState().carregar(); }, []);
@@ -113,8 +114,8 @@ export function SobreAMusica({ track, more, notify }: { track: Track; more?: (t:
       <Text style={s.micro}>Your most played of theirs</Text>
       {d.maisOuvidas.map(({ faixa, vezes }) => <Pressable key={`${faixa.source}:${faixa.sourceId}`} accessibilityRole="button"
         accessibilityLabel={`Play ${tituloDaFaixa(faixa)}`}
-        onPress={() => { void usePlayer.getState().tocarMusica(faixa, [faixa], false, undefined, null); }}
-        {...({ onContextMenu: (e: any) => { if (!more) return; e.preventDefault(); more(faixa); } } as any)}
+        onPress={() => { void usePlayer.getState().tocarMusica(faixa, [faixa], false, undefined, temArtista ? { tipo: 'artista', nome: d.nome } : null); }}
+        {...({ onContextMenu: (e: any) => { if (!more) return; e.preventDefault(); more(faixa, undefined, temArtista ? { de: { tipo: 'artista', nome: d.nome } } : undefined); } } as any)}
         style={({ hovered }: any) => [s.linha, hovered && { backgroundColor: COR.hover }]}>
         <Artwork track={faixa} size={40} />
         <View style={{ flex: 1, minWidth: 0 }}>

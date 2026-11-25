@@ -29,7 +29,8 @@ export async function comecarRadioDaMusica(track: Track): Promise<void> {
   const antes = usePlayer.getState();
   const jaTocava = !!antes.current && trackKey(antes.current) === trackKey(track);
   // Uma lista nova desliga o Radio que estivesse ligado: liga-se a seguir, desta.
-  if (!jaTocava) await antes.playTrack(track, [track], false);
+  // A semente diz "Radio" no topo do leitor (25/11), como as que ele mete a seguir; era só o símbolo.
+  if (!jaTocava) await antes.playTrack(track, [track], false, false, undefined, { tipo: 'radio', nome: 'Radio' });
   const agora = usePlayer.getState();
   if (!agora.current || trackKey(agora.current) !== trackKey(track)) return; // outro toque entretanto
 

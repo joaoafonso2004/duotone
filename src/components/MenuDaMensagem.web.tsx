@@ -70,7 +70,7 @@ function MenuDaMensagem({ m, rato, podeResponder, opcoes, aoFechar }: {
         avisarFeito('Copied.');
       }
       else if (!faixa) return;
-      else if (id === 'tocar') await usePlayer.getState().tocarMusica(faixa, undefined, true);
+      else if (id === 'tocar') await usePlayer.getState().tocarMusica(faixa, undefined, true, undefined, opcoes.deDaConversa?.() ?? undefined);
       else if (id === 'fila') { usePlayer.getState().addToQueue(faixa); avisarFeito(fraseDaOrbita('fila', tituloDaFaixa(faixa))); }
       else if (id === 'gostar') {
         // Otimista, como no menu de um amigo: o coração muda já e volta atrás se falhar.

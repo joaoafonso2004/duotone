@@ -484,6 +484,7 @@ export function SongsScreen() {
       <TrackActionsSheet
         visible={!!actionTrack}
         track={actionTrack}
+        origem={ORIGEM_GUARDADAS}
         onClose={() => setActionTrack(null)}
         aoMudarBiblioteca={load}
       />

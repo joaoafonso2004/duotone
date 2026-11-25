@@ -8,6 +8,7 @@ import type { ChatGroup } from '../api/social';
 import type { PublicProfile } from '../api/profiles';
 import type { SocialFriend } from '../state/social';
 import type { Track } from '../types';
+import type { OrigemDaFila } from '../lib/origemDaFila';
 import type { ConversationPreview } from '../lib/socialActivity';
 import { previaDaConversa } from '../lib/previaDaConversa';
 import { ultimaAtividade } from '../lib/socialPresence';
@@ -42,7 +43,8 @@ interface Props {
   gutter?: number;
   onOpen: (kind: 'friend' | 'group', id: string) => void;
   onProfile: (id: string) => void;
-  onTrack: (track: Track) => void;
+  /** `de`: o amigo que a ouve, para o topo do leitor (25/11). */
+  onTrack: (track: Track, de?: OrigemDaFila) => void;
   onRemoveFriend: (id: string) => void;
   /** O menu de um amigo no toque longo (iPhone, 5/10); sem ele, o toque longo pede para o remover. */
   /** `e`: o evento do botão direito, no PC (SocialOverview.web.tsx). */

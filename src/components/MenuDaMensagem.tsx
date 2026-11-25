@@ -1,5 +1,6 @@
 import type React from 'react';
 import type { SharedItem } from '../api/social';
+import type { OrigemDaFila } from '../lib/origemDaFila';
 
 /** O que o menu de uma mensagem faz com a conversa onde está. */
 export type OpcoesDoMenuDaMensagem = {
@@ -7,6 +8,8 @@ export type OpcoesDoMenuDaMensagem = {
   aoResponder: (m: SharedItem) => void;
   /** A tua reação nesta mensagem: o emoji fica aceso, e escolhê-lo outra vez tira-o. */
   minhaReacao: (m: SharedItem) => string | null;
+  /** De onde é a música de uma mensagem, para o Play a dizer no topo do leitor (25/11). */
+  deDaConversa?: () => OrigemDaFila | null;
 };
 
 export type AbrirMenuDaMensagem = (m: SharedItem, e: any, opcoes?: { podeResponder?: boolean }) => void;

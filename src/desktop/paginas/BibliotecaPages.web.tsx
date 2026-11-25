@@ -250,7 +250,7 @@ export function SearchPage({ play, tocarMusica, notify, more, share, navigate }:
       estado.tipo === 'resultados' ? <>
         {naBiblioteca.length ? <>
           <Text style={styles.sectionTitle}>In your library</Text>
-          <TrackTable tracks={naBiblioteca} onPlay={(t) => tocarMusica(t, naBiblioteca, undefined, { tipo: 'pesquisa', nome: query })} onMore={more} />
+          <TrackTable tracks={naBiblioteca} onPlay={(t) => tocarMusica(t, naBiblioteca, undefined, { tipo: 'pesquisa', nome: query })} onMore={(t, c) => more(t, c, { de: { tipo: 'pesquisa', nome: query } })} />
         </> : null}
         {estado.rodape === 'a-carregar' ? <Carregando forma="linhas" quantas={3} />
           : estado.rodape === 'falhou' ? <FalhaDaPesquisaOnline mensagem={errorMsg} aoTentar={pesquisarAgora} />
@@ -265,7 +265,7 @@ export function SearchPage({ play, tocarMusica, notify, more, share, navigate }:
                 casou com o texto, não uma lista de ninguém. Procurar "6:30" e
                 ter o shuffle ligado dava um temporizador de 7 h a seguir (14/9).
                 O rádio continua a partir desta, pelo gosto de quem ouve. */}
-            <TrackTable tracks={resultadosVisiveis} showSavedBadge onPlay={(t) => tocarMusica(t, undefined, undefined, { tipo: 'pesquisa', nome: query })} onMore={more} />
+            <TrackTable tracks={resultadosVisiveis} showSavedBadge onPlay={(t) => tocarMusica(t, undefined, undefined, { tipo: 'pesquisa', nome: query })} onMore={(t, c) => more(t, c, { de: { tipo: 'pesquisa', nome: query } })} />
           </> : null}
       </>
       : estado.tipo === 'a-carregar' ? <Carregando forma="linhas" quantas={6} aoTentar={pesquisarAgora} />
@@ -596,7 +596,7 @@ export function SongsPage(props: CommonPageProps) {
         void data.refresh().then((ok) => { if (!ok && comLista) avisarErro("Couldn't refresh your liked songs."); });
       }} />
     </View>
-    <ContentScroll scrollKey="songs">{data.loading ? <Carregando forma="linhas" quantas={10} aoTentar={() => void data.refresh()} /> : data.semLista ? <Empty icon="alert-circle-outline" title="Couldn't load your library" body="Check your connection. Nothing was removed: your songs are still saved." action={<Button onPress={() => void data.refresh()}>Try again</Button>} /> : <TrackTable plain saltoParaAtual saoGostadas removerVarias={removerDasGostadas} listKey={`songs:${ordem ?? 'recent'}`} ordenacao={{ modo: ordem, aoMudar: setOrdem }} tracks={filteredTracks} onPlay={(t) => props.tocarMusica(t, filteredTracks, undefined, { tipo: 'guardadas', nome: 'Liked Songs' })} onMore={props.more} empty={query ? <Empty icon="search-outline" title={FRASES_DOS_ESTADOS.semCorrespondencias.titulo} body={FRASES_DOS_ESTADOS.semCorrespondencias.corpo(query, 'songs')} /> : <Empty icon="heart-outline" title={FRASES_DOS_ESTADOS.semGostadas.titulo} body={FRASES_DOS_ESTADOS.semGostadas.corpo} />} />}</ContentScroll>
+    <ContentScroll scrollKey="songs">{data.loading ? <Carregando forma="linhas" quantas={10} aoTentar={() => void data.refresh()} /> : data.semLista ? <Empty icon="alert-circle-outline" title="Couldn't load your library" body="Check your connection. Nothing was removed: your songs are still saved." action={<Button onPress={() => void data.refresh()}>Try again</Button>} /> : <TrackTable plain saltoParaAtual saoGostadas removerVarias={removerDasGostadas} listKey={`songs:${ordem ?? 'recent'}`} ordenacao={{ modo: ordem, aoMudar: setOrdem }} tracks={filteredTracks} onPlay={(t) => props.tocarMusica(t, filteredTracks, undefined, { tipo: 'guardadas', nome: 'Liked Songs' })} onMore={(t, c) => props.more(t, c, { de: { tipo: 'guardadas', nome: 'Liked Songs' } })} empty={query ? <Empty icon="search-outline" title={FRASES_DOS_ESTADOS.semCorrespondencias.titulo} body={FRASES_DOS_ESTADOS.semCorrespondencias.corpo(query, 'songs')} /> : <Empty icon="heart-outline" title={FRASES_DOS_ESTADOS.semGostadas.titulo} body={FRASES_DOS_ESTADOS.semGostadas.corpo} />} />}</ContentScroll>
   </Page></>;
 }
 
@@ -803,7 +803,7 @@ export function MisturaPage({ id, titulo, back, ...props }: {
         : !mistura ? <Empty icon="sparkles-outline" title={FRASES_DOS_ESTADOS.misturaQueSaiu.titulo}
             body={FRASES_DOS_ESTADOS.misturaQueSaiu.corpo} />
         : <TrackTable listKey={`mistura:${id}`} tracks={faixas} contexto={contexto}
-            onPlay={(t,c) => props.tocarMusica(t, faixas, c, { tipo: 'mistura', nome: mistura.nome, id })} onMore={props.more} />}
+            onPlay={(t,c) => props.tocarMusica(t, faixas, c, { tipo: 'mistura', nome: mistura.nome, id })} onMore={(t, c) => props.more(t, c, { de: { tipo: 'mistura', nome: mistura.nome, id } })} />}
     </ContentScroll>
   </Page>;
 }
@@ -1094,7 +1094,7 @@ export function ArtistPage({ name, back, corNaJanela = false, ...props }: { name
             {aProcurarMusicas && !musicas.length ? <Carregando forma="linhas" quantas={5} /> : <>
               <TrackTable plain colunaDoArtista={false} showSavedBadge tracks={musicasFiltradas} listKey={`artista:${chaveDoArtista}`}
                 caraDaLinha={detalheDaFaixa} larguraDaCara={96}
-                onPlay={(t) => props.tocarMusica(t, musicas, undefined, { tipo: 'artista', nome: name })} onMore={props.more}
+                onPlay={(t) => props.tocarMusica(t, musicas, undefined, { tipo: 'artista', nome: name })} onMore={(t, c) => props.more(t, c, { de: { tipo: 'artista', nome: name } })}
                 empty={filtro.trim() ? <Empty icon="search" title={FRASES_DOS_ESTADOS.semCorrespondencias.titulo} body={FRASES_DOS_ESTADOS.semCorrespondencias.corpo(filtro, 'songs')} />
                   : <Empty icon="musical-notes-outline" title={FRASES_DOS_ESTADOS.artistaSemMusicas.titulo} body={FRASES_DOS_ESTADOS.artistaSemMusicas.corpo} />} />
               {aProcurarMusicas ? <Carregando forma="linhas" quantas={2} /> : null}
@@ -1254,7 +1254,7 @@ export function useDialogoDoAlbum(props: CommonPageProps) {
           <Text style={artistStyles.albumDialogMeta}>{faixasDoAlbum.length} {faixasDoAlbum.length === 1 ? 'track' : 'tracks'}</Text>
         </View>
         <ScrollView style={artistStyles.albumDialogList}>
-          <TrackTable plain colunaDoArtista={false} tracks={faixasDoAlbum} onPlay={(t) => props.tocarMusica(t, faixasDoAlbum, undefined, { tipo: 'album', nome: albumAberto?.title ?? '' })} onMore={props.more} />
+          <TrackTable plain colunaDoArtista={false} tracks={faixasDoAlbum} onPlay={(t) => props.tocarMusica(t, faixasDoAlbum, undefined, { tipo: 'album', nome: albumAberto?.title ?? '' })} onMore={(t, c) => props.more(t, c, { de: { tipo: 'album', nome: albumAberto?.title ?? '' } })} />
         </ScrollView>
       </>}
     </Dialog>

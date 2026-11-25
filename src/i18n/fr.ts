@@ -1296,6 +1296,8 @@ export const FR: Readonly<Record<string, string>> = {
   "Pin something": "Épingler quelque chose",
   "Pin to sidebar": "Épingler dans la barre latérale",
   "PINNED": "ÉPINGLÉS",
+  // De onde vem uma música fixada na lateral, no topo do leitor (25/11).
+  "Pinned": "Épinglés",
   "Play": "Lire",
   "Play {0}": "Lire {0}",
   "Play / pause": "Lecture / pause",

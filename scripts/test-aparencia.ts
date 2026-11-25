@@ -211,6 +211,10 @@ assert.deepEqual(destinoDaOrigem({ tipo: 'playlist', id: 'p1', nome: 'Rap' }), {
 assert.equal(destinoDaOrigem({ tipo: 'playlist', nome: 'Sem id' }), null);
 assert.equal(destinoDaOrigem({ tipo: 'prateleira', nome: 'Discover daily' }), null, 'uma prateleira não é página');
 assert.equal(destinoDaOrigem(null), null);
+// O perfil (24/11): o de um amigo leva ao dele, o teu (sem id) ao teu.
+assert.deepEqual(destinoDaOrigem({ tipo: 'perfil', id: 'u2', nome: 'Ana’s most played' }), { tipo: 'perfil', userId: 'u2' });
+assert.deepEqual(destinoDaOrigem({ tipo: 'perfil', nome: 'Your song of the moment' }), { tipo: 'perfil' });
+assert.equal(destinoDaOrigem({ tipo: 'radio', nome: 'Radio' }), null, 'o Radio não é página');
 
 // Cada opção tem quem a leia (a regra das Definições: uma opção que não faz nada é pior do que não existir).
 const ler = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');

@@ -6,6 +6,7 @@ import { SocialHub } from '../components/SocialHub';
 import { SocialIconButton } from '../components/socialUI';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import type { Track } from '../types';
+import type { OrigemDaFila } from '../lib/origemDaFila';
 import { useDestinos } from '../navigation/destinos';
 
 export function SocialScreen() {
@@ -14,7 +15,8 @@ export function SocialScreen() {
   const [novaConversa,setNovaConversa]=useState(false);
   const [procurar,setProcurar]=useState(false);
   // O menu de uma música é o das listas (10/11), como na conversa.
-  const [menu,setMenu]=useState<Track|null>(null);
+  const [menu,setMenu]=useState<{track:Track;de?:OrigemDaFila}|null>(null);
+  // `de`: a conversa ou o amigo de onde é a música, para o "Play now" o dizer no topo do leitor (25/11).
   // O título encolhe ao rolar a lista das conversas (3/10).
   const cab=useCabecalhoQueEncolhe();
   // O "voltar" e para o Perfil, que e de onde se vem -- a arrastar ou pelo
@@ -28,7 +30,7 @@ export function SocialScreen() {
       <SocialIconButton label="New chat" icon="add" onPress={()=>setNovaConversa(true)}/>
     </View>}
     onBack={()=>irPara({tipo:'perfil'})} encolhe={cab}>
-    <SocialHub cabecalho={cab} novaConversa={{aberta:novaConversa,definir:setNovaConversa}} procurar={procurar} visible={focused} aoMenuDaFaixa={setMenu}/>
-    <TrackActionsSheet visible={!!menu} track={menu} onClose={()=>setMenu(null)}/>
+    <SocialHub cabecalho={cab} novaConversa={{aberta:novaConversa,definir:setNovaConversa}} procurar={procurar} visible={focused} aoMenuDaFaixa={(track,o)=>setMenu({track,de:o?.de})}/>
+    <TrackActionsSheet visible={!!menu} track={menu?.track??null} origem={menu?.de??null} onClose={()=>setMenu(null)}/>
   </Screen>;
 }

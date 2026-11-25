@@ -12,6 +12,7 @@ import type { ChatGroup } from '../api/social';
 import type { PublicProfile } from '../api/profiles';
 import { agoraNoServidor, type SocialFriend } from '../state/social';
 import type { Track } from '../types';
+import { origemDoPerfil, type OrigemDaFila } from '../lib/origemDaFila';
 import { musicActivityLabel, type ConversationPreview } from '../lib/socialActivity';
 import { previaDaConversa } from '../lib/previaDaConversa';
 import { ultimaAtividade } from '../lib/socialPresence';
@@ -47,7 +48,8 @@ interface Props {
   aberta?: string;
   onOpen: (kind: 'friend' | 'group', id: string) => void;
   onProfile: (id: string) => void;
-  onTrack: (track: Track) => void;
+  /** `de`: o amigo que a ouve, para o topo do leitor (25/11). */
+  onTrack: (track: Track, de?: OrigemDaFila) => void;
   onRemoveFriend: (id: string) => void;
   /** O menu de um amigo no toque longo (iPhone, 5/10); sem ele, o toque longo pede para o remover. */
   /** `e`: o evento do botão direito (24/10), para o menu abrir onde está o rato. */
@@ -172,7 +174,7 @@ export function SocialOverview(props: Props) {
         <Text accessibilityRole="header" style={styles.etiqueta}>{aOuvirAgora ? `LISTENING NOW · ${aOuvirAgora}` : 'RECENTLY PLAYED'}</Text>
         <View ref={ouvintes} style={styles.ouvintes} accessibilityLabel="Friends’ music activity">
           {mostrados.map(f => {
-            const linha = <QuemOuve amigo={f} agora={props.now} aoTrack={props.onTrack} aoAbrir={() => props.onOpen('friend', f.friendId)}
+            const linha = <QuemOuve amigo={f} agora={props.now} aoTrack={(t) => props.onTrack(t, origemDoPerfil('a-ouvir', { proprio: false, userId: f.friendId, nome: f.name, username: f.username }))} aoAbrir={() => props.onOpen('friend', f.friendId)}
               aoMenu={props.onFriendMenu ? menuDoAmigo(f.friendId) : undefined}/>;
             return <View key={f.friendId} {...({ dataSet: { chave: `ouve:${f.friendId}` } } as any)}>
               {novos.has(f.friendId) ? <div data-dt="revelar a-entrar"><div>{linha}</div></div> : linha}

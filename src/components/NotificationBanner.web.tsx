@@ -8,6 +8,7 @@ import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { textoSobre } from '../lib/corDaCapa';
 import type { InAppNotification, NotificationTarget } from '../lib/inAppNotifications';
 import { haQuantoTempo } from '../lib/social';
+import { origemDaConversa } from '../lib/musicasDaConversa';
 import { useNotifications } from '../state/notifications';
 import { usePlayer } from '../state/player';
 import { useSocial } from '../state/social';
@@ -61,7 +62,10 @@ function Aviso({ item, onOpen }: { item: InAppNotification; onOpen: (target: Not
   const abrir = () => { fechar(); onOpen(item.target); };
   const tocar = () => {
     if (!item.track) return;
-    void usePlayer.getState().tocarMusica(item.track, [item.track], false, undefined, null);
+    // De onde vem (25/11): a conversa, como o Play dentro dela ("From chat with …").
+    const grupo = item.target.groupId ? useSocial.getState().groups.find((g) => g.id === item.target.groupId) : null;
+    const de = item.target.groupId ? origemDaConversa({ tipo: 'grupo', nome: grupo?.name ?? '' }) : origemDaConversa({ tipo: 'amigo', nome: item.title });
+    void usePlayer.getState().tocarMusica(item.track, [item.track], false, undefined, de);
     fechar();
   };
   const enviar = async () => {

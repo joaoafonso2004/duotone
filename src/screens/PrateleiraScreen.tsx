@@ -161,6 +161,7 @@ export function PrateleiraScreen({ route }: Props) {
         visible={!!aberta}
         track={aberta}
         discoveryContext={aberta?contextoDe(aberta):null}
+        origem={origemDaPrateleira(fonte, titulo)}
         onClose={() => setAberta(null)}
       />
     </Screen>

@@ -103,10 +103,11 @@ caso('só mostra o que se sabe: sem bio nem créditos inventados, e cada bloco s
 caso('o artista abre pelo `useDestinos`, favorita-se pela mesma store dos Artists, e tocar passa pelo `tocarMusica`', () => {
   assert.match(SOBRE, /irPara\(\{ tipo: 'artista', nome: d\.nome \}\)/);
   assert.match(SOBRE, /useArtistasFavoritos\.getState\(\)\.alternar\(d\.chave\)/);
-  assert.match(SOBRE, /usePlayer\.getState\(\)\.tocarMusica\(faixa, \[faixa\], false, undefined, null\)/);
+  // De onde vem (25/11): o artista, no topo do leitor; era null (só o símbolo).
+  assert.match(SOBRE, /usePlayer\.getState\(\)\.tocarMusica\(faixa, \[faixa\], false, undefined, temArtista \? \{ tipo: 'artista', nome: d\.nome \} : null\)/);
 });
 caso('o botão direito de uma música do About abre o menu da app', () => {
-  assert.match(SOBRE, /onContextMenu: \(e: any\) => \{ if \(!more\) return; e\.preventDefault\(\); more\(faixa\); \}/);
+  assert.match(SOBRE, /onContextMenu: \(e: any\) => \{ if \(!more\) return; e\.preventDefault\(\); more\(faixa, undefined, temArtista \? \{ de: \{ tipo: 'artista', nome: d\.nome \} \} : undefined\); \}/);
 });
 caso('nenhum pedido novo: contagens do aparelho, biblioteca em cache, só memória nas novidades, nada de fetch', () => {
   assert.match(HOOK, /contagensNoAparelho\(\)/);

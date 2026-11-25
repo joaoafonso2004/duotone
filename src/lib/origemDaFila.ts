@@ -11,7 +11,9 @@ export type TipoDeOrigem =
   /** As músicas de uma conversa (5/11, lib/musicasDaConversa.ts): sem página para onde voltar. */
   | 'conversa'
   /** O perfil de alguém (24/11): a música do momento, as mais tocadas, as recentes. `id` é a pessoa; sem ele, o teu. */
-  | 'perfil';
+  | 'perfil'
+  /** O Radio de uma música (25/11, state/radioDaFaixa.ts): a semente diz "Radio", como as que ele mete. */
+  | 'radio';
 
 export type OrigemDaFila = {
   tipo: TipoDeOrigem;

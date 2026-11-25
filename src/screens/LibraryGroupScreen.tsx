@@ -346,6 +346,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
     <TrackActionsSheet
       visible={!!actionTrack}
       track={actionTrack}
+      origem={origemDaPagina}
       onClose={() => setActionTrack(null)}
       aoMudarBiblioteca={load}
     />
@@ -427,6 +428,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
           aoMudarOrdem={escolherOrdem}
           detalhe={detalheDe}
           aoTocar={tocarDaPagina}
+          origem={origemDaPagina}
           aoTocarTudo={(baralhar) => void tocarLista(musicas, baralhar || shuffleLigado, shuffleInteligente, { tipo: 'artista', nome: name })}
           aoMudarBiblioteca={load}
         />

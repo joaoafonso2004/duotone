@@ -55,13 +55,14 @@ const { SocialOverview } = load('src/components/SocialOverview.web.tsx', {
   '../lib/ordemDasConversas': load('src/lib/ordemDasConversas.ts'), '../lib/artistName': { tituloDaFaixa: t => t.title, displayArtist: t => t.artist },
   '../lib/capaDoEcraBloqueado': { capaParaLista: x => x }, '../theme': { ESCALA_MAXIMA: { lista: 1.4 } },
   './socialUI': { AvatarDeConversa: 'Avatar', SocialIconButton: 'ChatButton' }, './GroupChat': { GroupAvatar: 'GroupAvatar' },
+  '../lib/origemDaFila': load('src/lib/origemDaFila.ts'),
 });
 const opened = [], profiles = [], songs = [], juntados = [];
 const friends = Array.from({ length: 7 }, (_, i) => ({ friendId: `f${i}`, name: `Friend ${i}`, avatarUrl: null,
   status: 'accepted', online: false, lastSeenAt: null, musicActivity: i < 4 ? core.musicActivity(presence, now) : null }));
 const props = { friends, groups: [], contacts: [], previews: { f0: read.friend }, activity: { f0: now }, unread: new Map(),
   now, myId: 'me', loading: false, requests: null, onOpen: (...args) => opened.push(args), onProfile: id => profiles.push(id),
-  onTrack: t => songs.push(t), onRemoveFriend() {}, onDeleteConversation() {}, onStart() {} };
+  onTrack: (t, de) => songs.push(Object.assign({}, t, { de })), onRemoveFriend() {}, onDeleteConversation() {}, onStart() {} };
 const render = () => { hook = 0; return SocialOverview(props); };
 // Os componentes de função (o cartão de quem ouve, sem hooks) abrem-se para se ver o que desenham.
 function nodes(tree) { if (!tree || typeof tree !== 'object') return []; if (typeof tree.type === 'function') return [tree, ...nodes(tree.type(tree.props))]; return [tree, ...(tree.props?.children ?? []).flat(Infinity).flatMap(nodes)]; }
@@ -76,6 +77,8 @@ const cartoes = n.filter(x => dt(x) === 'ouvinte'); assert.equal(cartoes.length,
 assert.equal(n.filter(x => x.type === 'ScrollView').length, 0, 'a list of cards, not a shelf');
 const firstCard = n.find(x => x.props.accessibilityLabel?.endsWith('Song options'));
 firstCard.props.onPress(); assert.equal(songs[0].sourceId, 'a');
+// O menu dessa música sabe de quem é (25/11): o "Play now" diz "What Friend’s playing" no topo do leitor.
+assert.deepEqual(songs[0].de, { tipo: 'perfil', nome: 'What Friend’s playing', id: 'f0' });
 const capas = n.filter(x => x.type === 'CapaDuotone'); assert.equal(capas.length, 4);
 assert.ok(capas.every(c => c.props.viva === true), 'who is listening has the cover in colour');
 assert.equal(n.filter(x => dt(x) === 'eq').length, 4, 'the bars move while someone listens');

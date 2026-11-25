@@ -15,6 +15,7 @@ import {
   useVerificacaoDaBiblioteca, verificarBiblioteca, type Indisponivel,
 } from '../../state/verificacaoDaBiblioteca';
 import type { Track } from '../../types';
+import type { CommonPageProps } from '../rotas';
 import { COR, ESP, RAIO, TIPO } from '../tokens.web';
 import { PesquisaNaLinha } from '../PesquisaNaLinha.web';
 import { BotaoVoltar, Artwork, Button, ContentScroll, Page } from '../ui.web';
@@ -23,7 +24,7 @@ import { BotaoVoltar, Artwork, Button, ContentScroll, Page } from '../ui.web';
  * O Library check no PC. A mesma verificação e as mesmas ações do iPhone
  * (`state/verificacaoDaBiblioteca.ts`), desenhadas com as peças do desktop.
  */
-export function LibraryCheckPage({ back, play }: { back: () => void; play: (track: Track, queue?: Track[]) => void }) {
+export function LibraryCheckPage({ back, play }: { back: () => void; play: CommonPageProps['play'] }) {
   const v = useVerificacaoDaBiblioteca();
   const offline = useConnectivity((s) => s.offline);
   const aVerificar = v.fase === 'a-verificar';
@@ -218,7 +219,7 @@ function Grupo({ grupo, offline }: { grupo: GrupoDeDuplicados; offline: boolean 
   );
 }
 
-function Morta({ item, offline, play }: { item: Indisponivel; offline: boolean; play: (track: Track, queue?: Track[]) => void }) {
+function Morta({ item, offline, play }: { item: Indisponivel; offline: boolean; play: CommonPageProps['play'] }) {
   const emJam = useOuvirJuntos((st) => !!st.sessao);
   const chave = chaveDaIndisponivel(item);
   const feito = useVerificacaoDaBiblioteca((st) => st.resolvidos[chave]);
@@ -254,7 +255,7 @@ function Morta({ item, offline, play }: { item: Indisponivel; offline: boolean; 
         <View style={s.semCopia}>
           <PesquisaNaLinha titulo={tituloDaFaixa(item.faixa)} textoInicial={`${displayArtist(item.faixa)} ${tituloDaFaixa(item.faixa)}`}
             acao={{ tipo: 'replace', rotulo: (t) => `Replace with ${t}` }} aoFechar={() => setAProcurar(false)}
-            ouvirDesligado={emJam} aoOuvir={(t) => play(t, [t])}
+            ouvirDesligado={emJam} aoOuvir={(t) => play(t, [t], undefined, { tipo: 'prateleira', nome: 'Library check' })}
             aoEscolher={(t) => substituirPor(item, t)} />
         </View>
       ) : null}
@@ -271,7 +272,7 @@ function Morta({ item, offline, play }: { item: Indisponivel; offline: boolean; 
             {emJam ? <Text style={[s.meta, { flex: 1 }]}>Listening is off during a Jam</Text> : <View style={{ flex: 1 }} />}
             {/* Ouvir antes de aceitar, no leitor normal. Num Jam não: tocar
                 ali é sugerir à sala. */}
-            <Button secondary icon="play" disabled={emJam || offline} onPress={() => play(item.copia!, [item.copia!])}>Listen</Button>
+            <Button secondary icon="play" disabled={emJam || offline} onPress={() => play(item.copia!, [item.copia!], undefined, { tipo: 'prateleira', nome: 'Library check' })}>Listen</Button>
             <Button disabled={offline || aTratar} onPress={() => void substituirPelaCopia(item)}>Replace</Button>
           </View>
         </>
