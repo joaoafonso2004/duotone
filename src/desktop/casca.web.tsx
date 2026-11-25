@@ -341,6 +341,8 @@ export function injectDesktopDocumentStyles() {
     @media (prefers-reduced-motion: reduce){ [data-dt~="capa-sai"]{ animation: dt-capa-sai 160ms linear both; } }
     @keyframes dt-capa-sai{ from{ opacity:1 } to{ opacity:0 } }
     [data-dt~="np-texto-entra"]{ animation: dt-np-texto-entra 380ms var(--dt-curva) 90ms both; }
+    /* A letra ao lado da capa no modo limpo (25/11): esbate-se em cima e em baixo. */
+    [data-dt~="limpo-letra"]{ -webkit-mask-image: linear-gradient(transparent, #000 18%, #000 80%, transparent); mask-image: linear-gradient(transparent, #000 18%, #000 80%, transparent); }
     @keyframes dt-np-texto-entra{ from{ opacity:0; transform: translateY(6px) } to{ opacity:1; transform: none } }
     /* A capa em 3D (5/11, "3D cover", desligada de origem; CapaMetal3D.web.tsx).
        A caixa é 3D a sério (preserve-3d), e quem a move é o JavaScript, com as

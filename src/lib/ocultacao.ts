@@ -32,7 +32,7 @@ export function sentidoDaOcultacao(salto: SaltoDaFaixa | null | undefined, agora
 }
 
 /** A sombra da música que vem: a cor característica da capa dela, puxada para o fundo. */
-export function corDoDisco(celulas: RGB[] | null | undefined): string {
+export function corDoDisco(celulas: RGB[] | null | undefined, escurecer: number = OCULTACAO.escurecer): string {
   if (!celulas?.length) return COR_DO_DISCO_SEM_CAPA;
   const media: RGB = {
     r: celulas.reduce((s, c) => s + c.r, 0) / celulas.length,
@@ -42,7 +42,7 @@ export function corDoDisco(celulas: RGB[] | null | undefined): string {
   // À mão e não pelo `misturar`, que mistura em luz linear: os 80 % davam uma cor
   // bem mais clara (124 em vez de 59 num vermelho) do que a da maquete escolhida.
   const base = corCaracteristica(celulas) ?? media;
-  const t = OCULTACAO.escurecer;
+  const t = escurecer;
   const canal = (c: number, f: number) => Math.round(c * (1 - t) + f * t);
   return `rgb(${canal(base.r, FUNDO.r)},${canal(base.g, FUNDO.g)},${canal(base.b, FUNDO.b)})`;
 }
@@ -55,6 +55,40 @@ export function fundoDoDisco(cor: string): string {
 /** De onde vem e para onde vai: o disco anda o lado dele, e sai todo pelo outro lado. */
 export function trajetoDoDisco(sentido: 1 | -1): { de: string; meio: string; para: string } {
   return { de: `translateX(${sentido * 100}%)`, meio: 'translateX(0)', para: `translateX(${-sentido * 100}%)` };
+}
+
+/**
+ * O Eclipse (25/11, `ecra-inteiro-maquete.html`, escolhido pelo João para o modo
+ * limpo): a Ocultação maior, com a cor da capa nova mais viva e uma orla de luz.
+ * O disco tem de raio 1,15 vezes o lado da capa, e o miolo opaco (62 % do raio)
+ * tapa-lhe os cantos quando chega ao meio, que é quando a capa troca.
+ */
+export const ECLIPSE = {
+  /** O raio do disco, em lados da capa. */
+  raio: 1.15,
+  /** Até ao meio, a acelerar: 42 % dos 760 ms da maquete. A saída é a mola ENTRADA. */
+  entradaMs: 320,
+  /** Menos escuro do que a Ocultação: a sombra tem a cor da capa que vem. */
+  escurecer: 0.45,
+  /** A orla: um anel a 80 % do raio, com a espessura e o brilho em lados da capa. */
+  orla: { raio: 0.8, espessura: 0.012, brilho: 0.06 },
+} as const;
+
+/** O disco do Eclipse: quase opaco até 62 % do raio, e esbate-se até à borda. */
+export function fundoDoEclipse(cor: string): string {
+  const m = /^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/.exec(cor);
+  const com = (a: number) => (m ? `rgba(${m[1]},${m[2]},${m[3]},${a})` : cor);
+  return `radial-gradient(circle closest-side, ${com(0.96)} 0%, ${com(0.9)} 62%, ${com(0)} 100%)`;
+}
+
+/**
+ * O caminho do Eclipse, em frações da largura do disco: começa com o centro a um
+ * raio do lado de fora da capa e acaba a um raio do outro lado. A seguinte vem da
+ * direita, como a Ocultação.
+ */
+export function trajetoDoEclipse(sentido: 1 | -1): { de: string; meio: string; para: string } {
+  const f = Math.round(((0.5 + ECLIPSE.raio) / (2 * ECLIPSE.raio)) * 10000) / 100;
+  return { de: `translateX(${sentido * f}%)`, meio: 'translateX(0)', para: `translateX(${-sentido * f}%)` };
 }
 
 /** As quatro laterais da capa 3D do PC (`CapaMetal3D`). */

@@ -38,7 +38,7 @@ assert.ok(doTauri.length > 5, 'a ponte do Tauri tem de ter chaves');
 // As que só existem no Tauri: o motor só de áudio (decidido a 21/11: não entra no Electron).
 // E o canal das atualizações (22/11): o Electron é sempre `windows`, a página assume-o sem a chave.
 const SO_DO_TAURI = new Set(['pedirAoInnerTube', 'aquecerLigacoes', 'sondarAudio', 'registarAudio', 'adiantarAudio', 'audioNaCache', 'canalDasAtualizacoes',
-  'descarregarAudio', 'cancelarDownloadDeAudio', 'tirarDownloadDeAudio', 'audioNoDisco']);
+  'descarregarAudio', 'cancelarDownloadDeAudio', 'tirarDownloadDeAudio', 'audioNoDisco', 'estadoDoAmbiente', 'ecraAmbiente']);
 assert.match(ponte, /canalDasAtualizacoes: '__CANAL_DAS_ATUALIZACOES__',/);
 assert.match(ler('desktop/src/ponte.rs'), /\.replace\("__CANAL_DAS_ATUALIZACOES__", crate::canal::ATUALIZACAO_ENTRADA\)/, 'a casca põe o canal da identidade');
 for (const chave of doTauri) assert.ok(doElectron.has(chave) || SO_DO_TAURI.has(chave), `"${chave}" não existe no preload do Electron (erro de nome?)`);
@@ -65,7 +65,7 @@ const permissoes = new Set(capacidade.permissions);
 for (const c of comandos) {
   assert.ok(declarados.has(c), `"${c}" não está no AppManifest do desktop/build.rs`);
   assert.ok(permissoes.has(`allow-${c.replace(/_/g, '-')}`), `"allow-${c.replace(/_/g, '-')}" não está na capability`);
-  assert.match(main, new RegExp(`(?:ponte|rede|audio|saude|mini|arranque|barra|notificacoes|atualizacao|spotify|sessao)::${c}\\b`), `"${c}" não está no generate_handler do main.rs`);
+  assert.match(main, new RegExp(`(?:ponte|rede|audio|saude|mini|arranque|barra|notificacoes|atualizacao|spotify|sessao|ambiente)::${c}\\b`), `"${c}" não está no generate_handler do main.rs`);
 }
 // A capability nunca aceita curingas na origem (a ponte existe no frame do YouTube).
 for (const url of capacidade.remote.urls) assert.match(url, /^http:\/\/localhost:\d+(\/\*)?$/, `origem larga demais: ${url}`);

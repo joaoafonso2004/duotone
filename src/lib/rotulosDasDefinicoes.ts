@@ -23,6 +23,8 @@ export const ROTULOS = {
   duracao: 'Song length in lists',
   recuo: '15-second rewind',
   mensagens: 'Message notifications',
+  /** O ecrã ambiente do PC (25/11): o modo limpo sozinho, em ecrã inteiro. */
+  ecraAmbiente: 'Ambient full screen',
   /** O outro aparelho a tocar (15/11): cada um nomeia o outro. */
   outroAparelhoNoIphone: 'Show what your PC is playing',
   outroAparelhoNoPc: 'Show what your iPhone is playing',

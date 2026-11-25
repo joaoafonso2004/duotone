@@ -165,10 +165,12 @@ export function usePonteDoLeitor(opcoes: Opcoes): void {
     return () => { sairDoAviso?.(); saidas.forEach((sair) => sair()); };
   }, []);
 
-  // O modo limpo (F11) tira o mini da frente.
+  // O modo limpo (F11) tira o mini da frente. O ecrã ambiente (25/11) não: entra
+  // sozinho enquanto se trabalha noutro monitor, e o mini é o comando de quem trabalha.
   useEffect(() => {
     const ponte = typeof window !== 'undefined' ? window.duotoneDesktop : undefined;
     if (!ponte?.miniLeitorNoModoLimpo) return;
-    return useModoLimpo.subscribe((s, antes) => { if (s.aberto !== antes.aberto) ponte.miniLeitorNoModoLimpo!(s.aberto); });
+    const tapaOMini = (s: { aberto: boolean; automatico: boolean }) => s.aberto && !s.automatico;
+    return useModoLimpo.subscribe((s, antes) => { if (tapaOMini(s) !== tapaOMini(antes)) ponte.miniLeitorNoModoLimpo!(tapaOMini(s)); });
   }, []);
 }

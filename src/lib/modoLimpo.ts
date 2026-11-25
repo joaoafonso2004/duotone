@@ -90,3 +90,76 @@ export function molduraSemBarras(lado: number): {
   const largura = (lado * 16) / 9;
   return { largura, altura, esquerda: (lado - largura) / 2, topo: (lado - altura) / 2 };
 }
+
+// ---------------------------------------------------------------------------
+// A letra ao lado (25/11, a disposição A da `ecra-inteiro-maquete.html`)
+// ---------------------------------------------------------------------------
+
+/** A coluna da letra fica entre estes dois: mais estreita partia cada verso em três. */
+export const LETRA_MINIMA = 380;
+export const LETRA_MAXIMA = 760;
+/** Abaixo disto a capa ao lado da letra fica pequena demais: vai sozinha ao centro. */
+export const CAPA_MINIMA_AO_LADO = 260;
+/**
+ * Debaixo da capa, com o texto à escala dela: o nome (14 + 76), a barra (24) e os
+ * controlos com o disco (62 + 18) -- os números do `ModoLimpo.web.tsx`. Uma reserva
+ * fixa deixava a coluna encostada em cima numa janela pequena (25/11).
+ */
+export function reservaAoLado(escala: number): number {
+  return Math.round(56 + 138 * escala);
+}
+/** O texto cresce com a capa: 1 numa capa de 640, como na maquete. */
+export function escalaDoModoLimpo(lado: number): number {
+  return Math.max(0.7, Math.min(1.15, lado / 640));
+}
+/** O logo, absoluto no fundo. */
+const RODAPE = 60;
+/** O ar mínimo por cima da coluna. */
+const TOPO_MINIMO = 28;
+
+export type DisposicaoDoModoLimpo = {
+  /** Há lugar para a letra ao lado da capa. Sem letra a capa vai ao centro, do mesmo tamanho. */
+  aoLado: boolean;
+  lado: number;
+  /** O texto cresce com a capa: 1 numa capa de 640, como na maquete. */
+  escala: number;
+  /** Onde fica a coluna da capa com a letra ao lado, e onde fica sozinha. */
+  colunaX: number;
+  centroX: number;
+  topo: number;
+  letra: { x: number; topo: number; largura: number; altura: number };
+};
+
+/**
+ * A capa à esquerda e a letra à direita, as duas ao centro do ecrã. A capa tem o
+ * MESMO lado com e sem letra: uma música sem letra só a desliza para o centro, e
+ * a seguinte com letra volta a pô-la ao lado, sem ela mudar de tamanho a meio da
+ * troca de música.
+ */
+export function disposicaoDoModoLimpo(largura: number, altura: number): DisposicaoDoModoLimpo {
+  const margem = Math.max(48, Math.round(largura * 0.07));
+  const entre = Math.max(48, Math.round(largura * 0.05));
+  const util = largura - 2 * margem - entre;
+  // A reserva depende do lado (o texto cresce com ele): umas voltas chegam, porque
+  // cada uma só mexe um quinto da anterior.
+  let porAltura = altura - RODAPE - 2 * TOPO_MINIMO - reservaAoLado(1);
+  for (let i = 0; i < 4; i++) porAltura = altura - RODAPE - 2 * TOPO_MINIMO - reservaAoLado(escalaDoModoLimpo(porAltura));
+  const ladoAoLado = Math.round(Math.min(CAPA_MAXIMA, porAltura, util - LETRA_MINIMA, util * 0.5));
+  const aoLado = ladoAoLado >= CAPA_MINIMA_AO_LADO;
+  const lado = aoLado ? ladoAoLado : tamanhoDaCapa(largura, altura - 40);
+  const larguraDaLetra = aoLado ? Math.min(LETRA_MAXIMA, util - lado) : 0;
+  const total = lado + entre + larguraDaLetra;
+  const colunaX = aoLado ? Math.round((largura - total) / 2) : Math.round((largura - lado) / 2);
+  const escala = escalaDoModoLimpo(lado);
+  const reserva = reservaAoLado(escala);
+  const topo = Math.max(TOPO_MINIMO, Math.round((altura - RODAPE - lado - reserva) / 2));
+  return {
+    aoLado,
+    lado,
+    escala,
+    colunaX,
+    centroX: Math.round((largura - lado) / 2),
+    topo,
+    letra: { x: colunaX + lado + entre, topo: topo - 16, largura: larguraDaLetra, altura: lado + 32 },
+  };
+}

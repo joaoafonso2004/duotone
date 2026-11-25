@@ -94,6 +94,8 @@ const TABELA = [
     leitores: [['src/navigation/RootNavigator.web.tsx', /getCorNaJanela\(/]] },
   { opcao: 'Two-tone covers', escreve: ['setDoisTons'],
     leitores: [['src/navigation/RootNavigator.web.tsx', /getDoisTons\(/], ['src/desktop/duotone.web.tsx', /useDoisTons\(/]] },
+  { opcao: 'Ambient full screen', escreve: ['setEcraAmbiente'],
+    leitores: [['src/desktop/ModoLimpo.web.tsx', /getEcraAmbiente\(/]] },
   { opcao: '3D cover', escreve: ['setCapaMetal3D'],
     leitores: [['src/navigation/RootNavigator.web.tsx', /getCapaMetal3D\(/], ['src/desktop/paginas/NowPlayingPage.web.tsx', /useCapaMetal\(/]] },
   { opcao: 'Now Playing layout', escreve: ['setDisposicaoDoLeitor'],

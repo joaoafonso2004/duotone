@@ -52,13 +52,13 @@ import { ligarRecomendado, useRecomendado } from '../../state/recomendado';
 import { EscolhaDoModelo, LinhaDoRecomendado } from '../RecomendadoDoEq.web';
 import { usePresets } from '../../state/presets';
 import { chaveDaFaixa, PLANO } from '../../lib/equalizer';
-import { getCapaMetal3D, getCorNaJanela, getDiscordRichPresence, getDisposicaoDoLeitor, getDoisTons, getFundoDoLeitor, setCapaMetal3D, setCorNaJanela, setCrossfadeSegundos, setDiscordRichPresence, setDisposicaoDoLeitor, setDoisTons, setFundoDoLeitor, setIntensidadeDoSmartShuffle, type CorDoLeitor } from '../../lib/prefs';
+import { getCapaMetal3D, getCorNaJanela, getEcraAmbiente, setEcraAmbiente, getDiscordRichPresence, getDisposicaoDoLeitor, getDoisTons, getFundoDoLeitor, setCapaMetal3D, setCorNaJanela, setCrossfadeSegundos, setDiscordRichPresence, setDisposicaoDoLeitor, setDoisTons, setFundoDoLeitor, setIntensidadeDoSmartShuffle, type CorDoLeitor } from '../../lib/prefs';
 import { lerDisposicaoEscolhida, lerFundoDoLeitor, type DisposicaoEscolhida, type FundoDoLeitor } from '../../lib/leitorDoPc';
 import { definirDisposicaoDoLeitor, definirFundoDoLeitor } from '../aparenciaDoLeitor.web';
 import { definirDoisTons } from '../doisTons.web';
 import { definirCapaMetal } from '../CapaMetal3D.web';
 import { DURACOES_DO_CROSSFADE, type DuracaoDoCrossfade } from '../../lib/crossfade';
-import { efeitoDaMarcaDoRefrao, efeitoDoCrossfade, efeitoDoDiscord, efeitoDoOutroAparelho, efeitoDoPadrao, efeitoDoRadio, efeitoDoRecomendado, efeitoDoSmartShuffle, efeitoDoTemporizador } from '../../lib/efeitoDasDefinicoes';
+import { efeitoDaMarcaDoRefrao, efeitoDoCrossfade, efeitoDoDiscord, efeitoDoEcraAmbiente, efeitoDoOutroAparelho, efeitoDoPadrao, efeitoDoRadio, efeitoDoRecomendado, efeitoDoSmartShuffle, efeitoDoTemporizador } from '../../lib/efeitoDasDefinicoes';
 import { lerMarcaDoRefrao, ligarMarcaDoRefrao, useMarcaDoRefrao } from '../../state/refrao';
 import { lerMostrarOutroAparelho, mostrarOutroAparelho, useMostrarOutroAparelho } from '../../state/outroAparelho';
 import { IDIOMAS, idiomaEscolhido, lerIdioma } from '../../i18n';
@@ -171,6 +171,15 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   useEffect(() => { void getDoisTons().then(setDoisTonsState); }, []);
   const [capaMetal, setCapaMetalState] = useState(false);
   useEffect(() => { void getCapaMetal3D().then(setCapaMetalState); }, []);
+  // O ecrã ambiente (25/11): só na casca em Tauri, que é quem põe o ecrã inteiro sem gesto.
+  const temAmbiente = !!window.duotoneDesktop?.ecraAmbiente;
+  const [ecraAmbiente, setEcraAmbienteState] = useState(true);
+  useEffect(() => { void getEcraAmbiente().then(setEcraAmbienteState); }, []);
+  const mudarEcraAmbiente = (v: boolean) => {
+    setEcraAmbienteState(v);
+    void setEcraAmbiente(v);
+    window.dispatchEvent(new CustomEvent('duotone:ecra-ambiente', { detail: v }));
+  };
   // O layout e o fundo do Now Playing (5/11): o Classic e a capa de origem.
   const [disposicao, setDisposicaoState] = useState<DisposicaoEscolhida>('classico');
   useEffect(() => { void getDisposicaoDoLeitor().then(setDisposicaoState); }, []);
@@ -265,6 +274,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
     radio: efeitoDoRadio({ ligado: autoplayRadio, aTocarRadio: radioActivo }),
     temporizador: efeitoDoTemporizador({ restanteS: sleepLeft, agora: new Date(), noFimDaFaixa: pararNoFimDaFaixa }),
     crossfade: efeitoDoCrossfade({ segundos: crossfade, repeatUma }),
+    ambiente: efeitoDoEcraAmbiente(ecraAmbiente),
     velocidade: efeitoDoPadrao({
       tipo: 'velocidade', temFaixa: !!atual,
       temAjusteProprio: !!ajusteDaFaixa && ajusteDaFaixa.rate !== null,
@@ -504,6 +514,9 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                 <ToggleLine label={ROTULOS.outroAparelhoNoPc}
                   description="A notice and a button in the player bar when your iPhone is playing, to continue here."
                   value={mostrarOutro} onChange={mostrarOutroAparelho} efeito={efeitos.outroAparelho} />
+                {temAmbiente && <ToggleLine label={ROTULOS.ecraAmbiente}
+                  description="When music is playing and you leave Duotone alone for a minute, it fills its screen. Move the mouse over it to come back."
+                  value={ecraAmbiente} onChange={mudarEcraAmbiente} efeito={efeitos.ambiente} />}
                 {window.duotoneDesktop?.setCloseToTray && <ToggleLine
                   label="Close to tray"
                   description="Keep playing in the system tray when you close the window."

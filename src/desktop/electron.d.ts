@@ -118,6 +118,12 @@ declare global {
       /** Segundos desde o último toque no rato ou no teclado do sistema
        *  inteiro (`powerMonitor.getSystemIdleTime`). Ver lib/presencaAtiva.ts. */
       segundosSemInteracao?: () => Promise<number>;
+      /** O ecrã ambiente (25/11, só no Tauri: `desktop/src/ambiente.rs`). Como está a
+       *  janela, para a página decidir se entra (`lib/ecraAmbiente.ts`). */
+      estadoDoAmbiente?: () => Promise<import('../lib/ecraAmbiente').EstadoDaJanela>;
+      /** Põe ou tira o ecrã inteiro do ecrã ambiente: sem gesto, por cima da barra
+       *  de tarefas desse monitor, e sem roubar o foco. */
+      ecraAmbiente?: (ligado: boolean) => Promise<void>;
       minimize(): void;
       toggleMaximize(): void;
       close(): void;

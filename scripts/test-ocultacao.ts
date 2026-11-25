@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   bezierCubica, COR_DO_DISCO_SEM_CAPA, corDoDisco, curvaDaOcultacao, duracaoDaSaida, fundoDoDisco, gradienteDoDisco, OCULTACAO,
-  SOMBRA_NA_LATERAL, sentidoDaOcultacao, sombraNaLateral, trajetoDoDisco,
+  SOMBRA_NA_LATERAL, sentidoDaOcultacao, sombraNaLateral, trajetoDoDisco, ECLIPSE, fundoDoEclipse, trajetoDoEclipse,
 } from '../src/lib/ocultacao.ts';
 
 let falhas = 0;
@@ -66,12 +66,12 @@ caso('a capa troca uma vez só, na totalidade (ou ao cancelar)', () => {
   assert.match(peca, /return \(\) => \{ saiu = true; trocar\(\); acabar\(\); \};/, 'uma música nova a meio acaba esta');
 });
 caso('as curvas são as molas: a chegar a do sair, a sair a ENTRADA', () => {
-  assert.match(peca, /duration: OCULTACAO\.entradaMs, easing: curvas\.sair\.curva/);
+  assert.match(peca, /duration: entradaMs, easing: curvas\.sair\.curva/);
   assert.match(peca, /duration: curvas\.entrada\.ms, easing: curvas\.entrada\.curva/);
   assert.ok(!/cubic-bezier|\bease\b/.test(peca));
 });
 caso('não fica presa com a janela escondida, e sai do documento', () => {
-  assert.match(peca, /setTimeout\(aoChegar, OCULTACAO\.entradaMs \+ 50\)/);
+  assert.match(peca, /setTimeout\(aoChegar, entradaMs \+ 50\)/);
   assert.match(peca, /setTimeout\(acabar, curvas\.entrada\.ms \+ 100\)/);
   assert.match(peca, /disco\.remove\(\);/);
 });
@@ -109,7 +109,7 @@ caso('na capa de metal em 3D (7/11) passa DENTRO da face, e as laterais escurece
   assert.match(caixa3d, /\{capaQueSai \? <img data-dt="capa-sai" src=\{capaQueSai\}/);
   assert.match(ler('src/desktop/casca.web.tsx'), /\[data-dt~="m3-face"\]\{[^}]*overflow: hidden;/);
   assert.match(peca, /const sombras = \(o\.laterais \?\? \[\]\)\.map/);
-  assert.match(peca, /escurecer\('entra', OCULTACAO\.entradaMs\);/);
+  assert.match(peca, /escurecer\('entra', entradaMs\);/);
   assert.match(peca, /escurecer\('sai', curvas\.entrada\.ms\);/);
   assert.match(peca, /sombras\.forEach\(\(\{ camada \}\) => camada\.remove\(\)\)/, 'as sombras saem com o disco');
 });
@@ -179,6 +179,35 @@ caso('iPhone: no leitor aberto (só com a capa à frente, não no Poster) e no m
   assert.match(l, /<OcultacaoDaCapa chave=\{transicao\?\.chave \?\? null\} sentido=\{transicao\?\.sentido === -1 \? -1 : 1\} lado=\{size\} capa=\{artSource\} corDe=\{track\.artworkUrl \?\? null\} ligada=\{aVista && !showLyrics\}><CapaComTransicao uri=\{artSource\}/);
   assert.equal((l.match(/<OcultacaoDaCapa/g) ?? []).length, 2, 'o leitor aberto e o mini; o Poster pousado fica de fora');
   assert.match(l, /ligada=\{!origemDaEntrada\}/, 'no mini, não no pouso de uma música vinda de uma lista');
+});
+
+console.log('\no Eclipse do modo limpo (25/11)');
+caso('o miolo opaco tapa os cantos da capa quando o disco chega ao meio', () => {
+  // 62 % do raio, com o raio em lados da capa; os cantos estão a meia diagonal.
+  assert.ok(ECLIPSE.raio * 0.62 >= Math.SQRT2 / 2, `${ECLIPSE.raio * 0.62} não chega aos cantos`);
+  assert.equal(fundoDoEclipse('rgb(10,20,30)'), 'radial-gradient(circle closest-side, rgba(10,20,30,0.96) 0%, rgba(10,20,30,0.9) 62%, rgba(10,20,30,0) 100%)');
+});
+caso('começa e acaba com o centro a um raio do lado de fora da capa; a seguinte vem da direita', () => {
+  const t = trajetoDoEclipse(1);
+  // (0,5 + 1,15) / 2,3 = 71,74 % da largura do disco.
+  assert.deepEqual(t, { de: 'translateX(71.74%)', meio: 'translateX(0)', para: 'translateX(-71.74%)' });
+  assert.equal(trajetoDoEclipse(-1).de, 'translateX(-71.74%)');
+});
+caso('a sombra do Eclipse é mais viva do que a da Ocultação', () => {
+  const celulas = [{ r: 200, g: 40, b: 40 }];
+  const canal = (cor: string) => Number(/^rgb\((\d+)/.exec(cor)![1]);
+  assert.ok(canal(corDoDisco(celulas, ECLIPSE.escurecer)) > canal(corDoDisco(celulas)));
+});
+caso('a peça: o disco maior, sem a opacidade da Ocultação, com a orla, e o modo limpo pede-o', () => {
+  const o = ler('src/desktop/Ocultacao.web.ts');
+  assert.match(o, /const ladoDoDisco = eclipse \? 2 \* ECLIPSE\.raio : OCULTACAO\.ladoDoDisco;/);
+  assert.match(o, /opacity: eclipse \? '1' : String\(OCULTACAO\.opacidade\)/);
+  assert.match(o, /const t = eclipse \? trajetoDoEclipse\(o\.sentido\) : trajetoDoDisco\(o\.sentido\);/);
+  assert.match(o, /const entradaMs = eclipse \? ECLIPSE\.entradaMs : OCULTACAO\.entradaMs;/);
+  assert.match(o, /disco\.appendChild\(orla\);/);
+  const ml = ler('src/desktop/ModoLimpo.web.tsx');
+  assert.match(ml, /caixa: caixaDaCapa, capa: faixa\?\.artworkUrl, eclipse: true,/);
+  assert.match(ml, /<img data-dt="capa-sai" src=\{capaQueSai\}/);
 });
 
 if (falhas) { console.log(`\n${falhas} falha(s)`); process.exit(1); }

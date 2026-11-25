@@ -6,8 +6,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  ALTURA_RESERVADA, CAPA_MAXIMA, CAPA_MINIMA, INACTIVIDADE_MS, capaComBarras, estaQuieto,
-  molduraSemBarras, posicaoDoClique, progressoDaFaixa, tamanhoDaCapa,
+  ALTURA_RESERVADA, CAPA_MAXIMA, CAPA_MINIMA, CAPA_MINIMA_AO_LADO, INACTIVIDADE_MS, LETRA_MAXIMA, LETRA_MINIMA, reservaAoLado,
+  capaComBarras, disposicaoDoModoLimpo, estaQuieto, molduraSemBarras, posicaoDoClique, progressoDaFaixa, tamanhoDaCapa,
 } from '../src/lib/modoLimpo.ts';
 
 let falhas = 0;
@@ -94,6 +94,62 @@ caso('carregar na barra dá o sítio, e fora dela dá as pontas', () => {
   assert.equal(posicaoDoClique(500, 100, 0), 0, 'uma barra sem largura não parte nada');
 });
 
+console.log('\na letra ao lado (25/11, a disposição A)');
+caso('num 1080p a capa fica no teto e a letra no máximo, as duas ao centro', () => {
+  const d = disposicaoDoModoLimpo(1920, 1080);
+  assert.equal(d.aoLado, true);
+  assert.equal(d.lado, CAPA_MAXIMA);
+  assert.equal(d.letra.largura, LETRA_MAXIMA);
+  const direita = 1920 - (d.letra.x + d.letra.largura);
+  assert.ok(Math.abs(direita - d.colunaX) <= 1, `margens ${d.colunaX} e ${direita}`);
+  assert.equal(d.escala, CAPA_MAXIMA / 640);
+});
+caso('na janela de origem (1440x900) cabem as duas, e a coluna não come o logo', () => {
+  const d = disposicaoDoModoLimpo(1440, 900);
+  assert.equal(d.aoLado, true);
+  assert.ok(d.letra.largura >= LETRA_MINIMA);
+  assert.ok(d.topo + d.lado + reservaAoLado(d.escala) <= 900 - 60 + 1, 'a coluna passa o logo');
+  // E fica ao meio: o ar por cima é o mesmo que por baixo (até ao logo).
+  assert.ok(Math.abs(d.topo - (900 - 60 - d.topo - d.lado - reservaAoLado(d.escala))) <= 2, `topo ${d.topo}`);
+});
+caso('a capa tem o mesmo lado com e sem letra: só muda o sítio', () => {
+  const d = disposicaoDoModoLimpo(1600, 1000);
+  assert.ok(d.colunaX < d.centroX);
+  assert.equal(d.centroX, Math.round((1600 - d.lado) / 2));
+});
+caso('numa janela estreita não há lugar ao lado: a capa vai ao centro, como antes', () => {
+  const d = disposicaoDoModoLimpo(700, 560);
+  assert.equal(d.aoLado, false);
+  assert.ok(d.lado >= CAPA_MINIMA);
+  assert.equal(d.colunaX, d.centroX);
+});
+caso('ao lado, a capa nunca fica abaixo do mínimo dela nem a letra abaixo da dela', () => {
+  for (const [l, a] of [[1100, 700], [1280, 720], [2560, 1440], [3440, 1440], [1024, 768]]) {
+    const d = disposicaoDoModoLimpo(l, a);
+    if (!d.aoLado) continue;
+    assert.ok(d.lado >= CAPA_MINIMA_AO_LADO, `${l}x${a}: capa ${d.lado}`);
+    assert.ok(d.letra.largura >= LETRA_MINIMA, `${l}x${a}: letra ${d.letra.largura}`);
+    assert.ok(d.letra.x + d.letra.largura <= l, `${l}x${a}: a letra sai do ecrã`);
+  }
+});
+caso('a reserva é a soma do que está debaixo da capa no ecrã', () => {
+  const ml = readFileSync(new URL('../src/desktop/ModoLimpo.web.tsx', import.meta.url), 'utf8');
+  assert.match(ml, /identidade: \{ justifyContent: 'center', gap: 4, marginTop: 14 \}/);
+  assert.match(ml, /height: Math\.round\(76 \* escala\)/);
+  assert.match(ml, /const disco = Math\.round\(62 \* escala\);/);
+  assert.match(ml, /height: disco \+ 18/);
+  assert.equal(reservaAoLado(1), 14 + 76 + 24 + 62 + 18);
+});
+caso('o ecrã: a letra só com lugar e com letra, o nome à esquerda com ela, e a capa ao som', () => {
+  const ml = readFileSync(new URL('../src/desktop/ModoLimpo.web.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  assert.match(ml, /const aoLado = d\.aoLado && comLetra;/);
+  assert.match(ml, /useEffect\(\(\) => \{ if \(agoraHaLetra !== null\) setComLetra\(agoraHaLetra\); \}, \[agoraHaLetra\]\);/, 'enquanto se procura, fica a disposição que estava');
+  assert.match(ml, /transform: \[\{ translateX: aoLado \? d\.colunaX : d\.centroX \}\],\n\s*transition: 'transform 700ms var\(--dt-travar\)',/);
+  assert.match(ml, /<GlitchArtwork uri=\{capaGrande\} lado=\{lado\} modo=\{modo\} intensidade=\{intensidade\} raio=\{18\} \/>/);
+  assert.match(ml, /<LyricsView track=\{faixa\} visible=\{aoLado\} escala=\{1\.85 \* escala\} \/>/);
+  assert.match(ml, /\{\.\.\.marcar\('disco-metal'\)\}/, 'o play é o disco de metal da barra');
+});
+
 // ------------------------------------------------------- a tecla, uma vez --
 //
 // Isto le o ficheiro como TEXTO: o `ModoLimpo.web.tsx` importa o React e o
@@ -123,7 +179,8 @@ caso('o grao, a vinheta e o fundo nao ficam do tamanho do PNG', () => {
   // PNG, e o `absoluteFill` nao as desfaz. O grao ficava num quadrado de 256 px
   // no canto e a vinheta num retangulo de 960x540 (14/9).
   assert.ok(/textura: \{ width: '100%', height: '100%'/.test(fonte), 'a textura tem de ter 100% de largura e altura');
-  assert.ok(/fundoDaApp: \{ width: '100%', height: '100%'/.test(fonte), 'o fundo desfocado tambem');
+  // O fundo é a capa desfocada desde 25/11 (o FundoDaCapa, que enche a caixa dele).
+  assert.ok(/<FundoDaCapa uri=\{faixa\?\.artworkUrl \?\? null\} \/>/.test(fonte), 'o fundo é a capa desfocada');
 });
 
 if (falhas) {

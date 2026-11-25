@@ -13,8 +13,8 @@ import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 're
 import { lerCelulasDaCapa } from '../lib/celulasDaCapa';
 import { curvasDoPc } from '../lib/molasEmCss';
 import {
-  COR_DO_DISCO_SEM_CAPA, corDoDisco, fundoDoDisco, OCULTACAO, SOMBRA_NA_LATERAL, sombraNaLateral, trajetoDoDisco,
-  type LadoDaCaixa,
+  COR_DO_DISCO_SEM_CAPA, corDoDisco, ECLIPSE, fundoDoDisco, fundoDoEclipse, OCULTACAO, SOMBRA_NA_LATERAL, sombraNaLateral,
+  trajetoDoDisco, trajetoDoEclipse, type LadoDaCaixa,
 } from '../lib/ocultacao';
 
 const menosMovimento = () => {
@@ -66,7 +66,9 @@ export type LateralDaOcultacao = { lado: LadoDaCaixa; no: HTMLElement };
  * `laterais` (a capa 3D, 7/11): o disco passa na face, que é a `caixa`, e as
  * laterais escurecem com a sombra dele (`sombraNaLateral`).
  */
-export function ocultar(caixa: HTMLElement, entrada: { sentido: 1 | -1; capa?: string | null; aTotalidade: () => void; laterais?: LateralDaOcultacao[] }): () => void {
+export function ocultar(caixa: HTMLElement, entrada: { sentido: 1 | -1; capa?: string | null; aTotalidade: () => void; laterais?: LateralDaOcultacao[];
+  /** O Eclipse do modo limpo (25/11): o disco maior, mais vivo e com uma orla de luz. */
+  eclipse?: boolean }): () => void {
   comecouATapar();
   const o = { ...entrada, aTotalidade: () => { entrada.aTotalidade(); tapou(); } };
   let trocou = false;
@@ -76,13 +78,29 @@ export function ocultar(caixa: HTMLElement, entrada: { sentido: 1 | -1; capa?: s
     return () => { clearTimeout(id); trocar(); };
   }
   const disco = document.createElement('div');
-  const lado = `${OCULTACAO.ladoDoDisco * 100}%`;
-  const margem = `${-(OCULTACAO.ladoDoDisco - 1) * 50}%`;
+  const eclipse = o.eclipse === true;
+  const ladoDoDisco = eclipse ? 2 * ECLIPSE.raio : OCULTACAO.ladoDoDisco;
+  const fundo = eclipse ? fundoDoEclipse : fundoDoDisco;
+  const lado = `${ladoDoDisco * 100}%`;
+  const margem = `${-(ladoDoDisco - 1) * 50}%`;
   Object.assign(disco.style, {
     position: 'absolute', left: margem, top: margem, width: lado, height: lado, borderRadius: '50%', pointerEvents: 'none',
-    zIndex: '3', opacity: String(OCULTACAO.opacidade), background: fundoDoDisco(COR_DO_DISCO_SEM_CAPA),
+    zIndex: '3', opacity: eclipse ? '1' : String(OCULTACAO.opacidade), background: fundo(COR_DO_DISCO_SEM_CAPA),
   });
-  const t = trajetoDoDisco(o.sentido);
+  if (eclipse) {
+    // A orla de luz: um anel dentro do disco, que só se vê a entrar e a sair (ao meio
+    // fica fora da capa, e a caixa corta-o).
+    const s = caixa.clientWidth || 1;
+    const orla = document.createElement('div');
+    const dentro = `${((1 - ECLIPSE.orla.raio) / 2) * 100}%`;
+    Object.assign(orla.style, {
+      position: 'absolute', inset: dentro, borderRadius: '50%', pointerEvents: 'none',
+      border: `${Math.max(1, s * ECLIPSE.orla.espessura)}px solid rgba(255,255,255,.35)`,
+      boxShadow: `0 0 ${s * ECLIPSE.orla.brilho}px rgba(255,255,255,.55), inset 0 0 ${s * ECLIPSE.orla.brilho}px rgba(255,255,255,.3)`,
+    });
+    disco.appendChild(orla);
+  }
+  const t = eclipse ? trajetoDoEclipse(o.sentido) : trajetoDoDisco(o.sentido);
   disco.style.transform = t.de;
   caixa.appendChild(disco);
   // As laterais: uma camada com a mesma cor, que escurece e volta (só opacidade).
@@ -105,8 +123,8 @@ export function ocultar(caixa: HTMLElement, entrada: { sentido: 1 | -1; capa?: s
   if (o.capa) {
     void lerCelulasDaCapa(o.capa).then((c) => {
       if (!vivo) return;
-      const cor = corDoDisco(c);
-      disco.style.background = fundoDoDisco(cor);
+      const cor = corDoDisco(c, eclipse ? ECLIPSE.escurecer : OCULTACAO.escurecer);
+      disco.style.background = fundo(cor);
       for (const { camada } of sombras) camada.style.background = cor;
     }).catch(() => {});
   }
@@ -121,12 +139,13 @@ export function ocultar(caixa: HTMLElement, entrada: { sentido: 1 | -1; capa?: s
     // Com a janela escondida o Chromium não dá o `finish`: o relógio acaba à hora.
     relogios.push(setTimeout(acabar, curvas.entrada.ms + 100));
   };
-  const a = disco.animate([{ transform: t.de }, { transform: t.meio }], { duration: OCULTACAO.entradaMs, easing: curvas.sair.curva, fill: 'forwards' });
-  escurecer('entra', OCULTACAO.entradaMs);
+  const entradaMs = eclipse ? ECLIPSE.entradaMs : OCULTACAO.entradaMs;
+  const a = disco.animate([{ transform: t.de }, { transform: t.meio }], { duration: entradaMs, easing: curvas.sair.curva, fill: 'forwards' });
+  escurecer('entra', entradaMs);
   let saiu = false;
   const aoChegar = () => { if (saiu || !vivo) return; saiu = true; sair(); };
   a.onfinish = aoChegar;
-  relogios.push(setTimeout(aoChegar, OCULTACAO.entradaMs + 50));
+  relogios.push(setTimeout(aoChegar, entradaMs + 50));
   return () => { saiu = true; trocar(); acabar(); };
 }
 
@@ -144,6 +163,8 @@ export function useCapaQueSai<T>(chave: string, valor: T | null, o: {
   ligada?: boolean;
   /** A capa 3D (7/11): as laterais da caixa, que escurecem com o disco. */
   laterais?: () => LateralDaOcultacao[];
+  /** O Eclipse do modo limpo (25/11). */
+  eclipse?: boolean;
 }): T | null {
   const [velha, setVelha] = useState<T | null>(null);
   const antes = useRef<{ chave: string; valor: T } | null>(null);
@@ -156,7 +177,7 @@ export function useCapaQueSai<T>(chave: string, valor: T | null, o: {
     const caixa = o.caixa.current;
     if (o.ligada === false || !caixa) { setVelha(null); return; }
     setVelha(anterior.valor);
-    cancelar.current = ocultar(caixa, { sentido: o.sentido(), capa: o.capa, aTotalidade: () => setVelha(null), laterais: o.laterais?.() });
+    cancelar.current = ocultar(caixa, { sentido: o.sentido(), capa: o.capa, aTotalidade: () => setVelha(null), laterais: o.laterais?.(), eclipse: o.eclipse });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chave]);
   // Depois do de cima, e também quando só o valor muda: a capa grande do Now

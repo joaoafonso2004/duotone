@@ -191,6 +191,7 @@ const TESTES = [
   'scripts/test-presenca-com-posicao-sql.mjs',
   `${TS} scripts/test-abertura.ts`,
   `${TS} scripts/test-modo-limpo.ts`,
+  `${TS} scripts/test-ecra-ambiente.ts`,
   `${TS} scripts/test-animacoes-do-pc.ts`,
   `${TS} scripts/test-grelha-que-cresce.ts`,
   `${TS} scripts/test-janela-da-tabela.ts`,

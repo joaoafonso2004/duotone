@@ -62,6 +62,7 @@ const KEY_COR_NA_JANELA = 'pref:corNaJanela';
 const KEY_DOIS_TONS = 'pref:doisTons';
 /** A capa de metal em 3D do Now Playing do PC (`desktop/CapaMetal3D.web.tsx`). */
 const KEY_CAPA_METAL_3D = 'pref:capaMetal3D';
+const KEY_ECRA_AMBIENTE = 'pref:ecraAmbiente';
 /** O layout e o fundo do Now Playing do PC (`lib/leitorDoPc.ts`). */
 const KEY_DISPOSICAO_DO_LEITOR = 'pref:disposicaoDoLeitor';
 const KEY_FUNDO_DO_LEITOR = 'pref:fundoDoLeitor';
@@ -852,6 +853,18 @@ export async function getCapaMetal3D(): Promise<boolean> {
 }
 export async function setCapaMetal3D(v: boolean): Promise<void> {
   await AsyncStorage.setItem(KEY_CAPA_METAL_3D, v ? '1' : '0');
+}
+
+/**
+ * O ecrã ambiente do PC (25/11): com a música a tocar e a app sozinha um minuto,
+ * ela passa ao modo limpo em ecrã inteiro (`lib/ecraAmbiente.ts`). **Ligado de
+ * origem**, a pedido do João; só existe na casca em Tauri.
+ */
+export async function getEcraAmbiente(): Promise<boolean> {
+  try { return (await AsyncStorage.getItem(KEY_ECRA_AMBIENTE)) !== '0'; } catch { return true; }
+}
+export async function setEcraAmbiente(v: boolean): Promise<void> {
+  await AsyncStorage.setItem(KEY_ECRA_AMBIENTE, v ? '1' : '0');
 }
 
 /**

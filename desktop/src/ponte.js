@@ -119,6 +119,10 @@
     publicarNoMiniLeitor: (resumo) => { pedir('mini_estado', { resumo }).catch(() => {}); },
     onComandoDoMiniLeitor: (listener) => ouvir('mini:comando', (c) => listener(c)),
     miniLeitorNoModoLimpo: (ligado) => { pedir('mini_modo_limpo', { ligado: ligado === true }).catch(() => {}); },
+    // O ecrã ambiente (25/11, desktop/src/ambiente.rs): como está a janela, e o ecrã
+    // inteiro sem gesto do utilizador e sem roubar o foco a quem trabalha noutra janela.
+    estadoDoAmbiente: () => pedir('ambiente_ler', {}),
+    ecraAmbiente: (ligado) => pedir('ambiente_ecra', { ligado: ligado === true }).then(() => undefined),
     // O 1.º bocado buscado antes do clique (o rato parado em cima da música).
     adiantarAudio: (id, url, tamanho, mime) => pedir('audio_adiantar', { id, url, tamanho, mime }),
     audioNaCache: (id) => pedir('audio_na_cache', { id }),

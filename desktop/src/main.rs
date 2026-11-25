@@ -7,6 +7,7 @@
 // Duotone instalada sem lhe tocar. A identidade de produção entra na F9.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod ambiente;
 mod arranque;
 mod atualizacao;
 mod audio;
@@ -167,6 +168,7 @@ fn main() {
             ponte::fechar_para_tabuleiro_ler, ponte::fechar_para_tabuleiro_definir,
             arranque::arranque_ler, arranque::arranque_definir, barra::barra_estado, barra::barra_tirar_acao, notificacoes::notificacao_mensagem, notificacoes::notificacao_por_ler, atualizacao::atualizacao_procurar, spotify::spotify_ligado, sessao::sessao_de_media_definir, spotify::spotify_entrar, spotify::spotify_sair, spotify::spotify_consultar, atualizacao::atualizacao_descarga, atualizacao::atualizacao_instalar, ponte::saude_ler, ponte::segundos_sem_interacao, saude::diagnostico_recursos,
             mini::mini_alternar, mini::mini_esta_aberto, mini::mini_estado, mini::mini_modo_limpo,
+            ambiente::ambiente_ler, ambiente::ambiente_ecra,
             mini::mini_pronto, mini::mini_pega, mini::mini_lista, mini::mini_ignorar_rato, mini::mini_comando,
             rede::yt_pesquisa, rede::ytmusic_pesquisa, rede::yt_mix, rede::yt_refrao, rede::ytmusic_artista, rede::ytmusic_radio, rede::ytmusic_letra,
             rede::catalogo_pedir, rede::supabase_pedir, rede::spotify_embed, rede::apple_playlist, rede::deezer_link,

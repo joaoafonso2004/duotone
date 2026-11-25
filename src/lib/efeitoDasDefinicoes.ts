@@ -200,6 +200,11 @@ export function efeitoDoIdioma(e: { escolhido: string; emVigor: string; nomeDoEs
   return e.escolhido !== e.emVigor ? `Switches to ${e.nomeDoEscolhido} the next time you open Duotone` : null;
 }
 
+/** O ecrã ambiente do PC (25/11): o que faz e quando. */
+export function efeitoDoEcraAmbiente(ligado: boolean): string | null {
+  return ligado ? 'Fills the screen after a minute alone with music playing' : null;
+}
+
 export function efeitoDeManterOEcra(ligado: boolean): string | null {
   return ligado ? 'The screen stays on while Duotone is open' : null;
 }

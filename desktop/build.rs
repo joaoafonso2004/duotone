@@ -44,6 +44,7 @@ fn main() {
         "fechar_para_tabuleiro_ler", "fechar_para_tabuleiro_definir",
         "arranque_ler", "arranque_definir", "barra_estado", "barra_tirar_acao", "notificacao_mensagem", "notificacao_por_ler", "atualizacao_procurar", "spotify_ligado", "sessao_de_media_definir", "spotify_entrar", "spotify_sair", "spotify_consultar", "atualizacao_descarga", "atualizacao_instalar", "saude_ler", "segundos_sem_interacao", "diagnostico_recursos",
         "mini_alternar", "mini_esta_aberto", "mini_estado", "mini_modo_limpo",
+        "ambiente_ler", "ambiente_ecra",
         "mini_pronto", "mini_pega", "mini_lista", "mini_ignorar_rato", "mini_comando",
         "yt_pesquisa", "ytmusic_pesquisa", "yt_mix", "yt_refrao", "ytmusic_artista", "ytmusic_radio", "ytmusic_letra",
         "catalogo_pedir", "supabase_pedir", "spotify_embed", "apple_playlist", "deezer_link",

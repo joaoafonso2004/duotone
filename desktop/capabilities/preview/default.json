@@ -10,6 +10,7 @@
     "allow-fechar-para-tabuleiro-ler", "allow-fechar-para-tabuleiro-definir",
     "allow-arranque-ler", "allow-arranque-definir", "allow-barra-estado", "allow-barra-tirar-acao", "allow-notificacao-mensagem", "allow-notificacao-por-ler", "allow-atualizacao-procurar", "allow-spotify-ligado", "allow-sessao-de-media-definir", "allow-spotify-entrar", "allow-spotify-sair", "allow-spotify-consultar", "allow-atualizacao-descarga", "allow-atualizacao-instalar", "allow-saude-ler", "allow-segundos-sem-interacao", "allow-diagnostico-recursos",
     "allow-mini-alternar", "allow-mini-esta-aberto", "allow-mini-estado", "allow-mini-modo-limpo",
+    "allow-ambiente-ler", "allow-ambiente-ecra",
     "allow-mini-pronto", "allow-mini-pega", "allow-mini-lista", "allow-mini-ignorar-rato", "allow-mini-comando",
     "allow-yt-pesquisa", "allow-ytmusic-pesquisa", "allow-yt-mix", "allow-yt-refrao", "allow-ytmusic-artista", "allow-ytmusic-radio", "allow-ytmusic-letra",
     "allow-catalogo-pedir", "allow-supabase-pedir", "allow-spotify-embed", "allow-apple-playlist", "allow-deezer-link",
