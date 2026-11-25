@@ -59,7 +59,10 @@ caso('os separadores usam-na', () => {
 caso('o hover nunca pinta por cima do escolhido', () => {
   const painel = ler('src/desktop/PainelDoLeitor.web.tsx');
   assert.doesNotMatch(painel, /hovered \|\| focused \|\| estado\.aba === aba/, 'as abas Queue/Lyrics: hover e escolhida eram o mesmo cinzento');
-  assert.match(painel, /estado\.aba === aba \? ESTADO\.escolhido : \(hovered \|\| focused\) && \{ backgroundColor: ESTADO\.hover \}/);
+  // 25/11 (a proposta A do cartão do Now Playing): as abas são texto com a linha de aço por baixo da
+  // aberta; o rato acende só o texto, nunca põe um fundo por cima da escolhida.
+  assert.match(painel, /style=\{\[s\.aba, estado\.aba === aba && ESTADO\.linhaEscolhida\]\}/);
+  assert.match(painel, /\(estado\.aba === aba \|\| hovered \|\| focused\) && \{ color: COR\.texto \}/);
   const biblioteca = ler('src/desktop/paginas/BibliotecaPages.web.tsx');
   assert.match(biblioteca, /hovered && ordem !== o && artistStyles\.ordemHover/);
   for (const f of ['src/desktop/paginas/ProfilePage.web.tsx', 'src/desktop/paginas/RetrospetivaPage.web.tsx']) {

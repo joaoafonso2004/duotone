@@ -94,11 +94,13 @@ const NAVEGADOR = ler('src/navigation/RootNavigator.web.tsx');
 const LETRAS = ler('src/components/LyricsView.tsx');
 caso('só mostra o que se sabe: sem bio nem créditos inventados, e cada bloco some sem dados', () => {
   assert.ok(!/\bbio\b/i.test(SOBRE.replace(/\/\*[\s\S]*?\*\//g, '')), 'nenhuma das fontes tem bio');
-  assert.match(SOBRE, /\{numeros\.length \? <View style=\{s\.numeros\}>/);
-  assert.match(SOBRE, /\{d\.parecidos\.length \? <View style=\{s\.bloco\}>/);
-  assert.match(SOBRE, /\{d\.lancamento \? <View style=\{s\.bloco\}>/);
+  assert.match(SOBRE, /\{temArtista && numeros\.length \? <View style=\{s\.bloco\}>/);
+  assert.match(SOBRE, /\{d\.parecidos\.length \? <View style=\{s\.parecidos\}>/);
+  assert.match(SOBRE, /\{temArtista && d\.lancamento \? <View style=\{s\.bloco\}>/);
   assert.match(SOBRE, /\{d\.maisOuvidas\.length \? <View style=\{s\.bloco\}>/);
-  assert.match(SOBRE, /\{d\.refraoS != null \? <View style=\{s\.refrao\}>/);
+  assert.match(SOBRE, /\{d\.refraoS != null \? <View style=\{\[s\.fichaLinha, s\.refrao\]\}>/);
+  // 25/11 (a proposta A): sem pílulas -- nem o "ARTIST" nem os parecidos.
+  assert.doesNotMatch(SOBRE, /RAIO\.pilula|>ARTIST</);
 });
 caso('o artista abre pelo `useDestinos`, favorita-se pela mesma store dos Artists, e tocar passa pelo `tocarMusica`', () => {
   assert.match(SOBRE, /irPara\(\{ tipo: 'artista', nome: d\.nome \}\)/);

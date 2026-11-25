@@ -133,7 +133,7 @@ caso('PC: o menu continua sem desfoque nem className e fecha com Esc (a fila já
   // `RadioQueueControl` partilhado, que o PC já só usa pelo hook.
   const fila = ler('src/desktop/FilaDoLeitor.web.tsx');
   assert.doesNotMatch(fila, /<MenuDoRadio /);
-  assert.match(fila, /<RadioEmTresEstados \/>/);
+  assert.match(fila, /<RadioEmTresEstados esquerda=\{origem\} empilhada=\{!abas\} \/>/);
 });
 
 console.log(falhas ? `\n  ${falhas} caso(s) a falhar.\n` : '\n  Todos os casos passaram.\n');

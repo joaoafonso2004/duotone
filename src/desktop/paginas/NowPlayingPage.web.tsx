@@ -1,4 +1,4 @@
-import { AbasDoCartao, CabecaDaFila, LinhasDaFila, type AbaDoCartao } from '../FilaDoLeitor.web';
+import { AbasDoCartao, AgoraNaFila, CabecaDaFila, LinhasDaFila, RotuloDasProximas, type AbaDoCartao } from '../FilaDoLeitor.web';
 import { SobreAMusica } from '../SobreAMusica.web';
 import { LyricsView } from '../../components/LyricsView';
 import { useFilaDoLeitor } from '../useFilaDoLeitor.web';
@@ -411,26 +411,18 @@ export function NowPlayingPage({
       <CabecaDaFila fila={fila} abas={{ aba: abaDaFila, aoMudar: setAbaDaFila }} />
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: ESP.xl }}
         scrollEventThrottle={100} onScroll={fila.aoRolar}>
-        {/* A que toca, à cabeça e em destaque (30/10, da maquete). */}
-        <View style={styles.npAtual} accessibilityLabel={`Now playing: ${tituloDaFaixa(track)}`}>
-          <View {...marcar('eq')} aria-hidden style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 12, width: 14 }}>
-            <View style={{ width: 3, height: 12, borderRadius: 2, backgroundColor: COR.texto }} /><View style={{ width: 3, height: 12, borderRadius: 2, backgroundColor: COR.texto }} /><View style={{ width: 3, height: 12, borderRadius: 2, backgroundColor: COR.texto }} />
-          </View>
-          <Artwork track={track} size={40} />
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text numberOfLines={1} style={{ ...TIPO.corpo, color: COR.texto, fontWeight: '700' as any }}>{tituloDaFaixa(track)}</Text>
-            <Text numberOfLines={1} style={{ ...TIPO.legenda, color: COR.textoMedio }}>{displayArtist(track)} · playing now</Text>
-          </View>
-        </View>
+        {/* A que toca, à cabeça (25/11, a proposta A), e depois "Next · 12 songs". */}
+        <AgoraNaFila track={track} />
+        <RotuloDasProximas fila={fila} />
         {linhas}
       </ScrollView>
       </> : <>
-        <View style={[styles.npFilaCabeca, { alignItems: 'flex-end', borderBottomWidth: 1, borderBottomColor: COR.linhaSuave, marginBottom: ESP.sm }]}>
+        <View style={[styles.npFilaCabeca, { marginBottom: ESP.sm }]}>
           <AbasDoCartao fila={fila} aba={abaDaFila} aoMudar={setAbaDaFila} />
           <View style={{ flex: 1 }} />
           {/* "Expand" (31/10): a letra a toda a largura. */}
           {abaDaFila === 'letra' ? <Pressable accessibilityRole="button" accessibilityLabel="Expand the lyrics" onPress={() => setLetraGrande(true)}
-            style={({ hovered }: any) => [styles.npFilaLimpar, { flexDirection: 'row', alignItems: 'center', gap: ESP.xs }, hovered && { backgroundColor: ESTADO.hover }]}>
+            style={({ hovered }: any) => [styles.npFilaLimpar, { flexDirection: 'row', alignItems: 'center', alignSelf: 'center', gap: ESP.xs }, hovered && { backgroundColor: ESTADO.hover }]}>
             <Ionicons name="expand-outline" size={14} color={COR.textoMedio} />
             <Text style={styles.npFilaLimparTexto}>Expand</Text>
           </Pressable> : null}

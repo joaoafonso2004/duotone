@@ -59,6 +59,23 @@ export function fimDaFila(c: {
 }
 
 /**
+ * Quanto falta na fila (25/11, a proposta A da maquete do cartão): "26 min",
+ * "1 h 12 min", ao lado de "Next · 12 songs". Conta só as que sabem a duração;
+ * sem nenhuma, `null` (não se mostra um "0 min" que não é verdade).
+ */
+export function tempoDaFila(faixas: readonly { durationSeconds: number | null }[]): string | null {
+  let s = 0, com = 0;
+  for (const f of faixas) {
+    if (typeof f.durationSeconds === 'number' && f.durationSeconds > 0) { s += f.durationSeconds; com++; }
+  }
+  if (!com) return null;
+  const min = Math.max(1, Math.round(s / 60));
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60), resto = min % 60;
+  return resto ? `${h} h ${resto} min` : `${h} h`;
+}
+
+/**
  * O grupo da Radio no fim da fila (30/10, passo 1 de `docs/PLANO-ELEVAR-PC.md`).
  *
  * O Radio põe as suas músicas em `doRadio` e a fila fica "o que escolheste, e

@@ -90,11 +90,12 @@ caso('a fila é um cartão redondo de vidro, com uma borda fina (como na maquete
   assert.match(ESTILOS, /npFila: \{ flex: 1, minWidth: 300, minHeight: 0, borderRadius: 22, borderWidth: 1, borderColor: COR\.linhaSuave,/);
   assert.match(ESTILOS, /backgroundColor: 'rgba\(8,8,12,\.5\)', paddingHorizontal: ESP\.lg, paddingTop: ESP\.md, overflow: 'hidden'/);
 });
-caso('a que toca vem à cabeça da fila, em destaque, com as barrinhas a mexer', () => {
-  assert.match(NP, /<View style=\{styles\.npAtual\} accessibilityLabel=\{`Now playing: \$\{tituloDaFaixa\(track\)\}`\}>/);
-  assert.ok(NP.indexOf('styles.npAtual') < NP.indexOf('{linhas}'), 'antes das próximas');
-  assert.match(NP, /<View \{\.\.\.marcar\('eq'\)\} aria-hidden/);
-  assert.match(ESTILOS, /npAtual: \{[^}]*backgroundColor: 'rgba\(233,234,238,\.09\)'/);
+caso('a que toca vem à cabeça da fila: o rótulo, a capa, o tempo e o fio de progresso (25/11, a proposta A)', () => {
+  const fila = ler('src/desktop/FilaDoLeitor.web.tsx');
+  assert.match(NP, /<AgoraNaFila track=\{track\} \/>\n\s+<RotuloDasProximas fila=\{fila\} \/>\n\s+\{linhas\}/, 'antes das próximas');
+  assert.match(fila, /<View style=\{styles\.npAgora\} accessibilityLabel=\{`Now playing: \$\{tituloDaFaixa\(track\)\}`\}/);
+  assert.match(fila, /<View style=\{\[styles\.npFioFeito, \{ transform: \[\{ scaleX: fracao \}\] \}\]\} \/>/, 'o fio cresce no compositor');
+  assert.doesNotMatch(ESTILOS, /npAtual:/, 'a barra cinzenta acesa saiu');
 });
 caso('o cartão tem três abas, "Up next", "Lyrics" e "About" (31/10), no mesmo sítio (a letra é a do painel do leitor)', () => {
   assert.match(NP, /const \[abaDaFila, setAbaDaFila\] = useState<AbaDoCartao>\('fila'\);/);
@@ -104,15 +105,17 @@ caso('o cartão tem três abas, "Up next", "Lyrics" e "About" (31/10), no mesmo 
   assert.match(fila, /<AbaDaFila rotulo="Up next" ativa=\{aba === 'fila'\}/);
   assert.match(fila, /<AbaDaFila rotulo="Lyrics" ativa=\{aba === 'letra'\}/);
   assert.match(fila, /<AbaDaFila rotulo="About" ativa=\{aba === 'sobre'\}/);
-  assert.match(fila, /borderBottomWidth: 2, borderBottomColor: ativa \? COR\.texto : 'transparent'/);
+  assert.match(fila, /style=\{\[styles\.npAba, ativa && ESTADO\.linhaEscolhida\]\}/, 'a linha de aço da aberta');
 });
-caso('a que toca diz "playing now", e o painel e o ecrã estreito ficam sem abas', () => {
-  assert.match(NP, /\{displayArtist\(track\)\} · playing now/);
+caso('"Next · 12 songs" e quanto falta; o painel e o ecrã estreito ficam sem abas', () => {
+  const fila = ler('src/desktop/FilaDoLeitor.web.tsx');
+  assert.match(fila, /const tempo = fila\.saida \? null : tempoDaFila\(fila\.upNext\.map\(\(e\) => e\.track\)\);/);
+  assert.match(fila, /\{abas \? null : <RotuloDasProximas fila=\{fila\} direita=\{<AcoesDaFila fila=\{fila\} \/>\} \/>\}/);
   assert.match(NP, /const cabecaDaFila = <CabecaDaFila fila=\{fila\} \/>;/);
 });
 caso('só no ecrã largo (duas colunas): no estreito a fila fica como estava', () => {
   const estreito = NP.slice(NP.indexOf('<ScrollView style={{ flex: 1 }} contentContainerStyle={styles.npEstreito}'));
-  assert.ok(!/npAtual/.test(estreito.slice(0, 400)));
+  assert.ok(!/AgoraNaFila/.test(estreito.slice(0, 400)));
 });
 
 console.log('\no cartão de mistura');

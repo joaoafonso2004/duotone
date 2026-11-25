@@ -303,10 +303,32 @@ export const styles = StyleSheet.create({
   // A fila é um cartão (30/10, da maquete): redondo, com uma borda fina e um fundo de vidro, em vez de uma lista solta.
   npFila: { flex: 1, minWidth: 300, minHeight: 0, borderRadius: 22, borderWidth: 1, borderColor: COR.linhaSuave,
     backgroundColor: 'rgba(8,8,12,.5)', paddingHorizontal: ESP.lg, paddingTop: ESP.md, overflow: 'hidden' } as any,
-  // A que toca, à cabeça da fila e em destaque (30/10, da maquete): as barrinhas, a capa, o nome e o fundo aceso.
-  npAtual: { flexDirection: 'row', alignItems: 'center', gap: ESP.md, padding: ESP.sm, marginBottom: ESP.sm, borderRadius: RAIO.superficie,
-    backgroundColor: 'rgba(233,234,238,.09)' },
-  npFilaCabeca: { flexDirection: 'row', alignItems: 'baseline', gap: ESP.md, paddingHorizontal: ESP.sm, paddingTop: ESP.sm, paddingBottom: ESP.md },
+  // A que toca, à cabeça da fila (25/11, a proposta A da maquete do cartão): o rótulo em letra
+  // técnica, a capa, o nome, o tempo e um fio de progresso por baixo. Era uma barra cinzenta acesa.
+  npAgora: { paddingHorizontal: ESP.sm, paddingTop: ESP.md },
+  npAgoraLinha: { flexDirection: 'row', alignItems: 'center', gap: ESP.md, marginTop: ESP.md },
+  npAgoraTitulo: { ...TIPO.seccao, color: COR.texto },
+  npAgoraArtista: { ...TIPO.legenda, color: COR.textoMedio, marginTop: 3 },
+  npAgoraTempo: { ...TIPO.numero, color: COR.textoFraco },
+  npFio: { height: 2, borderRadius: 1, backgroundColor: 'rgba(233,234,238,.08)', marginTop: ESP.md, overflow: 'hidden' },
+  // Cresce por `scaleX` (no compositor), como o fio de quem ouve na lateral.
+  npFioFeito: { height: 2, backgroundColor: COR.texto, transformOrigin: '0 50%' } as any,
+  // A letra técnica dos rótulos ("NOW PLAYING", "NEXT · 12 SONGS"): a mesma do About.
+  npMicro: { ...TIPO.micro, color: COR.textoFraco },
+  // "Next · 12 songs" e quanto falta, por cima das próximas.
+  npProximas: { flexDirection: 'row', alignItems: 'center', gap: ESP.sm, minHeight: 36, paddingHorizontal: ESP.sm, paddingTop: ESP.lg, paddingBottom: ESP.xs },
+  // A cabeça do cartão: as abas e os botões da fila, com um fio por baixo.
+  npFilaCabeca: { flexDirection: 'row', alignItems: 'stretch', gap: ESP.md, height: 46, paddingHorizontal: ESP.sm,
+    boxShadow: 'inset 0 -1px 0 rgba(233,234,238,.07)' } as any,
+  npAbas: { flexDirection: 'row', alignItems: 'stretch', gap: 26 },
+  // "Playing from Liked Songs" no painel da direita, à esquerda da linha do Radio.
+  npOrigemNoPainel: { flexDirection: 'row', alignItems: 'center', gap: ESP.sm, minWidth: 0, flexShrink: 1 },
+  npOrigemNoPainelNome: { ...TIPO.corpo, fontSize: 13, fontWeight: '600' as any, color: COR.texto, flexShrink: 1 },
+  // Uma aba: texto, e na escolhida a linha de aço (`ESTADO.linhaEscolhida`), assente no fio.
+  npAba: { flexDirection: 'row', alignItems: 'flex-end', gap: 7, paddingBottom: 13 },
+  npAbaTexto: { fontFamily: FONT.display, fontSize: 15, fontWeight: '650' as any, color: COR.textoMedio },
+  // Os botões da fila (baralhar, guardar, limpar), ou o que se faz com as escolhidas.
+  npFilaAcoes: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   npFilaHeading: { ...TIPO.seccao, fontSize: 18, color: COR.texto },
   npFilaContagem: { ...TIPO.numero, color: COR.textoFraco },
   npFilaLimpar: { paddingHorizontal: ESP.sm, paddingVertical: 4, borderRadius: RAIO.cartao },
@@ -322,6 +344,9 @@ export const styles = StyleSheet.create({
   npRadioErro: { ...TIPO.legenda, color: COR.textoMedio, paddingHorizontal: ESP.sm, paddingBottom: ESP.sm },
   npFilaTitulo: { ...TIPO.corpo, color: COR.texto, fontWeight: '550' as any },
   npFilaDuracao: { ...TIPO.numero, color: COR.textoFraco, marginLeft: ESP.sm },
-  npFilaFim: { ...TIPO.legenda, color: COR.textoFraco, marginTop: ESP.sm, marginHorizontal: ESP.sm, paddingTop: ESP.md, borderTopWidth: 1, borderTopColor: COR.linhaSuave },
+  // O número da linha da fila (25/11): na coluna da esquerda, alinhado à direita.
+  npFilaNumero: { ...TIPO.numero, color: COR.textoFraco, textAlign: 'right' },
+  npFilaFim: { flexDirection: 'row', alignItems: 'center', gap: ESP.sm, marginTop: ESP.sm, marginHorizontal: ESP.sm, paddingTop: ESP.md, borderTopWidth: 1, borderTopColor: COR.linhaSuave },
+  npFilaFimTexto: { ...TIPO.legenda, color: COR.textoFraco },
   npFilaVazia: { ...TIPO.legenda, color: COR.textoFraco, textAlign: 'center', paddingVertical: ESP.xl, borderTopWidth: 1, borderTopColor: COR.linhaSuave },
 });

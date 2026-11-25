@@ -249,6 +249,28 @@ export function injectDesktopDocumentStyles() {
     .np-fila-mais { background: none; border: 0; padding: 6px; border-radius: ${RAIO.cartao}px; cursor: pointer; }
     .np-fila-mais:hover { background: ${ESTADO.hover}; }
     .np-fila-mais:focus-visible { opacity: 1; outline: 2px solid ${COR.texto}; }
+    /* O número e a duração (25/11, a proposta A da maquete do cartão): o número dá lugar
+       à pega e a duração ao "…", no mesmo sítio, para a linha não mexer ao passar o rato. */
+    .np-fila-num { position: relative; flex: none; width: 22px; display: flex; align-items: center; justify-content: flex-end; }
+    .np-fila-num > .np-fila-pega { position: absolute; inset: 0; align-items: center; justify-content: flex-end; }
+    .np-fila-num > div { transition: opacity var(--dt-rapido) var(--dt-curva); }
+    /* O About (25/11, a proposta A da maquete do cartão): duas colunas quando ele próprio tem
+       largura (o cartão do Now Playing), uma no painel de 340 px. Por container query: decide
+       antes de desenhar, sem medir e saltar. */
+    [data-dt~="sobre"] { container-type: inline-size; }
+    @container (min-width: 620px) {
+      [data-dt~="sobre-colunas"] { flex-direction: row !important; gap: 44px !important; }
+      [data-dt~="sobre-artista"] { width: 300px; flex: none !important; }
+      [data-dt~="sobre-retrato"] { height: 336px !important; }
+      [data-dt~="sobre-nome"] { font-size: 34px !important; line-height: 38px !important; }
+    }
+    /* Só quando há pega (num Jam não se arrasta, e o número fica). */
+    .np-fila-linha:hover .np-fila-num:has(.np-fila-pega) > div, .np-fila-linha:focus-visible .np-fila-num:has(.np-fila-pega) > div,
+    .np-fila-num:has(.np-fila-pega-viva) > div { opacity: 0; }
+    .np-fila-fim { position: relative; flex: none; min-width: 44px; display: flex; align-items: center; justify-content: flex-end; }
+    .np-fila-fim > div { transition: opacity var(--dt-rapido) var(--dt-curva); }
+    .np-fila-fim > .np-fila-mais { position: absolute; right: -4px; top: 50%; transform: translateY(-50%); }
+    .np-fila-linha:hover .np-fila-fim > div, .np-fila-linha:focus-visible .np-fila-fim > div { opacity: 0; }
     /* O painel da direita (23/11, a maquete "Painel e leitor a abrir"). Encostado, o lugar
        dele (a width) cresce com a curva de entrada e a página encolhe com ele; a fechar, 90 ms
        depois de a fila se apagar. Só muda a largura do painel: o fundo da página por trás dele

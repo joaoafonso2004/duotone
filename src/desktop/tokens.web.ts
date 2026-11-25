@@ -120,6 +120,12 @@ export const ESTADO = {
   escolhido: { backgroundColor: COR.metalSuave, boxShadow: 'inset 0 0 0 1px rgba(233,234,238,0.28)' } as any,
   /** A mesma aresta, para quem já tem borda (o `Button` marcado). */
   aresta: 'rgba(233,234,238,0.28)',
+  /**
+   * Escolhido num seletor de TEXTO (25/11, a proposta A da maquete do Now Playing; o
+   * João não quer pílulas como seletores): uma linha de aço de 2 px por baixo, com
+   * um brilho curto. Por sombra de dentro, para o texto não saltar ao escolher.
+   */
+  linhaEscolhida: { boxShadow: `inset 0 -2px 0 ${COR.texto}, 0 10px 16px -12px rgba(233,234,238,0.6)` } as any,
   /** Indisponível: "agora não". Em progresso NÃO é isto -- fica a 100 %,
    * com a roda antes do texto (o `ocupado` do `Button`). */
   apagado: 0.42,

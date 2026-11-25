@@ -111,11 +111,16 @@ caso('leitor de ecrã: um grupo de opções, cada uma escolhida ou não', () => 
   assert.match(RADIO, /accessibilityRole=\{'radio' as any\}/);
   assert.match(RADIO, /accessibilityState=\{\{ checked: aceso,/);
 });
-caso('o escolhido usa o estado da app, e o hover não se confunde com ele', () => {
-  assert.match(RADIO, /aceso \? ESTADO\.escolhido : hovered && \{ backgroundColor: ESTADO\.hover \}/);
+caso('o escolhido é a linha de aço da app (sem pílula, 25/11), e o hover só acende o texto', () => {
+  assert.match(RADIO, /style=\{\[estilos\.opcao, aceso && ESTADO\.linhaEscolhida\]\}/);
+  assert.match(RADIO, /\(aceso \|\| hovered\) && \{ color: COR\.texto \}/);
+  assert.doesNotMatch(RADIO, /borderRadius: 15|ESTADO\.escolhido/, 'a pílula voltou');
+});
+caso('o Undo diz o que aconteceu, à esquerda das opções (25/11)', () => {
+  assert.match(RADIO, /\{radio\.podeDesfazer \? <>[\s\S]*?Radio replaced your queue[\s\S]*?<\/> : esquerda\}/);
 });
 caso('a fila já não abre o menu do PC', () => {
-  assert.match(FILA, /<RadioEmTresEstados \/>/);
+  assert.match(FILA, /<RadioEmTresEstados esquerda=\{origem\} empilhada=\{!abas\} \/>/);
   assert.ok(!FILA.includes('<MenuDoRadio'));
   assert.ok(!/className\s*[=:]/.test(RADIO.replace(/\/\*[\s\S]*?\*\//g, '')));
 });

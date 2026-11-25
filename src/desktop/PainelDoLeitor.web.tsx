@@ -5,13 +5,12 @@ import { LyricsView } from '../components/LyricsView';
 import { BarreiraDeErros } from '../components/BarreiraDeErros';
 import { usePlayer } from '../state/player';
 import { comCatalogo, garantirCatalogo, useCatalogoDeFaixas } from '../state/catalogoDeFaixas';
-import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { useReducedMotion } from '../hooks/useReducedMotion';
-import { FilaDoLeitor } from './FilaDoLeitor.web';
+import { AgoraNaFila, FilaDoLeitor, OrigemNoPainel } from './FilaDoLeitor.web';
 import { SobreAMusica } from './SobreAMusica.web';
 import { SeparadorDoPainel } from './SeparadorDeLargura.web';
-import { Artwork, Empty } from './ui.web';
-import { COR, ESP, ESTADO, FONT, TIPO } from './tokens.web';
+import { Empty } from './ui.web';
+import { COR, ESP, ESTADO, FONT } from './tokens.web';
 import type { CommonPageProps } from './rotas';
 import { usePainelDoLeitor, type AbaDoPainel as Aba } from './estadoDoPainel.web';
 
@@ -50,19 +49,12 @@ function ConteudoDoPainel({ aba, more, notify }: Pick<CommonPageProps, 'more' | 
   useCatalogoDeFaixas((s) => s.versao);
   useEffect(() => { if (current) void garantirCatalogo([current]); }, [current]);
   const track = current ? comCatalogo(current) : null;
-  const identidade = track ? <View style={s.atual}>
-    <Text style={s.rotulo}>Now playing</Text>
-    <Pressable accessibilityRole="button" accessibilityLabel={`Options for ${tituloDaFaixa(track)}`}
-      onPress={() => more(track)} style={({ hovered }: any) => [s.faixaAtual, hovered && { backgroundColor: COR.hover }]}>
-      <Artwork track={track} size={42} />
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text numberOfLines={1} style={s.titulo}>{tituloDaFaixa(track)}</Text>
-        <Text numberOfLines={1} style={s.artista}>{displayArtist(track)}</Text>
-      </View>
-      <Ionicons name="ellipsis-horizontal" size={16} color={COR.textoMedio} />
-    </Pressable>
-  </View> : <Empty icon="musical-notes-outline" title={FRASES_DOS_ESTADOS.nadaATocar.titulo} body={FRASES_DOS_ESTADOS.nadaATocar.corpo} />;
-  if (aba === 'fila') return <FilaDoLeitor more={more} notify={notify} atual={identidade} />;
+  // A que toca (25/11, a proposta A da maquete do cartão): a mesma do Up next do Now
+  // Playing, com o "…" do menu da música. Era uma caixa cinzenta.
+  const identidade = track ? <AgoraNaFila track={track} aoMenu={() => more(track)} />
+    : <Empty icon="musical-notes-outline" title={FRASES_DOS_ESTADOS.nadaATocar.titulo} body={FRASES_DOS_ESTADOS.nadaATocar.corpo} />;
+  // Aqui não há o topo do Now Playing a dizer de onde é a fila: diz-se na linha do Radio.
+  if (aba === 'fila') return <FilaDoLeitor more={more} notify={notify} atual={identidade} origem={<OrigemNoPainel />} />;
   // O About (31/10): o artista e a música, o mesmo do cartão do Now Playing.
   if (aba === 'sobre') return <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: ESP.sm }}>{track ? <SobreAMusica track={track} more={more} notify={notify} /> : identidade}</ScrollView>;
   return <View style={{ flex: 1, minHeight: 0 }}>
@@ -199,8 +191,9 @@ export function PainelDoLeitor({ children, more, notify, sobre = null }: Pick<Co
             accessibilityState={{ selected: estado.aba === aba }}
             {...({ 'aria-controls': 'conteudo-do-painel', 'aria-selected': estado.aba === aba, tabIndex: estado.aba === aba ? 0 : -1 } as any)}
             onPress={() => setEstado((antes) => ({ ...antes, aba }))}
-            style={({ hovered, focused }: any) => [s.aba, estado.aba === aba ? ESTADO.escolhido : (hovered || focused) && { backgroundColor: ESTADO.hover }]}>
-            <Text style={[s.abaTexto, estado.aba === aba && { color: COR.texto }]}>{ROTULO_DA_ABA[aba]}</Text>
+            style={[s.aba, estado.aba === aba && ESTADO.linhaEscolhida]}>
+            {/* Texto com a linha de aço por baixo da aberta (25/11): o João não quer pílulas como seletores. */}
+            {({ hovered, focused }: any) => <Text style={[s.abaTexto, (estado.aba === aba || hovered || focused) && { color: COR.texto }]}>{ROTULO_DA_ABA[aba]}</Text>}
           </Pressable>)}
         </View>
         <Pressable ref={fecharRef} accessibilityRole="button" accessibilityLabel="Close queue and lyrics panel" onPress={fechar}
@@ -235,15 +228,12 @@ const FUNDO_POR_CIMA = 'rgba(12,12,16,0.96)';
 
 const s = StyleSheet.create({
   painel: { flex: 1, width: '100%', flexShrink: 0, minHeight: 0 },
-  cabeca: { height: 58, paddingHorizontal: ESP.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  abas: { flexDirection: 'row', gap: ESP.xs },
-  aba: { borderRadius: 999, paddingHorizontal: ESP.md, paddingVertical: ESP.sm },
-  abaTexto: { fontFamily: FONT.body, color: COR.textoMedio, fontSize: 13, fontWeight: '600' },
-  seta: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  // As abas assentam num fio, como as do cartão do Now Playing (25/11).
+  cabeca: { height: 52, marginHorizontal: ESP.md, flexDirection: 'row', alignItems: 'stretch', justifyContent: 'space-between',
+    boxShadow: 'inset 0 -1px 0 rgba(233,234,238,.07)' } as any,
+  abas: { flexDirection: 'row', gap: 20 },
+  aba: { justifyContent: 'flex-end', paddingBottom: 14 },
+  abaTexto: { fontFamily: FONT.display, color: COR.textoMedio, fontSize: 14, fontWeight: '650' as any },
+  seta: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', alignSelf: 'center' },
   setaDaBarra: { width: 46, height: 37, alignItems: 'center', justifyContent: 'center', WebkitAppRegion: 'no-drag' } as any,
-  atual: { paddingHorizontal: ESP.md, paddingBottom: ESP.md },
-  rotulo: { fontFamily: FONT.body, color: COR.textoFraco, fontSize: 11, marginVertical: ESP.sm },
-  faixaAtual: { flexDirection: 'row', gap: ESP.sm, alignItems: 'center', padding: ESP.sm, borderRadius: 8, backgroundColor: COR.elevado },
-  titulo: { fontFamily: FONT.body, color: COR.texto, fontSize: 13, fontWeight: '600' },
-  artista: { ...TIPO.legenda, color: COR.textoFraco, marginTop: 2 },
 });

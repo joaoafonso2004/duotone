@@ -100,7 +100,8 @@ await caso('PC: Ctrl/Shift+clique escolhe, um clique simples larga sem tocar, e 
   assert.match(h, /if \(!escolhidas\.size\) return false;\n\s+setEscolhidas\(new Set\(\)\);\n\s+return true;/);
   assert.match(ler('src/desktop/FilaArrastavel.web.tsx'), /if \(aoEscolher\?\.\(e, i, entrada\.index\)\) return;\n\s+aoTocar\(entrada\.track\);/);
   const c = ler('src/desktop/FilaDoLeitor.web.tsx');
-  assert.match(c, /accessibilityLabel="Shuffle again"/);
+  // Os botões da fila são ícones com legenda (25/11): o `label` é o nome que o leitor de ecrã lê.
+  assert.match(c, /<IconButton name="shuffle" label="Shuffle again" onPress=\{fila\.baralhar\} \/>/);
   assert.match(c, /accessibilityLabel="Play the selected songs next" onPress=\{fila\.porASeguir\}/);
   assert.match(c, /accessibilityLabel="Remove the selected songs" onPress=\{fila\.tirarEscolhidas\}/);
 });

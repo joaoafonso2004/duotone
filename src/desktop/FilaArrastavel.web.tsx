@@ -61,6 +61,7 @@ export function FilaArrastavel({
   entrada: entradaDaLista = null,
   escolhidas,
   aoEscolher,
+  primeiroNumero = 1,
 }: {
   entradas: Entrada[];
   /** Num Jam a fila é de todos: não se reordena daqui. */
@@ -83,6 +84,8 @@ export function FilaArrastavel({
   escolhidas?: ReadonlySet<number>;
   /** Um clique com Ctrl/Shift (ou com escolhidas): devolve se foi da escolha, e então não toca. */
   aoEscolher?: (e: { ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean }, visivel: number, real: number) => boolean;
+  /** O número da primeira linha (25/11): a lista da Radio continua a contar onde a de cima acaba. */
+  primeiroNumero?: number;
 }) {
   const sugeridas = usePlayer((s) => s.sugeridas);
   const [arrasto, setArrasto] = useState<Arrasto | null>(null);
@@ -261,6 +264,20 @@ export function FilaArrastavel({
                 ? { animationDelay: `${atrasoDaLinha(i, saida ? PASSO_DA_SAIDA_MS : PASSO_DA_ENTRADA_MS)}ms` } : {}),
             } as any}
           >
+            {/* O número da linha (25/11, a proposta A da maquete do cartão). Ao passar o
+                rato dá lugar à pega (quem pode arrastar); escolhida, a um visto. */}
+            <span className="np-fila-num">
+              {escolhidas?.has(entrada.index)
+                ? <Ionicons name="checkmark-circle" size={18} color={COR.texto} />
+                : <>
+                  <Text style={styles.npFilaNumero}>{primeiroNumero + i}</Text>
+                  {podeArrastar && (
+                    <span className={arrastada ? 'np-fila-pega np-fila-pega-viva' : 'np-fila-pega'} aria-hidden="true">
+                      <Ionicons name="reorder-two-outline" size={16} color={arrastada ? COR.texto : COR.textoMedio} />
+                    </span>
+                  )}
+                </>}
+            </span>
             {/* Ao passar o rato a capa mostra o ▶ (tocar esta), como nas
                 outras listas. Em CSS (`np-fila-*`): isto é um <div> a sério. */}
             <div className="np-fila-capa">
@@ -287,13 +304,9 @@ export function FilaArrastavel({
                   : displayArtist(entrada.track)}
               </Text>
             </View>
+            {/* A duração, e no lugar dela o "…" com o rato em cima (25/11). */}
+            <span className="np-fila-fim">
             <Text style={styles.npFilaDuracao}>{formatTime(entrada.track.durationSeconds)}</Text>
-            {/* A pega e o "…" só aparecem com o rato em cima (ou arrastada). */}
-            {podeArrastar && (
-              <span className={arrastada ? 'np-fila-pega np-fila-pega-viva' : 'np-fila-pega'} aria-hidden="true">
-                <Ionicons name="reorder-two-outline" size={16} color={arrastada ? COR.texto : COR.textoFraco} />
-              </span>
-            )}
             <button
               type="button"
               className="np-fila-mais"
@@ -304,6 +317,7 @@ export function FilaArrastavel({
             >
               <Ionicons name="ellipsis-horizontal" size={16} color={COR.textoMedio} />
             </button>
+            </span>
           </div>
         );
       })}

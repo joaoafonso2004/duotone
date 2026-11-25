@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import {
   ALTURA_DO_TOPO, ALTURA_POR_BAIXO_DA_CAPA, CAPA_MAXIMA, CAPA_MINIMA, MARGEM_DE_BAIXO, TITULO_DO_CINEMA,
-  disposicaoDoLeitor, fimDaFila, fotoDoFundo, lerDisposicaoEscolhida, lerFundoDoLeitor, tamanhoDoTituloDoCinema,
+  disposicaoDoLeitor, fimDaFila, fotoDoFundo, lerDisposicaoEscolhida, lerFundoDoLeitor, tamanhoDoTituloDoCinema, tempoDaFila,
 } from '../src/lib/leitorDoPc.ts';
 
 let n = 0;
@@ -68,6 +68,16 @@ caso('o fim da fila diz o que vem a seguir', () => {
   assert.equal(fimDaFila({ ...base, repeatMode: 'all' }), 'Then the queue starts again');
   assert.equal(fimDaFila({ ...base, repeatMode: 'one' }), 'This track is on repeat');
   assert.equal(fimDaFila({ ...base, emJam: true }), null, 'num Jam a fila é de todos');
+});
+caso('quanto falta na fila: minutos, horas, e nada sem durações', () => {
+  const d = (...s: (number | null)[]) => s.map((durationSeconds) => ({ durationSeconds }));
+  assert.equal(tempoDaFila(d(117, 106, 119, 137, 127, 156, 88, 180, 116, 141, 144, 124)), '26 min');
+  assert.equal(tempoDaFila(d(20)), '1 min', 'menos de um minuto diz 1, não 0');
+  assert.equal(tempoDaFila(d(3600, 720)), '1 h 12 min');
+  assert.equal(tempoDaFila(d(3600, 3600)), '2 h');
+  assert.equal(tempoDaFila(d(null, 0)), null);
+  assert.equal(tempoDaFila(d(null, 300)), '5 min', 'as sem duração não contam');
+  assert.equal(tempoDaFila([]), null);
 });
 
 console.log(`\nLeitor do PC: ${n} casos passaram.`);
