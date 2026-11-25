@@ -1,3 +1,4 @@
+import { useDestinos } from '../navigation/destinos';
 import { TextoQueRola } from '../components/TextoQueRola';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -37,6 +38,8 @@ const PERIODS: StatsPeriod[] = ['30d', '6m', 'all'];
 const PERIOD_LABELS = ['30 days', '6 months', 'All time'];
 
 export function ListeningStatsScreen({ navigation, route }: Props) {
+  // Os vazios dizem para onde ir (25/11, item 14 do plano de melhorias).
+  const { irPara } = useDestinos();
   // O título encolhe ao rolar (3/10, lib/tituloQueEncolhe.ts).
   const cab = useCabecalhoQueEncolhe();
   const insets = useSafeAreaInsets();
@@ -147,6 +150,7 @@ export function ListeningStatsScreen({ navigation, route }: Props) {
             icon="stats-chart-outline"
             title="Nothing to show yet"
             subtitle="Play a few tracks and your stats will show up here."
+            acoes={[{ rotulo: 'Play your Daily mix', aoTocar: () => irPara({ tipo: 'mistura-do-dia' }) }]}
           />
         ) : (
           <>

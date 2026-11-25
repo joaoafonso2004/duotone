@@ -1,3 +1,4 @@
+import { useDestinos } from '../navigation/destinos';
 import { useNotificationOverlay } from '../hooks/useNotificationOverlay';
 import { ListaAnimada } from '../components/ListaAnimada';
 import { menuDaPlaylist } from '../lib/menuDaPlaylist';
@@ -108,6 +109,8 @@ import { acoesDaLinha, fraseDoMover } from '../lib/menuDaFaixa';
 type Props = NativeStackScreenProps<RootStackParamList, 'PlaylistDetail'>;
 
 export function PlaylistDetailScreen({ route, navigation }: Props) {
+  // Os vazios dizem para onde ir (25/11, item 14 do plano de melhorias).
+  const { irPara } = useDestinos();
   // Voltar encolhe até ao quadrado de onde abriu, se abriu por um (24/11).
   const voltar = useVoltarDaPagina();
   // A barra de cima flutua sobre a capa e mostra o nome pequeno quando o
@@ -953,6 +956,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
           icon="musical-notes-outline"
           title={FRASES_DOS_ESTADOS.playlistVazia.titulo}
           subtitle={canEdit ? FRASES_DOS_ESTADOS.playlistVazia.corpo : FRASES_DOS_ESTADOS.playlistVazia.semPoder}
+          acoes={canEdit ? [{ rotulo: 'Find songs to add', aoTocar: () => irPara({ tipo: 'inicio' }) }] : undefined}
         />
         </View>
       ) : playlistSearchQuery.trim() && visibleTracks.length === 0 ? (

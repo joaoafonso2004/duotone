@@ -1,3 +1,4 @@
+import { useDestinos } from '../navigation/destinos';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
@@ -51,6 +52,8 @@ interface Linha {
  * dos fixados antigos (que guardavam só o id) vão buscar o título à biblioteca.
  */
 export function DownloadsScreen({ navigation }: Props) {
+  // Os vazios dizem para onde ir (25/11, item 14 do plano de melhorias).
+  const { irPara } = useDestinos();
   // O título encolhe ao rolar (3/10, lib/tituloQueEncolhe.ts).
   const cab = useCabecalhoQueEncolhe();
   const insets = useSafeAreaInsets();
@@ -222,6 +225,10 @@ export function DownloadsScreen({ navigation }: Props) {
             icon="arrow-down-circle-outline"
             title="Nothing saved yet"
             subtitle="Tap Download in a track's menu. It stays on this phone and plays without internet."
+            acoes={[
+              { rotulo: 'Open Liked Songs', aoTocar: () => irPara({ tipo: 'gostadas' }) },
+              { rotulo: 'Browse playlists', aoTocar: () => irPara({ tipo: 'playlists' }) },
+            ]}
           />
         ) : (
           <>

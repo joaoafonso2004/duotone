@@ -1,3 +1,4 @@
+import { useDestinos } from '../navigation/destinos';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -30,6 +31,8 @@ import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
  * abre o menu de um disco, com "Remove from library".
  */
 export function AlbunsGuardadosScreen() {
+  // Os vazios dizem para onde ir (25/11, item 14 do plano de melhorias).
+  const { irPara } = useDestinos();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const cab = useCabecalhoQueEncolhe();
   const insets = useSafeAreaInsets();
@@ -70,7 +73,8 @@ export function AlbunsGuardadosScreen() {
         {albuns.length === 0 ? (
           <>
             <View style={{ height: cab.espaco }} />
-            <EmptyState icon="disc-outline" title={FRASES_DOS_ALBUNS.vazio} subtitle={FRASES_DOS_ALBUNS.vazioDetalhe} />
+            <EmptyState icon="disc-outline" title={FRASES_DOS_ALBUNS.vazio} subtitle={FRASES_DOS_ALBUNS.vazioDetalhe}
+              acoes={[{ rotulo: 'Find new releases', aoTocar: () => irPara({ tipo: 'inicio' }) }]} />
           </>
         ) : (
           <Animated.FlatList

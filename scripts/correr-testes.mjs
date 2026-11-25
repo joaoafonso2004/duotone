@@ -325,6 +325,7 @@ const TESTES = [
   'scripts/test-ponte-tauri.mjs',
   `${TS} scripts/test-ouvir-sem-rede-pc.ts`,
   `${TS} scripts/test-texto-que-rola.ts`,
+  `${TS} scripts/test-vazios-com-acao.ts`,
   'scripts/test-segunda-instancia.mjs',
   'scripts/test-saude-electron.mjs',
   'scripts/test-atualizacao-windows.mjs',
