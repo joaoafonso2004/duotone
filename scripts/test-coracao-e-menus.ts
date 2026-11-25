@@ -187,7 +187,12 @@ caso('W5: a falha diz-se no lugar do artista, e não numa linha de 10 px ao lado
 });
 caso('I5: a pesquisa da Home do iPhone tem "Cancel"', () => {
   const s = ler('src/screens/SearchScreen.tsx');
-  assert.match(s, /\{isFocused \|\| query\.length > 0 \? \([\s\S]{0,300}Keyboard\.dismiss\(\); setQuery\(''\); setIsFocused\(false\);[\s\S]{0,120}>Cancel</);
+  assert.match(s, /\{isFocused \|\| query\.length > 0 \? \([\s\S]{0,500}Keyboard\.dismiss\(\); setQuery\(''\); setIsFocused\(false\);[\s\S]{0,120}>Cancel</);
+  // E entra pela direita com a mola (25/11, item 16 do plano de melhorias).
+  assert.match(s, /\{isFocused \|\| query\.length > 0 \? \([\s\S]{0,200}<EntradaPelaDireita>/);
+  // E as pesquisas recentes chegam uma a uma, cada uma com o seu lugar.
+  assert.match(s, /<EntradaEmCascata key=\{q\} indice=\{i \+ 1\}>/);
+  assert.match(ler('src/components/EntradaEmCascata.tsx'), /useNativeDriver: true/);
 });
 caso('o EQ do PC não escurece o leitor por trás', () => {
   assert.match(ler('src/desktop/paginas/NowPlayingPage.web.tsx'), /<Dialog open=\{eqAberto\} title="Equaliser"[\s\S]{0,120}width=\{580\} semVeu /);

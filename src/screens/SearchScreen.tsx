@@ -1,3 +1,4 @@
+import { EntradaEmCascata, EntradaPelaDireita } from '../components/EntradaEmCascata';
 import { useRecommendationFeedback } from '../state/recommendationFeedback';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
@@ -722,14 +723,17 @@ export function SearchScreen() {
               />
             </View>
             {isFocused || query.length > 0 ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Cancel search"
-                hitSlop={10}
-                onPress={() => { hapticSelection(); Keyboard.dismiss(); setQuery(''); setIsFocused(false); }}
-              >
-                <Text style={[type.body, { color: corDoTema }]}>Cancel</Text>
-              </Pressable>
+              // Entra pela direita com a mola (25/11, item 16 do plano de melhorias).
+              <EntradaPelaDireita>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancel search"
+                  hitSlop={10}
+                  onPress={() => { hapticSelection(); Keyboard.dismiss(); setQuery(''); setIsFocused(false); }}
+                >
+                  <Text style={[type.body, { color: corDoTema }]}>Cancel</Text>
+                </Pressable>
+              </EntradaPelaDireita>
             ) : null}
           </View>
           {query.trim().length >= 2 ? (
@@ -813,6 +817,8 @@ export function SearchScreen() {
             keyboardDismissMode="on-drag"
             contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingTop: cab.espaco, paddingBottom: bottomPad }}
           >
+            {/* As recentes chegam uma a uma (25/11, item 16 do plano de melhorias). */}
+            <EntradaEmCascata indice={0}>
             <View style={styles.historyHeader}>
               <Text style={type.micro}>Recent searches</Text>
               <Pressable hitSlop={8} onPress={doClearHistory}>
@@ -821,9 +827,10 @@ export function SearchScreen() {
                 </Text>
               </Pressable>
             </View>
-            {history.map((q) => (
+            </EntradaEmCascata>
+            {history.map((q, i) => (
+              <EntradaEmCascata key={q} indice={i + 1}>
               <Pressable
-                key={q}
                 onPress={() => {
                   setQuery(q);
                   Keyboard.dismiss();
@@ -838,6 +845,7 @@ export function SearchScreen() {
                   {q}
                 </Text>
               </Pressable>
+              </EntradaEmCascata>
             ))}
           </Animated.ScrollView>
         ) : query.trim().length < 2 && !isFocused ? (
