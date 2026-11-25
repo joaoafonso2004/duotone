@@ -45,6 +45,7 @@ import { Button, ContentScroll, Dialog, Interruptor, marcar } from '../ui.web';
 import { RecuperarPassword } from '../RecuperarPassword.web';
 import { BarraVelocidade } from '../BarraVelocidade.web';
 import { AtalhosDoTeclado } from '../AtalhosDoTeclado.web';
+import { DownloadsNasDefinicoes } from '../DownloadDaLista.web';
 import { BandasDoEqualizador, ReporEqualizador } from '../PainelEqualizador.web';
 import { GestorDePresets } from '../GestorDePresets.web';
 import { presetsVisiveis } from '../../lib/presetsDoEqualizador';
@@ -545,6 +546,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                   dos duplicados, dos vídeos que já não tocam e das capas partidas.
                   Nenhum dos dois corre sozinho. */}
               {aberta === 'biblioteca' && <SettingsCard title="Library">
+                <DownloadsNasDefinicoes />
                 <View style={styles.settingLine}>
                   <View style={{ flex: 1, paddingRight: ESP.lg }}>
                     <Text style={styles.settingLabel}>{ROTULOS.recomendacoes}</Text>

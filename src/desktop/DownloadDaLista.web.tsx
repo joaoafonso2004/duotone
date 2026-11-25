@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 import {
-  cancelarDownloadDaLista, descarregarLista, podeDescarregar, situacaoDoDownloadDe, tirarDownloadsDaLista, useDownloadDaLista,
+  cancelarDownloadDaLista, descarregarLista, limparTodosOsDownloads, podeDescarregar, situacaoDoDownloadDe, tirarDownloadsDaLista, useDownloadDaLista,
   useRevisaoDosDownloads,
 } from '../lib/descarregarFaixa';
 import { contarDaLista, downloadDaLista, TEXTO_DO_LOTE_PARADO, textoDoDescarregado, textoDoProgresso } from '../lib/downloadDaLista';
@@ -57,6 +57,47 @@ export function BotaoDoDownloadDaLista({ chave, nome, faixas }: { chave: string;
       </View>
     </Dialog>
   </>;
+}
+
+/** "1.1 GB", "312 MB": o espaço como as Definições o dizem. */
+export function textoDoEspaco(bytes: number): string {
+  const mb = bytes / (1024 * 1024);
+  return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${Math.max(mb > 0 ? 1 : 0, Math.round(mb))} MB`;
+}
+
+/**
+ * Os downloads nas Definições › Library (25/11): quantas músicas estão no PC, o
+ * espaço que ocupam, e "Remove all downloads". Lê a casca ao abrir e depois de
+ * tirar tudo (um `read_dir` local). Sem a casca em Tauri, não aparece.
+ */
+export function DownloadsNasDefinicoes() {
+  const ponte = typeof window !== 'undefined' ? (window as any).duotoneDesktop : undefined;
+  const [disco, setDisco] = useState<{ musicas: number; bytes: number } | null>(null);
+  const [confirmar, setConfirmar] = useState(false);
+  const ler = React.useCallback(() => {
+    void Promise.resolve(ponte?.audioNoDisco?.()).then((r: any) => {
+      if (r) setDisco({ musicas: Array.isArray(r.descarregadas) ? r.descarregadas.length : 0, bytes: Number(r.bytesDescarregadas) || 0 });
+    }).catch(() => {});
+  }, [ponte]);
+  React.useEffect(() => { ler(); }, [ler]);
+  if (typeof ponte?.descarregarAudio !== 'function') return null;
+  const musicas = disco?.musicas ?? 0;
+  return <View style={styles.settingLine}>
+    <View style={{ flex: 1, paddingRight: 16 }}>
+      <Text style={styles.settingLabel}>Downloads</Text>
+      <Text style={styles.settingDescription}>{musicas
+        ? `${musicas} ${musicas === 1 ? 'song' : 'songs'} · ${textoDoEspaco(disco?.bytes ?? 0)} on this PC`
+        : 'No songs downloaded on this PC yet.'}</Text>
+    </View>
+    {musicas ? <Button secondary onPress={() => setConfirmar(true)}>Remove all downloads</Button> : null}
+    <Dialog open={confirmar} title="Remove all downloads?" onClose={() => setConfirmar(false)}>
+      <Text style={styles.dialogBody}>The songs stay in your library and playlists, but they won't play without internet.</Text>
+      <View style={styles.dialogActions}>
+        <Button secondary onPress={() => setConfirmar(false)}>Cancel</Button>
+        <Button danger onPress={() => { setConfirmar(false); void limparTodosOsDownloads().then(() => setTimeout(ler, 400)); }}>Remove all</Button>
+      </View>
+    </Dialog>
+  </View>;
 }
 
 /** A linha por baixo da meta: a descarregar, o que já está no PC, ou que parou. */

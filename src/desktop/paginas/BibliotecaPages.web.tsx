@@ -69,6 +69,7 @@ import { MenuDeContexto, pontoDoEvento, type PontoNoEcra } from '../MenuDeContex
 import { useMenuDoArtista } from '../MenuDoArtista.web';
 import { menuDaMistura, type AcaoDaMistura } from '../../lib/menuDaMistura';
 import { BotaoDeFixar } from '../AtalhosNaLateral.web';
+import { BotaoDoDownloadDaLista, LinhaDoDownloadDaLista } from '../DownloadDaLista.web';
 import type { CommonPageProps, NavegarFn, Route } from '../rotas';
 import { COR, ESP, ESTADO, FONT, RAIO, TIPO } from '../tokens.web';
 import { useLibraryData } from './comum.web';
@@ -580,9 +581,11 @@ export function SongsPage(props: CommonPageProps) {
 
   // O resumo conta a lista TODA, e não a filtrada (a pesquisa diz "12 of 73" ao lado dela).
   const resumo = data.loading || data.semLista ? undefined : resumoDaLista(data.tracks);
-  return <><Page title="Liked Songs" eyebrow="Playlist" lavagem="rgba(200,205,218,.2)" subtitle={resumo} action={<View style={{ flexDirection: 'row', gap: 8 }}><Button icon="play" onPress={playAll}>Play all</Button><Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button></View>}>
+  return <><Page title="Liked Songs" eyebrow="Playlist" lavagem="rgba(200,205,218,.2)" subtitle={resumo} action={<View style={{ flexDirection: 'row', gap: 8 }}><Button icon="play" onPress={playAll}>Play all</Button><Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button><BotaoDoDownloadDaLista chave="gostadas" nome="Liked Songs" faixas={data.tracks} /></View>}>
     <View style={styles.songsToolbar}>
       <View style={styles.songsSearch}><Field icon="search" placeholder="Search your library" value={query} onChangeText={setQuery} /></View>
+      {/* O download das Liked Songs (25/11): a descarregar, ou quantas estão no PC. */}
+      <LinhaDoDownloadDaLista chave="gostadas" faixas={data.tracks} />
       <View style={{ flex: 1 }} />
       {/* Com a pesquisa a contar quantas há: o total vive por baixo do título (30/10). "0 songs" só para uma lista que se leu (16/10, auditoria 5). */}
       {data.semLista || !query ? null : <Text style={styles.songsResultCount}>{filteredTracks.length} of {data.tracks.length} {data.tracks.length === 1 ? 'song' : 'songs'}</Text>}

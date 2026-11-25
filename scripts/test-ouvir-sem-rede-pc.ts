@@ -82,5 +82,18 @@ caso('onde se vê: o menu de uma música, o botão da playlist e o ↓ nas linha
   assert.match(ler('src/i18n/fr.ts'), /leaves this PC\.": "/);
 });
 
+caso('as Liked Songs também descarregam, e as Definições dizem o espaço e tiram tudo (25/11)', () => {
+  const biblioteca = ler('src/desktop/paginas/BibliotecaPages.web.tsx');
+  assert.match(biblioteca, /<BotaoDoDownloadDaLista chave="gostadas" nome="Liked Songs" faixas=\{data\.tracks\} \/>/);
+  assert.match(biblioteca, /<LinhaDoDownloadDaLista chave="gostadas" faixas=\{data\.tracks\} \/>/);
+  assert.match(ler('src/desktop/paginas/SettingsPage.web.tsx'), /<SettingsCard title="Library">\n\s+<DownloadsNasDefinicoes \/>/);
+  const botao = ler('src/desktop/DownloadDaLista.web.tsx');
+  assert.match(botao, /void limparTodosOsDownloads\(\)\.then/, 'o Remove all é o mesmo do iPhone');
+  assert.match(botao, /if \(typeof ponte\?\.descarregarAudio !== 'function'\) return null;/, 'sem a casca em Tauri, não aparece');
+  assert.match(audio, /"bytesDescarregadas": bytes_em\(pasta_dos_downloads\(\)\)/);
+  const fr = ler('src/i18n/fr.ts');
+  for (const k of ['Remove all downloads', 'Remove all downloads?', 'No songs downloaded on this PC yet.', '{0} {1} · {2} on this PC']) assert.ok(fr.includes(`"${k}":`), `falta o francês de "${k}"`);
+});
+
 if (falhas) { console.log(`\n${falhas} falha(s)`); process.exit(1); }
 console.log('\ntudo certo');

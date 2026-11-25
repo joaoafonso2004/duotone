@@ -572,7 +572,18 @@ pub fn audio_no_disco(janela: WebviewWindow) -> Result<Value, String> {
     if janela.label() != "main" {
         return Err("Pedido inválido.".into());
     }
-    Ok(json!({ "descarregadas": ids_em(pasta_dos_downloads()), "emCache": ids_em(pasta_da_cache()) }))
+    Ok(json!({ "descarregadas": ids_em(pasta_dos_downloads()), "emCache": ids_em(pasta_da_cache()), "bytesDescarregadas": bytes_em(pasta_dos_downloads()) }))
+}
+
+/// Quanto ocupam os ficheiros inteiros de uma pasta (as Definições mostram o dos downloads).
+fn bytes_em(pasta: Option<PathBuf>) -> u64 {
+    let Some(pasta) = pasta else { return 0 };
+    let Ok(entradas) = fs::read_dir(&pasta) else { return 0 };
+    entradas
+        .flatten()
+        .filter(|e| matches!(e.path().extension().and_then(|x| x.to_str()), Some("webm") | Some("m4a")))
+        .filter_map(|e| e.metadata().ok().map(|m| m.len()))
+        .sum()
 }
 
 #[cfg(test)]
