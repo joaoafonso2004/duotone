@@ -141,5 +141,12 @@ assert.ok(capacidade.windows.includes('mini'), 'a capability tem de incluir a ja
   assert.match(ler('desktop/src/atualizacao.rs'), /fn disponivel\(\) -> bool \{\n {4}if cfg!\(debug_assertions\) \{\n {8}return false;\n {4}\}\n {4}if !crate::canal::E_A_PREVIEW \{\n {8}return true;\n {4}\}\n {4}let exe = std::env::current_exe\(\)[^\n]*\n {4}instalacao_por_utilizador\(/);
 }
 
+// O mini leitor nunca se cria dentro de uma chamada do WebView2 (25/11: não abria desde o
+// Tauri, "failed to create webview ... 0x80010108"): o comando é assíncrono e o tabuleiro
+// lança uma thread.
+assert.match(ler('desktop/src/mini.rs'), /#\[tauri::command\]\npub async fn mini_alternar\(app: AppHandle, janela: WebviewWindow\)/);
+assert.match(main, /"mini" => \{\n\s*let app = app\.clone\(\);\n\s*std::thread::spawn\(move \|\| mini::alternar\(&app\)\);\n\s*\}/);
+assert.match(ler('desktop/src/mini.rs'), /if A_MEXER\.swap\(true, Ordering::SeqCst\) \{\n\s*return;\n\s*\}/, 'dois toques seguidos não abrem duas janelas');
+
 const faltam = [...doElectron].filter((k) => !doTauri.includes(k));
 console.log(`Ponte Tauri: ${doTauri.filter((k) => doElectron.has(k)).length} de ${doElectron.size} chaves do preload (mais ${doTauri.filter((k) => SO_DO_TAURI.has(k)).length} só do Tauri), ${comandos.length} comandos declarados, autorizados e registados. Por fazer: ${faltam.length}.`);

@@ -10,7 +10,10 @@
 use std::{
     fs,
     path::PathBuf,
-    sync::Mutex,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Mutex,
+    },
     time::{Duration, Instant},
 };
 
@@ -326,11 +329,23 @@ fn botao_esquerdo_em_baixo() -> bool {
     unsafe { (GetAsyncKeyState(VK_LBUTTON.0 as i32) as u16 & 0x8000) != 0 }
 }
 
+/// Abrir ou fechar o mini leitor. NUNCA a partir de um comando síncrono nem de um
+/// tratador de eventos (o menu do tabuleiro): no Windows o WebView2 recusa criar a
+/// janela dentro de uma chamada dele, e falhava com 0x80010108 ("o objeto invocado foi
+/// desligado", 25/11: o mini não abria desde a passagem para o Tauri). Quem chama está
+/// numa thread à parte (`mini_alternar` é assíncrono; o tabuleiro lança uma), e o
+/// `build()` pede a janela ao ciclo de eventos.
 pub fn alternar(app: &AppHandle) {
+    // Dois toques seguidos (o botão e o tabuleiro) não abrem duas janelas.
+    static A_MEXER: AtomicBool = AtomicBool::new(false);
+    if A_MEXER.swap(true, Ordering::SeqCst) {
+        return;
+    }
     match janela(app) {
         Some(j) => { let _ = j.close(); }
         None => abrir(app),
     }
+    A_MEXER.store(false, Ordering::SeqCst);
 }
 
 pub fn abrir(app: &AppHandle) {
@@ -529,8 +544,10 @@ fn da_principal(j: &WebviewWindow) -> Result<(), String> {
     if j.label() == "main" { Ok(()) } else { Err("Pedido inválido.".into()) }
 }
 
+/// Assíncrono de propósito: corre fora da thread principal e fora da chamada do WebView2
+/// (ver `alternar`).
 #[tauri::command]
-pub fn mini_alternar(app: AppHandle, janela: WebviewWindow) -> Result<(), String> {
+pub async fn mini_alternar(app: AppHandle, janela: WebviewWindow) -> Result<(), String> {
     da_principal(&janela)?;
     alternar(&app);
     Ok(())

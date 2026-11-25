@@ -121,7 +121,12 @@ fn criar_tabuleiro(app: &tauri::App) -> tauri::Result<()> {
         .show_menu_on_left_click(false)
         .on_menu_event(|app, evento| match evento.id().as_ref() {
             "abrir" => mostrar_janela(app),
-            "mini" => mini::alternar(app),
+            // Numa thread à parte: dentro do tratador do menu o WebView2 recusa criar a
+            // janela do mini (0x80010108, ver mini::alternar).
+            "mini" => {
+                let app = app.clone();
+                std::thread::spawn(move || mini::alternar(&app));
+            }
             "sair" => {
                 registo::linha("sair pelo tabuleiro");
                 app.exit(0);
