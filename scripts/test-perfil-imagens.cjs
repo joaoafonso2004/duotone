@@ -123,6 +123,9 @@ const { MenuFlutuante } = load('src/components/MenuFlutuante.tsx', {
   '../hooks/useCoracaoAoCarregar': { useCoracaoAoCarregar: () => ({ mostrada: false, pulso: 0, onPressIn() {}, onPress() {}, onPressOut() {} }) },
   '../lib/posicaoDoMenu': load('src/lib/posicaoDoMenu.ts'),
   '../state/theme': { useTheme: (seletor) => seletor({ theme: { color: '#fff' } }) },
+  // Segurar e levantar (25/11): aqui ninguém segurou nada, por isso não há cópia.
+  'expo-blur': { BlurView: 'BlurView' },
+  '../state/previaDoMenu': { levarPrevia: () => null },
 });
 const open = { visivel: true, ancora: { x: 20, y: 180, width: 300, height: 100 },
   accoes: [{ label: 'Choose a photo', icon: 'images-outline', onPress() {} }], aoFechar() {} };

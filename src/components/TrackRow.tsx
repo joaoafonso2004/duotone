@@ -1,3 +1,5 @@
+import { mostrarPrevia } from '../state/previaDoMenu';
+import { medirJa } from '../state/vooDoQuadrado';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
@@ -120,6 +122,8 @@ function TrackRowComponent({
   useEffect(() => contarLinhaMontada(), []);
   /** A moldura da capa desta linha, para o player saber de onde a fazer voar. */
   const capa = useRef<View>(null);
+  /** A linha inteira, para o "segurar e levantar" saber onde ela está. */
+  const linha = useRef<View>(null);
   // Listas compactas (10/10, personalização): capa de 40 em vez de 52.
   const compacta = useAparencia((s) => s.listas === 'compact');
   // Sem as barras pretas do 4:3 -- ver capaDoEcraBloqueado.ts. É também o que
@@ -144,9 +148,10 @@ function TrackRowComponent({
   // fila (29/9) roubava o arrastar entre secções, que é o gesto que o João usa,
   // e nem chegava a pôr na fila. "Add to queue" está no "…" (lib/menuDaFaixa.ts).
   return (
-    /* `acende` e nao escala: uma linha de lista inteira a encolher le-se
+    <View ref={linha} collapsable={false}>
+    {/* `acende` e nao escala: uma linha de lista inteira a encolher le-se
         como a lista a saltar, nao como uma resposta ao dedo. O que uma linha
-        faz e iluminar-se, sem deslocar nada. */
+        faz e iluminar-se, sem deslocar nada. */}
     <Toque
       acende
       onPress={() => {
@@ -166,6 +171,13 @@ function TrackRowComponent({
         (!selectMode && onAction
           ? () => {
               hapticSelection();
+              // Segurar e levantar (25/11, item 2 do plano): a linha deixa onde
+              // está e uma cópia de si para o menu que abre a levantar.
+              const ret = medirJa(linha.current);
+              if (ret) {
+                mostrarPrevia(ret, <TrackRow track={track} onPress={() => {}} mostrarDuracao={mostrarDuracao}
+                  showSavedBadge={showSavedBadge} contextLabel={contextLabel} quemPos={quemPos} acompanharATocar={acompanharATocar} />);
+              }
               onAction(track);
             }
           : undefined)
@@ -264,6 +276,7 @@ function TrackRowComponent({
         </Toque>
       ) : null}
     </Toque>
+    </View>
   );
 }
 

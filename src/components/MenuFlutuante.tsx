@@ -16,6 +16,8 @@ import { ESTADO } from '../lib/movimento';
 import { colors, radii, spacing, type } from '../theme';
 import type { PlayerAction } from './PlayerActionsSheet';
 import { DentroDeUmModal } from './dentroDeUmModal';
+import { BlurView } from 'expo-blur';
+import { levarPrevia, type PreviaDoMenu } from '../state/previaDoMenu';
 
 export type Ancora = { x: number; y: number; width: number; height: number };
 
@@ -94,13 +96,18 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado, ti
   const reduzido = useReducedMotion();
   const entrada = React.useRef(new Animated.Value(0)).current;
   const mostrar = visivel && !!ancora;
-  const mostrarRef = React.useRef(mostrar);
-  mostrarRef.current = mostrar;
+  const mostrarRef = React.useRef(false);
   // Os pais limpam a âncora e as ações ao fechar. Conservar a última escolha
   // mantém o mesmo Modal visível até acabar a saída; sem isto, o onDismiss
   // podia chegar antes de se registar a ação que abre o seletor de imagens.
+  // Segurar e levantar (25/11, item 2 do plano): a cópia de quem se segurou,
+  // deixada mesmo antes de este menu abrir (`state/previaDoMenu.ts`). Lê-se ao abrir.
+  const previa = React.useRef<PreviaDoMenu | null>(null);
+  const abriuAgora = mostrar && !mostrarRef.current;
+  if (abriuAgora) previa.current = levarPrevia();
   const apresentacao = React.useRef({ ancora, accoes, titulo, faixa, atalhos, aviso });
   if (mostrar) apresentacao.current = { ancora, accoes, titulo, faixa, atalhos, aviso };
+  mostrarRef.current = mostrar;
   const insets = useSafeAreaInsets();
   // O `Modal` só desmonta quando a saída acaba: fechá-lo no toque cortava a
   // animação a meio e o menu desaparecia de um fotograma para o outro.
@@ -169,7 +176,9 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado, ti
     notificationDismiss();
     avisarFechado();
   };
-  const ancoraVisivel = apresentacao.current.ancora;
+  // Com a cópia levantada, o menu ancora-se à linha (por baixo ou por cima dela), e não ao dedo.
+  const previaVisivel = previa.current;
+  const ancoraVisivel = previaVisivel ? { x: previaVisivel.ret.x, y: previaVisivel.ret.y, width: previaVisivel.ret.width, height: previaVisivel.ret.height } : apresentacao.current.ancora;
   const accoesVisiveis = apresentacao.current.accoes;
   const tituloVisivel = apresentacao.current.titulo;
   const faixaVisivel = apresentacao.current.faixa ?? null;
@@ -202,8 +211,22 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado, ti
       {/* Tocar fora fecha. Ocupa o ecrã todo de propósito: um menu aberto tem
           de se poder dispensar sem se acertar em nada. */}
       <Pressable disabled={!mostrar} style={StyleSheet.absoluteFill} onPress={aoFechar} accessibilityLabel="Close menu">
-        <Animated.View style={[StyleSheet.absoluteFill, styles.veu, { opacity: entrada }]} />
+        <Animated.View style={[StyleSheet.absoluteFill, styles.veu, { opacity: entrada }]}>
+          {/* Com a cópia levantada, o resto do ecrã desfoca (a maquete: "o resto desfoca e escurece"). */}
+          {previaVisivel ? <BlurView intensity={24} tint="dark" style={StyleSheet.absoluteFill} /> : null}
+        </Animated.View>
       </Pressable>
+      {previaVisivel ? (
+        // A linha levantada: a mesma, no mesmo sítio, a crescer 4,5 % com sombra
+        // e o fundo das superfícies altas. Presa à entrada do menu: sai com ele.
+        <Animated.View pointerEvents="none" style={[styles.previa, {
+          left: previaVisivel.ret.x, top: previaVisivel.ret.y, width: previaVisivel.ret.width, height: previaVisivel.ret.height,
+          transform: [{ scale: entrada.interpolate({ inputRange: [0, 1], outputRange: [1, 1.045] }) }],
+          shadowOpacity: entrada.interpolate({ inputRange: [0, 1], outputRange: [0, 0.6] }),
+        }]}>
+          {previaVisivel.conteudo}
+        </Animated.View>
+      ) : null}
       <Animated.View
         pointerEvents={mostrar ? 'auto' : 'none'}
         style={[
@@ -295,6 +318,10 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado, ti
 
 const styles = StyleSheet.create({
   veu: { backgroundColor: colors.overlay },
+  previa: {
+    position: 'absolute', borderRadius: 14, overflow: 'visible', backgroundColor: colors.surfaceHigh,
+    shadowColor: '#000', shadowRadius: 22, shadowOffset: { width: 0, height: 14 },
+  },
   menu: {
     position: 'absolute',
     borderRadius: radii.lg,

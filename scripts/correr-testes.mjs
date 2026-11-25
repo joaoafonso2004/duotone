@@ -327,6 +327,7 @@ const TESTES = [
   `${TS} scripts/test-texto-que-rola.ts`,
   `${TS} scripts/test-vazios-com-acao.ts`,
   `${RESOLVER} scripts/test-mola-da-letra.ts`,
+  `${TS} scripts/test-segurar-e-levantar.ts`,
   'scripts/test-segunda-instancia.mjs',
   'scripts/test-saude-electron.mjs',
   'scripts/test-atualizacao-windows.mjs',
