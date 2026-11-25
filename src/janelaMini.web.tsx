@@ -5,7 +5,9 @@ import { COR, cssDasFontes, FONT, RAIO } from './desktop/tokens.web';
 
 import { cssDasMolas } from './lib/molasEmCss';
 import { cssDoHoverDoDisco, estiloDoDisco, estiloDoReflexo, rodarReflexo, SIMBOLO_DA_PAUSA, SIMBOLO_DO_PLAY } from './desktop/DiscoDeMetal.web';
-import { useCapaQueSai } from './desktop/Ocultacao.web';
+import { useAtrasadoPelaOcultacao, useCapaQueSai } from './desktop/Ocultacao.web';
+import { lerCelulasDaCapa } from './lib/celulasDaCapa';
+import { corCaracteristica } from './lib/corDaCapa';
 /**
  * A janela do mini leitor do PC (entrega 2b do
  * docs/PLANO-OFFLINE-SOCIAL-DESCOBERTA-PC.md; aprovado pela pré-visualização
@@ -29,6 +31,13 @@ import { useCapaQueSai } from './desktop/Ocultacao.web';
  * paleta do iPhone, na letra do sistema, e com a linha de progresso e o anel
  * do foco a roxo -- a única superfície do PC que ainda o tinha. As
  * formas, os tamanhos e as animações ficam como estavam.
+ *
+ * **Afinado** (25/11, a proposta A da `mini-leitor-maquete.html`, escolhida pelo
+ * João): os mesmos tamanhos de janela, arrumados. O cartão leva a cor da capa
+ * (`useCorDaCapa`, a troca ao mesmo passo que a Ocultação); título e artista
+ * sempre, com o coração ao lado do título; os botões da janela numa tira em
+ * cima, com a pega, longe dos controlos; o tempo nas pontas da barra; e com o
+ * rato no "seguinte" o artista dá lugar à música que vem.
  */
 
 /** A borda com o rato por cima e do cartão aberto: a linha do PC, acesa. */
@@ -37,6 +46,12 @@ const BORDA_ACESA = 'rgba(233,234,238,0.16)';
 const CSS = `
 /* Uma física (S1, 31/10): as molas do iPhone, como na janela principal. */
 ${cssDasMolas()}
+/* A cor da capa (Afinado, 25/11): três números que se animam sozinhos, só no
+   elemento que os usa (sem herança: nada mais se recalcula). Sem cor, o tom do
+   fundo, e o degradê não se vê. */
+@property --cr { syntax: '<number>'; inherits: false; initial-value: 20; }
+@property --cg { syntax: '<number>'; inherits: false; initial-value: 20; }
+@property --cb { syntax: '<number>'; inherits: false; initial-value: 26; }
 /* A barra (25/9): recolhida é uma barra fina; com o rato por cima abre para o
    cartão, e ao sair volta a recolher. A JANELA não muda de tamanho (isso no
    Windows é aos solavancos): anima o cartão lá dentro, encostado ao lado de
@@ -48,18 +63,18 @@ ${cssDasMolas()}
   transition: height 260ms var(--dt-curva), padding 260ms var(--dt-curva), gap 260ms var(--dt-curva),
     background-color .2s, border-color .2s; }
 .cartao.baixo { bottom: 0; } .cartao.cima { top: 0; }
-.mini.cartao.aberto { height: 88px; padding: 12px; gap: 12px; background: ${COR.hover}; border-color: ${BORDA_ACESA}; }
+.mini.cartao.aberto { height: 88px; padding: 18px 10px 8px; gap: 12px; border-color: ${BORDA_ACESA}; }
 .cartao .capa { width: 32px; height: 32px; border-radius: ${RAIO.ctrl}px;
   transition: width 260ms var(--dt-curva), height 260ms var(--dt-curva), border-radius 260ms; }
-.cartao.aberto .capa { width: 64px; height: 64px; border-radius: ${RAIO.cartao}px; }
+.cartao.aberto .capa { width: 56px; height: 56px; border-radius: ${RAIO.cartao}px; box-shadow: 0 6px 18px rgba(0,0,0,0.45); }
 .cartao .detalhe { max-height: 0; opacity: 0; overflow: hidden; transition: max-height 260ms var(--dt-curva), opacity 160ms; }
 .cartao.aberto .detalhe { max-height: 40px; opacity: 1; transition-delay: 0s, 80ms; }
 .cartao .extra { width: 0; opacity: 0; overflow: hidden; pointer-events: none;
   transition: width 260ms var(--dt-curva), opacity 160ms; }
-.cartao.aberto .extra { width: 30px; opacity: 1; pointer-events: auto; }
+.cartao.aberto .extra { width: 28px; opacity: 1; pointer-events: auto; }
 .cartao .play { width: 30px; height: 30px; border-radius: 15px;
   transition: width 260ms var(--dt-curva), height 260ms var(--dt-curva), background .2s; }
-.cartao.aberto .play { width: 38px; height: 38px; border-radius: 19px; }
+.cartao.aberto .play { width: 40px; height: 40px; border-radius: 20px; }
 .cartao .so-aberto { opacity: 0; pointer-events: none; transition: opacity 160ms; }
 .cartao.aberto .so-aberto { opacity: 1; pointer-events: auto; transition-delay: 100ms; }
 .cartao .so-fechado { transition: opacity 160ms; }
@@ -103,10 +118,16 @@ button.da-fila:disabled:hover { background: none; }
 html, body, #root { margin: 0; height: 100%; background: transparent; overflow: hidden; }
 * { box-sizing: border-box; }
 #root > div { width: 100%; height: 100%; }
-.mini { width: 100%; height: 100%; border-radius: ${RAIO.superficie}px; background: ${COR.elevado}; border: 1px solid ${COR.linha};
+.mini { width: 100%; height: 100%; border-radius: ${RAIO.superficie}px; border: 1px solid ${COR.linha};
+  --fundo: ${COR.elevado};
+  background: linear-gradient(90deg, rgba(var(--cr), var(--cg), var(--cb), 0.32) 0%, rgba(var(--cr), var(--cg), var(--cb), 0.11) 46%, rgba(20,20,26,0) 82%), var(--fundo);
+  transition: --cr 600ms var(--dt-curva), --cg 600ms var(--dt-curva), --cb 600ms var(--dt-curva);
   color: ${COR.texto}; font-family: ${FONT.body}; position: relative;
   overflow: hidden; user-select: none; }
-.mini:hover { background: ${COR.hover}; border-color: ${BORDA_ACESA}; }
+.mini:hover, .mini.cartao.aberto { --fundo: ${COR.hover}; border-color: ${BORDA_ACESA}; }
+.mini.com-cor:hover, .mini.com-cor.cartao.aberto { border-color: rgba(var(--cr), var(--cg), var(--cb), 0.4); }
+/* O grande: a cor desce do topo, como o fundo do Now Playing. */
+.mini.grande { background: linear-gradient(180deg, rgba(var(--cr), var(--cg), var(--cb), 0.46) 0%, rgba(var(--cr), var(--cg), var(--cb), 0.15) 58%, rgba(20,20,26,0) 100%), var(--fundo); }
 button { -webkit-app-region: no-drag; background: none; border: none; color: inherit; font: inherit; padding: 0; cursor: pointer;
   display: flex; align-items: center; justify-content: center; border-radius: 16px; }
 button:hover { background: rgba(233,234,238,0.08); }
@@ -126,16 +147,16 @@ ${cssDoHoverDoDisco()}
 /* Arrasta-se pela BARRINHA do topo (João, 24/9), e só por ela: no Windows uma
    zona de arrasto não recebe eventos do rato. Os botões do canto ficam por cima
    (são no-drag), e a pega fica ao centro da janela. */
-.arrasto { position: absolute; top: 0; left: 0; right: 0; height: 14px; -webkit-app-region: drag;
+.arrasto { position: absolute; top: 0; left: 0; right: 0; height: 18px; -webkit-app-region: drag;
   display: flex; align-items: center; justify-content: center; cursor: grab; z-index: 1; }
-.arrasto::after { content: ''; width: 32px; height: 4px; border-radius: 2px; background: rgba(233,234,238,0.16); }
-.mini:hover .arrasto::after { background: rgba(233,234,238,0.32); }
+.arrasto::after { content: ''; width: 28px; height: 3px; border-radius: 2px; background: rgba(233,234,238,0.2); }
+.mini:hover .arrasto::after { background: rgba(233,234,238,0.34); }
 .titulo { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .artista { font-size: 12px; color: ${COR.textoMedio}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .so-hover { display: none; }
 .mini:hover .so-hover { display: flex; }
 .mini:hover .sem-hover { display: none; }
-.linha { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: ${COR.linha}; }
+.linha { position: absolute; left: 10px; right: 10px; bottom: 0; height: 2px; border-radius: 1px; overflow: hidden; background: ${COR.linha}; }
 .linha > div { height: 2px; background: ${COR.metalClaro}; }
 .barra { -webkit-app-region: no-drag; height: 12px; display: flex; align-items: center; cursor: pointer; }
 .barra > div { position: relative; height: 4px; width: 100%; border-radius: 2px; background: #353540; }
@@ -143,9 +164,29 @@ ${cssDoHoverDoDisco()}
 /* Os números em mono, como os tempos da barra do leitor. */
 .tempo { font: 400 11px/14px ${FONT.mono}; color: ${COR.textoFraco}; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .controlos { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
-.canto { position: absolute; top: 4px; right: 6px; gap: 2px; z-index: 2; }
-.canto button { width: 22px; height: 22px; border-radius: 11px; color: ${COR.textoMedio}; }
-.canto button:hover { color: ${COR.texto}; }
+/* Os botões da janela vivem na tira de cima, com a pega (Afinado): longe dos controlos. */
+.canto { position: absolute; top: 0; right: 6px; height: 18px; align-items: center; gap: 2px; z-index: 2; }
+.canto button { width: 18px; height: 18px; border-radius: 9px; color: ${COR.textoMedio}; opacity: 0.75; }
+.canto button:hover { color: ${COR.texto}; opacity: 1; }
+.canto svg { width: 13px; height: 13px; }
+/* O texto do cartão: recolhido, "Título · Artista" numa linha; aberto, o título com
+   o coração, o artista (ou a que vem) e o tempo nas pontas da barra. */
+.linha1 { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.linha1 .titulo { flex: 0 1 auto; min-width: 0; }
+.ponto { flex: 0 100 auto; min-width: 0; font-size: 12px; color: ${COR.textoMedio}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cartao.aberto .ponto { display: none; }
+.cartao .coracao-do-titulo { display: none; flex-shrink: 0; }
+.cartao.aberto .coracao-do-titulo { display: flex; }
+/* O ⤢ só com o rato na capa (ou o foco lá): sempre por cima, tapava-a. */
+.cartao.aberto .moldura > .sobre-a-capa { opacity: 0; }
+.cartao.aberto .moldura:hover > .sobre-a-capa, .cartao.aberto .moldura:focus-within > .sobre-a-capa { opacity: 1; }
+.coracao-do-titulo button { width: 22px; height: 22px; border-radius: 11px; color: ${COR.textoMedio}; }
+.coracao-do-titulo button:hover { color: ${COR.texto}; }
+.progresso { display: flex; align-items: center; gap: 6px; }
+.progresso .tempo { font-size: 10px; }
+.barra.fina > div { height: 3px; background: rgba(233,234,238,0.16); transition: height 150ms var(--dt-curva); }
+.barra.fina > div > div { height: 100%; }
+.barra.fina:hover > div { height: 5px; }
 .moldura { position: relative; flex-shrink: 0; }
 .moldura .so-hover { position: absolute; inset: 0; align-items: center; justify-content: center; }
 .sobre-a-capa { width: 30px; height: 30px; border-radius: 15px; background: rgba(6,6,8,0.66); }
@@ -185,6 +226,28 @@ function CapaDoMini({ uri, sentido, style }: { uri: string | null; sentido: 1 | 
       {velha ? <div data-dt="capa-sai" style={{ position: 'absolute', inset: 0, background: `center / cover no-repeat url("${velha}")` }} /> : null}
     </div>
   );
+}
+
+/**
+ * A cor da capa que se vê (Afinado, 25/11): a característica, a mesma conta da
+ * sombra da Ocultação, ou a média quando não há uma. `null` sem capa ou enquanto
+ * se lê: o cartão fica no tom de sempre.
+ */
+function useCorDaCapa(uri: string | null): [number, number, number] | null {
+  const [cor, setCor] = useState<[number, number, number] | null>(null);
+  useEffect(() => {
+    if (!uri) { setCor(null); return undefined; }
+    let vivo = true;
+    void lerCelulasDaCapa(uri).then((celulas) => {
+      if (!vivo || !celulas?.length) return;
+      const n = celulas.length;
+      const media = { r: celulas.reduce((s, c) => s + c.r, 0) / n, g: celulas.reduce((s, c) => s + c.g, 0) / n, b: celulas.reduce((s, c) => s + c.b, 0) / n };
+      const base = corCaracteristica(celulas) ?? media;
+      setCor([Math.round(base.r), Math.round(base.g), Math.round(base.b)]);
+    }).catch(() => {});
+    return () => { vivo = false; };
+  }, [uri]);
+  return cor;
 }
 
 /** O play do mini leitor: o disco de metal da barra. O laço roda quando o play muda, nunca ao abrir. */
@@ -330,6 +393,12 @@ function MiniLeitor() {
   }, [r?.aTocar]);
 
   const mandar = (tipo: string, ms?: number) => ponte?.comando(ms === undefined ? { tipo } : { tipo, ms });
+  // A cor troca quando a Ocultação tapa a capa, como o fundo da janela principal.
+  const capaVista = useAtrasadoPelaOcultacao(r?.capa ?? null);
+  const cor = useCorDaCapa(capaVista);
+  const tinta = cor ? ({ '--cr': cor[0], '--cg': cor[1], '--cb': cor[2] } as React.CSSProperties) : undefined;
+  // Com o rato no "seguinte", o artista dá lugar à música que vem.
+  const [espreitar, setEspreitar] = useState(false);
   // O coração reage ao carregar (16/10, lib/coracaoAoCarregar.ts). A guarda
   // faz-se na janela principal e o estado volta pelo resumo: até lá (ou até
   // 1,5 s, se nada voltar) mostra-se o que se pediu.
@@ -387,9 +456,9 @@ function MiniLeitor() {
   };
   const tocarOuPausa = (
     <BotaoDePlay aTocar={!!r?.aTocar} aoCarregar={() => mandar('tocar-pausa')}
-      estilo={{ width: expandido ? 44 : 38, height: expandido ? 44 : 38, borderRadius: expandido ? 22 : 19 }} />
+      estilo={{ width: expandido ? 48 : 40, height: expandido ? 48 : 40, borderRadius: expandido ? 24 : 20 }} />
   );
-  const coracao = (
+  const coracao = (tamanho = 30, icone = 16) => (
     <button aria-label={coracaoAoCarregar.mostrada ? 'Remove from Liked Songs' : 'Add to Liked Songs'} aria-pressed={coracaoAoCarregar.mostrada}
       onPointerDown={(e) => { if (e.button !== 0) return; carregouNoCoracao.current = true; coracaoAoCarregar.onPressIn(); }}
       onPointerLeave={() => { if (carregouNoCoracao.current) { carregouNoCoracao.current = false; coracaoAoCarregar.onPressOut(); } }}
@@ -399,14 +468,15 @@ function MiniLeitor() {
         carregouNoCoracao.current = false;
         coracaoAoCarregar.onPress();
       }}
-      style={{ width: 30, height: 30 }}>
-      <CoracaoAnimado guardada={coracaoAoCarregar.mostrada} pulso={coracaoAoCarregar.pulso} tamanho={16} cor="currentColor" corCheio="currentColor" />
+      style={{ width: tamanho, height: tamanho }}>
+      <CoracaoAnimado guardada={coracaoAoCarregar.mostrada} pulso={coracaoAoCarregar.pulso} tamanho={icone} cor="currentColor" corCheio="currentColor" />
     </button>
   );
 
   // Abrir o Duotone e fechar: pequenos, no canto, só com o rato por cima.
   const canto = (
     <div className="canto so-hover" style={cantoAfastado ? { right: 24 } : undefined}>
+      <button aria-label="Shrink" title="Shrink" onClick={() => mandar('encolher')}>{icone.encolher}</button>
       <button aria-label={janelaVisivel ? 'Hide Duotone' : 'Open Duotone'} title={janelaVisivel ? 'Hide Duotone' : 'Open Duotone'}
         onClick={() => mandar('alternar-duotone')}>{janelaVisivel ? icone.esconder : icone.abrir}</button>
       <button aria-label="Close mini player" onClick={() => mandar('fechar')}>{icone.fechar}</button>
@@ -415,29 +485,32 @@ function MiniLeitor() {
 
   if (expandido) {
     return escalado({ w: 320, h: 400 }, (
-      <div className="mini grande" style={{ padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+      <div className={`mini grande${cor ? ' com-cor' : ''}`} style={{ ...tinta, padding: '24px 20px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div className="arrasto" />
         {pega}
         {canto}
-        <CapaDoMini uri={r?.capa ?? null} sentido={r?.sentido ?? 1} style={{ width: 224, height: 224, boxShadow: '0 0 60px rgba(111,122,140,0.35)' }} />
-        <div style={{ width: '100%', textAlign: 'center', minWidth: 0 }}>
-          <div className="titulo" style={{ fontSize: 16 }}>{r?.titulo ?? 'Nothing playing'}</div>
-          <div className="artista" style={{ fontSize: 13 }}>{r?.artista ?? ''}</div>
+        <CapaDoMini uri={r?.capa ?? null} sentido={r?.sentido ?? 1} style={{ width: 208, height: 208, alignSelf: 'center', boxShadow: '0 18px 40px rgba(0,0,0,0.5)' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, marginTop: 4 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="titulo" style={{ fontSize: 17, fontFamily: FONT.display, fontWeight: 700 }}>{r?.titulo ?? 'Nothing playing'}</div>
+            <div className="artista" style={{ fontSize: 13 }}>{r?.artista ?? ''}</div>
+          </div>
+          <div className="coracao-do-titulo" style={{ display: 'flex' }}>{coracao(30, 18)}</div>
         </div>
-        <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className="tempo">{tempo(posicao)}</span>
-          <div className="barra" style={{ flex: 1 }} onClick={procurar} role="slider" aria-label="Seek"
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <div className="barra fina" onClick={procurar} role="slider" aria-label="Seek"
             aria-valuemin={0} aria-valuemax={Math.round(duracao / 1000)} aria-valuenow={Math.round(posicao / 1000)}>
             <div><div style={{ width: `${fracao * 100}%` }} /></div>
           </div>
-          <span className="tempo">{tempo(duracao)}</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span className="tempo">{tempo(posicao)}</span>
+            <span className="tempo">{tempo(duracao)}</span>
+          </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          {coracao}
-          <button aria-label="Previous" onClick={() => mandar('anterior')} style={{ width: 32, height: 32 }}>{icone.anterior}</button>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 22 }}>
+          <button aria-label="Previous" onClick={() => mandar('anterior')} style={{ width: 34, height: 34 }}>{icone.anterior}</button>
           {tocarOuPausa}
-          <button aria-label="Next" onClick={() => mandar('seguinte')} style={{ width: 32, height: 32 }}>{icone.seguinte}</button>
-          <button aria-label="Shrink" onClick={() => mandar('encolher')} style={{ width: 32, height: 32 }}>{icone.encolher}</button>
+          <button aria-label="Next" onClick={() => mandar('seguinte')} style={{ width: 34, height: 34 }}>{icone.seguinte}</button>
         </div>
       </div>
     ));
@@ -477,7 +550,7 @@ function MiniLeitor() {
           </div>
         ) : <div className="lista-vazia">Nothing up next</div>}
       </div>
-      <div ref={cartaoRef} className={`mini cartao ${ancora} ${aberto ? 'aberto' : ''}`}>
+      <div ref={cartaoRef} className={`mini cartao ${ancora} ${aberto ? 'aberto' : ''}${cor ? ' com-cor' : ''}`} style={tinta}>
         {aberto ? <div className="arrasto" /> : null}
         {pega}
         <div className="canto so-aberto" style={{ display: 'flex', ...(cantoAfastado ? { right: 24 } : null) }}>
@@ -495,21 +568,29 @@ function MiniLeitor() {
             <button className="sobre-a-capa" aria-label="Expand" onClick={() => mandar('expandir')}>{icone.expandir}</button>
           </div>
         </div>
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <div className="titulo">{r?.titulo ?? 'Nothing playing'}</div>
-          <div className="detalhe" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span className="tempo">{tempo(posicao)} / {tempo(duracao)}</span>
-            <div className="barra" style={{ height: 8 }} onClick={procurar} role="slider" aria-label="Seek"
-              aria-valuemin={0} aria-valuemax={Math.round(duracao / 1000)} aria-valuenow={Math.round(posicao / 1000)}>
-              <div><div style={{ width: `${fracao * 100}%` }} /></div>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <div className="linha1">
+            <span className="titulo">{r?.titulo ?? 'Nothing playing'}</span>
+            {r?.artista ? <span className="ponto">· {r.artista}</span> : null}
+            <span className="coracao-do-titulo">{coracao(22, 14)}</span>
+          </div>
+          <div className="detalhe" style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <div className="artista">{espreitar && fila[0]?.titulo ? `Up next · ${fila[0].titulo}` : (r?.artista ?? '')}</div>
+            <div className="progresso">
+              <span className="tempo">{tempo(posicao)}</span>
+              <div className="barra fina" style={{ flex: 1 }} onClick={procurar} role="slider" aria-label="Seek"
+                aria-valuemin={0} aria-valuemax={Math.round(duracao / 1000)} aria-valuenow={Math.round(posicao / 1000)}>
+                <div><div style={{ width: `${fracao * 100}%` }} /></div>
+              </div>
+              <span className="tempo">{tempo(duracao)}</span>
             </div>
           </div>
         </div>
         <div className="controlos">
-          <div className="extra">{coracao}</div>
-          <div className="extra"><button aria-label="Previous" onClick={() => mandar('anterior')} style={{ width: 30, height: 30 }}>{icone.anterior}</button></div>
+          <div className="extra"><button aria-label="Previous" onClick={() => mandar('anterior')} style={{ width: 28, height: 28 }}>{icone.anterior}</button></div>
           <BotaoDePlay aTocar={!!r?.aTocar} aoCarregar={() => mandar('tocar-pausa')} />
-          <div className="extra"><button aria-label="Next" onClick={() => mandar('seguinte')} style={{ width: 30, height: 30 }}>{icone.seguinte}</button></div>
+          <div className="extra"><button aria-label="Next" onClick={() => mandar('seguinte')} style={{ width: 28, height: 28 }}
+            onMouseEnter={() => setEspreitar(true)} onMouseLeave={() => setEspreitar(false)} onBlur={() => setEspreitar(false)}>{icone.seguinte}</button></div>
         </div>
         <div className="linha so-fechado"><div style={{ width: `${fracao * 100}%` }} /></div>
       </div>

@@ -104,5 +104,16 @@ caso('a janela principal e o mini leitor registam as fontes no mesmo sítio', ()
   assert.doesNotMatch(casca, /face\('Archivo'/, 'as @font-face já não se escrevem na casca');
 });
 
+caso('o mini Afinado (25/11): a cor da capa, o artista sempre e os botões da janela na tira de cima', () => {
+  const m = mini.replace(/\r\n/g, '\n');
+  assert.match(m, /@property --cr \{ syntax: '<number>'; inherits: false; initial-value: 20; \}/, 'a cor anima-se sem herança');
+  assert.match(m, /const capaVista = useAtrasadoPelaOcultacao\(r\?\.capa \?\? null\);\n\s*const cor = useCorDaCapa\(capaVista\);/, 'troca quando a Ocultação tapa a capa');
+  assert.match(m, /const base = corCaracteristica\(celulas\) \?\? media;/);
+  assert.match(m, /\{r\?\.artista \? <span className="ponto">· \{r\.artista\}<\/span> : null\}/, 'recolhido: título · artista');
+  assert.match(m, /espreitar && fila\[0\]\?\.titulo \? `Up next · \$\{fila\[0\]\.titulo\}` : \(r\?\.artista \?\? ''\)/);
+  assert.match(m, /\.canto \{ position: absolute; top: 0; right: 6px; height: 18px;/, 'os botões da janela na tira, com a pega');
+  assert.match(m, /\.cartao\.aberto \.moldura > \.sobre-a-capa \{ opacity: 0; \}/, 'o ⤢ só com o rato na capa');
+});
+
 if (falhas) { console.error(`\n  ${falhas} caso(s) falharam.\n`); process.exit(1); }
 console.log('\n  Todos os casos passaram.\n');
