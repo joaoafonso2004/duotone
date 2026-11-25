@@ -120,8 +120,12 @@ export function useDescarregadaDeProposito(track: Track): boolean {
 }
 
 const CANCELADO = 'Download cancelled';
-/** O que a casca disse: a ponte embrulha o erro do Rust num `Error` (`desktop/src/ponte.js`). */
-const motivo = (e: unknown) => (e instanceof Error ? e.message : String(e));
+/**
+ * O que a casca disse: a ponte embrulha o erro do Rust num `Error` (`desktop/src/ponte.js`).
+ * Só se compara ("expirada", "cancelado"): nunca chega à interface, que avisa pelo
+ * `acoesDeDownload` (e esse só escreve na consola).
+ */
+const motivo = (erro: unknown) => (erro instanceof Error ? erro.message : String(erro));
 
 const acoes = criarAcoesDeDownload({
   registar: (t) => registarPedido(t),
@@ -170,7 +174,7 @@ const acoes = criarAcoesDeDownload({
       .finally(() => { void lerODisco(); });
   },
   avisarCancelamentos: () => {},
-  foiCancelado: (e) => e instanceof Error && e.message === CANCELADO,
+  foiCancelado: (erro) => erro instanceof Error && erro.message === CANCELADO,
   avisar: (msg, e) => console.warn(msg, e),
 });
 
