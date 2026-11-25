@@ -1,3 +1,4 @@
+import { TextoQueRola } from '../components/TextoQueRola';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
@@ -114,9 +115,7 @@ export function VocesOsDoisScreen({ route, navigation }: Props) {
               style={StyleSheet.absoluteFill}
               pointerEvents="none"
             />
-            <Text style={[styles.numerao, { color: tema.textColorOnGradient }]}>
-              {dados!.compatibilidade}%
-            </Text>
+            <TextoQueRola style={[styles.numerao, { color: tema.textColorOnGradient }]} texto={`${dados!.compatibilidade}%`} />
             <Text style={[styles.legendaGrande, { color: tema.textColorOnGradient }]}>
               taste in common
             </Text>
@@ -219,7 +218,7 @@ function Linha({ capa, icone, etiqueta, titulo, nota }: {
 function Metade({ numero, texto, cor }: { numero: number; texto: string; cor: string }) {
   return (
     <View style={{ flex: 1, alignItems: 'center', gap: 2 }}>
-      <Text style={[styles.numeroMedio, { color: cor }]}>{numero}</Text>
+      <TextoQueRola style={[styles.numeroMedio, { color: cor }]} texto={String(numero)} />
       <Text style={[type.caption, { textAlign: 'center' }]}>{texto}</Text>
     </View>
   );

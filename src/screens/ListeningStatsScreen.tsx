@@ -1,3 +1,4 @@
+import { TextoQueRola } from '../components/TextoQueRola';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
@@ -159,9 +160,8 @@ export function ListeningStatsScreen({ navigation, route }: Props) {
               <Text style={[styles.heroLabel, { color: theme.textColorOnGradient }]}>
                 TIME LISTENED
               </Text>
-              <Text style={[styles.heroValue, { color: theme.textColorOnGradient }]}>
-                ≈ {formatListeningTime(stats.estimatedMinutes)}
-              </Text>
+              {/* Os algarismos rolam (25/11, item 5 do plano). */}
+              <TextoQueRola style={[styles.heroValue, { color: theme.textColorOnGradient }]} texto={`≈ ${formatListeningTime(stats.estimatedMinutes)}`} />
               <Text style={[styles.heroNote, { color: theme.textColorOnGradient }]}>
                 {/* Honestidade: o histórico regista o arranque de cada faixa,
                     não o fim. Quem salta a meio conta o tema inteiro. */}
