@@ -6,6 +6,7 @@
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { comecouATapar, depoisDeTapar, reporParaTestes, tapou } from '../src/state/esperaDaOcultacao.ts';
 import {
   bezierCubica, COR_DO_DISCO_SEM_CAPA, corDoDisco, curvaDaOcultacao, duracaoDaSaida, fundoDoDisco, gradienteDoDisco, OCULTACAO,
   SOMBRA_NA_LATERAL, sentidoDaOcultacao, sombraNaLateral, trajetoDoDisco, ECLIPSE, fundoDoEclipse, trajetoDoEclipse,
@@ -208,6 +209,39 @@ caso('a peça: o disco maior, sem a opacidade da Ocultação, com a orla, e o mo
   const ml = ler('src/desktop/ModoLimpo.web.tsx');
   assert.match(ml, /caixa: caixaDaCapa, capa: faixa\?\.artworkUrl, eclipse: true,/);
   assert.match(ml, /<img data-dt="capa-sai" src=\{capaQueSai\}/);
+});
+
+// --- O tom da app espera pelo eclipse (iPhone, 25/11, item 17) ---
+{
+  const microtask = () => new Promise<void>((r) => queueMicrotask(r));
+  const registo: string[] = [];
+  reporParaTestes();
+  depoisDeTapar(() => registo.push('sem passagem'));
+  comecouATapar();
+  depoisDeTapar(() => registo.push('tom 1'));
+  const desistir = depoisDeTapar(() => registo.push('tom cancelado'));
+  desistir();
+  await microtask();
+  caso('o tom troca já sem passagem, e espera com uma', () => assert.deepEqual(registo, ['sem passagem']));
+  // Uma música nova a meio: a passagem velha acaba e a nova começa no mesmo commit.
+  tapou(); comecouATapar();
+  await microtask();
+  caso('uma música nova a meio continua à espera da passagem nova', () => assert.deepEqual(registo, ['sem passagem']));
+  tapou();
+  await microtask();
+  caso('quando a passagem tapa, o tom troca (uma vez)', () => assert.deepEqual(registo, ['sem passagem', 'tom 1']));
+  tapou();
+  await microtask();
+  caso('um tapou a mais não fica negativo', () => { depoisDeTapar(() => registo.push('depois')); assert.deepEqual(registo.slice(-1), ['depois']); });
+  reporParaTestes();
+}
+
+caso('iPhone: a Ocultação conta-se, e o tom espera por ela', () => {
+  const p = ler('src/components/OcultacaoDaCapa.tsx');
+  assert.match(p, /comecouATapar\(\);\n\s+let tapada = false;/);
+  assert.match(p, /const relogioDoTom = setTimeout\(tapar, OCULTACAO\.entradaMs\);/, 'na totalidade (220 ms)');
+  assert.match(p, /return \(\) => \{ vivo = false; clearTimeout\(relogioDoTom\); tapar\(\); \};/, 'cancelada, deixa de prender o tom');
+  assert.match(ler('src/hooks/useAcompanharCapa.ts'), /return depoisDeTapar\(\(\) => \{ void aplicarCapa\(capa\); \}\);/);
 });
 
 if (falhas) { console.log(`\n${falhas} falha(s)`); process.exit(1); }

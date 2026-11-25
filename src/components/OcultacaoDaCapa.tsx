@@ -4,6 +4,7 @@ import { Animated, AppState, Easing, StyleSheet, View } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { lerCelulasDaCapa } from '../lib/celulasDaCapa';
 import { COR_DO_DISCO_SEM_CAPA, corDoDisco, curvaDaOcultacao, gradienteDoDisco, OCULTACAO } from '../lib/ocultacao';
+import { comecouATapar, tapou } from '../state/esperaDaOcultacao';
 import { pedirFluidez } from '../state/fluidez';
 import { luasNoEcra } from '../state/passagemAVista';
 
@@ -89,6 +90,13 @@ export function OcultacaoDaCapa({ chave, sentido, lado, capa, corDe, ligada, chi
       void lerCelulasDaCapa(corDe).then((c) => { if (vivo) setCor(corDoDisco(c)); }).catch(() => {});
     }
     pedirFluidez(CURVA.duracaoMs + 100);
+    // O tom da app troca quando o disco tapa a capa, e não no toque (item 17,
+    // `state/esperaDaOcultacao.ts`). A animação é nativa e não avisa a meio: um
+    // relógio à mesma hora chega, porque o tom cruza devagar.
+    comecouATapar();
+    let tapada = false;
+    const tapar = () => { if (!tapada) { tapada = true; tapou(); } };
+    const relogioDoTom = setTimeout(tapar, OCULTACAO.entradaMs);
     fase.stopAnimation();
     sinal.setValue(sentido);
     fase.setValue(0);
@@ -99,7 +107,7 @@ export function OcultacaoDaCapa({ chave, sentido, lado, capa, corDe, ligada, chi
         estado.current.velha = null;
         redesenhar();
       });
-    return () => { vivo = false; };
+    return () => { vivo = false; clearTimeout(relogioDoTom); tapar(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 

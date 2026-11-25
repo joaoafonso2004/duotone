@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { usePlayer } from '../state/player';
+import { depoisDeTapar } from '../state/esperaDaOcultacao';
 import { useTheme } from '../state/theme';
 
 /**
@@ -21,6 +22,8 @@ export function useAcompanharCapa(): void {
   useEffect(() => {
     // O modo entra nas dependências para a cor aparecer mal se escolha
     // "seguir a capa", sem ser preciso esperar pela música seguinte.
-    void aplicarCapa(capa);
+    // Com uma Ocultação a passar (iPhone, 25/11), o tom troca quando o disco tapa a
+    // capa, junto com ela; sem nenhuma, já. No PC ninguém a conta, e é como era.
+    return depoisDeTapar(() => { void aplicarCapa(capa); });
   }, [capa, modo, aplicarCapa]);
 }
