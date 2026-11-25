@@ -13,6 +13,7 @@
     "allow-mini-pronto", "allow-mini-pega", "allow-mini-lista", "allow-mini-ignorar-rato", "allow-mini-comando",
     "allow-yt-pesquisa", "allow-ytmusic-pesquisa", "allow-yt-mix", "allow-yt-refrao", "allow-ytmusic-artista", "allow-ytmusic-radio", "allow-ytmusic-letra",
     "allow-catalogo-pedir", "allow-supabase-pedir", "allow-spotify-embed", "allow-apple-playlist", "allow-deezer-link",
-    "allow-innertube-pedir", "allow-innertube-aquecer", "allow-googlevideo-sondar", "allow-audio-registar", "allow-audio-adiantar", "allow-audio-na-cache"
+    "allow-innertube-pedir", "allow-innertube-aquecer", "allow-googlevideo-sondar", "allow-audio-registar", "allow-audio-adiantar", "allow-audio-na-cache",
+    "allow-audio-descarregar", "allow-audio-cancelar-download", "allow-audio-tirar-download", "allow-audio-no-disco"
   ]
 }

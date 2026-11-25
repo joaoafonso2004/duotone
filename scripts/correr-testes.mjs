@@ -322,6 +322,7 @@ const TESTES = [
   'scripts/test-exportacao-ponte.mjs',
   'scripts/test-servidor-local.mjs',
   'scripts/test-ponte-tauri.mjs',
+  `${TS} scripts/test-ouvir-sem-rede-pc.ts`,
   'scripts/test-segunda-instancia.mjs',
   'scripts/test-saude-electron.mjs',
   'scripts/test-atualizacao-windows.mjs',

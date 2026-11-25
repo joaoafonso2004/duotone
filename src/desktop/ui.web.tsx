@@ -10,6 +10,7 @@ import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { LIMIAR_ARRASTO_PX } from '../lib/reorder';
 import { BrilhoInteligente, EstrelaInteligente } from '../components/BrilhoInteligente';
 import { usePlayer } from '../state/player';
+import { useDescarregadaDeProposito } from '../lib/descarregarFaixa';
 import { useCorDoAmbiente } from '../hooks/useCorDoAmbiente';
 import { useSaved } from '../state/saved';
 import { ouvirRefrao, temRefrao, useRefrao } from '../state/refrao';
@@ -1404,6 +1405,8 @@ const LinhaDaTabela = React.memo(function LinhaDaTabela({ track, index, aTocar, 
   // 40 e não 48: as linhas passaram de 56 para 52 (25/9), e uma biblioteca de
   // milhares de faixas lê-se melhor com mais linhas à vista.
   const artworkSize = 40;
+  // Só redesenha esta linha quando muda o download DELA (o seletor dá um booleano).
+  const descarregada = useDescarregadaDeProposito(track);
   // A marca da linha, e o índice na lista inteira (o teclado e as medidas da janela procuram-no).
   const marca = entrar ? marcar('fila', 'entra') : marcar('fila');
   return <P onPress={(e: any) => aoCarregar(e, track, index)}
@@ -1437,9 +1440,11 @@ const LinhaDaTabela = React.memo(function LinhaDaTabela({ track, index, aTocar, 
         <Artwork track={track} size={artworkSize} />
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text numberOfLines={1} style={[ui.trackTitle, aTocar && ui.trackTitleATocar]}>{tituloDaFaixa(track)}</Text>
-          {(!comArtista || contexto || savedKeys.has(`${track.source}:${track.sourceId}`)) && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
+          {(!comArtista || contexto || descarregada || savedKeys.has(`${track.source}:${track.sourceId}`)) && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
             {!comArtista && <Text numberOfLines={1} style={ui.trackSource}>{displayArtist(track)}</Text>}
             {savedKeys.has(`${track.source}:${track.sourceId}`) && <Ionicons name="heart" size={10} color={COR.texto} />}
+            {/* Descarregada (25/11, ouvir sem rede): o ↓ do iPhone, ao lado do coração. */}
+            {descarregada && <Ionicons name="arrow-down-circle" size={11} color={COR.texto} accessibilityLabel="Downloaded" />}
             {contexto?<>{!comArtista && <Text style={ui.discoveryDot}>·</Text>}<Text numberOfLines={1} style={ui.discoveryReason}>{contexto(track).reason}</Text></>:null}
           </View>}
         </View>

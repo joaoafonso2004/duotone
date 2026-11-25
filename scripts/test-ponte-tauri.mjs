@@ -37,7 +37,8 @@ assert.ok(doElectron.size > 40, `o preload tem ${doElectron.size} chaves: a leit
 assert.ok(doTauri.length > 5, 'a ponte do Tauri tem de ter chaves');
 // As que só existem no Tauri: o motor só de áudio (decidido a 21/11: não entra no Electron).
 // E o canal das atualizações (22/11): o Electron é sempre `windows`, a página assume-o sem a chave.
-const SO_DO_TAURI = new Set(['pedirAoInnerTube', 'aquecerLigacoes', 'sondarAudio', 'registarAudio', 'adiantarAudio', 'audioNaCache', 'canalDasAtualizacoes']);
+const SO_DO_TAURI = new Set(['pedirAoInnerTube', 'aquecerLigacoes', 'sondarAudio', 'registarAudio', 'adiantarAudio', 'audioNaCache', 'canalDasAtualizacoes',
+  'descarregarAudio', 'cancelarDownloadDeAudio', 'tirarDownloadDeAudio', 'audioNoDisco']);
 assert.match(ponte, /canalDasAtualizacoes: '__CANAL_DAS_ATUALIZACOES__',/);
 assert.match(ler('desktop/src/ponte.rs'), /\.replace\("__CANAL_DAS_ATUALIZACOES__", crate::canal::ATUALIZACAO_ENTRADA\)/, 'a casca põe o canal da identidade');
 for (const chave of doTauri) assert.ok(doElectron.has(chave) || SO_DO_TAURI.has(chave), `"${chave}" não existe no preload do Electron (erro de nome?)`);

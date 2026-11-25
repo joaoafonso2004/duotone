@@ -122,6 +122,11 @@
     // O 1.º bocado buscado antes do clique (o rato parado em cima da música).
     adiantarAudio: (id, url, tamanho, mime) => pedir('audio_adiantar', { id, url, tamanho, mime }),
     audioNaCache: (id) => pedir('audio_na_cache', { id }),
+    // Ouvir sem rede (25/11): os downloads pedidos, numa pasta que a poda não toca.
+    descarregarAudio: (id, url, tamanho, mime) => pedir('audio_descarregar', { id, url: url ?? null, tamanho: tamanho ?? null, mime: mime ?? null }),
+    cancelarDownloadDeAudio: (id) => pedir('audio_cancelar_download', { id }),
+    tirarDownloadDeAudio: (id) => pedir('audio_tirar_download', { id }),
+    audioNoDisco: () => pedir('audio_no_disco', {}),
     aliviarMemoria: () => {},
     // O crossfade do IFrame de recurso pede para o Chromium não estrangular os
     // temporizadores com a janela escondida (o setBackgroundThrottling do Electron).

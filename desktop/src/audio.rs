@@ -114,9 +114,123 @@ pub fn pasta_da_cache() -> Option<PathBuf> {
     fs::create_dir_all(&pasta).ok()?;
     Some(pasta)
 }
-fn na_cache(id: &str) -> Option<PathBuf> {
-    let pasta = pasta_da_cache()?;
+/// Os downloads pedidos (25/11, "ouvir sem rede no PC"): numa pasta ao lado da
+/// cache, que a poda do arranque não toca. Tocam pelo mesmo `/audio/<id>`.
+pub fn pasta_dos_downloads() -> Option<PathBuf> {
+    let base = std::env::var_os("LOCALAPPDATA")?;
+    let pasta = PathBuf::from(base).join(crate::canal::IDENTIFICADOR).join("downloads");
+    fs::create_dir_all(&pasta).ok()?;
+    Some(pasta)
+}
+fn ficheiro_em(pasta: Option<PathBuf>, id: &str) -> Option<PathBuf> {
+    let pasta = pasta?;
     ["webm", "m4a"].iter().map(|e| pasta.join(format!("{id}.{e}"))).find(|p| p.is_file())
+}
+fn nos_downloads(id: &str) -> Option<PathBuf> {
+    ficheiro_em(pasta_dos_downloads(), id)
+}
+fn so_na_cache(id: &str) -> Option<PathBuf> {
+    ficheiro_em(pasta_da_cache(), id)
+}
+/// Inteira no disco: um download pedido primeiro, depois a cache.
+fn na_cache(id: &str) -> Option<PathBuf> {
+    nos_downloads(id).or_else(|| so_na_cache(id))
+}
+
+/// Os ids que estão inteiros numa pasta (os `.parcial` não contam).
+fn ids_em(pasta: Option<PathBuf>) -> Vec<String> {
+    let Some(pasta) = pasta else { return Vec::new() };
+    let Ok(entradas) = fs::read_dir(&pasta) else { return Vec::new() };
+    let mut ids: Vec<String> = entradas
+        .flatten()
+        .filter_map(|e| {
+            let caminho = e.path();
+            let ext = caminho.extension()?.to_str()?;
+            if ext != "webm" && ext != "m4a" {
+                return None;
+            }
+            let id = caminho.file_stem()?.to_str()?.to_string();
+            id_valido(&id).then_some(id)
+        })
+        .collect();
+    ids.sort();
+    ids.dedup();
+    ids
+}
+
+/// Os downloads que a página mandou parar (o "Cancel download"): o ciclo vê-o entre bocados.
+static CANCELADOS: LazyLock<Mutex<std::collections::HashSet<String>>> = LazyLock::new(|| Mutex::new(Default::default()));
+
+/// Descarrega `fonte` inteira para a pasta dos downloads, aos bocados de 1 MB (um
+/// pedido grande sem PO Token leva 403). Já em disco na cache, só se copia, sem
+/// rede. Devolve os bytes do ficheiro.
+pub fn descarregar(id: &str, fonte: Option<Fonte>) -> Result<u64, String> {
+    if let Some(f) = nos_downloads(id) {
+        return Ok(fs::metadata(f).map(|m| m.len()).unwrap_or(0));
+    }
+    let pasta = pasta_dos_downloads().ok_or("sem pasta dos downloads")?;
+    let n = TEMPORARIOS.fetch_add(1, Ordering::Relaxed);
+    let temp = pasta.join(format!("{id}.{n}.parcial"));
+    CANCELADOS.lock().unwrap().remove(id);
+    // Já tocou inteira: copia-se da cache (que a poda pode levar), sem rede.
+    if let Some(da_cache) = so_na_cache(id) {
+        let ext = da_cache.extension().and_then(|e| e.to_str()).unwrap_or("webm").to_string();
+        let bytes = fs::copy(&da_cache, &temp).map_err(|e| e.to_string())?;
+        fs::rename(&temp, pasta.join(format!("{id}.{ext}"))).map_err(|e| { let _ = fs::remove_file(&temp); e.to_string() })?;
+        let _ = fs::remove_file(da_cache);
+        crate::registo::linha(&format!("download: {id} copiado da cache"));
+        return Ok(bytes);
+    }
+    let fonte = fonte.ok_or("sem endereço")?;
+    let final_ = pasta.join(format!("{id}.{}", extensao(&fonte.mime)));
+    let resultado = (|| -> Result<u64, String> {
+        let mut ficheiro = fs::File::create(&temp).map_err(|e| e.to_string())?;
+        let fim = fonte.tamanho - 1;
+        let mut pos = 0;
+        while pos <= fim {
+            if CANCELADOS.lock().unwrap().remove(id) {
+                return Err("cancelado".into());
+            }
+            let (a, b) = proximo_bocado(pos, fim, false);
+            let r = CLIENTE.get(&fonte.url).header("Range", format!("bytes={a}-{b}")).send().map_err(|e| e.to_string())?;
+            let estado = r.status().as_u16();
+            if estado != 206 && estado != 200 {
+                crate::registo::linha(&format!("download: googlevideo HTTP {estado} no byte {a} de {id}"));
+                if (400..500).contains(&estado) {
+                    return Err("expirada".into());
+                }
+                return Err(format!("googlevideo HTTP {estado}"));
+            }
+            let bytes = r.bytes().map_err(|e| e.to_string())?;
+            if bytes.is_empty() {
+                return Err("bocado vazio".into());
+            }
+            ficheiro.write_all(&bytes).map_err(|e| e.to_string())?;
+            pos += bytes.len() as u64;
+        }
+        drop(ficheiro);
+        let tamanho = fs::metadata(&temp).map(|m| m.len()).unwrap_or(0);
+        if tamanho != fonte.tamanho {
+            return Err(format!("ficheiro com {tamanho} de {} bytes", fonte.tamanho));
+        }
+        fs::rename(&temp, &final_).map_err(|e| e.to_string())?;
+        Ok(tamanho)
+    })();
+    if resultado.is_err() {
+        let _ = fs::remove_file(&temp);
+    }
+    if let Ok(bytes) = &resultado {
+        crate::registo::linha(&format!("download: {id} ({} KB)", bytes / 1024));
+    }
+    resultado
+}
+
+/// Tira um download pedido (e pára-o, se estiver a meio).
+pub fn tirar_download(id: &str) {
+    CANCELADOS.lock().unwrap().insert(id.to_string());
+    if let Some(f) = nos_downloads(id) {
+        let _ = fs::remove_file(f);
+    }
 }
 
 /// Valida o que a página regista: um id, um URL https do googlevideo, um tamanho e um tipo de áudio.
@@ -324,6 +438,14 @@ pub fn responder(caminho: &str, range: Option<&str>) -> tiny_http::ResponseBox {
 /// No arranque, a cache volta abaixo do limite, saindo primeiro as mais antigas.
 /// Só aqui: podar a meio de uma música já fez a app do iPhone cair.
 pub fn podar_cache() {
+    // Um download a meio quando a app fechou: o bocado que ficou sai (os inteiros ficam todos).
+    if let Some(pasta) = pasta_dos_downloads() {
+        for e in fs::read_dir(&pasta).into_iter().flatten().flatten() {
+            if e.path().extension().and_then(|x| x.to_str()) == Some("parcial") {
+                let _ = fs::remove_file(e.path());
+            }
+        }
+    }
     let Some(pasta) = pasta_da_cache() else { return };
     let Ok(entradas) = fs::read_dir(&pasta) else { return };
     let mut ficheiros: Vec<(PathBuf, u64, std::time::SystemTime)> = Vec::new();
@@ -410,9 +532,65 @@ pub fn audio_na_cache(janela: WebviewWindow, id: String) -> Result<Value, String
     })
 }
 
+/// "Download" (25/11): a página resolveu a música (ou já está na cache) e a casca
+/// guarda-a inteira na pasta dos downloads. Corre fora da thread principal.
+#[tauri::command]
+pub async fn audio_descarregar(janela: WebviewWindow, id: String, url: Option<String>, tamanho: Option<u64>, mime: Option<String>) -> Result<u64, String> {
+    if janela.label() != "main" || !id_valido(&id) {
+        return Err("Pedido inválido.".into());
+    }
+    let fonte = match (url, tamanho, mime) {
+        (Some(u), Some(t), Some(m)) => Some(validar(&id, &u, t, &m)?),
+        _ => None,
+    };
+    tauri::async_runtime::spawn_blocking(move || descarregar(&id, fonte)).await.map_err(|e| e.to_string())?
+}
+
+/// "Cancel download": o ciclo pára no bocado seguinte.
+#[tauri::command]
+pub fn audio_cancelar_download(janela: WebviewWindow, id: String) -> Result<(), String> {
+    if janela.label() != "main" || !id_valido(&id) {
+        return Err("Pedido inválido.".into());
+    }
+    CANCELADOS.lock().unwrap().insert(id);
+    Ok(())
+}
+
+/// "Remove download": sai da pasta dos downloads (sem rede, fica de fora a tocar).
+#[tauri::command]
+pub fn audio_tirar_download(janela: WebviewWindow, id: String) -> Result<(), String> {
+    if janela.label() != "main" || !id_valido(&id) {
+        return Err("Pedido inválido.".into());
+    }
+    tirar_download(&id);
+    Ok(())
+}
+
+/// O que toca sem rede: os downloads pedidos e o que está inteiro na cache.
+#[tauri::command]
+pub fn audio_no_disco(janela: WebviewWindow) -> Result<Value, String> {
+    if janela.label() != "main" {
+        return Err("Pedido inválido.".into());
+    }
+    Ok(json!({ "descarregadas": ids_em(pasta_dos_downloads()), "emCache": ids_em(pasta_da_cache()) }))
+}
+
 #[cfg(test)]
 mod testes {
     use super::*;
+
+    #[test]
+    fn os_ids_de_uma_pasta() {
+        let pasta = std::env::temp_dir().join(format!("duotone-ids-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&pasta);
+        fs::create_dir_all(&pasta).unwrap();
+        for nome in ["dQw4w9WgXcQ.webm", "abcdefghijk.m4a", "abcdefghijk.webm", "curto.webm", "zzzzzzzzzzz.3.parcial", "notas.txt"] {
+            fs::write(pasta.join(nome), b"x").unwrap();
+        }
+        assert_eq!(ids_em(Some(pasta.clone())), vec!["abcdefghijk".to_string(), "dQw4w9WgXcQ".to_string()], "só os inteiros, sem repetir, sem o .parcial");
+        assert!(ids_em(None).is_empty());
+        let _ = fs::remove_dir_all(&pasta);
+    }
 
     #[test]
     fn os_intervalos() {

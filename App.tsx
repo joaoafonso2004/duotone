@@ -62,7 +62,7 @@ import { iniciarRecomendado } from './src/state/recomendado';
 import { definirEmSegundoPlano, definirGuardarEscutaPorEnviar, definirPodeTocarSemRede, definirScrobbler, usePlayer } from './src/state/player';
 import { carregarScrobbling, scrobblerDoListenBrainz } from './src/state/scrobbling';
 import { guardarEscutaPorEnviar, instalarEnvioDeEscutas } from './src/state/escutasPorEnviar';
-import { tocaSemRede } from './src/lib/descarregarFaixa';
+import { ouveSemRedeNesteAparelho, tocaSemRede } from './src/lib/descarregarFaixa';
 import { descarregadorNativo } from './modules/duotone-download';
 import { useTheme } from './src/state/theme';
 import { useAcompanharCapa } from './src/hooks/useAcompanharCapa';
@@ -123,7 +123,8 @@ definirGuardarEscutaPorEnviar(guardarEscutaPorEnviar);
 definirScrobbler(scrobblerDoListenBrainz);
 void carregarScrobbling();
 instalarEnvioDeEscutas();
-if (Platform.OS === 'ios') definirPodeTocarSemRede(tocaSemRede);
+// No PC (25/11) também, com a casca em Tauri: os downloads e o que tocou inteiro.
+if (Platform.OS === 'ios' || ouveSemRedeNesteAparelho()) definirPodeTocarSemRede(tocaSemRede);
 // O download do áudio fora do JavaScript (4/10, auditoria 4.1): os bocados vão
 // do URLSession direto para o disco e o Opus converte-se no Swift. Sem o
 // módulo no binário (uma build anterior), o download continua pelo JS.

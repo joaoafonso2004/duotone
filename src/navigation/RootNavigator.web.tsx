@@ -10,6 +10,7 @@ import { MenuDeContexto, ultimoClique, type PontoNoEcra } from '../desktop/MenuD
 import { RetrospetivaPage } from '../desktop/paginas/RetrospetivaPage.web';
 import { VocesOsDoisPage } from '../desktop/paginas/VocesOsDoisPage.web';
 import { nomeDaRota } from '../lib/voltarPara';
+import { alternarDownload, downloadNoMenuDe, podeDescarregar, tocaSemRede } from '../lib/descarregarFaixa';
 import { ShareFriendSheet } from '../components/ShareFriendSheet';
 import { RecommendationPreferences } from '../components/RecommendationPreferences';
 import React, { ReactNode, useCallback, useEffect, useRef, useState, useTransition } from 'react';
@@ -687,7 +688,7 @@ function DesktopShell() {
    * O menu da faixa no PC (clique direito e "…"): as ações, a ordem e os
    * nomes de todos os menus, os do iPhone incluídos (lib/menuDaFaixa.ts).
    * Ganhou o "Play next", que só não existia aqui, e o "Remove from queue" na
-   * fila do Now Playing. Download não há: o leitor do PC não guarda áudio.
+   * fila do Now Playing. O Download (25/11) só com a casca em Tauri, que guarda o áudio.
    */
   const nomeDoArtistaDoMenu = trackMenu ? displayArtist(trackMenu) : '';
   const filaMudou = trackMenuFila === null || !trackMenu || trackMenuFila === indiceDoLeitor
@@ -698,10 +699,10 @@ function DesktopShell() {
     // A barra do leitor tem o "Open Now Playing"; a capa do Now Playing, o menu curto do leitor (24/10).
     onde: trackMenuFila !== null ? 'fila' : trackMenuLeitor === 'barra' ? 'barra' : trackMenuLeitor === 'capa' ? 'leitor' : 'lista',
     semRede,
-    tocaSemRede: false,
+    tocaSemRede: tocaSemRede(trackMenu),
     guardada: guardadasLidas ? isSaved : null,
-    podeDescarregar: false,
-    download: 'nenhum',
+    podeDescarregar: podeDescarregar(trackMenu),
+    download: downloadNoMenuDe(trackMenu),
     temArtista: !!nomeDoArtistaDoMenu && nomeDoArtistaDoMenu !== 'Unknown artist',
     playlist: trackMenuPlaylist && trackMenuFila === null ? { podeEditar: trackMenuPlaylist.podeEditar } : null,
     fila: trackMenuFila !== null ? { emJam, mudou: filaMudou } : null,
@@ -726,6 +727,7 @@ function DesktopShell() {
       case 'por-na-fila': setTrackMenuOpen(false); usePlayer.getState().addToQueue(t); if (!orbitar('fila', t.artworkUrl)) notify(fraseDaOrbita('fila', tituloDaFaixa(t))); return;
       case 'radio': setTrackMenuOpen(false); void comecarRadioDaMusica(t); return;
       case 'guardar': void toggleSave(); return;
+      case 'descarregar': setTrackMenuOpen(false); void alternarDownload(t); return;
       // 'por-em-playlist' não chega aqui: a linha abre o painel das playlists ao lado.
       // O artista sai do `displayArtist` e nao do campo `artist`, que no
       // YouTube e o CANAL: com o campo cru abria-se a pagina de um canal de

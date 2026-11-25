@@ -16,8 +16,8 @@
  *
  *  - **O que não se aplica não aparece.** No leitor não há "Play now" (já está
  *    a tocar); numa linha da fila não há "Play next" nem "Add to queue" (já lá
- *    está); no PC não há download (o leitor do PC é o player oficial do YouTube
- *    e não guarda áudio -- ver as Definições no CLAUDE.md). As de contexto --
+ *    está); no PC só há download com a casca em Tauri, que guarda o áudio
+ *    (25/11; no Electron o leitor era o player oficial). As de contexto --
  *    tirar da playlist, tirar da fila -- só onde há playlist ou fila.
  *  - **O que não se pode fazer AGORA fica à vista, a dizer porquê.** Sem rede,
  *    dentro de um Jam, numa playlist que não é tua. Uma ação que desaparece
@@ -171,7 +171,8 @@ function aplicaSe(id: IdDaAcao, c: ContextoDoMenu): boolean {
     case 'ver-artista':
     case 'recomendacoes': return c.onde !== 'leitor';
     case 'nao-interessa': return !!c.sugestao;
-    case 'descarregar': return c.plataforma === 'ios' && c.podeDescarregar && c.onde !== 'leitor';
+    // No PC também (25/11), com a casca em Tauri: é ela que diz `podeDescarregar`.
+    case 'descarregar': return c.podeDescarregar && c.onde !== 'leitor';
     case 'tirar-da-playlist': return c.onde === 'lista' && !!c.playlist;
     case 'tirar-da-fila': return c.onde === 'fila' && !!c.fila;
     case 'tirar-do-perfil': return c.onde === 'lista' && !!c.momentoDoPerfil;
@@ -182,7 +183,7 @@ function aplicaSe(id: IdDaAcao, c: ContextoDoMenu): boolean {
 function descrever(id: IdDaAcao, c: ContextoDoMenu): AcaoDoMenu {
   const semRede = c.semRede ? MOTIVOS.semRede : null;
   const tocar = c.semRede && !c.tocaSemRede
-    ? (c.plataforma === 'ios' ? MOTIVOS.naoDescarregada : MOTIVOS.semRede)
+    ? (c.plataforma === 'ios' || c.podeDescarregar ? MOTIVOS.naoDescarregada : MOTIVOS.semRede)
     : null;
   const acao = (rotulo: string, icone: IconeDoMenu, indisponivel: string | null, destrutiva = false): AcaoDoMenu =>
     ({ id, rotulo, icone, destrutiva, indisponivel });

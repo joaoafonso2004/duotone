@@ -48,6 +48,7 @@ fn main() {
         "yt_pesquisa", "ytmusic_pesquisa", "yt_mix", "yt_refrao", "ytmusic_artista", "ytmusic_radio", "ytmusic_letra",
         "catalogo_pedir", "supabase_pedir", "spotify_embed", "apple_playlist", "deezer_link",
         "innertube_pedir", "innertube_aquecer", "googlevideo_sondar", "audio_registar", "audio_adiantar", "audio_na_cache",
+        "audio_descarregar", "audio_cancelar_download", "audio_tirar_download", "audio_no_disco",
     ];
     // As capabilities da identidade desta build (canal.rs): a porta muda com ela.
     println!("cargo:rerun-if-changed=capabilities");

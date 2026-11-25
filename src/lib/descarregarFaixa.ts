@@ -43,9 +43,14 @@ function ligarVigias(): void {
  * download: o leitor, a fila e o chat não. Os menus passaram a ser os mesmos
  * em todo o lado (lib/menuDaFaixa.ts), e este é o bocado que eles partilham.
  *
- * Só YouTube, e só no iPhone -- no PC há o `.web.ts`, que não faz nada: lá o
- * leitor é o player oficial e não guarda áudio.
+ * Só YouTube. No PC há o `.web.ts`: com a casca em Tauri descarrega para a
+ * pasta dela (25/11); no Electron não faz nada.
  */
+
+/** Neste aparelho dá para ouvir sem rede: no iPhone sempre (no PC, só com a casca em Tauri). */
+export function ouveSemRedeNesteAparelho(): boolean {
+  return true;
+}
 
 export function podeDescarregar(track: Track): boolean {
   return track.source === 'youtube' && !!track.sourceId;

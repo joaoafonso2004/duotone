@@ -88,11 +88,15 @@ caso('na fila não há "Play next" nem "Add to queue" (já lá está)', () => {
   assert.ok(!tem.includes('tocar-a-seguir') && !tem.includes('por-na-fila'));
   assert.equal(tem[tem.length - 1], 'tirar-da-fila');
 });
-caso('no PC não há download, e no iPhone só nas do YouTube', () => {
+caso('o download só onde se pode descarregar: no iPhone nas do YouTube, no PC com a casca em Tauri (25/11)', () => {
+  // No PC quem diz `podeDescarregar` é a casca (lib/descarregarFaixa.web.ts): sem ela, não há.
   assert.ok(!ids({ plataforma: 'pc', podeDescarregar: false }).includes('descarregar'));
-  assert.ok(!ids({ plataforma: 'pc', podeDescarregar: true }).includes('descarregar'), 'nem que alguém se engane no contexto');
+  assert.ok(ids({ plataforma: 'pc', podeDescarregar: true }).includes('descarregar'));
+  assert.ok(!ids({ plataforma: 'pc', podeDescarregar: true, onde: 'leitor' }).includes('descarregar'), 'no menu curto do leitor não');
   assert.ok(ids({ podeDescarregar: true }).includes('descarregar'));
   assert.ok(!ids({ podeDescarregar: false }).includes('descarregar'));
+  // Sem rede, o Play de uma que não está no PC diz porquê como no iPhone.
+  assert.equal(achar('tocar-agora', { plataforma: 'pc', podeDescarregar: true, semRede: true, tocaSemRede: false }).indisponivel, 'Not downloaded · needs internet');
 });
 caso('tirar da playlist só dentro de uma playlist, e no fim', () => {
   assert.ok(!ids().includes('tirar-da-playlist'));
