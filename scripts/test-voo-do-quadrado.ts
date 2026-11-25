@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  corTapa, curvaDaMola, duracaoDaMola, momentoDeAbrir, MOLA_DO_VOO, TAPAR_MS, vooDaCapa, vooDaCor,
+  CASCATA, corTapa, curvaDaMola, duracaoDaMola, entradaDaLinha, momentoDeAbrir, MOLA_DO_VOO, TAPAR_MS, vooDaCapa, vooDaCor,
 } from '../src/lib/vooDoQuadrado.ts';
 import { ENTRADA } from '../src/lib/movimento.ts';
 
@@ -102,6 +102,28 @@ caso('sem o atraso entre o toque e o voo, a entrar e a voltar (25/11)', () => {
   assert.match(voltar, /pedido\.sair\(\);[\s\S]{0,400}Animated\.spring\(p, \{ toValue: 0/);
   assert.ok(voltar.indexOf('Animated.spring(p, { toValue: 0') < voltar.indexOf('d.medirDe()'), 'encolher não espera pela medida nova');
   assert.ok(TAPAR_MS <= 100, `a cor tapa depressa (${TAPAR_MS} ms)`);
+});
+
+caso('a cascata quando a capa pousa: cada linha a sua janela, a mesma animação (25/11)', () => {
+  assert.equal(CASCATA.linhas, 10);
+  const primeira = entradaDaLinha(0), ultima = entradaDaLinha(9);
+  assert.equal(primeira.inputRange[0], 0);
+  assert.ok(ultima.inputRange[ultima.inputRange.length - 1] <= 1, 'a última acaba dentro da animação');
+  assert.ok(Math.abs(ultima.inputRange[0] - 9 * CASCATA.passo) < 1e-9, 'uma a uma');
+  for (const e of [primeira, ultima]) {
+    assert.equal(e.opacidade[0], 0); assert.equal(e.opacidade[e.opacidade.length - 1], 1);
+    assert.equal(e.desvio[0], CASCATA.desvio); assert.equal(e.desvio[e.desvio.length - 1], 0);
+    for (let i = 1; i < e.inputRange.length; i++) assert.ok(e.inputRange[i] > e.inputRange[i - 1]);
+  }
+  // ~30 ms entre linhas e ~460 ms cada, como na maquete.
+  assert.ok(Math.abs(CASCATA.passo * CASCATA.duracaoMs - 30) < 2);
+  assert.ok(Math.abs(CASCATA.janela * CASCATA.duracaoMs - 456) < 10);
+  const pagina = ler('src/components/PaginaDoQuadrado.tsx');
+  assert.match(pagina, /Animated\.timing\(cascata, \{ toValue: 1, duration: CASCATA\.duracaoMs, easing: Easing\.linear, useNativeDriver: true \}\)/);
+  assert.match(pagina, /if \(!cascata \|\| indice >= CASCATA\.linhas\) return null;/, 'fora de uma página do quadrado, a linha como sempre');
+  for (const f of ['src/screens/PlaylistDetailScreen.tsx', 'src/screens/PrateleiraScreen.tsx', 'src/screens/LibraryGroupScreen.tsx']) {
+    assert.match(ler(f), /<LinhaEmCascata indice=\{index\}>/, f);
+  }
 });
 
 console.log(falhas ? `\n  ${falhas} caso(s) falharam.\n` : '\n  Todos os casos passaram.\n');

@@ -151,3 +151,35 @@ export function pedirVoo(p: PedidoDeVoo): boolean {
 
 let proximo = 0;
 export const novoIdDeVoo = (): string => `voo-${Date.now().toString(36)}-${(proximo++).toString(36)}`;
+
+/**
+ * A cascata quando a capa pousa (25/11, item 3 do plano, `docs/premium-ios-maquete.html#cascata`):
+ * as primeiras linhas sobem e acendem uma a uma. UMA animação de 0 a 1 por página
+ * (linear, no driver nativo), e cada linha lê a sua janela dela, já com a curva.
+ */
+export const CASCATA = {
+  /** Só as que se veem ao abrir. */
+  linhas: 10,
+  /** Quanto sobem, em pt. */
+  desvio: 14,
+  duracaoMs: 760,
+  /** Onde começa cada linha, em fração do total (~30 ms entre elas). */
+  passo: 0.04,
+  /** Quanto dura cada linha, em fração do total (~460 ms). */
+  janela: 0.6,
+} as const;
+
+/** A janela de uma linha, amostrada com uma saída suave (o `cubic-bezier(.2,.9,.25,1)` da maquete). */
+export function entradaDaLinha(indice: number): { inputRange: number[]; opacidade: number[]; desvio: number[] } {
+  const inicio = Math.min(indice, CASCATA.linhas - 1) * CASCATA.passo;
+  const inputRange: number[] = [], opacidade: number[] = [], desvio: number[] = [];
+  const PONTOS = 6;
+  for (let k = 0; k <= PONTOS; k++) {
+    const t = k / PONTOS;
+    const e = 1 - Math.pow(1 - t, 3);
+    inputRange.push(+(inicio + t * CASCATA.janela).toFixed(4));
+    opacidade.push(+e.toFixed(4));
+    desvio.push(+(CASCATA.desvio * (1 - e)).toFixed(3));
+  }
+  return { inputRange, opacidade, desvio };
+}

@@ -91,7 +91,7 @@ import { ArtworkCollage } from '../components/ArtworkCollage';
 import { LinhaArrastavel } from '../components/LinhaArrastavel';
 import { DeslizarParaTirar } from '../components/DeslizarParaTirar';
 import { PlayDeMetal } from '../components/PlayDeMetal';
-import { useVoltarDaPagina } from '../components/PaginaDoQuadrado';
+import { LinhaEmCascata, useVoltarDaPagina } from '../components/PaginaDoQuadrado';
 import { useArrastarLista } from '../hooks/useArrastarLista';
 import {
   comecarRascunho, desfazerTirada, haAlgoParaGravar, moverNoRascunho, planoDeGravacao, tirarDoRascunho,
@@ -975,7 +975,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
           ListHeaderComponent={cabecalhoDaLista}
           refreshControl={puxar}
           contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: bottomPad }}
-          renderItem={({ item }) => {
+          renderItem={({ item, index }) => {
             // Sem rede, a que não está no iPhone fica no lugar dela, apagada
             // como no Up next, e tocar-lhe diz porquê (16/10, variante A de
             // docs/playlists-sem-rede.html).
@@ -989,7 +989,8 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
                 quemPos={quemPos(quemPosMapa.get(item.id), pessoasVistas)}
               />
             );
-            return fora ? <View style={{ opacity: 0.4 }}>{linha}</View> : linha;
+            // A cascata quando a capa pousa (25/11): só se a página abriu pelo quadrado.
+            return <LinhaEmCascata indice={index}>{fora ? <View style={{ opacity: 0.4 }}>{linha}</View> : linha}</LinhaEmCascata>;
           }}
         />
       )}

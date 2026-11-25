@@ -8,7 +8,7 @@ import { FRASES_DOS_ALBUNS } from '../lib/albunsGuardados';
 import { menuDoLancamento, type AcaoDoLancamento } from '../lib/menuDoLancamento';
 import { useConnectivity } from '../state/connectivity';
 import { MusicasDoArtistaSheet } from '../components/MusicasDoArtistaSheet';
-import { useVoltarDaPagina } from '../components/PaginaDoQuadrado';
+import { LinhaEmCascata, useVoltarDaPagina } from '../components/PaginaDoQuadrado';
 import { useVizinhancaDoArtista } from '../hooks/useVizinhancaDoArtista';
 import { gruposDaBiblioteca } from '../state/gruposDaBiblioteca';
 import { useFocusEffect } from '@react-navigation/native';
@@ -448,8 +448,8 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
         contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: bottomPad }}
         ListEmptyComponent={waiting ? <SkeletonDeFaixas linhas={6} />
           : <EmptyState icon="albums-outline" title="Nothing here" subtitle="None of this album's songs are in your library." />}
-        renderItem={({ item }) => <TrackRow track={item} acompanharATocar
-          onPress={() => tocarMusica(item, tracksDaAba, true, undefined, origemDaPagina)} onAction={() => setActionTrack(item)} />}
+        renderItem={({ item, index }) => <LinhaEmCascata indice={index}><TrackRow track={item} acompanharATocar
+          onPress={() => tocarMusica(item, tracksDaAba, true, undefined, origemDaPagina)} onAction={() => setActionTrack(item)} /></LinhaEmCascata>}
       />
       {folhas}
     </Screen>

@@ -1,13 +1,16 @@
 import { useNavigation, useRoute } from '@react-navigation/native';
-import React, { createContext, useCallback, useContext, useEffect, useRef } from 'react';
-import { Animated, View, type StyleProp, type ViewStyle } from 'react-native';
-import { ESPERA_MAXIMA_MS, pedirVoo, TROCA_MS } from '../lib/vooDoQuadrado';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react';
+import { Animated, Easing, View, type StyleProp, type ViewStyle } from 'react-native';
+import { CASCATA, entradaDaLinha, ESPERA_MAXIMA_MS, pedirVoo, TROCA_MS } from '../lib/vooDoQuadrado';
+import { pedirFluidez } from '../state/fluidez';
 import {
   dadosDoVoo, marcarAlvo, marcarPaginaPronta, medirNoEcra, mudarFase, useVoos,
 } from '../state/vooDoQuadrado';
 
 /** O voltar da página que abriu por um quadrado: encolhe até ele (24/11). */
 const VoltarDoQuadrado = createContext<(() => void) | null>(null);
+/** A cascata das linhas quando a capa pousa (25/11): a animação da página, de 0 a 1. */
+const CascataDaPagina = createContext<Animated.Value | null>(null);
 
 /**
  * A página que abriu por um quadrado (24/11, `lib/vooDoQuadrado.ts`). Embrulha o
@@ -22,14 +25,18 @@ export function PaginaDoQuadrado({ voo, navigation, children }: {
 }) {
   const fase = useVoos((s) => s.fases[voo]);
   const opacidade = useRef(new Animated.Value(fase === 'a-entrar' ? 0 : 1)).current;
+  const cascata = useRef(new Animated.Value(fase === 'a-entrar' ? 0 : 1)).current;
   const faseRef = useRef(fase);
   faseRef.current = fase;
 
   useEffect(() => {
     if (fase !== 'aberta') return;
     Animated.timing(opacidade, { toValue: 1, duration: TROCA_MS, useNativeDriver: true }).start();
+    // E as linhas entram em cascata no mesmo instante (item 3 do plano de 25/11).
+    pedirFluidez(CASCATA.duracaoMs + 100);
+    Animated.timing(cascata, { toValue: 1, duration: CASCATA.duracaoMs, easing: Easing.linear, useNativeDriver: true }).start();
     navigation.setOptions({ animation: 'default' });
-  }, [fase, navigation, opacidade]);
+  }, [fase, navigation, opacidade, cascata]);
 
   // Se a camada nunca a mandar acender (rebentou, ou não havia camada), acende sozinha.
   useEffect(() => {
@@ -56,11 +63,34 @@ export function PaginaDoQuadrado({ voo, navigation, children }: {
 
   return (
     <VoltarDoQuadrado.Provider value={voltar}>
-      <Animated.View style={{ flex: 1, opacity: opacidade }} onLayout={() => marcarPaginaPronta(voo)}>
-        {children}
-      </Animated.View>
+      <CascataDaPagina.Provider value={cascata}>
+        <Animated.View style={{ flex: 1, opacity: opacidade }} onLayout={() => marcarPaginaPronta(voo)}>
+          {children}
+        </Animated.View>
+      </CascataDaPagina.Provider>
     </VoltarDoQuadrado.Provider>
   );
+}
+
+/**
+ * Uma linha de uma página que abriu por um quadrado (25/11, item 3 do plano): quando
+ * a capa pousa, as primeiras `CASCATA.linhas` sobem 14 pt e acendem uma a uma, todas
+ * da mesma animação da página (cada uma com a sua janela). Fora de uma página dessas,
+ * ou depois das primeiras, a linha como sempre. Ao rolar não mexe: a animação já
+ * acabou e fica em 1.
+ */
+export function LinhaEmCascata({ indice, children }: { indice: number; children: React.ReactNode }) {
+  const cascata = useContext(CascataDaPagina);
+  const estilo = useMemo(() => {
+    if (!cascata || indice >= CASCATA.linhas) return null;
+    const e = entradaDaLinha(indice);
+    return {
+      opacity: cascata.interpolate({ inputRange: e.inputRange, outputRange: e.opacidade, extrapolate: 'clamp' }),
+      transform: [{ translateY: cascata.interpolate({ inputRange: e.inputRange, outputRange: e.desvio, extrapolate: 'clamp' }) }],
+    };
+  }, [cascata, indice]);
+  if (!estilo) return <>{children}</>;
+  return <Animated.View style={estilo}>{children}</Animated.View>;
 }
 
 /**

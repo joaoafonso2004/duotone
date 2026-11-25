@@ -1,3 +1,4 @@
+import { LinhaEmCascata } from '../components/PaginaDoQuadrado';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -144,7 +145,8 @@ export function PrateleiraScreen({ route }: Props) {
             </View>
           }
           contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: insets.bottom + MINI_PLAYER_HEIGHT + 32 }}
-          renderItem={({ item }) => (
+          renderItem={({ item, index }) => (
+            <LinhaEmCascata indice={index}>
             <TrackRow
               track={item}
               showSavedBadge
@@ -154,6 +156,7 @@ export function PrateleiraScreen({ route }: Props) {
               onPress={() => tocarMusica(item, faixas, true, contextoDe(item), origemDaPrateleira(fonte, titulo))}
               onAction={() => setAberta(item)}
             />
+            </LinhaEmCascata>
           )}
         />
       )}

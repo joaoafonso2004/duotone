@@ -59,7 +59,7 @@ const mocks = {
   },
   '../components/MusicasDoArtistaSheet': { MusicasDoArtistaSheet: 'SongsSheet' },
   // Voltar até ao quadrado de onde abriu (24/11): aqui, o goBack de sempre.
-  '../components/PaginaDoQuadrado': { useVoltarDaPagina: () => () => {} },
+  '../components/PaginaDoQuadrado': { useVoltarDaPagina: () => () => {}, LinhaEmCascata: ({ children }) => children },
   '../hooks/useVizinhancaDoArtista': { useVizinhancaDoArtista: () => ({ fas: 5_100_000, parecidos: ['Bon Iver'] }) },
   '../components/BrilhoDoEcra': { BrilhoDoEcra: 'Glow' }, '../components/EmptyState': { EmptyState: 'Empty' },
   '../components/Skeleton': { SkeletonDeFaixas: 'Skeleton', SkeletonDePrateleira: 'ShelfSkeleton' },
