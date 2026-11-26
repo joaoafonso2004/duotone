@@ -63,6 +63,8 @@ import { usePuxarParaAtualizar } from '../components/PuxarParaAtualizar';
 import { eColaborativa, papelNaPlaylist, podeMexerNasFaixas, quemPos, type PessoaDaPlaylist } from '../lib/playlistColaborativa';
 import { CarasDaPlaylist, PessoasDaPlaylist } from '../components/PessoasDaPlaylist';
 import { usePlaylists } from '../state/playlists';
+import { mudarCapaDaPlaylist, situacaoDaCapa, tirarCapaDaPlaylist } from '../state/capasDasPlaylists';
+import { capaEscolhida } from '../lib/capasDasPlaylists';
 import { estadoDoGuardar, mensagemDeFalhaAoGuardar } from '../lib/guardarPlaylist';
 import { BottomSheet } from '../components/BottomSheet';
 import { CabecalhoDaPlaylist } from '../components/CabecalhoDaPlaylist';
@@ -566,10 +568,12 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   // puseram vem já, sem sair e voltar.
   const puxar = usePuxarParaAtualizar(() => load({ silencioso: true }), cab.espaco);
 
-  /** As quatro primeiras capas, para o mosaico -- como na grelha. */
+  /** A capa escolhida (26/11), ou as quatro primeiras capas, para o mosaico -- como na grelha. */
+  const daLista = usePlaylists((s) => s.items.find((p) => p.id === id));
+  const capaPropria = capaEscolhida(daLista);
   const capasDaPlaylist = React.useMemo(
-    () => tracks.map((t) => t.artworkUrl).filter((u): u is string => !!u).slice(0, 4),
-    [tracks],
+    () => (capaPropria ? [capaPropria] : tracks.map((t) => t.artworkUrl).filter((u): u is string => !!u).slice(0, 4)),
+    [tracks, capaPropria],
   );
   /**
    * A soma das durações, e só quando se sabem TODAS.
@@ -1027,6 +1031,8 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
         actions={menuDaPlaylist({
           plataforma: 'ios', onde: 'pagina', temFaixas: tracks.length > 0, minha: souDono, colaboro: papel === 'colaborador',
           download: descarregaveis.length ? downloadDaPlaylist : undefined,
+          // Só com a playlist na lista (a minha): é dela que vem o caminho da capa.
+          capa: daLista ? situacaoDaCapa(daLista) : false,
         })
           .map((a) => ({ icon: a.icone as any, label: a.rotulo, destructive: a.destrutiva, onPress: () => {
             if (a.id === 'juntar') { void abrirMerge(); return; }
@@ -1039,6 +1045,8 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             else if (a.id === 'apagar') setDeleteOpen(true);
             else if (a.id === 'colaboradores') setPessoasAbertas(true);
             else if (a.id === 'sair') setSairAberto(true);
+            else if (a.id === 'capa') void mudarCapaDaPlaylist(id);
+            else if (a.id === 'tirar-capa') void tirarCapaDaPlaylist(id);
           } }))}
       />
 

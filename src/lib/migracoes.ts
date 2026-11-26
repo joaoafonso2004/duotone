@@ -24,6 +24,7 @@ export type Migracao = {
 };
 
 export const MIGRACOES: readonly Migracao[] = [
+  { ficheiro: 'capas-das-playlists.sql', marca: 'col:playlists.capa', efeito: 'Choose your own playlist cover' },
   { ficheiro: 'pastas-de-playlists.sql', marca: 'col:playlists.pasta', efeito: 'Playlist folders' },
   { ficheiro: 'partilhar-albuns.sql', marca: 'fn:shared_album_valid', efeito: 'Share albums with friends' },
   { ficheiro: 'albuns-guardados.sql', marca: 'tab:saved_albums', efeito: 'Save albums to your library as albums, not playlists' },

@@ -16,6 +16,7 @@ import { lerFaixas } from '../lib/cacheDaBiblioteca';
 import { capaComBarras, molduraSemBarras } from '../lib/modoLimpo';
 import { useAtalhosDaLateral } from '../state/atalhosDaLateral';
 import { useMisturaDoDia } from '../state/misturaDoDia';
+import { usePlaylists } from '../state/playlists';
 import { usePlayer } from '../state/player';
 import { useSocial } from '../state/social';
 import type { Playlist, Track } from '../types';
@@ -223,6 +224,10 @@ function capaDoAtalho(a: Atalho): string | null {
 }
 
 function Miniatura({ a, online }: { a: Atalho; online: boolean }) {
+  // A capa de uma playlist vem da lista atual quando ela lá está (26/11): uma
+  // capa escolhida é um link assinado que caduca numa semana, e o atalho guarda
+  // a do dia em que se fixou.
+  const daLista = usePlaylists((s) => (a.tipo === 'playlist' ? s.items.find((p) => p.id === a.id)?.artworks?.[0] ?? null : null));
   if (a.tipo === 'amigo') {
     return <View style={{ width: 32, height: 32 }}>
       <FriendAvatar avatarUrl={a.avatar ?? null} name={a.nome} size={32} />
@@ -234,7 +239,7 @@ function Miniatura({ a, online }: { a: Atalho; online: boolean }) {
       <Ionicons name="sparkles" size={15} color={COR.texto} />
     </View>;
   }
-  const capa = capaDoAtalho(a);
+  const capa = daLista ?? capaDoAtalho(a);
   const redondo = a.tipo === 'artista';
   const icone = a.tipo === 'playlist' ? 'musical-notes' : a.tipo === 'artista' ? 'person' : 'musical-note';
   return <View style={{ width: 32, height: 32, borderRadius: redondo ? 16 : 6, overflow: 'hidden', backgroundColor: COR.elevado, alignItems: 'center', justifyContent: 'center' }}>

@@ -13,6 +13,8 @@ const raiz = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /** Duplos para quando um módulo importa outro que só o aparelho tem. */
 const POR_OMISSAO = {
   'src/lib/playCounts.ts': { contagensNoAparelho: async () => [] },
+  // As capas à escolha (26/11) vão ao Storage e ao seletor de imagens: aqui ficam as das músicas.
+  'src/api/capasDasPlaylists.ts': { assinarCapas: async (lista) => lista, apagarCapas: async () => {} },
 };
 
 function ambiente(fetch, substituicoes = {}) {

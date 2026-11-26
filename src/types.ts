@@ -34,6 +34,12 @@ export interface Playlist {
   colaborativa?: boolean;
   /** A pasta onde está (16/11, lib/pastasDePlaylists.ts): o nome, ou nada. Só nas minhas. */
   pasta?: string | null;
+  /**
+   * A capa escolhida (26/11, lib/capasDasPlaylists.ts): o caminho no Storage.
+   * Com ela à vista, `artworks` é só ela e as das músicas ficam em `capasDasFaixas`.
+   */
+  capa?: string | null;
+  capasDasFaixas?: string[];
 }
 
 export interface PlaylistTrack extends Track {

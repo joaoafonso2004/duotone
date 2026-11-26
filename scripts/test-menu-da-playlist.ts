@@ -79,5 +79,22 @@ caso('os quatro menus usam esta decisão (nenhum escreve rótulos à mão)', () 
   }
 });
 
+caso('a capa (26/11): escolher sem ela, mudar e tirar com ela, só ao dono', () => {
+  const sem = menuDaPlaylist({ ...base, capa: 'sem' });
+  assert.deepEqual(sem.filter((a) => a.id === 'capa' || a.id === 'tirar-capa').map((a) => a.rotulo), ['Choose cover…']);
+  const tem = menuDaPlaylist({ ...base, onde: 'pagina', plataforma: 'pc', capa: 'tem' });
+  assert.deepEqual(tem.filter((a) => a.id === 'capa' || a.id === 'tirar-capa').map((a) => a.rotulo), ['Change cover…', 'Remove cover']);
+  assert.ok(!ids({ ...base, minha: false, colaboro: true, capa: 'tem' }).includes('capa'), 'quem colabora não muda a capa');
+  assert.ok(!ids({ ...base, capa: false }).includes('capa'), 'sem a migração não se oferece');
+  assert.ok(!ids(base).includes('capa'), 'quem não diz nada não a vê');
+});
+caso('os quatro menus passam a capa e tratam as duas ações', () => {
+  for (const f of ['src/screens/PlaylistsScreen.tsx', 'src/screens/PlaylistDetailScreen.tsx', 'src/desktop/paginas/PlaylistPages.web.tsx']) {
+    const t = readFileSync(new URL(`../${f}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+    assert.equal((t.match(/capa: (daLista \? )?situacaoDaCapa\(/g) ?? []).length, f.endsWith('.web.tsx') ? 2 : 1, f);
+    assert.match(t, /=== 'capa'\) void mudarCapaDaPlaylist\(/, f);
+    assert.match(t, /=== 'tirar-capa'\) void tirarCapaDaPlaylist\(/, f);
+  }
+});
 if (falhas) { console.log(`\n${falhas} caso(s) falharam.`); process.exit(1); }
 console.log('\n  Todos os casos passaram.');

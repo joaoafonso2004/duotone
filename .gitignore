@@ -79,6 +79,7 @@ test-*.mjs
 !scripts/test-albuns-guardados-sql.mjs
 !scripts/test-partilhar-albuns-sql.mjs
 !scripts/test-pastas-de-playlists-sql.mjs
+!scripts/test-capas-das-playlists-sql.mjs
 !scripts/test-radio-no-jam-sql.mjs
 !scripts/test-painel-de-saude-sql.mjs
 !scripts/test-presenca-mais-longa-sql.mjs

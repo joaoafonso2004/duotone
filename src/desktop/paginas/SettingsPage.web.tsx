@@ -4,6 +4,7 @@ import { souAdministrador } from '../../api/painelDeSaude';
 import { RecommendationPreferences } from '../../components/RecommendationPreferences';
 import { ENDERECO_DA_PRIVACIDADE, ENDERECO_DO_APOIO, ROTULOS } from '../../lib/rotulosDasDefinicoes';
 import { removeOwnProfileMedia } from '../../lib/profileMedia';
+import { apagarAsMinhasCapas } from '../../api/capasDasPlaylists';
 /**
  * Definições do desktop, e as linhas de que é feita.
  *
@@ -340,6 +341,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   const runDeleteAccount = async () => {
     try {
       await removeOwnProfileMedia();
+      await apagarAsMinhasCapas();
       const { error } = await supabase.rpc('delete_user_account');
       if (error) throw error;
       setDeleteConfirm(false);

@@ -1466,6 +1466,13 @@ export const FR: Readonly<Record<string, string>> = {
   "Remove all": "Tout retirer",
   "Remove all {0}": "Retirer les {0}",
   "Remove cover": "Retirer la couverture",
+  // As capas das playlists à escolha (26/11).
+  "Choose cover…": "Choisir une couverture…",
+  "Change cover…": "Changer la couverture…",
+  "Cover updated": "Couverture mise à jour",
+  "Cover removed": "Couverture retirée",
+  "Couldn't change the cover": "Impossible de changer la couverture",
+  "Couldn't remove the cover": "Impossible de retirer la couverture",
   "Remove download": "Supprimer le téléchargement",
   "Remove download?": "Supprimer le téléchargement ?",
   "Remove downloaded liked songs?": "Supprimer les titres likés téléchargés ?",

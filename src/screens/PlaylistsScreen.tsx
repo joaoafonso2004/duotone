@@ -48,6 +48,7 @@ import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import { usePuxarParaAtualizar } from '../components/PuxarParaAtualizar';
 import { usePlaylists } from '../state/playlists';
+import { mudarCapaDaPlaylist, situacaoDaCapa, tirarCapaDaPlaylist } from '../state/capasDasPlaylists';
 import { entrarPeloQuadrado } from '../state/vooDoQuadrado';
 import { useVoltarDaPagina } from '../components/PaginaDoQuadrado';
 import { esquecerOrigem } from '../state/origemDasPlaylists';
@@ -244,6 +245,8 @@ export function PlaylistsScreen() {
     else if (id === 'colaboradores') navigation.navigate('PlaylistDetail', { id: p.id, name: p.name, pessoas: true });
     else if (id === 'sair') setSairDe(p);
     else if (id === 'pasta') setPastaPara(p);
+    else if (id === 'capa') void mudarCapaDaPlaylist(p.id);
+    else if (id === 'tirar-capa') void tirarCapaDaPlaylist(p.id);
   };
 
   // Sair de uma playlist onde se colabora (7/10).
@@ -466,7 +469,7 @@ export function PlaylistsScreen() {
           capas: optionsFor.artworks,
         } : null}
         // As ações vêm do menu partilhado com o PC (5/10, lib/menuDaPlaylist.ts).
-        actions={optionsFor ? menuDaPlaylist({ plataforma: 'ios', onde: 'cartao', temFaixas: optionsFor.trackCount > 0, minha: !optionsFor.souColaborador, colaboro: !!optionsFor.souColaborador })
+        actions={optionsFor ? menuDaPlaylist({ plataforma: 'ios', onde: 'cartao', temFaixas: optionsFor.trackCount > 0, minha: !optionsFor.souColaborador, colaboro: !!optionsFor.souColaborador, capa: situacaoDaCapa(optionsFor) })
           // Sem rede, só o que toca do iPhone.
           .filter((a) => !offline || ((a.id === 'tocar' || a.id === 'baralhar' || a.id === 'fila') && !!copia?.get(optionsFor.id)?.aqui))
           .map((a) => ({ icon: a.icone as any, label: a.rotulo, destructive: a.destrutiva, onPress: () => fazerNaPlaylist(a.id) })) : []}

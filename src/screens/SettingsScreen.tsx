@@ -16,6 +16,7 @@ import { useNotifications } from '../state/notifications';
 import { RecommendationPreferences } from '../components/RecommendationPreferences';
 import { useOfflineMode } from '../hooks/useOfflineMode';
 import { removeOwnProfileMedia } from '../lib/profileMedia';
+import { apagarAsMinhasCapas } from '../api/capasDasPlaylists';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, {useEffect, useMemo, useState, useRef } from 'react';
 import { lerMarcaDoRefrao, ligarMarcaDoRefrao, useMarcaDoRefrao } from '../state/refrao';
@@ -450,6 +451,7 @@ export function SettingsScreen({ navigation }: Props) {
     setDeletingAccount(true);
     try {
       await removeOwnProfileMedia();
+      await apagarAsMinhasCapas();
       const { error } = await supabase.rpc('delete_user_account');
       if (error) throw error;
       setDeleteAccountOpen(false);

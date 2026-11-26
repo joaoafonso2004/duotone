@@ -10,6 +10,8 @@ import { esquecerAfinidade } from './afinidade';
 import { esquecerAlargada } from '../lib/cacheDaBiblioteca';
 import { esquecerFaixasDasPlaylists, playlistPropriaEmCache } from './playlistSnapshot';
 import type { PessoaDaPlaylist } from '../lib/playlistColaborativa';
+import { apagarCapas, assinarCapas } from './capasDasPlaylists';
+import { faltaACapa } from '../lib/capasDasPlaylists';
 
 /**
  * Uma playlist ganhou ou perdeu músicas: a co-ocorrência e a biblioteca
@@ -62,7 +64,28 @@ function resumoDaPlaylist(row: any): Pick<Playlist, 'trackCount' | 'artworks'> {
  * do que as playlists desaparecerem. Sem rede ou sem permissão não se repete
  * nada. Uma coluna em falta volta como erro, para quem chama tentar sem ela.
  */
+/**
+ * A capa escolhida (26/11, supabase/capas-das-playlists.sql) vem em todas as
+ * leituras. Sem a migração, a coluna não existe: lê-se sem ela, e não se volta
+ * a pedir até a app reabrir.
+ */
+let semCapas = false;
+/** A coluna das capas existe (até prova em contrário): o menu só oferece a capa assim. */
+export const capasDisponiveis = () => !semCapas;
+
 async function lerComResumo(
+  campos: string,
+  filtrar: (q: any) => any,
+): Promise<{ data: any[] | null; error: any }> {
+  if (!semCapas) {
+    const comCapa = await lerComResumoSemCapa(`${campos}, capa`, filtrar);
+    if (!faltaACapa(comCapa.error)) return comCapa;
+    semCapas = true;
+  }
+  return lerComResumoSemCapa(campos, filtrar);
+}
+
+async function lerComResumoSemCapa(
   campos: string,
   filtrar: (q: any) => any,
 ): Promise<{ data: any[] | null; error: any }> {
@@ -164,9 +187,10 @@ export async function listPlaylists(): Promise<Playlist[]> {
     ownerId: row.owner_id ?? userId,
     souColaborador: !!row.owner_id && row.owner_id !== userId,
     colaborativa: colab.comColaboradores.has(row.id),
+    capa: row.capa ?? null,
   }));
   await corrigirContagensLimitadas(cortadas(playlists, unicas));
-  return playlists;
+  return assinarCapas(playlists);
 }
 
 /** Dono e colaboradores, com nome e cara. Sem a migração, ninguém (só o dono decide). */
@@ -323,9 +347,10 @@ export async function listProfilePlaylists(userId: string): Promise<Playlist[]> 
     ...resumoDaPlaylist(row),
     visibleOnProfile: true,
     copiedFrom: null,
+    capa: row.capa ?? null,
   }));
   await corrigirContagensLimitadas(cortadas(playlists, lida.data ?? []));
-  return playlists;
+  return assinarCapas(playlists);
 }
 
 /**
@@ -417,12 +442,17 @@ export async function definirPasta(ids: readonly string[], pasta: string | null)
 
 export async function deletePlaylist(id: string): Promise<void> {
   const userId = await currentUserId();
+  // A capa sai com ela (26/11). Lida à parte: um DELETE que devolvesse a
+  // coluna falhava inteiro numa base sem a migração.
+  const capa = semCapas ? null : await supabase.from('playlists').select('capa').eq('id', id).eq('owner_id', userId).maybeSingle()
+    .then((r: any) => (r.error ? null : r.data?.capa ?? null), () => null);
   const { error } = await supabase
     .from('playlists')
     .delete()
     .eq('id', id)
     .eq('owner_id', userId);
   if (error) throw error;
+  if (capa) void apagarCapas([capa]).catch(() => {});
   mudouUmaPlaylist();
 }
 
@@ -689,9 +719,10 @@ export async function getPlaylistPreviews(ids: string[]): Promise<Map<string, Pl
     name: row.name,
     createdAt: row.created_at,
     ...resumoDaPlaylist(row),
+    capa: row.capa ?? null,
   } as Playlist));
   await corrigirContagensLimitadas(cortadas(playlists, lida.data ?? []));
-  return new Map(playlists.map((playlist) => [playlist.id, playlist]));
+  return new Map((await assinarCapas(playlists)).map((playlist) => [playlist.id, playlist]));
 }
 
 export async function getPlaylistName(playlistId: string): Promise<string | null> {

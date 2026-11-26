@@ -13,7 +13,7 @@
 export type IdDaAcaoDaPlaylist =
   | 'tocar' | 'baralhar' | 'fila'
   | 'partilhar' | 'fixar'
-  | 'editar' | 'juntar' | 'apagar' | 'pasta'
+  | 'editar' | 'capa' | 'tirar-capa' | 'juntar' | 'apagar' | 'pasta'
   | 'colaboradores' | 'sair'
   | 'descarregar' | 'cancelar-download' | 'tirar-downloads';
 
@@ -49,6 +49,11 @@ export type SituacaoDaPlaylist = {
   fixada?: boolean;
   /** Só no iPhone, dentro da playlist: o que dela está descarregado. Sem isto, não há ação de download. */
   download?: DownloadDaPlaylist;
+  /**
+   * A capa à escolha (26/11, lib/capasDasPlaylists.ts): `false` sem a migração
+   * (não se oferece); `'tem'` quando já tem uma (muda-se ou tira-se).
+   */
+  capa?: false | 'sem' | 'tem';
 };
 
 function acoesDoDownload(d: DownloadDaPlaylist): AcaoDaPlaylist[] {
@@ -90,6 +95,11 @@ export function menuDaPlaylist(s: SituacaoDaPlaylist): AcaoDaPlaylist[] {
     // edita a ordem e o que sai (só no iPhone), o nome é do dono.
     if (s.minha || s.plataforma === 'ios') {
       grupo.push({ id: 'editar', rotulo: s.plataforma === 'ios' ? 'Edit playlist' : 'Rename…', icone: 'pencil-outline' });
+    }
+    // A capa é do dono, como o nome.
+    if (s.minha && s.capa) {
+      grupo.push({ id: 'capa', rotulo: s.capa === 'tem' ? 'Change cover…' : 'Choose cover…', icone: 'image-outline' });
+      if (s.capa === 'tem') grupo.push({ id: 'tirar-capa', rotulo: 'Remove cover', icone: 'close-circle-outline' });
     }
     if (s.onde === 'pagina') grupo.push({ id: 'juntar', rotulo: 'Merge another playlist…', icone: 'git-merge-outline' });
     // As pastas (16/11, lib/pastasDePlaylists.ts): só as minhas mudam de pasta.
