@@ -2561,4 +2561,10 @@ export const FR: Readonly<Record<string, string>> = {
   "Music stops in": "La musique s'arrête dans",
   "Music stops after this song": "La musique s'arrête après ce titre",
   "Mixing into {0}": "Enchaînement vers {0}",
+  // O ícone da app (26/11, components/EscolherIconeDaApp.tsx).
+  "App icon": "Icône de l'app",
+  "Two-tone": "Deux tons",
+  "Night": "Nuit",
+  "iOS shows a short notice when the icon changes.": "iOS affiche un court avis quand l'icône change.",
+  "Couldn't change the icon.": "Impossible de changer l'icône.",
 };

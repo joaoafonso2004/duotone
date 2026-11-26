@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { Animated, Image as ImagemRN, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
+import { EscolherIconeDaApp } from '../components/EscolherIconeDaApp';
 import { Grupo, Linha, LinhaInterruptor } from '../components/ListaAgrupada';
 import { MenuFlutuante, type Ancora } from '../components/MenuFlutuante';
 import type { PlayerAction } from '../components/PlayerActionsSheet';
@@ -177,6 +178,9 @@ export function PersonalizarScreen({ navigation }: Props) {
           {linha('titulos')}
           <LinhaInterruptor icone="pricetag-outline" rotulo="Tab bar labels" valor={ap.rotulos} aoMudar={(v) => mudar('rotulos', v)} />
         </Grupo>
+
+        {/* O ícone da app (26/11, item 9 do plano): só com o módulo na build. */}
+        <EscolherIconeDaApp />
 
         <Grupo titulo="Now Playing" rodape={capa === 'poster' ? (ap.posterImagem === 'artista'
           ? 'A different photo of the artist for each song, while there are photos. Without them, the artwork.'

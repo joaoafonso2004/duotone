@@ -57,6 +57,7 @@
     },
     "plugins": [
       "./plugins/atalhos-da-siri",
+      "./plugins/icones-alternativos",
       "@bacons/apple-targets",
       "./plugins/velocidade-expo-video",
       "expo-secure-store",
