@@ -52,6 +52,11 @@ export function euDoPerfil(dados: any): string | null {
   return texto(dados?.me?.profile?.username) || null;
 }
 
+/** O nome que a conta mostra (o `name`, ou o `username` sem ele), para a pessoa ver em que conta entrou. */
+export function nomeDaConta(dados: any): string | null {
+  return texto(dados?.me?.profile?.name) || euDoPerfil(dados);
+}
+
 /** Uma faixa do leitor (o `data` de um item) numa linha do comparador. `null` para episódios, locais e as que o Spotify já não tem. */
 export function linhaDoLeitor(d: any, uriDeReserva?: unknown): LinhaDaPlaylist | null {
   if (!d || d.__typename !== 'Track') return null;
@@ -150,6 +155,8 @@ async function emGrupos<T, R>(lista: readonly T[], n: number, fn: (x: T) => Prom
 
 /** O mesmo contrato do `abrirBibliotecaDoSpotify` do iPhone: as listas para escolher, e o `ler` de cada uma. */
 export type BibliotecaLida = {
+  /** Em que conta se entrou (26/11): a folha mostra-o, com o "Use another account". */
+  conta?: string | null;
   listas: ListaDoSpotify[];
   ler: (lista: ListaDoSpotify) => Promise<{ linhas: LinhaDaPlaylist[]; cortada: boolean }>;
 };
@@ -202,7 +209,7 @@ export async function abrirPeloLeitor(consultar: Consultar): Promise<BibliotecaL
     }
     return { linhas: linhas.slice(0, MAXIMO_DA_CONTA), cortada };
   };
-  return { listas, ler };
+  return { conta: nomeDaConta(perfil), listas, ler };
 }
 
 /**

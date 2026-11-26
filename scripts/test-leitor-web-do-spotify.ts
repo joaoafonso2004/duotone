@@ -7,7 +7,7 @@
  */
 import assert from 'node:assert/strict';
 import {
-  abrirPeloLeitor, ErroDoLeitor, euDoPerfil, linhaDoLeitor, mensagemDoLeitor, paginaDaBiblioteca, paginaDaPlaylist,
+  abrirPeloLeitor, ErroDoLeitor, euDoPerfil, linhaDoLeitor, mensagemDoLeitor, nomeDaConta, paginaDaBiblioteca, paginaDaPlaylist,
   paginaDasGostadas, variaveisDaPlaylist, type Consultar, type ConsultaDoLeitor,
 } from '../src/lib/leitorWebDoSpotify.ts';
 import { MAXIMO_DA_CONTA } from '../src/lib/bibliotecaDoSpotify.ts';
@@ -46,6 +46,10 @@ assert.equal(g.total, 41);
 
 assert.equal(euDoPerfil({ me: { profile: { name: 'João', username: 'joao123' } } }), 'joao123');
 assert.equal(euDoPerfil({ me: null }), null);
+// Em que conta se entrou (26/11): o nome, ou o username sem ele.
+assert.equal(nomeDaConta({ me: { profile: { name: 'João', username: 'joao123' } } }), 'João');
+assert.equal(nomeDaConta({ me: { profile: { name: ' ', username: 'joao123' } } }), 'joao123');
+assert.equal(nomeDaConta({ me: null }), null);
 
 const lista = (uri: string, nome: string, dono: string, extra: Record<string, unknown> = {}) => ({
   item: { __typename: 'PlaylistResponseWrapper', _uri: uri, data: {
@@ -116,6 +120,7 @@ const conta: Conta = {
   const { consultar, pedidos } = spotifyFalso(conta);
   const lida = await abrirPeloLeitor(consultar);
   assert.equal(pedidos.filter((q) => q.nome === 'libraryV3').length, 2, '54 playlists = duas páginas de 50');
+  assert.equal(lida.conta, conta.eu, 'a folha mostra a conta');
   assert.equal(lida.listas[0].id, 'gostadas', 'as Liked Songs primeiro');
   assert.equal(lida.listas[0].total, 120);
   assert.ok(!lida.listas.some((l) => l.id === 'spotify:playlist:p2'), 'a playlist vazia fica de fora');

@@ -38,6 +38,7 @@ export function ImportarDaContaDoSpotify({ aoComecar }: { aoComecar: () => void 
   if (Platform.OS !== 'ios') return null;
   const fase = conta.fase;
   const parar = () => { setBiblioteca(null); conta.parar(); };
+  const outraConta = () => { if (aLer) return; setBiblioteca(null); void conta.trocarDeConta(); };
 
   const alternar = (id: string) => {
     const nova = new Set(escolhidas);
@@ -124,6 +125,16 @@ export function ImportarDaContaDoSpotify({ aoComecar }: { aoComecar: () => void 
         <View style={{ marginTop: spacing.md }}>
           <PillButton label={aLer ?? `Import ${escolhidas.size}`} onPress={() => void importar()} loading={!!aLer} disabled={escolhidas.size === 0 || !!aLer} />
         </View>
+        {/* A conta errada (26/11): diz-se em qual se entrou, e troca-se sem sair da folha para outro sítio. */}
+        {conta.podeTrocarDeConta ? (
+          <Pressable accessibilityRole="button" onPress={outraConta} disabled={!!aLer} hitSlop={10}
+            style={({ pressed }) => [estilos.outraConta, (pressed || !!aLer) && { opacity: 0.5 }]}>
+            {biblioteca?.conta
+              ? <Text numberOfLines={1} style={[type.caption, { color: colors.textSecondary, flexShrink: 1 }]}>{`Signed in as ${biblioteca.conta}`}</Text>
+              : null}
+            <Text style={[type.caption, { color: theme.color, fontWeight: '700' }]}>Use another account</Text>
+          </Pressable>
+        ) : null}
       </BottomSheet>
     </View>
   );
@@ -138,4 +149,5 @@ const estilos = StyleSheet.create({
   linha: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.xs, borderRadius: radii.md, borderCurve: 'continuous' },
   capa: { width: 44, height: 44, borderRadius: radii.sm, borderCurve: 'continuous', backgroundColor: colors.surfaceHigh },
   capaGostadas: { alignItems: 'center', justifyContent: 'center' },
+  outraConta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, marginTop: spacing.md, paddingVertical: spacing.xs },
 });

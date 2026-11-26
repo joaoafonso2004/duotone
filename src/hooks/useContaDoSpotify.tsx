@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { sessaoWebNativa } from '../../modules/duotone-sessao-web';
 import { LeitorDoSpotifyEscondido, LoginDoSpotify, type LeitorDoSpotify } from '../components/LeitorDoSpotify';
 import { avisarErro } from '../lib/avisoDeRemocao';
 import { abrirPeloLeitor, ErroDoLeitor, mensagemDoLeitor, type BibliotecaLida, type Consultar, type FalhaDoLeitor } from '../lib/leitorWebDoSpotify';
@@ -13,6 +14,10 @@ import { abrirPeloLeitor, ErroDoLeitor, mensagemDoLeitor, type BibliotecaLida, t
  * Spotify instead" das boas-vindas (`EscolherArtistas`). As `pecas` têm de
  * estar no ecrã enquanto `fase !== 'parado'`: é por elas que as consultas
  * passam, também ao ler as listas depois de abertas.
+ *
+ * Outra conta (26/11, um comentário no Reddit: quem entrou na conta errada não
+ * tinha como sair): `trocarDeConta` apaga a sessão do Spotify das WebViews
+ * (`modules/duotone-sessao-web`) e volta a ligar, que sem sessão abre o login.
  */
 
 export type FaseDaConta = 'parado' | 'a-ligar' | 'login' | 'pronta';
@@ -84,6 +89,22 @@ export function useContaDoSpotify(aoAbrir: (b: BibliotecaLida) => void) {
     setTimeout(() => leitor.current?.recarregar(), 600);
   };
 
+  /** Num binário sem o módulo, o "Use another account" não aparece. */
+  const podeTrocarDeConta = !!sessaoWebNativa?.esquecerSpotify;
+  const trocarDeConta = async () => {
+    const esquecer = sessaoWebNativa?.esquecerSpotify;
+    if (!esquecer) return;
+    // Parar desmonta o leitor escondido antes de lhe apagar a sessão.
+    parar();
+    try {
+      await esquecer();
+    } catch {
+      avisarErro("Couldn't sign out of Spotify.");
+      return;
+    }
+    ligar();
+  };
+
   const pecas = (
     <>
       {fase !== 'parado' ? <LeitorDoSpotifyEscondido ref={leitor} aoPronto={() => void tentar()} /> : null}
@@ -91,5 +112,5 @@ export function useContaDoSpotify(aoAbrir: (b: BibliotecaLida) => void) {
     </>
   );
 
-  return { fase, ligar, parar, pecas };
+  return { fase, ligar, parar, pecas, podeTrocarDeConta, trocarDeConta };
 }

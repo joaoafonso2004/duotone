@@ -1721,6 +1721,10 @@ export const FR: Readonly<Record<string, string>> = {
   "Sign in to your Duotone library and continue listening across devices.": "Connectez-vous à votre bibliothèque Duotone et continuez l'écoute sur tous vos appareils.",
   "Sign in with a username": "Se connecter avec un nom d'utilisateur",
   "Sign out": "Se déconnecter",
+  // A conta do Spotify errada (26/11).
+  "Signed in as {0}": "Connecté en tant que {0}",
+  "Use another account": "Utiliser un autre compte",
+  "Couldn't sign out of Spotify.": "Impossible de se déconnecter de Spotify.",
   "Sign out?": "Se déconnecter ?",
   "Sign-ups are closed for now. Try again in a few days.": "Les inscriptions sont fermées pour le moment. Réessayez dans quelques jours.",
   "Signed up with Google? Google doesn't allow signing in inside apps, so type your Gmail address and log in with the code Spotify emails you.": "Inscrit avec Google ? Google n'autorise pas la connexion dans les apps : saisissez votre adresse Gmail et connectez-vous avec le code que Spotify vous envoie par e-mail.",
