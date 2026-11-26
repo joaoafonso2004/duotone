@@ -90,8 +90,8 @@ caso('iPhone: o menu dos discos e dos álbuns guardados partilha, e a conversa a
   assert.match(albuns, /guardado: true, partilhar: true \}/);
   assert.match(albuns, /itemType="album"\n\s+item=\{aPartilhar\}/);
   const conversa = ler('src/screens/ConversaScreen.tsx');
-  assert.match(conversa, /aoAbrirAlbum=\{setAlbum\}/);
-  assert.match(conversa, /<YtPlaylistRecommendationSheet visible=\{!!album\} playlistId=\{album\?\.id\?\?null\}/);
+  // O álbum mandado abre numa página (26/11, item 15 do plano de melhorias), e não numa folha.
+  assert.match(conversa, /aoAbrirAlbum=\{\(a\)=>abrirAlbum\(navigation,\{id:a\.id,titulo:a\.titulo,capa:a\.capa,artista:a\.artista,ano:a\.ano,tipo:a\.tipo\}\)\}/);
 });
 
 caso('PC: o menu dos discos partilha pela casca, e o Social abre o álbum no diálogo', () => {

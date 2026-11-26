@@ -1,3 +1,4 @@
+import { abrirAlbum } from '../navigation/abrirAlbum';
 import { levantar } from '../components/levantarAoSegurar';
 import { EntradaEmCascata, EntradaPelaDireita } from '../components/EntradaEmCascata';
 import { useRecommendationFeedback } from '../state/recommendationFeedback';
@@ -295,7 +296,6 @@ export function SearchScreen() {
   const [tipo, setTipo] = useState<SeparadorDaPesquisa>('musicas');
   const tipoAtivo: SeparadorDaPesquisa = query.trim().length < 2 ? 'musicas' : tipo;
   const porTipo = usePesquisaPorTipo(query, tipoAtivo);
-  const [albumAberto, setAlbumAberto] = useState<ItemEmCapa | null>(null);
   // "drake playlist" abre as Playlists sozinho; "drake album", os Albums.
   useEffect(() => { const pedido = separadorPedidoPelaPergunta(query); if (pedido) setTipo(pedido); }, [query]);
   // O artista abre pelo CANAL escolhido, sem adivinhar pelo nome (homónimos).
@@ -674,7 +674,8 @@ export function SearchScreen() {
       );
       // Os novos lançamentos dos teus artistas (10/10): mudam todos os dias. Um
       // álbum abre a mesma folha dos álbuns da página do artista.
-      case 'lancamentos': return <NovosLancamentos aoAbrir={(l) => setAlbumAberto({ id: l.id, titulo: l.titulo, legenda: legendaDoLancamento(l), capa: l.capa })} />;
+      // Um álbum abre numa página (26/11, item 15 do plano de melhorias), e não numa folha.
+      case 'lancamentos': return <NovosLancamentos aoAbrir={(l) => abrirAlbum(navigation, { id: l.id, titulo: l.titulo, capa: l.capa })} />;
       // Só descoberta: música que ele não tem, escolhida pelo que ele ouve. Muda
       // TODOS OS DIAS (`descobertasDoDia`); o que se viu nos últimos 28 dias não volta.
       case 'descobrir': return renderRecommendationSection('descobrir', 'Discover daily', descobrir, jaChegou('descobrir'), { lista: true });
@@ -814,7 +815,7 @@ export function SearchScreen() {
                   onPress={() => abrirArtista(item)} />
               ) : (
                 <LinhaDoResultado capa={item.capa} titulo={item.titulo} legenda={item.legenda}
-                  onPress={() => { Keyboard.dismiss(); setAlbumAberto(item); }} />
+                  onPress={() => { Keyboard.dismiss(); abrirAlbum(navigation, { id: item.id, titulo: item.titulo, capa: item.capa }); }} />
               ))}
             />
           )
@@ -1073,14 +1074,6 @@ export function SearchScreen() {
         itemType="playlist"
         item={playlistAPartilhar}
         onClose={() => setPlaylistAPartilhar(null)}
-      />
-      {/* Um álbum da pesquisa abre a mesma folha dos álbuns da página do artista. */}
-      <YtPlaylistRecommendationSheet
-        visible={!!albumAberto}
-        playlistId={albumAberto?.id ?? null}
-        playlistTitle={albumAberto?.titulo ?? null}
-        playlistArtwork={albumAberto?.capa ?? null}
-        onClose={() => setAlbumAberto(null)}
       />
 
     </Screen>

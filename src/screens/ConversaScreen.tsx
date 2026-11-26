@@ -1,3 +1,4 @@
+import { abrirAlbum } from '../navigation/abrirAlbum';
 import React from 'react';
 import { Platform, View } from 'react-native';
 import { EvitarTeclado } from '../components/Teclado';
@@ -40,10 +41,8 @@ export function ConversaScreen({route,navigation}:NativeStackScreenProps<RootSta
     <View style={{flex:1,minHeight:0,paddingBottom:safe.bottom}}>
       {/* Um perfil, um artista ou uma playlist abrem por cima, na mesma pilha:
           voltar regressa à conversa (o `irPara` do SocialHub). */}
-      <SocialHub conversationTarget={target} visible={focused} onCloseConversation={()=>navigation.goBack()} aoMenuDaFaixa={(track,o)=>setMenu({track,de:o?.de})} aoAbrirAlbum={setAlbum}/>
+      <SocialHub conversationTarget={target} visible={focused} onCloseConversation={()=>navigation.goBack()} aoMenuDaFaixa={(track,o)=>setMenu({track,de:o?.de})} aoAbrirAlbum={(a)=>abrirAlbum(navigation,{id:a.id,titulo:a.titulo,capa:a.capa,artista:a.artista,ano:a.ano,tipo:a.tipo})}/>
     </View>
     <TrackActionsSheet visible={!!menu} track={menu?.track??null} origem={menu?.de??null} onClose={()=>setMenu(null)}/>
-    <YtPlaylistRecommendationSheet visible={!!album} playlistId={album?.id??null} playlistTitle={album?.titulo??null} playlistArtwork={album?.capa??null}
-      album={album?{artista:album.artista,ano:album.ano,tipo:album.tipo}:undefined} onClose={()=>setAlbum(null)}/>
   </EvitarTeclado>;
 }

@@ -1,3 +1,4 @@
+import { abrirAlbum } from '../navigation/abrirAlbum';
 import {
   alturaDaCapaDoArtista, BolaDeVidro, BotaoDeTocar, CabecalhoDaSeccao, CapaDoArtista, DiscosDoArtista, FundoDaCorDoArtista,
   GrelhaDeMusicas, LancamentoEmDestaque, ParecidosDoArtista, PilulaDeVidro, SobreOArtista, type Disco,
@@ -270,9 +271,12 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   const discos = useMemo(() => discografia(ytAlbums as AlbumDaPagina[]), [ytAlbums]);
   // O álbum aberto (15/11): o artista, o ano e o tipo, para o coração da folha o guardar.
   const [albumAberto, setAlbumAberto] = useState<{ artista: string | null; ano: string | null; tipo: string | null } | undefined>(undefined);
+  // Um disco abre numa página (26/11, item 15 do plano de melhorias), e não na folha.
   const abrirDisco = (d: { id: string; title: string; artworkUrl: string | null; tipo?: string; ano?: string | null }) => {
-    setSelectedYtPlaylistId(d.id); setSelectedYtPlaylistTitle(d.title); setSelectedYtPlaylistArtwork(d.artworkUrl);
-    setAlbumAberto(type === 'artist' ? { artista: name, ano: d.ano ?? null, tipo: d.tipo ?? null } : undefined);
+    abrirAlbum(navigation, {
+      id: d.id, titulo: d.title, capa: d.artworkUrl,
+      artista: type === 'artist' ? name : null, ano: d.ano ?? null, tipo: d.tipo ?? null,
+    });
   };
   const albunsGuardados = useAlbunsGuardados((s) => s.ids);
   // O toque longo num disco (8/11): o menu dele, com as linhas do clique direito

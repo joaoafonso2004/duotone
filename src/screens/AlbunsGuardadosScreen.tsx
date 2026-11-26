@@ -1,3 +1,4 @@
+import { abrirAlbum } from '../navigation/abrirAlbum';
 import { levantar } from '../components/levantarAoSegurar';
 import { useDestinos } from '../navigation/destinos';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -52,7 +53,7 @@ export function AlbunsGuardadosScreen() {
 
   const fazer = (a: AlbumGuardado, acao: AcaoDoLancamento) => {
     setComMenu(null);
-    if (acao === 'abrir') setAberto(a);
+    if (acao === 'abrir') abrirAlbum(navigation, { id: a.id, titulo: a.titulo, capa: a.capa, artista: a.artista, ano: a.ano, tipo: a.tipo });
     else if (acao === 'guardar-album') {
       void alternarAlbumGuardado(disco(a), a.artista)
         .then(() => avisarFeito(FRASES_DOS_ALBUNS.feitoTirar, a.titulo))
@@ -95,7 +96,8 @@ export function AlbunsGuardadosScreen() {
               const uri = capaParaLista(item.capa);
               return (
                 <Pressable
-                  onPress={() => setAberto(item)}
+                  // Abre numa página, a sair do cartão (26/11, item 15 do plano de melhorias).
+                  onPress={(e) => abrirAlbum(navigation, { id: item.id, titulo: item.titulo, capa: item.capa, artista: item.artista, ano: item.ano, tipo: item.tipo }, e.currentTarget)}
                   onLongPress={(e) => {
                     hapticImpact(ImpactFeedbackStyle.Medium);
                     // Segurar e levantar (25/11, item 2 do plano): o álbum sobe para o menu.

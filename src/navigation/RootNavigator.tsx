@@ -55,6 +55,7 @@ import { PrateleiraScreen } from '../screens/PrateleiraScreen';
 import type { NomeDaPrateleira } from '../state/recomendacoes';
 import { PlaylistDetailScreen } from '../screens/PlaylistDetailScreen';
 import { AlbunsGuardadosScreen } from '../screens/AlbunsGuardadosScreen';
+import { AlbumScreen, type ParametrosDoAlbum } from '../screens/AlbumScreen';
 import { VocesOsDoisScreen } from '../screens/VocesOsDoisScreen';
 import { PlaylistsScreen } from '../screens/PlaylistsScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
@@ -90,6 +91,7 @@ const OnlineArtists=withInternet(ArtistsScreen,'Artists');
 const OnlineImportYouTube=withInternet(ImportYouTubeScreen,'ImportYouTube');
 const OnlineListeningStats=withInternet(ListeningStatsScreen,'ListeningStats');
 const OnlineRetrospetiva=withInternet(RetrospetivaScreen,'Retrospetiva');
+const OnlineAlbum=withInternet(AlbumScreen,'Album');
 const OnlineLibraryGroup=withInternet(LibraryGroupScreen,'LibraryGroup');
 const OnlinePrateleira=withInternet(PrateleiraScreen,'Prateleira');
 // A Home, o perfil e o Social já não se escondem sem rede (10/11): ficam com o que
@@ -122,6 +124,8 @@ export type PilhaParamList = {
   Playlists: undefined;
   /** Os álbuns guardados (15/11): a grelha que a pasta das Playlists abre. */
   AlbunsGuardados: undefined;
+  /** Um álbum numa página (26/11, item 15 do plano de melhorias): era uma folha. */
+  Album: ParametrosDoAlbum;
   /** Uma pasta de playlists (16/11): o ecrã das Playlists, só com as dela. */
   PastaDePlaylists: { nome: string; voo?: string };
   /** `editar`: abre já na edição (o "Edit playlist" do toque longo, 28/9). */
@@ -239,6 +243,7 @@ function ecrasDaPilha() {
           última cópia e toca o que está no iPhone. */}
       <Stack.Screen name="PlaylistDetail" component={PlaylistDetailScreen} options={abrePorUmQuadrado} />
       <Stack.Screen name="AlbunsGuardados" component={AlbunsGuardadosScreen} />
+      <Stack.Screen name="Album" component={OnlineAlbum} options={abrePorUmQuadrado} />
       <Stack.Screen name="PastaDePlaylists" component={PlaylistsScreen} options={abrePorUmQuadrado} />
       <Stack.Screen name="LibraryGroup" component={OnlineLibraryGroup} options={abrePorUmQuadrado} />
       <Stack.Screen name="Prateleira" component={OnlinePrateleira} options={abrePorUmQuadrado} />

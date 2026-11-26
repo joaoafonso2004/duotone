@@ -33,7 +33,7 @@ const single = { id: 'single', title: 'Tia', artworkUrl: null, channelTitle: 'Si
 const page = { musicas: [library[0], ...more], albuns: [album, single], mix: { playlistId: 'radio', videoId: 'radio-a' }, maisRecente: null, foto: 'canal.jpg' };
 let resolverPagina;
 const paginaPromise = new Promise(resolve => { resolverPagina = resolve; });
-const calls = [], pushes = [];
+const calls = [], pushes = [], albunsAbertos = [];
 const player = {
   shuffle: false, shuffleInteligente: false,
   tocarLista: async (...args) => calls.push(['list', ...args]),
@@ -60,6 +60,8 @@ const mocks = {
   '../components/MusicasDoArtistaSheet': { MusicasDoArtistaSheet: 'SongsSheet' },
   // Voltar até ao quadrado de onde abriu (24/11): aqui, o goBack de sempre.
   '../components/PaginaDoQuadrado': { useVoltarDaPagina: () => () => {}, LinhaEmCascata: ({ children }) => children },
+  // Um disco abre a página do álbum (26/11, item 15 do plano de melhorias).
+  '../navigation/abrirAlbum': { abrirAlbum: (_navigation, album) => albunsAbertos.push(album) },
   '../hooks/useVizinhancaDoArtista': { useVizinhancaDoArtista: () => ({ fas: 5_100_000, parecidos: ['Bon Iver'] }) },
   '../components/BrilhoDoEcra': { BrilhoDoEcra: 'Glow' }, '../components/EmptyState': { EmptyState: 'Empty' },
   '../components/Skeleton': { SkeletonDeFaixas: 'Skeleton', SkeletonDePrateleira: 'ShelfSkeleton' },
@@ -177,11 +179,12 @@ async function main() {
   player.shuffle = false; render(); folha().props.aoTocarTudo(true);
   assert.equal(calls.at(-1)[0], 'list'); assert.equal(calls.at(-1)[2], true, 'o Shuffle da folha baralha');
   folha().props.onClose(); render(); assert.equal(folha().props.visible, false);
-  // A discografia em dois carrosséis; um disco abre a folha dele.
+  // A discografia em dois carrosséis; um disco abre a página dele (26/11; era uma folha).
   const discos = nodes(tree).filter(n => n.type === 'Discs');
   assert.deepEqual(discos.map(d => [d.props.titulo, d.props.discos.map(x => x.id)]), [['Albums', ['album']], ['Singles & EPs', ['single']]]);
   discos[1].props.aoAbrir(single); render();
-  assert.equal(find(n => n.type === 'AlbumSheet').props.playlistId, 'single');
+  assert.equal(albunsAbertos.at(-1).id, 'single');
+  assert.equal(albunsAbertos.at(-1).artista, 'Isak', 'o artista vai para a página (e para o coração)');
   // "Fans Also Like" abre a página do outro artista.
   const parecidos = find(n => n.type === 'Similar');
   assert.deepEqual(parecidos.props.nomes, ['Bon Iver']);
