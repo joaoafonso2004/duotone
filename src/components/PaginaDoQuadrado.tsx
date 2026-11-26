@@ -1,7 +1,7 @@
 import { useNavigation, useRoute } from '@react-navigation/native';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react';
 import { Animated, Easing, View, type StyleProp, type ViewStyle } from 'react-native';
-import { CASCATA, entradaDaLinha, ESPERA_MAXIMA_MS, pedirVoo, TROCA_MS } from '../lib/vooDoQuadrado';
+import { CASCATA, entradaDaLinha, ESPERA_MAXIMA_MS, pedirVoo } from '../lib/vooDoQuadrado';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { pedirFluidez } from '../state/fluidez';
 import {
@@ -35,11 +35,18 @@ export function PaginaDoQuadrado({ voo, navigation, children }: {
   const reduzido = useReducedMotion();
   // O cartão de onde abriu (a medida da entrada): é para lá que a página encolhe.
   const cartao = useMemo(() => dadosDoVoo(voo)?.de ?? null, [voo]);
+  const capaDoCartao = useMemo(() => {
+    const d = dadosDoVoo(voo);
+    return d?.capa ? { capa: d.capa, raio: d.raio } : null;
+  }, [voo]);
   const comVolta = temVoltaADeslizar && !reduzido && cartao !== null;
 
   useEffect(() => {
     if (fase !== 'aberta') return;
-    Animated.timing(opacidade, { toValue: 1, duration: TROCA_MS, useNativeDriver: true }).start();
+    // Acende de uma vez, por baixo da camada que ainda a tapa toda; é a camada que
+    // se apaga por cima (26/11). Eram as duas a fundir-se ao mesmo tempo, e a meio
+    // via-se o fundo através das duas: o piscar ao pousar a capa.
+    opacidade.setValue(1);
     // E as linhas entram em cascata no mesmo instante (item 3 do plano de 25/11).
     pedirFluidez(CASCATA.duracaoMs + 100);
     Animated.timing(cascata, { toValue: 1, duration: CASCATA.duracaoMs, easing: Easing.linear, useNativeDriver: true }).start();
@@ -65,7 +72,15 @@ export function PaginaDoQuadrado({ voo, navigation, children }: {
         // Sai sem animação: a cor da camada já a tapa toda.
         sair: () => { navigation.setOptions({ animation: 'none' }); navigation.goBack(); },
       });
-      if (aceite) return;
+      if (aceite) {
+        // Já, e não só no `sair` (26/11, o João: "a seta para trás ainda cria o
+        // efeito de página"): no mesmo instante do goBack, a opção e a saída iam no
+        // mesmo desenho, e a página saía com a animação antiga -- a de trás entrava
+        // a deslizar por baixo da cor a encolher. Até ao `sair` passam pelo menos
+        // os 90 ms do tapar: a pilha já tem o "sem animação".
+        navigation.setOptions({ animation: 'none' });
+        return;
+      }
     }
     navigation.goBack();
   }, [navigation, voo]);
@@ -82,7 +97,7 @@ export function PaginaDoQuadrado({ voo, navigation, children }: {
     <VoltarDoQuadrado.Provider value={voltar}>
       <CascataDaPagina.Provider value={cascata}>
         {temVoltaADeslizar
-          ? <VoltaADeslizar cartao={cartao} ativa={comVolta && fase === 'aberta'} sair={sairJa}>{pagina}</VoltaADeslizar>
+          ? <VoltaADeslizar cartao={cartao} capaDoCartao={capaDoCartao} ativa={comVolta && fase === 'aberta'} sair={sairJa}>{pagina}</VoltaADeslizar>
           : pagina}
       </CascataDaPagina.Provider>
     </VoltarDoQuadrado.Provider>

@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   amostrasDaVolta, CASCATA, corTapa, curvaDaMola, decidirVolta, duracaoDaMola, encolherDoDedo, entradaDaLinha, momentoDeAbrir,
-  MOLA_DO_VOO, recorteDaVolta, TAPAR_MS, VEU_MAXIMO, VOLTA, vooDaCapa, vooDaCor,
+  MOLA_DO_VOO, recorteDaVolta, TAPAR_MS, VEU_MAXIMO, VOLTA, vooDaCapa, vooDaCor, vooDoCirculoParaLarga,
 } from '../src/lib/vooDoQuadrado.ts';
 import { ENTRADA } from '../src/lib/movimento.ts';
 
@@ -186,7 +186,7 @@ caso('ligado: o gesto na página, o pop nativo e o resto', () => {
   for (const t of v.matchAll(/Animated\.timing\([^{]*\{([^}]*)\}/g)) assert.match(t[1], /useNativeDriver: true/);
   assert.match(v, /pedirFluidez\(/);
   const pagina = ler('src/components/PaginaDoQuadrado.tsx');
-  assert.match(pagina, /<VoltaADeslizar cartao=\{cartao\} ativa=\{comVolta && fase === 'aberta'\}/);
+  assert.match(pagina, /<VoltaADeslizar cartao=\{cartao\} capaDoCartao=\{capaDoCartao\} ativa=\{comVolta && fase === 'aberta'\}/);
   assert.match(pagina, /comVolta \? \{ animation: 'default', gestureEnabled: false \}/, 'o da borda sai só com o novo');
   const swift = ler('modules/duotone-volta/ios/DuotoneVoltaModule.swift');
   assert.match(swift, /NSSelectorFromString\("startScreenTransition"\)/);
@@ -197,6 +197,44 @@ caso('ligado: o gesto na página, o pop nativo e o resto', () => {
   assert.match(pilha, /- \(void\)startScreenTransition;/);
   assert.match(pilha, /- \(void\)finishScreenTransition:\(BOOL\)canceled;/);
   assert.match(ler('modules/duotone-volta/index.ts'), /requireOptionalNativeModule<\{ versao\?: number \}>\('DuotoneVolta'\)/);
+});
+
+
+console.log('\n26/11: entrar no artista, a seta e o arrastar');
+caso('o círculo do artista vira a foto larga: começa no cartão, redondo, e pousa no recorte da página', () => {
+  const alvo = { x: 0, y: 0, width: 390, height: 538 };
+  const m = vooDoCirculoParaLarga(cartao, alvo);
+  // No começo: o quadrado escalado tem o tamanho do cartão, no centro dele, e os cantos a meio lado (um círculo).
+  assert.ok(Math.abs(m.caixa.width * m.escala - cartao.width) < 1e-9);
+  assert.equal(m.caixa.x + m.caixa.width / 2 + m.dx, cartao.x + cartao.width / 2);
+  assert.equal(m.caixa.y + m.caixa.height / 2 + m.dy, cartao.y + cartao.height / 2);
+  assert.equal(m.raio, m.caixa.width / 2);
+  // No fim: o lado da foto (o maior), no centro do alvo; o ecrã corta os lados que sobram.
+  assert.equal(m.caixa.width, 538);
+  assert.equal(m.caixa.y, 0);
+  assert.equal(m.caixa.x + m.caixa.width / 2, 195);
+  const camada = ler('src/components/CamadaDoQuadrado.tsx');
+  assert.match(camada, /voo\.capa && voo\.larga && voo\.capa\.forma === 'circulo'/);
+  assert.match(camada, /borderRadius: p\.interpolate\(\{ inputRange: \[0, 0\.75\], outputRange: \[m\.raio, 0\]/);
+});
+caso('a página acende de uma vez por baixo da camada (o fundido das duas piscava)', () => {
+  const pagina = ler('src/components/PaginaDoQuadrado.tsx');
+  assert.match(pagina, /if \(fase !== 'aberta'\) return;[\s\S]{0,400}opacidade\.setValue\(1\);/);
+  assert.doesNotMatch(pagina, /Animated\.timing\(opacidade/);
+});
+caso('a seta: a pilha sabe que sai sem animação antes do goBack', () => {
+  const pagina = ler('src/components/PaginaDoQuadrado.tsx');
+  assert.match(pagina, /if \(aceite\) \{[\s\S]{0,600}navigation\.setOptions\(\{ animation: 'none' \}\);\n\s+return;\n\s+\}/);
+});
+caso('arrastar acaba na capa do cartão, e não num retângulo escuro', () => {
+  const v = ler('src/components/VoltaADeslizar.tsx');
+  assert.match(v, /aMexer && desenho && capaDoCartao \?/);
+  assert.match(v, /const escala = Animated\.multiply\(sy, pagina\.height \/ lado\);/, 'cobre o recorte, que é mais alto do que largo');
+  assert.match(v, /borderRadius: Animated\.divide\(raioVisto, escala\)/, 'os cantos vistos, numa caixa que só cresce por igual');
+  assert.match(v, /transform: \[\{ scaleX: Animated\.divide\(1, sx\) \}, \{ scaleY: Animated\.divide\(1, sy\) \}\]/);
+  // No fim tem o tamanho do cartão: lado × sy(1) × altura / lado = altura do cartão.
+  const r = recorteDaVolta(1, ecra, cartao, 55);
+  assert.ok(Math.abs(ecra.height * r.sy - cartao.height) < 1e-9);
 });
 
 console.log(falhas ? `\n  ${falhas} caso(s) falharam.\n` : '\n  Todos os casos passaram.\n');

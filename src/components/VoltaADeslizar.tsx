@@ -2,10 +2,13 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Animated, Easing, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { PanGestureHandler, State, type PanGestureHandlerStateChangeEvent } from 'react-native-gesture-handler';
 import { initialWindowMetrics } from 'react-native-safe-area-context';
+import { Image } from 'expo-image';
 import { VistaDaVolta, type InstanciaDaVolta } from '../../modules/duotone-volta';
+import { ArtworkCollage } from './ArtworkCollage';
+import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { raioDosCantosDoEcra } from '../lib/gaveta';
-import { amostrasDaVolta, decidirVolta, VEU_MAXIMO, VOLTA, type Retangulo } from '../lib/vooDoQuadrado';
+import { amostrasDaVolta, decidirVolta, VEU_MAXIMO, VOLTA, type CapaDoVoo, type Retangulo } from '../lib/vooDoQuadrado';
 import { useAparencia } from '../state/aparencia';
 import { pedirFluidez, segurarFluidez } from '../state/fluidez';
 import { medirNoEcra } from '../state/vooDoQuadrado';
@@ -33,10 +36,20 @@ type Estado = 'parada' | 'arrasto' | 'a-acabar';
  *
  * Só para a direita e na horizontal: na vertical falha (a lista rola), e as
  * prateleiras que rolam de lado ficam com o gesto delas.
+ *
+ * E acaba na capa do cartão (26/11, o João: "arrastar cria só um retângulo
+ * escuro"): enquanto o conteúdo se apaga, a capa acende por cima dele, a cobrir o
+ * recorte, e encolhe com ele até ser o cartão -- o círculo de um artista, o
+ * quadrado de uma playlist. A capa vai numa caixa com a escala ao contrário do
+ * recorte (como o conteúdo): só cresce por igual, e os cantos dela, que vão de
+ * nada aos do cartão, são redondos a sério (o recorte, esticado, não fazia um
+ * círculo).
  */
-export function VoltaADeslizar({ cartao, ativa, sair, children }: {
+export function VoltaADeslizar({ cartao, capaDoCartao = null, ativa, sair, children }: {
   /** O cartão de onde a página abriu, na janela (a medida da entrada). */
   cartao: Retangulo | null;
+  /** A capa desse cartão e o raio dos cantos dele: é nela que a página acaba. */
+  capaDoCartao?: { capa: CapaDoVoo; raio: number } | null;
   ativa: boolean;
   /** Sem a página de trás (o pop nativo não começou): sair sem animação. */
   sair: () => void;
@@ -111,8 +124,26 @@ export function VoltaADeslizar({ cartao, ativa, sair, children }: {
         opacity: Animated.multiply(tapado, p.interpolate({ inputRange: [VOLTA.corApagaDesde, 1], outputRange: [1, 0], extrapolate: 'clamp' })),
       },
       veu: { opacity: Animated.multiply(tapado, p.interpolate({ inputRange: [0, 1], outputRange: [VEU_MAXIMO, 0], extrapolate: 'clamp' })) },
+      // A capa: um quadrado do lado da largura da página, ao centro do recorte, a
+      // crescer até à altura vista do recorte (cobre-o, que é sempre mais alto do
+      // que largo) e a acabar do tamanho do cartão. Os cantos vistos vão de nada
+      // aos do cartão na segunda metade (`raio / escala`: a caixa é a escalada).
+      capa: (() => {
+        const lado = pagina.width;
+        const escala = Animated.multiply(sy, pagina.height / lado);
+        const raioVisto = p.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0, capaDoCartao?.raio ?? VOLTA.raioDoCartao], extrapolate: 'clamp' });
+        return {
+          lado,
+          topo: (pagina.height - lado) / 2,
+          fora: {
+            opacity: p.interpolate({ inputRange: [0.12, 0.5], outputRange: [0, 1], extrapolate: 'clamp' }),
+            transform: [{ scaleX: Animated.divide(1, sx) }, { scaleY: Animated.divide(1, sy) }],
+          },
+          caixa: { borderRadius: Animated.divide(raioVisto, escala), transform: [{ scale: escala }] },
+        };
+      })(),
     };
-  }, [cartao, origem, raioDoEcra, dedo, fim, tapa]);
+  }, [cartao, capaDoCartao, origem, raioDoEcra, dedo, fim, tapa]);
 
   const repor = useCallback(() => {
     dedo.setValue(0); fim.setValue(0); tapa.setValue(0);
@@ -189,6 +220,15 @@ export function VoltaADeslizar({ cartao, ativa, sair, children }: {
         <Animated.View style={[StyleSheet.absoluteFill, desenho?.marco, aMexer && styles.recorta]}>
           {desenho ? <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: oled ? '#000' : colors.bg }, desenho.fundo]} /> : null}
           <Animated.View style={[StyleSheet.absoluteFill, desenho?.dentro]}>{children}</Animated.View>
+          {aMexer && desenho && capaDoCartao ? (
+            <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, desenho.capa.fora]}>
+              <Animated.View style={[styles.capa, { top: desenho.capa.topo, width: desenho.capa.lado, height: desenho.capa.lado }, desenho.capa.caixa]}>
+                {capaDoCartao.capa.forma === 'circulo'
+                  ? <Image source={{ uri: capaParaLista(capaDoCartao.capa.capas[0]) ?? capaDoCartao.capa.capas[0] }} style={StyleSheet.absoluteFill} contentFit="cover" />
+                  : <ArtworkCollage artworks={[...capaDoCartao.capa.capas]} size={desenho.capa.lado} />}
+              </Animated.View>
+            </Animated.View>
+          ) : null}
         </Animated.View>
       </Animated.View>
     </PanGestureHandler>
@@ -200,4 +240,5 @@ const styles = StyleSheet.create({
   vista: { position: 'absolute', width: 1, height: 1, left: 0, top: 0, opacity: 0 },
   veu: { backgroundColor: '#000' },
   recorta: { overflow: 'hidden' },
+  capa: { position: 'absolute', left: 0, overflow: 'hidden' },
 });

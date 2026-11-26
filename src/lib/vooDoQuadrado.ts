@@ -83,6 +83,28 @@ export function vooDaCor(de: Retangulo, ecra: { width: number; height: number },
 }
 
 /** A capa: de um retângulo para o outro (centro a centro, escala pela largura). */
+/**
+ * O círculo de um artista que vira a foto larga do topo da página (26/11, o João:
+ * "abre um círculo e depois dá snap para a página do artista"). Voava um círculo
+ * do tamanho da largura do ecrã e, ao pousar, a página trocava-o pela foto
+ * retangular. Agora voa um quadrado do lado da foto (o maior lado do alvo), já no
+ * sítio dela, com a imagem a cobrir: começa encolhido no cartão com os cantos a
+ * metade do lado (um círculo), e os cantos vão a 0 enquanto cresce. Pousa como a
+ * foto da página: o mesmo centro e o mesmo recorte (a cobrir, e o ecrã corta os
+ * lados que sobram). Tudo por `transform` e `borderRadius`, no driver nativo.
+ */
+export function vooDoCirculoParaLarga(de: Retangulo, alvo: Retangulo) {
+  const lado = Math.max(alvo.width, alvo.height);
+  const a = centro(de), b = centro(alvo);
+  return {
+    caixa: { x: b.x - lado / 2, y: b.y - lado / 2, width: lado, height: lado },
+    dx: a.x - b.x,
+    dy: a.y - b.y,
+    escala: de.width / Math.max(1, lado),
+    raio: lado / 2,
+  };
+}
+
 export function vooDaCapa(de: Retangulo, ate: Retangulo) {
   const a = centro(de), b = centro(ate);
   return { dx: b.x - a.x, dy: b.y - a.y, escala: ate.width / Math.max(1, de.width) };

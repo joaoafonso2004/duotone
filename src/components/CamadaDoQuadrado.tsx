@@ -7,7 +7,7 @@ import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { ENTRADA } from '../lib/movimento';
 import {
   alvoSemCapa, duracaoDaMola, ESPERA_MAXIMA_MS, momentoDeAbrir, ouvirVoos, TAPAR_MS, TROCA_MS, VEU_MAXIMO,
-  vooDaCapa, vooDaCor, type CapaDoVoo, type FormaDoQuadrado, type Retangulo,
+  vooDaCapa, vooDaCor, vooDoCirculoParaLarga, type CapaDoVoo, type FormaDoQuadrado, type Retangulo,
 } from '../lib/vooDoQuadrado';
 import { pedirFluidez } from '../state/fluidez';
 import { dadosDoVoo, mudarFase, ouvirMudancasDoVoo, type DestinoDaCapa } from '../state/vooDoQuadrado';
@@ -25,6 +25,8 @@ type VooNoEcra = {
   alvo: Retangulo;
   /** A capa não tem onde pousar (uma pasta, uma mistura): apaga-se no título. */
   apaga: boolean;
+  /** Pousa na foto larga do topo (um artista): o círculo vira a foto (`vooDoCirculoParaLarga`). */
+  larga: boolean;
 };
 
 /** Onde a capa vai pousar antes de a página dizer onde está a dela (`AlvoDoVoo`). */
@@ -116,7 +118,7 @@ export function CamadaDoQuadrado() {
         camada.stopAnimation(); camada.setValue(1);
         setVoo({
           id: pedido.id, modo: 'entrar', de: d.de, raio: d.raio, forma: d.forma, capa: d.capa,
-          alvo: alvoPrevisto(d.destino, e, topo), apaga: d.destino === 'titulo',
+          alvo: alvoPrevisto(d.destino, e, topo), apaga: d.destino === 'titulo', larga: d.destino === 'larga',
         });
         const duracao = duracaoDaMola();
         pedirFluidez(duracao + 400);
@@ -144,6 +146,7 @@ export function CamadaDoQuadrado() {
         setVoo({
           id: pedido.id, modo: 'voltar', de: d.de, raio: d.raio, forma: d.forma,
           capa: visivel ? d.capa : null, alvo: visivel ? alvoAgora! : alvoPrevisto(d.destino, e, topo), apaga: false,
+          larga: d.destino === 'larga',
         });
         pedirFluidez(TAPAR_MS + duracaoDaMola() + 400);
         arrancar.current = { id: pedido.id, modo: 'voltar', f: () => {
@@ -194,7 +197,24 @@ export function CamadaDoQuadrado() {
         transform: [{ translateX: entre(cor.dx) }, { translateY: entre(cor.dy) },
           { scale: p.interpolate({ inputRange: [0, 1], outputRange: [1, cor.escala] }) }],
       }]} />
-      {voo.capa ? (
+      {voo.capa && voo.larga && voo.capa.forma === 'circulo' ? (() => {
+        const m = vooDoCirculoParaLarga(voo.de, voo.alvo);
+        return (
+          <Animated.View pointerEvents="none" style={{
+            position: 'absolute', left: m.caixa.x, top: m.caixa.y, width: m.caixa.width, height: m.caixa.height,
+            overflow: 'hidden',
+            // Os cantos chegam a 0 antes do fim: o resto do voo já é a foto.
+            borderRadius: p.interpolate({ inputRange: [0, 0.75], outputRange: [m.raio, 0], extrapolate: 'clamp' }),
+            transform: [
+              { translateX: p.interpolate({ inputRange: [0, 1], outputRange: [m.dx, 0] }) },
+              { translateY: p.interpolate({ inputRange: [0, 1], outputRange: [m.dy, 0] }) },
+              { scale: p.interpolate({ inputRange: [0, 1], outputRange: [m.escala, 1] }) },
+            ],
+          }}>
+            <Image source={{ uri: capaParaLista(voo.capa.capas[0]) ?? voo.capa.capas[0] }} style={{ width: m.caixa.width, height: m.caixa.height }} contentFit="cover" />
+          </Animated.View>
+        );
+      })() : voo.capa ? (
         <Animated.View pointerEvents="none" style={{
           position: 'absolute', left: voo.de.x, top: voo.de.y, width: lado, height: lado,
           borderRadius: voo.raio, overflow: 'hidden',
