@@ -236,6 +236,13 @@ caso('a peça: o disco maior, sem a opacidade da Ocultação, com a orla, e o mo
   reporParaTestes();
 }
 
+caso('iPhone: as laterais da capa 3D trocam quando o eclipse tapa a frente, e não no toque', () => {
+  const cubo = ler('src/components/ArtworkLyricsCube.tsx');
+  assert.match(cubo, /const artworkDasLaterais=useAtrasadoPelaOcultacao\(artwork\);/);
+  assert.match(cubo, /<LateralDaCaixa [^>]*artwork=\{artworkDasLaterais\} \/>/);
+  assert.match(ler('src/hooks/useAtrasadoPelaOcultacao.ts'), /return depoisDeTapar\(\(\) => setMostrado\(ultimo\.current\)\);/);
+});
+
 caso('iPhone: a Ocultação conta-se, e o tom espera por ela', () => {
   const p = ler('src/components/OcultacaoDaCapa.tsx');
   assert.match(p, /comecouATapar\(\);\n\s+let tapada = false;/);

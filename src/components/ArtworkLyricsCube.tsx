@@ -3,6 +3,7 @@ import React, {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {Animated,PanResponder,Platform,StyleSheet,View} from 'react-native';
 import { Image as ImagemDaCapa } from 'expo-image';
 import {useReducedMotion} from '../hooks/useReducedMotion';
+import {useAtrasadoPelaOcultacao} from '../hooks/useAtrasadoPelaOcultacao';
 import type {Track} from '../types';
 import {LyricsView} from './LyricsView';
 import {LinearGradient} from 'expo-linear-gradient';
@@ -111,6 +112,9 @@ const LateralDaCaixa=React.memo(function LateralDaCaixa({lado,size,pose3D,virar,
 /** Duas faces do mesmo cubo. O motor de áudio vive fora destas transformações. */
 export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,aoRodar,raio=20,pose3D,aVista=true,frenteTransparente=false}:Props){
   const reduced=useReducedMotion();
+  // As laterais trocam de capa quando o eclipse tapa a frente (26/11), e não no
+  // toque: viam-se as bordas da música nova com a capa velha ainda à frente.
+  const artworkDasLaterais=useAtrasadoPelaOcultacao(artwork);
   const progress=useRef(new Animated.Value(showLyrics?1:0)).current;
   // Já nasce na face pedida. Uma mola 0 -> 0 marcava o cubo como a rodar e
   // montava as letras no primeiro fotograma da abertura. Também evita repetir
@@ -273,7 +277,7 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,
       if(['ArrowLeft','ArrowRight','Enter',' '].includes(event.key)){event.preventDefault();onChange(!showLyrics);}
       else if(event.key==='Escape'&&showLyrics){event.preventDefault();onChange(false);}
     }}:{})} style={[{width:size,height:size},Platform.OS==='web'&&({touchAction:'pan-y',userSelect:'none'} as any)]}>
-    {pose3D?LATERAIS.map((l)=><LateralDaCaixa key={l.lado} lado={l.lado} size={size} pose3D={pose3D} virar={reduced?'0deg':virar} artwork={artwork} />):null}
+    {pose3D?LATERAIS.map((l)=><LateralDaCaixa key={l.lado} lado={l.lado} size={size} pose3D={pose3D} virar={reduced?'0deg':virar} artwork={artworkDasLaterais} />):null}
     {/* O lugar da face antes de ela pousar, e a luz que lhe dá a volta enquanto
         ainda não há download. Ver lib/montagemDaCapa.ts. */}
     {m?<Animated.View pointerEvents="none" style={[styles.fantasma,{borderRadius:raio,opacity:m.contorno,transform:transformDaFace}]} />:null}
