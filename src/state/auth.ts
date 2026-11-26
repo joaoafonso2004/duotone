@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { useConnectivity } from './connectivity';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
@@ -105,7 +105,26 @@ export const useAuth = create<AuthState>((set) => ({
         if(Platform.OS==='ios')void AsyncStorage.removeItem('offline:last-user');
       }
     });
-    unsubscribeAuth=()=>subscription.unsubscribe();
+    // Sem sessão por falta de rede, com a conta deste aparelho à espera (26/11, a
+    // 7.2.0 "não tá a dar" no iPhone, como a 7.1.0 no primeiro arranque): a
+    // renovação do arranque falhou (o primeiro pedido de uma app acabada de
+    // instalar, nos dados móveis, costuma falhar) e a app ficava em "Offline" até
+    // o relógio do supabase-js tentar outra vez. Volta a pedir a sessão quando a
+    // rede volta, quando a app volta à frente, e aos 2, 6 e 15 s. Só nesse estado:
+    // com sessão, ou sem conta guardada, não pede nada. Só LÊ a sessão (o
+    // supabase-js renova-a e avisa pelo onAuthStateChange): nunca sai da conta
+    // daqui, que sem rede a conta do aparelho é o que abre os downloads.
+    const semSessao=()=>Platform.OS==='ios'&&!useAuth.getState().session&&!!useAuth.getState().offlineUserId;
+    const tentar=()=>{
+      if(!semSessao())return;
+      void supabase.auth.getSession().then(({data})=>{
+        if(data.session&&semSessao())set({session:data.session,offlineUserId:data.session.user.id,initialized:true});
+      }).catch(()=>{});
+    };
+    const tentativas=[2000,6000,15000].map(ms=>setTimeout(tentar,ms));
+    const rede=useConnectivity.subscribe((s,antes)=>{if(antes.offline&&!s.offline)tentar();});
+    const frente=AppState.addEventListener('change',estado=>{if(estado==='active')tentar();});
+    unsubscribeAuth=()=>{subscription.unsubscribe();for(const t of tentativas)clearTimeout(t);rede();frente.remove();};
   },
 
   refreshSession:async()=>{
