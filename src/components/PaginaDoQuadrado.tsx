@@ -2,10 +2,12 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react';
 import { Animated, Easing, View, type StyleProp, type ViewStyle } from 'react-native';
 import { CASCATA, entradaDaLinha, ESPERA_MAXIMA_MS, pedirVoo, TROCA_MS } from '../lib/vooDoQuadrado';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import { pedirFluidez } from '../state/fluidez';
 import {
   dadosDoVoo, marcarAlvo, marcarPaginaPronta, medirNoEcra, mudarFase, useVoos,
 } from '../state/vooDoQuadrado';
+import { temVoltaADeslizar, VoltaADeslizar } from './VoltaADeslizar';
 
 /** O voltar da página que abriu por um quadrado: encolhe até ele (24/11). */
 const VoltarDoQuadrado = createContext<(() => void) | null>(null);
@@ -16,7 +18,9 @@ const CascataDaPagina = createContext<Animated.Value | null>(null);
  * A página que abriu por um quadrado (24/11, `lib/vooDoQuadrado.ts`). Embrulha o
  * ecrã (`envolverEcra`, na navegação) quando ele traz `voo` nos parâmetros: fica
  * escondida enquanto a capa voa por cima, e acende quando a camada se apaga. Depois
- * a pilha volta à animação de sempre, para o deslizar da borda ser o do iPhone.
+ * a pilha volta à animação de sempre. Para voltar, puxar para a direita em qualquer
+ * ponto encolhe-a até ao cartão (`VoltaADeslizar`, item 7 do plano, 26/11); num
+ * binário sem o módulo dela, o deslizar da borda do iPhone, como antes.
  */
 export function PaginaDoQuadrado({ voo, navigation, children }: {
   voo: string;
@@ -28,6 +32,10 @@ export function PaginaDoQuadrado({ voo, navigation, children }: {
   const cascata = useRef(new Animated.Value(fase === 'a-entrar' ? 0 : 1)).current;
   const faseRef = useRef(fase);
   faseRef.current = fase;
+  const reduzido = useReducedMotion();
+  // O cartão de onde abriu (a medida da entrada): é para lá que a página encolhe.
+  const cartao = useMemo(() => dadosDoVoo(voo)?.de ?? null, [voo]);
+  const comVolta = temVoltaADeslizar && !reduzido && cartao !== null;
 
   useEffect(() => {
     if (fase !== 'aberta') return;
@@ -35,8 +43,9 @@ export function PaginaDoQuadrado({ voo, navigation, children }: {
     // E as linhas entram em cascata no mesmo instante (item 3 do plano de 25/11).
     pedirFluidez(CASCATA.duracaoMs + 100);
     Animated.timing(cascata, { toValue: 1, duration: CASCATA.duracaoMs, easing: Easing.linear, useNativeDriver: true }).start();
-    navigation.setOptions({ animation: 'default' });
-  }, [fase, navigation, opacidade, cascata]);
+    // Com o voltar a deslizar, o da borda sai: os dois pegavam no mesmo dedo.
+    navigation.setOptions(comVolta ? { animation: 'default', gestureEnabled: false } : { animation: 'default' });
+  }, [fase, navigation, opacidade, cascata, comVolta]);
 
   // Se a camada nunca a mandar acender (rebentou, ou não havia camada), acende sozinha.
   useEffect(() => {
@@ -61,12 +70,20 @@ export function PaginaDoQuadrado({ voo, navigation, children }: {
     navigation.goBack();
   }, [navigation, voo]);
 
+  // Sem a página de trás na janela (o pop nativo não começou): sai sem animação.
+  const sairJa = useCallback(() => { navigation.setOptions({ animation: 'none' }); navigation.goBack(); }, [navigation]);
+
+  const pagina = (
+    <Animated.View style={{ flex: 1, opacity: opacidade }} onLayout={() => marcarPaginaPronta(voo)}>
+      {children}
+    </Animated.View>
+  );
   return (
     <VoltarDoQuadrado.Provider value={voltar}>
       <CascataDaPagina.Provider value={cascata}>
-        <Animated.View style={{ flex: 1, opacity: opacidade }} onLayout={() => marcarPaginaPronta(voo)}>
-          {children}
-        </Animated.View>
+        {temVoltaADeslizar
+          ? <VoltaADeslizar cartao={cartao} ativa={comVolta && fase === 'aberta'} sair={sairJa}>{pagina}</VoltaADeslizar>
+          : pagina}
       </CascataDaPagina.Provider>
     </VoltarDoQuadrado.Provider>
   );

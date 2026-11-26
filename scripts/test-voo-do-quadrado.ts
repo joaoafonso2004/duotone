@@ -9,7 +9,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  CASCATA, corTapa, curvaDaMola, duracaoDaMola, entradaDaLinha, momentoDeAbrir, MOLA_DO_VOO, TAPAR_MS, vooDaCapa, vooDaCor,
+  amostrasDaVolta, CASCATA, corTapa, curvaDaMola, decidirVolta, duracaoDaMola, encolherDoDedo, entradaDaLinha, momentoDeAbrir,
+  MOLA_DO_VOO, recorteDaVolta, TAPAR_MS, VEU_MAXIMO, VOLTA, vooDaCapa, vooDaCor,
 } from '../src/lib/vooDoQuadrado.ts';
 import { ENTRADA } from '../src/lib/movimento.ts';
 
@@ -124,6 +125,78 @@ caso('a cascata quando a capa pousa: cada linha a sua janela, a mesma animação
   for (const f of ['src/screens/PlaylistDetailScreen.tsx', 'src/screens/PrateleiraScreen.tsx', 'src/screens/LibraryGroupScreen.tsx']) {
     assert.match(ler(f), /<LinhaEmCascata indice=\{index\}>/, f);
   }
+});
+
+console.log('\nvoltar a deslizar, a encolher para o cartão (26/11, item 7)');
+caso('largar: depois de 22 % da largura volta, antes reabre; um gesto rápido conta', () => {
+  assert.equal(decidirVolta(ecra.width * 0.21, 0, ecra.width), false);
+  assert.equal(decidirVolta(ecra.width * 0.23, 0, ecra.width), true);
+  assert.equal(decidirVolta(40, 900, ecra.width), true, 'rápido e curto volta');
+  assert.equal(decidirVolta(ecra.width * 0.3, -900, ecra.width), false, 'a puxar para trás reabre');
+});
+caso('o dedo encolhe até 0,55, a 0,95 da largura', () => {
+  assert.equal(encolherDoDedo(0, ecra.width), 0);
+  assert.equal(encolherDoDedo(-20, ecra.width), 0);
+  assert.ok(Math.abs(encolherDoDedo(ecra.width * 0.22, ecra.width) - 0.22 * 0.95) < 1e-9);
+  assert.equal(encolherDoDedo(ecra.width, ecra.width), VOLTA.maximo);
+});
+caso('o recorte vai do ecrã inteiro ao cartão (o inset da maquete)', () => {
+  const comeco = recorteDaVolta(0, ecra, cartao, 55);
+  assert.deepEqual([comeco.tx, comeco.ty, comeco.sx, comeco.sy], [0, 0, 1, 1]);
+  assert.equal(comeco.raioVisto, 55); assert.equal(comeco.conteudo, 1); assert.equal(comeco.veu, VEU_MAXIMO);
+  // O retângulo visto: escala à volta do centro do ecrã, e a deslocação.
+  const visto = (r: ReturnType<typeof recorteDaVolta>) => ({
+    x: ecra.width / 2 + r.tx - (ecra.width * r.sx) / 2,
+    y: ecra.height / 2 + r.ty - (ecra.height * r.sy) / 2,
+    width: ecra.width * r.sx, height: ecra.height * r.sy,
+  });
+  const fim = recorteDaVolta(1, ecra, cartao, 55);
+  for (const [k, v] of Object.entries(visto(fim))) assert.ok(Math.abs(v - cartao[k as keyof typeof cartao]) < 1e-6, k);
+  assert.equal(fim.raioVisto, VOLTA.raioDoCartao); assert.equal(fim.conteudo, 0); assert.equal(fim.veu, 0);
+  // A meio, de cada lado, metade do caminho até ao cartão.
+  const meio = visto(recorteDaVolta(0.5, ecra, cartao, 55));
+  assert.ok(Math.abs(meio.x - cartao.x / 2) < 1e-6 && Math.abs(meio.y - cartao.y / 2) < 1e-6);
+  assert.ok(Math.abs(meio.x + meio.width - (ecra.width - (ecra.width - cartao.x - cartao.width) / 2)) < 1e-6);
+  // O canto da caixa escala com ela: na média das escalas dá o canto visto.
+  const r = recorteDaVolta(0.4, ecra, cartao, 55);
+  assert.ok(Math.abs(r.raio * Math.sqrt(r.sx * r.sy) - r.raioVisto) < 1e-9);
+  // O conteúdo já se foi antes de o recorte chegar ao cartão.
+  assert.equal(recorteDaVolta(1 / VOLTA.apagar + 0.01, ecra, cartao, 55).conteudo, 0);
+});
+caso('as amostras do raio vão de 0 a 1, e as escalas são as do fim', () => {
+  const a = amostrasDaVolta(ecra, cartao, 55);
+  assert.equal(a.p[0], 0); assert.equal(a.p[a.p.length - 1], 1);
+  assert.equal(a.p.length, a.raio.length);
+  const fim = recorteDaVolta(1, ecra, cartao, 55);
+  assert.deepEqual([a.tx, a.ty, a.sx, a.sy], [fim.tx, fim.ty, fim.sx, fim.sy]);
+});
+caso('ligado: o gesto na página, o pop nativo e o resto', () => {
+  const v = ler('src/components/VoltaADeslizar.tsx');
+  // Só para a direita, falha na vertical, o dedo no driver nativo.
+  assert.match(v, /activeOffsetX=\{VOLTA\.pegaEm\}/);
+  assert.match(v, /failOffsetY=\{\[-VOLTA\.falhaNaVertical, VOLTA\.falhaNaVertical\]\}/);
+  assert.match(v, /Animated\.event\(\[\{ nativeEvent: \{ translationX: dedo \} \}\], \{ useNativeDriver: true \}\)/);
+  // O pop começa quando o gesto pega; a de trás sai antes de a página voltar a ser transparente.
+  assert.match(v, /state === State\.ACTIVE[\s\S]{0,400}vista\.current\?\.comecar/);
+  assert.match(v, /if \(nativa\) await vista\.current\?\.acabar\?\.\(true\)[\s\S]{0,60}repor\(\);/);
+  // Nunca um segundo goBack depois de a pilha já ter tirado a página.
+  assert.match(v, /if \(!saiu\) \{ sair\(\); return; \}/);
+  // Desligar o handler a meio cancelava o gesto.
+  assert.match(v, /enabled=\{ligada && estado !== 'a-acabar'\}/);
+  for (const t of v.matchAll(/Animated\.timing\([^{]*\{([^}]*)\}/g)) assert.match(t[1], /useNativeDriver: true/);
+  assert.match(v, /pedirFluidez\(/);
+  const pagina = ler('src/components/PaginaDoQuadrado.tsx');
+  assert.match(pagina, /<VoltaADeslizar cartao=\{cartao\} ativa=\{comVolta && fase === 'aberta'\}/);
+  assert.match(pagina, /comVolta \? \{ animation: 'default', gestureEnabled: false \}/, 'o da borda sai só com o novo');
+  const swift = ler('modules/duotone-volta/ios/DuotoneVoltaModule.swift');
+  assert.match(swift, /NSSelectorFromString\("startScreenTransition"\)/);
+  assert.match(swift, /NSSelectorFromString\("finishScreenTransition:"\)/);
+  assert.match(swift, /asyncAfter\(deadline: \.now\(\) \+ 10/, 'se o JavaScript nunca acabar, a página fica');
+  // Os métodos que o módulo chama existem no react-native-screens instalado.
+  const pilha = ler('node_modules/react-native-screens/ios/RNSScreenStack.h');
+  assert.match(pilha, /- \(void\)startScreenTransition;/);
+  assert.match(pilha, /- \(void\)finishScreenTransition:\(BOOL\)canceled;/);
+  assert.match(ler('modules/duotone-volta/index.ts'), /requireOptionalNativeModule<\{ versao\?: number \}>\('DuotoneVolta'\)/);
 });
 
 console.log(falhas ? `\n  ${falhas} caso(s) falharam.\n` : '\n  Todos os casos passaram.\n');

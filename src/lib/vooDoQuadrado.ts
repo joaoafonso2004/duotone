@@ -7,9 +7,10 @@
  * cresce a partir do quadrado até tapar o ecrã, e a capa voa do cartão para o sítio
  * dela no topo da página. A página abre por baixo SEM animação nativa, no instante
  * em que a cor já tapa tudo, e aparece quando a capa pousa. Voltar pelo botão faz o
- * caminho ao contrário, até ao quadrado de onde saiu. O deslizar da borda continua o
- * do iPhone: para encolher com o dedo, a página de trás tinha de estar viva por
- * baixo, e a pilha nativa tira-a depois de empurrar a nova.
+ * caminho ao contrário, até ao quadrado de onde saiu. Puxar para a direita em
+ * qualquer ponto encolhe a página com o dedo até ao cartão (26/11, item 7 do plano,
+ * `VOLTA`): a página de trás volta à janela por um pop interativo da pilha nativa
+ * (`modules/duotone-volta`), porque a pilha tira-a depois de empurrar a nova.
  *
  * Aqui as contas e o pedido, sem imports de runtime (`scripts/test-voo-do-quadrado.ts`).
  * Quem desenha é a `components/CamadaDoQuadrado.tsx`; a página que abre é embrulhada
@@ -183,3 +184,95 @@ export function entradaDaLinha(indice: number): { inputRange: number[]; opacidad
   }
   return { inputRange, opacidade, desvio };
 }
+
+// ------------------------------------------- voltar a deslizar (item 7) ----
+
+/**
+ * Voltar a deslizar em qualquer ponto, a encolher para o cartão (26/11, item 7 do
+ * plano, `docs/maquetes-da-lista-2026-11-25.html#m7`). Os números são os da maquete.
+ */
+export const VOLTA = {
+  /** Quanto o dedo anda para a direita até o gesto pegar (pt). */
+  pegaEm: 12,
+  /** Na vertical, falha (a lista rola). */
+  falhaNaVertical: 10,
+  /** Largar depois desta fração da largura acaba de encolher e volta; antes, a página volta a abrir. */
+  limite: 0.22,
+  /** Quanto da velocidade (pt/s) conta para o caminho, num gesto rápido (até 100 pt). */
+  pesoDaVelocidade: 0.2,
+  /** O encolher enquanto o dedo arrasta: `p = dx / largura × ganho`, até `maximo`. */
+  ganho: 0.95,
+  maximo: 0.55,
+  /** A página segue o dedo a esta fração. */
+  segue: 0.25,
+  /** O raio do recorte no fim (o do cartão). No começo é o dos cantos do ecrã. */
+  raioDoCartao: 10,
+  /** O conteúdo apaga-se a esta velocidade (`1 - p × apagar`). */
+  apagar: 1.7,
+  /** A cor da página apaga-se no fim, para o cartão de trás aparecer por ela. */
+  corApagaDesde: 0.85,
+  acabarMs: 380,
+  reabrirMs: 320,
+} as const;
+
+/** Largar: `true` acaba de encolher e volta; `false` a página volta a abrir. */
+export function decidirVolta(dx: number, velocidade: number, largura: number): boolean {
+  const extra = Math.max(-100, Math.min(100, velocidade * VOLTA.pesoDaVelocidade));
+  return dx + extra > largura * VOLTA.limite;
+}
+
+/** O encolher (`p`, 0 a 1) que o dedo dá enquanto arrasta. */
+export function encolherDoDedo(dx: number, largura: number): number {
+  return Math.max(0, Math.min(VOLTA.maximo, (dx / Math.max(1, largura)) * VOLTA.ganho));
+}
+
+/**
+ * O recorte da página em `p` (0 = o ecrã inteiro, 1 = o cartão), em coordenadas da
+ * página. Na maquete é um `clip-path: inset(...)`; aqui uma caixa com `overflow:
+ * hidden` que se desloca e escala (`tx`, `ty`, `sx`, `sy`, à volta do centro) e
+ * leva dentro o conteúdo com a escala ao contrário, para não se deformar. Os cantos
+ * escalam com a caixa: o `raio` (dela) dá o canto visto (`raioVisto`) na média
+ * das duas escalas.
+ */
+export function recorteDaVolta(
+  p: number,
+  pagina: { width: number; height: number },
+  cartao: Retangulo,
+  raioDoEcra: number,
+) {
+  const W = Math.max(1, pagina.width), H = Math.max(1, pagina.height);
+  const left = cartao.x * p, top = cartao.y * p;
+  const width = W - p * (W - cartao.width), height = H - p * (H - cartao.height);
+  const sx = width / W, sy = height / H;
+  const raioVisto = raioDoEcra + (VOLTA.raioDoCartao - raioDoEcra) * p;
+  return {
+    tx: left + width / 2 - W / 2,
+    ty: top + height / 2 - H / 2,
+    sx, sy,
+    raioVisto,
+    raio: raioVisto / Math.sqrt(sx * sy),
+    conteudo: Math.max(0, 1 - p * VOLTA.apagar),
+    veu: VEU_MAXIMO * (1 - p),
+  };
+}
+
+/**
+ * O que o driver nativo precisa para desenhar o recorte: tudo em função de `p`. O
+ * que é linear em `p` vai em dois pontos; o raio, que não é, em amostras.
+ */
+export function amostrasDaVolta(
+  pagina: { width: number; height: number },
+  cartao: Retangulo,
+  raioDoEcra: number,
+  pontos = 8,
+) {
+  const fim = recorteDaVolta(1, pagina, cartao, raioDoEcra);
+  const p: number[] = [], raio: number[] = [];
+  for (let k = 0; k <= pontos; k++) {
+    const t = k / pontos;
+    p.push(+t.toFixed(4));
+    raio.push(+recorteDaVolta(t, pagina, cartao, raioDoEcra).raio.toFixed(3));
+  }
+  return { tx: fim.tx, ty: fim.ty, sx: fim.sx, sy: fim.sy, p, raio };
+}
+
