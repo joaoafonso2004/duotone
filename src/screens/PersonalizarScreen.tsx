@@ -2,14 +2,18 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useState } from 'react';
-import { Animated, Image as ImagemRN, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, Image as ImagemRN, Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
 import { EscolherIconeDaApp } from '../components/EscolherIconeDaApp';
 import { Grupo, Linha, LinhaInterruptor } from '../components/ListaAgrupada';
 import { MenuFlutuante, type Ancora } from '../components/MenuFlutuante';
 import type { PlayerAction } from '../components/PlayerActionsSheet';
+import { PromptSheet } from '../components/PromptSheet';
+import { avisarFeito, avisarRemocao } from '../lib/avisoDeRemocao';
+import { chaveDoAspeto, MAXIMO_DE_PRESETS, MAXIMO_DO_NOME, nomeDoPreset, nomeSugerido } from '../lib/presetsDaAparencia';
+import { usePresetsDaAparencia } from '../state/presetsDaAparencia';
 import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import {
   BOTOES_DO_LEITOR, degradesDoPoster, emCinzento, ESTILOS_DA_CAPA, fonteDosTitulos, MAXIMO_DE_BOTOES, NOMES_DAS_SECOES, NOMES_DOS_BOTOES, TEMAS, veuDoLeitor,
@@ -79,6 +83,43 @@ export function PersonalizarScreen({ navigation }: Props) {
   const tema = useTemaDaAparencia();
   const { mudar, escolherTema, alternarBotao, alternarSecao, moverSecao } = useAparencia.getState();
 
+  // Os presets (26/11, `lib/presetsDaAparencia.ts`): o aspeto de agora com um nome.
+  const presets = usePresetsDaAparencia((s) => s.presets);
+  useEffect(() => { void usePresetsDaAparencia.getState().carregar(); }, []);
+  const aspeto = useAparencia((s) => chaveDoAspeto(s, capa));
+  const emUso = presets.find((p) => chaveDoAspeto(p.aparencia, p.capa) === aspeto)?.id ?? null;
+  const cheioDePresets = presets.length >= MAXIMO_DE_PRESETS;
+  /** A caixa do nome: um preset novo (`id` null) ou mudar o nome de um. */
+  const [nomear, setNomear] = useState<{ id: string | null; inicial: string } | null>(null);
+  const [menuDoPreset, setMenuDoPreset] = useState<{ id: string; ancora: Ancora } | null>(null);
+  /** O que o menu de um preset faz depois de fechar (a caixa do nome é outro Modal). */
+  const depoisDoMenu = useRef<(() => void) | null>(null);
+  const segurarPreset = (id: string) => (e: GestureResponderEvent) => {
+    hapticSelection();
+    const alvo = e.currentTarget as unknown as View;
+    alvo.measureInWindow((x, y, width, height) => setMenuDoPreset({ id, ancora: { x, y, width, height } }));
+  };
+  const accoesDoPreset: PlayerAction[] = (() => {
+    const p = menuDoPreset ? presets.find((x) => x.id === menuDoPreset.id) : undefined;
+    if (!p) return [];
+    const { atualizar, apagar } = usePresetsDaAparencia.getState();
+    const fechar = (depois?: () => void) => { depoisDoMenu.current = depois ?? null; setMenuDoPreset(null); };
+    return [
+      { label: 'Rename', icon: 'pencil-outline', onPress: () => fechar(() => setNomear({ id: p.id, inicial: p.nome })) },
+      {
+        label: 'Update to current look', icon: 'refresh-outline', disabled: emUso === p.id,
+        onPress: () => fechar(() => { atualizar(p.id); avisarFeito('Preset updated', p.nome); }),
+      },
+      {
+        label: 'Delete preset', icon: 'trash-outline', destructive: true, inicioDeGrupo: true,
+        onPress: () => fechar(() => {
+          const repor = apagar(p.id);
+          if (repor) avisarRemocao({ texto: 'Preset deleted', detalhe: p.nome, desfazer: repor });
+        }),
+      },
+    ];
+  })();
+
   const [menu, setMenu] = useState<{ chave: ChaveDeEscolha; ancora: Ancora } | null>(null);
   const [menuDaCapa, setMenuDaCapa] = useState<Ancora | null>(null);
   const [menuDaSecao, setMenuDaSecao] = useState<{ secao: SecaoDaHome; ancora: Ancora } | null>(null);
@@ -142,6 +183,28 @@ export function PersonalizarScreen({ navigation }: Props) {
       <MenuFlutuante visivel={!!menu} ancora={menu?.ancora ?? null} accoes={accoes} aoFechar={() => setMenu(null)} />
       <MenuFlutuante visivel={!!menuDaCapa} ancora={menuDaCapa} accoes={accoesDaCapa} aoFechar={() => setMenuDaCapa(null)} />
       <MenuFlutuante visivel={!!menuDaSecao} ancora={menuDaSecao?.ancora ?? null} accoes={accoesDaSecao} aoFechar={() => setMenuDaSecao(null)} />
+      <MenuFlutuante
+        visivel={!!menuDoPreset}
+        ancora={menuDoPreset?.ancora ?? null}
+        titulo={presets.find((p) => p.id === menuDoPreset?.id)?.nome}
+        accoes={accoesDoPreset}
+        aoFechar={() => setMenuDoPreset(null)}
+        aoFechado={() => { const f = depoisDoMenu.current; depoisDoMenu.current = null; f?.(); }}
+      />
+      <PromptSheet
+        visible={!!nomear}
+        title={nomear?.id ? 'Rename preset' : 'Save preset'}
+        placeholder="Name"
+        initialValue={nomear?.inicial}
+        submitLabel={nomear?.id ? 'Rename' : 'Save'}
+        onClose={() => setNomear(null)}
+        onSubmit={(nome) => {
+          const { guardarAtual, renomear } = usePresetsDaAparencia.getState();
+          if (nomear?.id) renomear(nomear.id, nome);
+          else { guardarAtual(nome); avisarFeito('Preset saved', nomeDoPreset(nome)); }
+          setNomear(null);
+        }}
+      />
       <Animated.ScrollView
         style={{ flex: 1 }}
         onScroll={cab.onScroll}
@@ -165,11 +228,42 @@ export function PersonalizarScreen({ navigation }: Props) {
                 <Text style={[styles.nomeDoTema, tema === t.id && { color: colors.text }]}>{t.nome}</Text>
               </Pressable>
             ))}
-            <View accessibilityRole="radio" accessibilityState={{ selected: tema === 'custom' }}
-              style={[styles.tema, tema === 'custom' && styles.temaEscolhido]}>
-              <Text style={[styles.nomeDoTema, tema === 'custom' && { color: colors.text }]}>Custom</Text>
-            </View>
+            {/* Os presets guardados: tocar põe o aspeto, segurar abre o menu. */}
+            {presets.map((p) => (
+              <Pressable
+                key={p.id}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: emUso === p.id }}
+                accessibilityHint="Hold for options"
+                onPress={() => { hapticSelection(); usePresetsDaAparencia.getState().aplicar(p.id); }}
+                onLongPress={segurarPreset(p.id)}
+                delayLongPress={350}
+                style={[styles.tema, styles.temaComIcone, emUso === p.id && styles.temaEscolhido]}
+              >
+                <Ionicons name="bookmark" size={12} color={emUso === p.id ? colors.text : colors.textTertiary} />
+                <Text numberOfLines={1} style={[styles.nomeDoTema, emUso === p.id && { color: colors.text }]}>{p.nome}</Text>
+              </Pressable>
+            ))}
+            {tema === 'custom' && !emUso ? (
+              <View accessibilityRole="radio" accessibilityState={{ selected: true }} style={[styles.tema, styles.temaEscolhido]}>
+                <Text style={[styles.nomeDoTema, { color: colors.text }]}>Custom</Text>
+              </View>
+            ) : null}
+            {!emUso && !cheioDePresets ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Save as preset"
+                onPress={() => { hapticSelection(); setNomear({ id: null, inicial: nomeSugerido(presets) }); }}
+                style={({ pressed }) => [styles.tema, styles.temaComIcone, styles.temaNovo, pressed && { opacity: 0.7 }]}
+              >
+                <Ionicons name="add" size={15} color={colors.textSecondary} />
+                <Text style={styles.nomeDoTema}>Save</Text>
+              </Pressable>
+            ) : null}
           </ScrollView>
+          <Text style={styles.notaDosTemas}>
+            {presets.length ? 'Save the look you have now. Hold a preset to rename, update or delete it.' : 'Save the look you have now as a preset.'}
+          </Text>
         </View>
 
         <Grupo titulo="App" rodape="The accent colour is in Settings → Appearance.">
@@ -344,6 +438,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
   },
   temaEscolhido: { backgroundColor: colors.surfacePressed, borderColor: colors.borderStrong },
+  temaComIcone: { flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: 220 },
+  // O "Save": tracejado, para se ler como uma ação e não como mais um tema.
+  temaNovo: { backgroundColor: 'transparent', borderStyle: 'dashed', borderColor: colors.borderStrong },
+  notaDosTemas: { fontSize: 12, color: colors.textTertiary, marginLeft: spacing.lg, marginRight: spacing.lg },
   nomeDoTema: { fontSize: 14, fontWeight: '600', color: colors.textSecondary },
   nota: { fontSize: 12, color: colors.textTertiary, textAlign: 'center' },
   previa: {

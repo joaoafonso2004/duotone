@@ -22,14 +22,21 @@ type Estado = Aparencia & {
   alternarBotao: (b: BotaoDoLeitor) => void;
   alternarSecao: (s: SecaoDaHome) => void;
   moverSecao: (s: SecaoDaHome, para: 'cima' | 'baixo' | 'topo') => void;
+  /** Põe um aspeto inteiro de uma vez (um preset do Customise, 26/11). */
+  restaurar: (a: Aparencia) => void;
 };
 
 function guardar(a: Aparencia): void {
   void AsyncStorage.setItem(CHAVE, JSON.stringify(a)).catch(() => {});
 }
 function soAparencia(s: Estado): Aparencia {
-  const { carregar: _c, mudar: _m, escolherTema: _e, alternarBotao: _a, alternarSecao: _s, moverSecao: _v, ...a } = s;
+  const { carregar: _c, mudar: _m, escolherTema: _e, alternarBotao: _a, alternarSecao: _s, moverSecao: _v, restaurar: _r, ...a } = s;
   return a;
+}
+
+/** O aspeto de agora, sem as funções da store (para guardar um preset). */
+export function aparenciaAtual(): Aparencia {
+  return soAparencia(useAparencia.getState());
 }
 
 export const useAparencia = create<Estado>((set, get) => ({
@@ -59,6 +66,10 @@ export const useAparencia = create<Estado>((set, get) => ({
   },
   moverSecao: (secao, para) => {
     set({ secoesDaHome: moverSecao(get().secoesDaHome, secao, para) });
+    guardar(soAparencia(get()));
+  },
+  restaurar: (a) => {
+    set(lerAparencia(a));
     guardar(soAparencia(get()));
   },
 }));

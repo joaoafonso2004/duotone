@@ -2587,4 +2587,13 @@ export const FR: Readonly<Record<string, string>> = {
   "Key": "Tonalité",
   "{0} minor": "{0} mineur",
   "{0} major": "{0} majeur",
+  // Os presets do Customise (26/11).
+  "Rename preset": "Renommer le préréglage",
+  "Update to current look": "Mettre à jour avec l'apparence actuelle",
+  "Delete preset": "Supprimer le préréglage",
+  "Preset saved": "Préréglage enregistré",
+  "Preset deleted": "Préréglage supprimé",
+  "Hold for options": "Maintenir pour les options",
+  "Save the look you have now as a preset.": "Enregistrez l'apparence actuelle comme préréglage.",
+  "Save the look you have now. Hold a preset to rename, update or delete it.": "Enregistrez l'apparence actuelle. Maintenez un préréglage pour le renommer, le mettre à jour ou le supprimer.",
 };
