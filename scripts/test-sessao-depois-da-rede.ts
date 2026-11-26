@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const a = readFileSync(new URL('../src/state/auth.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
-const init = a.slice(a.indexOf('  init: () => {'), a.indexOf('  refreshSession:'));
+const init = a.slice(a.indexOf('  init: () => {'), a.indexOf('  refreshSession:async'));
 
 // Só sem sessão e com a conta do aparelho à espera (o modo offline).
 assert.match(init, /const semSessao=\(\)=>Platform\.OS==='ios'&&!useAuth\.getState\(\)\.session&&!!useAuth\.getState\(\)\.offlineUserId;/);
