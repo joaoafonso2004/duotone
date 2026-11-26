@@ -35,6 +35,9 @@ const c = ler('src/state/connectivity.ts');
 assert.match(c, /const offline=state\.isConnected===false\|\|\(!confirmado\(\)&&\(state\.isConnected!==true\|\|state\.isInternetReachable!==true\)\);/);
 assert.match(c, /const CONFIRMACAO_MS=10\*60\*1000;/);
 assert.match(c, /catch\{useConnectivity\.setState\(\{offline:!confirmado\(\),checking:false\}\);\}/);
+// O teste de rede é o do iOS (captive.apple.com), e não o do Google, que um DNS anti-revoke pode bloquear.
+assert.match(c, /reachabilityUrl:'https:\/\/captive\.apple\.com\/hotspot-detect\.html'/);
+assert.match(c, /reachabilityTest:async\(resposta:Response\)=>resposta\.status===200&&\(await resposta\.text\(\)\)\.includes\('Success'\)/);
 const f = ler('src/lib/fetchDoSupabase.ts');
 assert.match(f, /resposta = await base\(entrada, comAparelho\(init, url, false\)\);/);
 assert.match(f, /if \(\(e as Error\)\?\.name !== 'AbortError'\) \{ try \{ aoFalhar\?\.\(\); \}/, 'um pedido sem resposta volta ao que o NetInfo diz');

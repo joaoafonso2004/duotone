@@ -46,7 +46,17 @@ export async function refreshConnectivity():Promise<void>{
 export function startConnectivity():()=>void {
   if(Platform.OS!=='ios')return()=>{};
   const net=netInfo();
-  net.configure({useNativeReachability:false,reachabilityRequestTimeout:5000,reachabilityShortTimeout:5000,reachabilityLongTimeout:30000});
+  // O teste de rede é o do próprio iOS (captive.apple.com), e não o do Google que
+  // o NetInfo traz (26/11): com o Google bloqueado (um DNS anti-revoke dos que se
+  // usam com apps instaladas por fora) a app ficava "Offline" em qualquer rede. O
+  // da Apple ninguém o bloqueia, que o iPhone precisa dele para o Wi-Fi.
+  net.configure({
+    useNativeReachability:false,
+    reachabilityUrl:'https://captive.apple.com/hotspot-detect.html',
+    reachabilityMethod:'GET',
+    reachabilityTest:async(resposta:Response)=>resposta.status===200&&(await resposta.text()).includes('Success'),
+    reachabilityRequestTimeout:5000,reachabilityShortTimeout:5000,reachabilityLongTimeout:30000,
+  });
   const unsubscribe=net.addEventListener(receive);
   const foreground=AppState.addEventListener('change',state=>{if(state==='active')void refreshConnectivity();});
   void refreshConnectivity();
