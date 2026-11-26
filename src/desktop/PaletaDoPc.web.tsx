@@ -20,7 +20,7 @@ import type { Track } from '../types';
 import { definirSeccaoDasDefinicoes } from './paginas/SettingsPage.web';
 import type { Route } from './rotas';
 import { SAIDA_MS } from './Saida.web';
-import { COR, FONT, flutuante, TIPO } from './tokens.web';
+import { COR, FONT, flutuante, RAIO, TIPO } from './tokens.web';
 import { Artwork, marcar } from './ui.web';
 import { pausarAtalhosDaJanela } from './useAtalhosDaJanela.web';
 import { useSaida } from './useSaida.web';
@@ -249,14 +249,14 @@ const styles = StyleSheet.create({
   campo: { flex: 1, color: COR.texto, fontFamily: FONT.body, fontSize: 16, fontWeight: '500', paddingVertical: 14, outlineStyle: 'none' } as any,
   resultados: { maxHeight: 320 },
   grupo: { ...TIPO.micro, color: COR.textoFraco, paddingHorizontal: 10, paddingTop: 8, paddingBottom: 4 },
-  linha: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7, paddingHorizontal: 10, borderRadius: 9, cursor: 'pointer' } as any,
+  linha: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7, paddingHorizontal: 10, borderRadius: RAIO.cartao, cursor: 'pointer' } as any,
   linhaAtual: { backgroundColor: 'rgba(255,255,255,0.08)' },
-  capa: { width: 30, height: 30, borderRadius: 6 },
+  capa: { width: 30, height: 30, borderRadius: RAIO.ctrl },
   semCapa: { backgroundColor: 'rgba(255,255,255,0.07)' },
   icone: { width: 30, height: 30, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.07)', alignItems: 'center', justifyContent: 'center' },
-  titulo: { ...TIPO.corpo, fontSize: 13.5, color: COR.texto, flexShrink: 1 },
+  titulo: { ...TIPO.corpo, color: COR.texto, flexShrink: 1 },
   legenda: { ...TIPO.legenda, color: COR.textoFraco, marginLeft: 'auto', paddingLeft: 12 } as any,
   pe: { flexDirection: 'row', gap: 16, paddingVertical: 9, paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: COR.linha },
-  dica: { ...TIPO.legenda, fontSize: 11.5, color: COR.textoFraco },
+  dica: { ...TIPO.legenda, color: COR.textoFraco },
   tecla: { fontFamily: FONT.mono, color: COR.textoMedio },
 });

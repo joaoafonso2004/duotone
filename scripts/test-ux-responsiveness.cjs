@@ -37,6 +37,8 @@ const target={kind:'friend',id:'friend-a'};
 const {ConversaScreen}=load('src/screens/ConversaScreen.tsx',{
   react:{...React,useCallback:fn=>fn},'react-native':{Platform:{OS:'ios'}},'../components/Teclado':{EvitarTeclado:'Keyboard'},
   '@react-navigation/native':{useIsFocused:()=>focused,useFocusEffect:fn=>{cleanup=fn();}},
+  // Os álbuns de uma conversa abrem numa página (26/11, item 15 do plano).
+  '../navigation/abrirAlbum':{abrirAlbum(){}},
   'react-native-safe-area-context':{useSafeAreaInsets:()=>({top:59,bottom:34})},
   '../components/SocialHub':{SocialHub:'Hub'},'../components/socialTokens':{colors:{bg:'#000'}},
   '../components/TrackActionsSheet':{TrackActionsSheet:'Menu'},'../components/YtPlaylistRecommendationSheet':{YtPlaylistRecommendationSheet:'AlbumSheet'},
