@@ -34,7 +34,20 @@ export type DadosDoVoo = {
 const dados = new Map<string, DadosDoVoo>();
 const quemOuve = new Set<(id: string) => void>();
 
-export const useVoos = create<{ fases: Record<string, FaseDoVoo> }>(() => ({ fases: {} }));
+/**
+ * `noAr`: a capa ainda voa por cima da página que já se vê (26/11). A da página
+ * (`AlvoDoVoo`) fica escondida até ela pousar: senão viam-se duas.
+ */
+export const useVoos = create<{ fases: Record<string, FaseDoVoo>; noAr: Record<string, true> }>(() => ({ fases: {}, noAr: {} }));
+
+export function marcarCapaNoAr(id: string, noAr: boolean): void {
+  if (!!useVoos.getState().noAr[id] === noAr) return;
+  useVoos.setState((s) => {
+    const mapa = { ...s.noAr };
+    if (noAr) mapa[id] = true; else delete mapa[id];
+    return { noAr: mapa };
+  });
+}
 
 export function dadosDoVoo(id: string | undefined | null): DadosDoVoo | null {
   return id ? dados.get(id) ?? null : null;
@@ -46,7 +59,7 @@ export function mudarFase(id: string, fase: FaseDoVoo | null): void {
     if (fase) fases[id] = fase; else delete fases[id];
     return { fases };
   });
-  if (!fase) dados.delete(id);
+  if (!fase) { dados.delete(id); marcarCapaNoAr(id, false); }
 }
 
 /** A camada fica a saber quando a página disse alguma coisa (pronta, ou a capa dela). */

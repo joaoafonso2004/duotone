@@ -5,7 +5,7 @@ import { CASCATA, entradaDaLinha, ESPERA_MAXIMA_MS, pedirVoo } from '../lib/vooD
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { pedirFluidez } from '../state/fluidez';
 import {
-  dadosDoVoo, marcarAlvo, marcarPaginaPronta, medirNoEcra, mudarFase, useVoos,
+  dadosDoVoo, marcarAlvo, marcarCapaNoAr, marcarPaginaPronta, medirNoEcra, mudarFase, useVoos,
 } from '../state/vooDoQuadrado';
 import { temVoltaADeslizar, VoltaADeslizar } from './VoltaADeslizar';
 
@@ -57,7 +57,7 @@ export function PaginaDoQuadrado({ voo, navigation, children }: {
   // Se a camada nunca a mandar acender (rebentou, ou não havia camada), acende sozinha.
   useEffect(() => {
     const t = setTimeout(() => {
-      if (faseRef.current === 'a-entrar') mudarFase(voo, 'aberta');
+      if (faseRef.current === 'a-entrar') { mudarFase(voo, 'aberta'); marcarCapaNoAr(voo, false); }
     }, ESPERA_MAXIMA_MS + 400);
     return () => clearTimeout(t);
   }, [voo]);
@@ -143,10 +143,12 @@ export function AlvoDoVoo({ children, style }: { children: React.ReactNode; styl
   const route = useRoute();
   const voo = (route.params as { voo?: string } | undefined)?.voo;
   const ref = useRef<View>(null);
+  // Escondida enquanto a capa que voa não pousa: a página já se vê por baixo dela.
+  const noAr = useVoos((s) => (voo ? s.noAr[voo] === true : false));
   const aoMedir = () => {
     if (!voo) return;
     const medir = () => medirNoEcra(ref.current);
     void medir().then((r) => { if (r) marcarAlvo(voo, r, medir); });
   };
-  return <View ref={ref} collapsable={false} style={style} onLayout={voo ? aoMedir : undefined}>{children}</View>;
+  return <View ref={ref} collapsable={false} style={[style, noAr && { opacity: 0 }]} onLayout={voo ? aoMedir : undefined}>{children}</View>;
 }

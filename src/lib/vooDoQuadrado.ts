@@ -6,7 +6,9 @@
  * Tocar numa playlist, numa pasta, numa mistura ou num artista: a cor da página
  * cresce a partir do quadrado até tapar o ecrã, e a capa voa do cartão para o sítio
  * dela no topo da página. A página abre por baixo SEM animação nativa, no instante
- * em que a cor já tapa tudo, e aparece quando a capa pousa. Voltar pelo botão faz o
+ * em que a cor já tapa tudo, e acende assim que existe, com a capa ainda a voar por
+ * cima (26/11: esperava que a capa pousasse, e via-se a capa sozinha no preto e
+ * depois a página a acender, como um "refresh"). Voltar pelo botão faz o
  * caminho ao contrário, até ao quadrado de onde saiu. Puxar para a direita em
  * qualquer ponto encolhe a página com o dedo até ao cartão (26/11, item 7 do plano,
  * `VOLTA`): a página de trás volta à janela por um pop interativo da pilha nativa
@@ -29,8 +31,14 @@ export const MOLA_DO_VOO = { stiffness: 190, damping: 22, mass: 1 } as const;
 export const VEU_MAXIMO = 0.55;
 /** A cor a mais do que o ecrã, para os cantos redondos do quadrado ficarem fora dele. */
 export const FOLGA_DA_COR = 1.12;
-/** A troca final: a camada apaga-se e a página acende, ao mesmo tempo. */
+/** A troca: o fundo da camada apaga-se por cima da página (e, ao pousar, a capa sobre a dela). */
 export const TROCA_MS = 180;
+/**
+ * A cor acaba de crescer a esta altura da mola, e não no fim (26/11, o João: "este
+ * delay chato e a piscada"). Tapa o ecrã ~90 ms mais cedo, e a página abre por
+ * baixo mais cedo; a capa continua a voar com a mola inteira.
+ */
+export const COR_ATE = 0.7;
 /** Ao voltar: a cor tapa a página antes de ela sair (130 até 25/11: a espera antes de encolher sentia-se). */
 export const TAPAR_MS = 90;
 /** Se a página não disser nada (rebentou, ou demorou), aparece na mesma ao fim disto. */
@@ -140,7 +148,7 @@ export function momentoDeAbrir(de: Retangulo, ecra: { width: number; height: num
   for (let t = 0; t < 3; t += dt) {
     const a = (-mola.stiffness * (x - 1) - mola.damping * v) / mola.mass;
     v += a * dt; x += v * dt;
-    if (corTapa(x, de, ecra, forma, raio)) return Math.round((t + dt) * 1000);
+    if (corTapa(Math.min(1, x / COR_ATE), de, ecra, forma, raio)) return Math.round((t + dt) * 1000);
   }
   return duracaoDaMola(mola);
 }

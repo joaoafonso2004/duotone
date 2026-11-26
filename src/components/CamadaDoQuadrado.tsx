@@ -6,11 +6,11 @@ import { useReducedMotion } from '../hooks/useReducedMotion';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { ENTRADA } from '../lib/movimento';
 import {
-  alvoSemCapa, duracaoDaMola, ESPERA_MAXIMA_MS, momentoDeAbrir, ouvirVoos, TAPAR_MS, TROCA_MS, VEU_MAXIMO,
+  alvoSemCapa, COR_ATE, duracaoDaMola, ESPERA_MAXIMA_MS, momentoDeAbrir, ouvirVoos, TAPAR_MS, TROCA_MS, VEU_MAXIMO,
   vooDaCapa, vooDaCor, vooDoCirculoParaLarga, type CapaDoVoo, type FormaDoQuadrado, type Retangulo,
 } from '../lib/vooDoQuadrado';
 import { pedirFluidez } from '../state/fluidez';
-import { dadosDoVoo, mudarFase, ouvirMudancasDoVoo, type DestinoDaCapa } from '../state/vooDoQuadrado';
+import { dadosDoVoo, marcarCapaNoAr, mudarFase, ouvirMudancasDoVoo, type DestinoDaCapa } from '../state/vooDoQuadrado';
 import { colors } from '../theme';
 import { alturaDaCapaDoArtista } from './SeccoesDoArtista';
 import { ArtworkCollage } from './ArtworkCollage';
@@ -43,7 +43,10 @@ function alvoPrevisto(destino: DestinoDaCapa, ecra: { width: number }, topo: num
  * A camada do "entrar pelo quadrado" (24/11, `lib/vooDoQuadrado.ts`): por cima das
  * páginas e por baixo da base. A cor da página cresce do cartão até tapar o ecrã, a
  * capa voa para o topo da página, e a página nova abre por baixo quando a cor já
- * tapa tudo. Ao pousar, a camada apaga-se e a página acende ao mesmo tempo.
+ * tapa tudo. A página acende assim que existe: o fundo da camada (a cor e o véu)
+ * apaga-se por cima dela com a capa ainda a voar, e a capa da página fica escondida
+ * (`noAr`) até a que voa pousar; aí a da página aparece por baixo e a que voa
+ * apaga-se sobre ela (26/11: a página esperava pela capa, e era o "refresh").
  *
  * Só `transform` e opacidade, no driver nativo, com a mola de entrada e a fluidez
  * pedida (120 Hz). Com menos movimento não há voo: a página abre como sempre.
@@ -55,6 +58,8 @@ export function CamadaDoQuadrado() {
   const [voo, setVoo] = useState<VooNoEcra | null>(null);
   const p = useRef(new Animated.Value(0)).current;
   const camada = useRef(new Animated.Value(1)).current;
+  /** O fundo da camada (a cor e o véu), que se apaga antes da capa. */
+  const fundo = useRef(new Animated.Value(1)).current;
   const atual = useRef<{ id: string; pousou: boolean; trocou: boolean; temporizadores: ReturnType<typeof setTimeout>[] } | null>(null);
   const contexto = useRef({ ecra, topo: insets.top, reduzido });
   contexto.current = { ecra, topo: insets.top, reduzido };
@@ -74,27 +79,39 @@ export function CamadaDoQuadrado() {
 
   useEffect(() => {
     const limpar = () => {
-      for (const t of atual.current?.temporizadores ?? []) clearTimeout(t);
+      const a = atual.current;
+      for (const t of a?.temporizadores ?? []) clearTimeout(t);
+      if (a) marcarCapaNoAr(a.id, false);
       atual.current = null;
     };
     const depois = (ms: number, f: () => void) => { atual.current?.temporizadores.push(setTimeout(f, ms)); };
 
-    /** A troca: a camada apaga-se e a página acende (a `PaginaDoQuadrado` ouve a fase). */
+    /** A capa pousou com a página à vista: a da página aparece por baixo e a camada apaga-se. */
+    const acabar = (id: string) => {
+      marcarCapaNoAr(id, false);
+      Animated.timing(camada, { toValue: 0, duration: TROCA_MS, useNativeDriver: true }).start(() => {
+        if (atual.current?.id === id) { limpar(); setVoo(null); }
+      });
+    };
+    /**
+     * A página já existe: acende já (a `PaginaDoQuadrado` ouve a fase), e o fundo
+     * da camada apaga-se por cima dela com a capa ainda a voar. Se a capa já
+     * pousou (a página demorou), apaga-se tudo junto.
+     */
     const trocar = (id: string) => {
       const a = atual.current;
       if (!a || a.id !== id || a.trocou) return;
       a.trocou = true;
       mudarFase(id, 'aberta');
-      Animated.timing(camada, { toValue: 0, duration: TROCA_MS, useNativeDriver: true }).start(() => {
-        if (atual.current?.id === id) { limpar(); setVoo(null); }
-      });
+      if (a.pousou) { acabar(id); return; }
+      Animated.timing(fundo, { toValue: 0, duration: TROCA_MS, useNativeDriver: true }).start();
     };
-    /** Pousou e a página já existe (e já disse onde é a capa dela, ou não tem): troca. */
-    const tentarTrocar = (id: string) => {
-      const a = atual.current, d = dadosDoVoo(id);
-      if (!a || a.id !== id || !a.pousou || !d?.paginaPronta) return;
-      if (d.alvo || d.destino === 'titulo') trocar(id);
-      else depois(150, () => trocar(id));
+    /** A capa chegou ao sítio. */
+    const pousar = (id: string) => {
+      const a = atual.current;
+      if (!a || a.id !== id || a.pousou) return;
+      a.pousou = true;
+      if (a.trocou) acabar(id);
     };
 
     const pararDeOuvir = ouvirMudancasDoVoo((id) => {
@@ -104,7 +121,7 @@ export function CamadaDoQuadrado() {
         const alvo = d.alvo;
         setVoo((v) => (v && v.id === id && v.modo === 'entrar' ? { ...v, alvo } : v));
       }
-      tentarTrocar(id);
+      if (d.paginaPronta) trocar(id);
     });
 
     const pararDeDesenhar = ouvirVoos((pedido) => {
@@ -116,6 +133,8 @@ export function CamadaDoQuadrado() {
         atual.current = { id: pedido.id, pousou: false, trocou: false, temporizadores: [] };
         p.stopAnimation(); p.setValue(0);
         camada.stopAnimation(); camada.setValue(1);
+        fundo.stopAnimation(); fundo.setValue(1);
+        if (d.capa && d.destino !== 'titulo') marcarCapaNoAr(pedido.id, true);
         setVoo({
           id: pedido.id, modo: 'entrar', de: d.de, raio: d.raio, forma: d.forma, capa: d.capa,
           alvo: alvoPrevisto(d.destino, e, topo), apaga: d.destino === 'titulo', larga: d.destino === 'larga',
@@ -125,9 +144,9 @@ export function CamadaDoQuadrado() {
         // A mola começa quando a camada já existe, no mesmo desenho (`arrancar`).
         arrancar.current = { id: pedido.id, modo: 'entrar', f: () => Animated.spring(p, { toValue: 1, ...ENTRADA, useNativeDriver: true }).start() };
         depois(momentoDeAbrir(d.de, e, d.forma, d.raio) + 16, pedido.navegar);
-        depois(duracao, () => { if (atual.current?.id === pedido.id) { atual.current.pousou = true; tentarTrocar(pedido.id); } });
+        depois(duracao, () => pousar(pedido.id));
         // Se a página nunca disser nada, aparece na mesma.
-        depois(ESPERA_MAXIMA_MS, () => trocar(pedido.id));
+        depois(ESPERA_MAXIMA_MS, () => { trocar(pedido.id); pousar(pedido.id); });
         return true;
       }
 
@@ -143,6 +162,7 @@ export function CamadaDoQuadrado() {
         const visivel = alvoAgora && alvoAgora.y + alvoAgora.height > 0 && alvoAgora.y < e.height;
         p.stopAnimation(); p.setValue(1);
         camada.stopAnimation(); camada.setValue(0);
+        fundo.stopAnimation(); fundo.setValue(1);
         setVoo({
           id: pedido.id, modo: 'voltar', de: d.de, raio: d.raio, forma: d.forma,
           capa: visivel ? d.capa : null, alvo: visivel ? alvoAgora! : alvoPrevisto(d.destino, e, topo), apaga: false,
@@ -177,16 +197,19 @@ export function CamadaDoQuadrado() {
     });
 
     return () => { pararDeDesenhar(); pararDeOuvir(); limpar(); };
-  }, [camada, p]);
+  }, [camada, fundo, p]);
 
   if (!voo) return null;
   const cor = vooDaCor(voo.de, ecra, voo.forma);
   const capa = vooDaCapa(voo.de, voo.alvo);
   const lado = voo.de.width;
   const entre = (fim: number) => p.interpolate({ inputRange: [0, 1], outputRange: [0, fim] });
+  // A cor acaba de crescer aos `COR_ATE` da mola (tapa o ecrã mais cedo).
+  const daCor = (fim: number) => p.interpolate({ inputRange: [0, COR_ATE], outputRange: [0, fim], extrapolate: 'clamp' });
   return (
     // Por cima das páginas, apanha os toques durante o voo: um segundo toque não abre outra.
     <Animated.View pointerEvents="auto" style={[StyleSheet.absoluteFill, { opacity: camada }]}>
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: fundo }]}>
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.veu, {
         opacity: p.interpolate({ inputRange: [0, 1], outputRange: [0, VEU_MAXIMO], extrapolate: 'clamp' }),
       }]} />
@@ -194,9 +217,10 @@ export function CamadaDoQuadrado() {
       <Animated.View pointerEvents="none" style={[styles.cor, {
         left: voo.de.x, top: voo.de.y, width: lado, height: lado, borderRadius: voo.raio,
         opacity: p.interpolate({ inputRange: [0, 0.12], outputRange: [0, 1], extrapolate: 'clamp' }),
-        transform: [{ translateX: entre(cor.dx) }, { translateY: entre(cor.dy) },
-          { scale: p.interpolate({ inputRange: [0, 1], outputRange: [1, cor.escala] }) }],
+        transform: [{ translateX: daCor(cor.dx) }, { translateY: daCor(cor.dy) },
+          { scale: p.interpolate({ inputRange: [0, COR_ATE], outputRange: [1, cor.escala], extrapolate: 'clamp' }) }],
       }]} />
+      </Animated.View>
       {voo.capa && voo.larga && voo.capa.forma === 'circulo' ? (() => {
         const m = vooDoCirculoParaLarga(voo.de, voo.alvo);
         return (

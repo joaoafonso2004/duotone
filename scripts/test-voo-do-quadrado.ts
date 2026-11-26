@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  amostrasDaVolta, CASCATA, corTapa, curvaDaMola, decidirVolta, duracaoDaMola, encolherDoDedo, entradaDaLinha, momentoDeAbrir,
+  amostrasDaVolta, CASCATA, COR_ATE, corTapa, curvaDaMola, decidirVolta, duracaoDaMola, encolherDoDedo, entradaDaLinha, momentoDeAbrir,
   MOLA_DO_VOO, recorteDaVolta, TAPAR_MS, VEU_MAXIMO, VOLTA, vooDaCapa, vooDaCor, vooDoCirculoParaLarga,
 } from '../src/lib/vooDoQuadrado.ts';
 import { ENTRADA } from '../src/lib/movimento.ts';
@@ -51,8 +51,10 @@ caso('a página abre quando a cor já tapa tudo, e não antes', () => {
   for (const [de, forma, raio] of [[cartao, 'quadrado', 12], [circulo, 'circulo', 55], [{ x: 20, y: 600, width: 52, height: 52 }, 'quadrado', 0]] as const) {
     const t = momentoDeAbrir(de, ecra, forma, raio);
     assert.ok(t > 50 && t < duracaoDaMola(), `${forma}: ${t} ms`);
-    assert.equal(corTapa(curvaDaMola(t / 1000), de, ecra, forma, raio), true, `${forma} tapa aos ${t} ms`);
-    assert.equal(corTapa(curvaDaMola((t - 20) / 1000), de, ecra, forma, raio), false, `${forma} ainda não tapa 20 ms antes`);
+    // A cor acaba de crescer aos COR_ATE da mola (26/11): a posição dela é a da mola sobre isso.
+    const daCor = (ms: number) => Math.min(1, curvaDaMola(ms / 1000) / COR_ATE);
+    assert.equal(corTapa(daCor(t), de, ecra, forma, raio), true, `${forma} tapa aos ${t} ms`);
+    assert.equal(corTapa(daCor(t - 20), de, ecra, forma, raio), false, `${forma} ainda não tapa 20 ms antes`);
   }
 });
 
@@ -235,6 +237,17 @@ caso('arrastar acaba na capa do cartão, e não num retângulo escuro', () => {
   // No fim tem o tamanho do cartão: lado × sy(1) × altura / lado = altura do cartão.
   const r = recorteDaVolta(1, ecra, cartao, 55);
   assert.ok(Math.abs(ecra.height * r.sy - cartao.height) < 1e-9);
+});
+
+caso('a página acende assim que existe, com a capa ainda a voar (o "refresh" do vídeo de 26/11)', () => {
+  const camada = ler('src/components/CamadaDoQuadrado.tsx');
+  assert.match(camada, /if \(d\.paginaPronta\) trocar\(id\);/, 'não espera que a capa pouse');
+  assert.match(camada, /mudarFase\(id, 'aberta'\);\n\s+if \(a\.pousou\) \{ acabar\(id\); return; \}\n\s+Animated\.timing\(fundo, \{ toValue: 0/);
+  assert.match(camada, /if \(d\.capa && d\.destino !== 'titulo'\) marcarCapaNoAr\(pedido\.id, true\);/);
+  assert.match(camada, /const acabar = \(id: string\) => \{\n\s+marcarCapaNoAr\(id, false\);/);
+  assert.match(ler('src/components/PaginaDoQuadrado.tsx'), /style=\{\[style, noAr && \{ opacity: 0 \}\]\}/, 'a capa da página escondida enquanto a outra voa');
+  // A cor tapa mais cedo: a página abre por baixo uns 90 ms antes.
+  assert.ok(momentoDeAbrir(cartao, ecra, 'quadrado', 12) < 190);
 });
 
 console.log(falhas ? `\n  ${falhas} caso(s) falharam.\n` : '\n  Todos os casos passaram.\n');
