@@ -1,3 +1,4 @@
+import { levantar } from '../components/levantarAoSegurar';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { menuDaPlaylist, type IdDaAcaoDaPlaylist } from '../lib/menuDaPlaylist';
 import { useFocusEffect, useNavigation, useRoute, useScrollToTop } from '@react-navigation/native';
@@ -412,6 +413,8 @@ export function PlaylistsScreen() {
               })}
               onLongPress={() => {
                 hapticImpact(ImpactFeedbackStyle.Medium);
+                // Segurar e levantar (25/11, item 2 do plano): a capa sobe para o menu.
+                levantar(quadrados.get(item.id) ?? null, <ArtworkCollage artworks={item.artworks} size={cardSize} />, { semFundo: true });
                 setOptionsFor(item);
               }}
               style={({ pressed }) => [

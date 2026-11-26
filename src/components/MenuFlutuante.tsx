@@ -219,7 +219,7 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado, ti
       {previaVisivel ? (
         // A linha levantada: a mesma, no mesmo sítio, a crescer 4,5 % com sombra
         // e o fundo das superfícies altas. Presa à entrada do menu: sai com ele.
-        <Animated.View pointerEvents="none" style={[styles.previa, {
+        <Animated.View pointerEvents="none" style={[styles.previa, previaVisivel.semFundo && styles.previaSemFundo, {
           left: previaVisivel.ret.x, top: previaVisivel.ret.y, width: previaVisivel.ret.width, height: previaVisivel.ret.height,
           transform: [{ scale: entrada.interpolate({ inputRange: [0, 1], outputRange: [1, 1.045] }) }],
           shadowOpacity: entrada.interpolate({ inputRange: [0, 1], outputRange: [0, 0.6] }),
@@ -322,6 +322,8 @@ const styles = StyleSheet.create({
     position: 'absolute', borderRadius: 14, overflow: 'visible', backgroundColor: colors.surfaceHigh,
     shadowColor: '#000', shadowRadius: 22, shadowOffset: { width: 0, height: 14 },
   },
+  // Um cartão levanta-se como é: a capa e o nome, sem a placa das linhas.
+  previaSemFundo: { backgroundColor: 'transparent', borderRadius: 0 },
   menu: {
     position: 'absolute',
     borderRadius: radii.lg,

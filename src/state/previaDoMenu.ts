@@ -10,13 +10,13 @@ import type { Retangulo } from '../lib/vooDoQuadrado';
  * Só vale para o menu que abre JÁ a seguir (`VALIDADE_MS`): uma cópia esquecida
  * não pode aparecer num menu que se abra mais tarde por outra porta.
  */
-export type PreviaDoMenu = { ret: Retangulo; conteudo: ReactNode; em: number };
+export type PreviaDoMenu = { ret: Retangulo; conteudo: ReactNode; em: number; semFundo?: boolean };
 
 const VALIDADE_MS = 800;
 let pendente: PreviaDoMenu | null = null;
 
-export function mostrarPrevia(ret: Retangulo, conteudo: ReactNode): void {
-  pendente = { ret, conteudo, em: Date.now() };
+export function mostrarPrevia(ret: Retangulo, conteudo: ReactNode, opcoes?: { semFundo?: boolean }): void {
+  pendente = { ret, conteudo, em: Date.now(), semFundo: !!opcoes?.semFundo };
 }
 
 /** O menu que abre leva a cópia (uma vez); depois dele, ninguém. */

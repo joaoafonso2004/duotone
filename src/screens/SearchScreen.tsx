@@ -1,3 +1,4 @@
+import { levantar } from '../components/levantarAoSegurar';
 import { EntradaEmCascata, EntradaPelaDireita } from '../components/EntradaEmCascata';
 import { useRecommendationFeedback } from '../state/recommendationFeedback';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -491,7 +492,20 @@ export function SearchScreen() {
               <Pressable
                 key={`${track.source}:${track.sourceId}`}
                 onPress={() => tocarMusica(track, data, true, contextoDe(track), origem)}
-                onLongPress={() => { hapticSelection(); abrirAcoes(track); }}
+                onLongPress={(e) => {
+                  hapticSelection();
+                  // Segurar e levantar (25/11): o cartão sobe para o menu.
+                  levantar(e.currentTarget, (
+                    <View style={styles.cartaoLargo}>
+                      {track.artworkUrl ? <Image source={{ uri: capaParaLista(track.artworkUrl)! }} style={styles.capaLarga} contentFit="cover" /> : <View style={[styles.capaLarga, styles.artFallback]} />}
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text numberOfLines={1} style={styles.cardTitle}>{tituloDaFaixa(track)}</Text>
+                        <Text numberOfLines={1} style={styles.cardArtist}>{displayArtist(track)}</Text>
+                      </View>
+                    </View>
+                  ), { semFundo: true });
+                  abrirAcoes(track);
+                }}
                 delayLongPress={350}
                 style={({ pressed }) => [styles.cartaoLargo, pressed && { opacity: 0.8 }]}
               >
@@ -519,8 +533,17 @@ export function SearchScreen() {
             <Pressable
               key={`${track.source}:${track.sourceId}`}
               onPress={() => tocarMusica(track, data, true, contextoDe(track), origem)}
-              onLongPress={() => {
+              onLongPress={(e) => {
                 hapticSelection();
+                // Segurar e levantar (25/11): o cartão sobe para o menu.
+                levantar(e.currentTarget, (
+                  <View style={[styles.recCard, { width: largura }]}>
+                    {track.artworkUrl ? <Image source={{ uri: capaParaLista(track.artworkUrl)! }} style={[styles.cardArt, { width: largura, height: largura }]} contentFit="cover" />
+                      : <View style={[styles.cardArt, { width: largura, height: largura }, styles.artFallback]} />}
+                    <Text numberOfLines={1} style={styles.cardTitle}>{tituloDaFaixa(track)}</Text>
+                    <Text numberOfLines={1} style={styles.cardArtist}>{displayArtist(track)}</Text>
+                  </View>
+                ), { semFundo: true });
                 abrirAcoes(track);
               }}
               delayLongPress={350}

@@ -1,3 +1,4 @@
+import { levantar } from '../components/levantarAoSegurar';
 import { useDestinos } from '../navigation/destinos';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -95,7 +96,20 @@ export function AlbunsGuardadosScreen() {
               return (
                 <Pressable
                   onPress={() => setAberto(item)}
-                  onLongPress={() => { hapticImpact(ImpactFeedbackStyle.Medium); setComMenu(item); }}
+                  onLongPress={(e) => {
+                    hapticImpact(ImpactFeedbackStyle.Medium);
+                    // Segurar e levantar (25/11, item 2 do plano): o álbum sobe para o menu.
+                    levantar(e.currentTarget, (
+                      <View style={{ width: lado }}>
+                        <View style={[styles.capa, { width: lado, height: lado }]}>
+                          {uri ? <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <View style={[StyleSheet.absoluteFill, styles.semCapa]} />}
+                        </View>
+                        <Text numberOfLines={1} style={[type.headline, { marginTop: 8 }]}>{item.titulo}</Text>
+                        <Text numberOfLines={1} style={type.caption}>{legendaDoAlbum(item)}</Text>
+                      </View>
+                    ), { semFundo: true });
+                    setComMenu(item);
+                  }}
                   accessibilityRole="button"
                   accessibilityLabel={`${item.titulo}, ${legendaDoAlbum(item)}`}
                   style={({ pressed }) => [{ width: lado }, pressed && { opacity: 0.8 }]}

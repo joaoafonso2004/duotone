@@ -44,5 +44,15 @@ caso('a linha de uma música deixa a cópia antes de abrir o menu', () => {
   assert.match(t, /<View ref=\{linha\} collapsable=\{false\}>/);
 });
 
+caso('os cartões levantam-se como são, sem a placa das linhas (Playlists, Home, álbuns guardados)', () => {
+  mostrarPrevia(ret, 'cartao', { semFundo: true });
+  assert.equal(levarPrevia()?.semFundo, true);
+  assert.match(ler('src/components/MenuFlutuante.tsx'), /previaVisivel\.semFundo && styles\.previaSemFundo/);
+  assert.match(ler('src/screens/PlaylistsScreen.tsx'), /levantar\(quadrados\.get\(item\.id\) \?\? null, <ArtworkCollage artworks=\{item\.artworks\} size=\{cardSize\} \/>, \{ semFundo: true \}\);\n\s+setOptionsFor\(item\);/);
+  const home = ler('src/screens/SearchScreen.tsx');
+  assert.equal((home.match(/levantar\(e\.currentTarget, \(/g) ?? []).length, 2, 'os cartões largos e os quadrados');
+  assert.match(ler('src/screens/AlbunsGuardadosScreen.tsx'), /levantar\(e\.currentTarget, \([\s\S]{0,700}\), \{ semFundo: true \}\);\n\s+setComMenu\(item\);/);
+});
+
 if (falhas) { console.log(`\n${falhas} falha(s)`); process.exit(1); }
 console.log('\ntudo certo');
