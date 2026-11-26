@@ -151,6 +151,8 @@ export function SearchPage({ play, tocarMusica, notify, more, share, navigate }:
   useEffect(() => { void recs.carregar(); }, []);
   // Conjunto das faixas já guardadas, para marcar os resultados com um coração.
   useEffect(() => { useSaved.getState().refresh(); getSearchHistory().then(setHistory); const focus = () => input.current?.focus(); window.addEventListener('duotone:focus-search', focus); return () => window.removeEventListener('duotone:focus-search', focus); }, []);
+  // O "See all results" da paleta do Ctrl+F (26/11): chega com o texto, e procura já.
+  useEffect(() => { const pesquisar = (e: Event) => { const q = (e as CustomEvent<string>).detail; if (typeof q === 'string' && q.trim()) { setQuery(q); input.current?.focus(); } }; window.addEventListener('duotone:pesquisar', pesquisar); return () => window.removeEventListener('duotone:pesquisar', pesquisar); }, []);
   const { results, naBiblioteca, loading, errorMsg, pesquisarAgora } = useMusicSearch(query, (q) => {
     void addSearchHistoryEntry(q).then(setHistory).catch(() => {});
   });

@@ -658,6 +658,8 @@ const SECCOES: { id: IdDaSeccao; nome: string; icone: keyof typeof Ionicons.glyp
 ];
 /** A secção aberta sobrevive a sair e voltar às Definições. */
 let seccaoAberta: IdDaSeccao = 'reproducao';
+/** A paleta do Ctrl+F abre as Definições numa secção (26/11, "Open Sound settings"). */
+export function definirSeccaoDasDefinicoes(id: IdDaSeccao): void { seccaoAberta = id; }
 
 export function SettingsCard({ title, children }: { icon?: keyof typeof Ionicons.glyphMap; title: string; children: ReactNode }) { return <View style={styles.settingsCard}><View style={styles.settingsCardTitle}><Text style={styles.sectionTitle}>{title}</Text></View>{children}</View>; }
 
