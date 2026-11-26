@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FundoDaFolha } from './FundoDaFolha';
 import { CoracaoAnimado } from './CoracaoAnimado';
 import { useCoracaoAoCarregar } from '../hooks/useCoracaoAoCarregar';
-import { posicaoDoMenu } from '../lib/posicaoDoMenu';
+import { lugarComPrevia, posicaoDoMenu, RECUO_DA_PLACA } from '../lib/posicaoDoMenu';
 import { useTheme } from '../state/theme';
 import { Toque } from './Toque';
 import { hapticSelection } from '../lib/haptics';
@@ -198,8 +198,17 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado, ti
     + spacing.sm * 2;
   // Dentro da zona segura (16/10, I1): sem lugar em baixo, subia até 12 pt do
   // topo -- por baixo da ilha. Mais alto do que ela, rola por dentro.
-  const { topo, altura } = posicaoDoMenu(ancoraVisivel, alturaEstimada, { altura: height, topo: insets.top, fundo: insets.bottom }, MARGEM);
+  const posicao = posicaoDoMenu(ancoraVisivel, alturaEstimada, { altura: height, topo: insets.top, fundo: insets.bottom }, MARGEM);
+  // Com a linha levantada (26/11, o João: "o menu nunca deve ficar por cima da
+  // música"): o menu vai por baixo dela, ou por cima; se não couber em nenhum dos
+  // lados, a linha sobe (`desvioDaPrevia`) até o menu caber por baixo.
+  const { topo, altura, desvioDaPrevia } = previaVisivel
+    ? lugarComPrevia(previaVisivel.ret, alturaEstimada, { altura: height, topo: insets.top, fundo: insets.bottom }, MARGEM)
+    : { ...posicao, desvioDaPrevia: 0 };
   const rola = altura < alturaEstimada;
+  // Por cima da linha levantada, o menu prende-se pelo fundo: se a estimativa da
+  // altura falhar para cima, cresce para cima e não para cima da música.
+  const porCimaDaPrevia = !!previaVisivel && topo + altura <= previaVisivel.ret.y + desvioDaPrevia;
   const largura = faixaVisivel ? LARGURA_DA_FAIXA : LARGURA;
   const esquerda = Math.min(
     Math.max(MARGEM, ancoraVisivel.x + ancoraVisivel.width - largura),
@@ -217,21 +226,36 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado, ti
         </Animated.View>
       </Pressable>
       {previaVisivel ? (
-        // A linha levantada: a mesma, no mesmo sítio, a crescer 4,5 % com sombra
+        // A linha levantada: a mesma, no mesmo sítio, a crescer (3 % as linhas, 4,5 % os cartões) com sombra
         // e o fundo das superfícies altas. Presa à entrada do menu: sai com ele.
+        // Uma linha (com placa) entra uns pontos dos lados e ganha os cantos
+        // redondos: vê-se que se levantou a barra da música (26/11). A sombra fica
+        // por fora, o recorte por dentro (no iOS o recorte cortava a sombra).
         <Animated.View pointerEvents="none" style={[styles.previa, previaVisivel.semFundo && styles.previaSemFundo, {
-          left: previaVisivel.ret.x, top: previaVisivel.ret.y, width: previaVisivel.ret.width, height: previaVisivel.ret.height,
-          transform: [{ scale: entrada.interpolate({ inputRange: [0, 1], outputRange: [1, 1.045] }) }],
+          left: previaVisivel.ret.x + (previaVisivel.semFundo ? 0 : RECUO_DA_PLACA),
+          top: previaVisivel.ret.y,
+          width: previaVisivel.ret.width - (previaVisivel.semFundo ? 0 : 2 * RECUO_DA_PLACA),
+          height: previaVisivel.ret.height,
+          transform: [
+            { translateY: entrada.interpolate({ inputRange: [0, 1], outputRange: [0, desvioDaPrevia] }) },
+            { scale: entrada.interpolate({ inputRange: [0, 1], outputRange: [1, previaVisivel.semFundo ? 1.045 : 1.03] }) },
+          ],
           shadowOpacity: entrada.interpolate({ inputRange: [0, 1], outputRange: [0, 0.6] }),
         }]}>
-          {previaVisivel.conteudo}
+          {previaVisivel.semFundo ? previaVisivel.conteudo : (
+            <View style={styles.recorteDaPlaca}>
+              <View style={{ position: 'absolute', top: 0, left: -RECUO_DA_PLACA, width: previaVisivel.ret.width, height: previaVisivel.ret.height }}>
+                {previaVisivel.conteudo}
+              </View>
+            </View>
+          )}
         </Animated.View>
       ) : null}
       <Animated.View
         pointerEvents={mostrar ? 'auto' : 'none'}
         style={[
           styles.menu,
-          { top: topo, left: esquerda, width: largura },
+          porCimaDaPrevia ? { bottom: height - (topo + altura), left: esquerda, width: largura } : { top: topo, left: esquerda, width: largura },
           rola && { height: altura },
           {
             opacity: entrada,
@@ -324,6 +348,7 @@ const styles = StyleSheet.create({
   },
   // Um cartão levanta-se como é: a capa e o nome, sem a placa das linhas.
   previaSemFundo: { backgroundColor: 'transparent', borderRadius: 0 },
+  recorteDaPlaca: { flex: 1, borderRadius: 14, overflow: 'hidden' },
   menu: {
     position: 'absolute',
     borderRadius: radii.lg,
