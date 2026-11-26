@@ -52,7 +52,7 @@ const h = hooks();
 const linhas = Array.from({ length: 100 }, (_, i) => ({ text: `Verso ${i}`, timeMs: i * 2000 }));
 const player = { positionMs: 4000, seekTo: ms => { player.positionMs = ms; } };
 // Com a letra com mola ligada (a de origem, 25/11): avançar um verso continua sem alocar por linha.
-const aparencia = { tamanhoDasLetras: 'm', letraComMola: true };
+const aparencia = { tamanhoDasLetras: 'm', molaNaLetra: true };
 const letra = { entries: { ensaio: { status: 'ready', data: { parsedLines: linhas, timingAvailable: true } } } };
 const { LyricsView } = carregar('src/components/LyricsView.tsx', {
   react: h.React, 'react-native': rn,

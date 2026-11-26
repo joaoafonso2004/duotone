@@ -44,7 +44,7 @@ export function LyricsView({track,visible,escala=1}:{track:Track;visible:boolean
   // O tamanho escolhido (10/10, personalização: S, M -- o de sempre -- ou L).
   const tamanhoEscolhido=useAparencia(s=>s.tamanhoDasLetras);
   // A letra com mola (25/11, item 4 do plano): só no iPhone (o PC tem a dele), com a opção.
-  const molaLigada=useAparencia(s=>s.letraComMola);
+  const molaLigada=useAparencia(s=>s.molaNaLetra);
   const comMola=Platform.OS==='ios'&&molaLigada&&!reduced;
   const ultimoY=useRef<number|null>(null);
   const tamanho=useMemo(()=>{

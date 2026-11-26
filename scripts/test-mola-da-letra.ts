@@ -1,6 +1,6 @@
 /**
  * A letra com mola, linha a linha (25/11, item 4 do plano de melhorias): as contas
- * do `lib/molaDaLetra.ts`, a opção (Customise › Lyrics, ligada de origem) e quem a lê.
+ * do `lib/molaDaLetra.ts`, a opção (Customise › Lyrics, desligada de origem desde 26/11) e quem a lê.
  *
  * Correr: node --experimental-strip-types --import ./scripts/registar-resolver.mjs scripts/test-mola-da-letra.ts
  */
@@ -38,11 +38,12 @@ caso('o salto chega a quem ouve, e quem sai deixa de ouvir', () => {
   assert.deepEqual(vistos, [42]);
 });
 
-caso('a opção: ligada de origem, e lê-se do que está guardado', () => {
-  assert.equal(PADRAO.letraComMola, true);
-  assert.equal(lerAparencia({ letraComMola: false }).letraComMola, false);
-  assert.equal(lerAparencia({ letraComMola: 'sim' }).letraComMola, true, 'um valor estragado fica o de origem');
-  assert.match(ler('src/screens/PersonalizarScreen.tsx'), /rotulo="Flowing lyrics" valor=\{ap\.letraComMola\}/);
+caso('a opção: desligada de origem (26/11), e lê-se do que está guardado', () => {
+  assert.equal(PADRAO.molaNaLetra, false);
+  assert.equal(lerAparencia({ molaNaLetra: true }).molaNaLetra, true, 'quem a ligou fica com ela');
+  assert.equal(lerAparencia({ molaNaLetra: false }).molaNaLetra, false);
+  assert.equal(lerAparencia({ molaNaLetra: 'sim' }).molaNaLetra, false, 'um valor estragado fica o de origem');
+  assert.match(ler('src/screens/PersonalizarScreen.tsx'), /rotulo="Flowing lyrics" valor=\{ap\.molaNaLetra\}/);
   assert.match(ler('src/i18n/fr.ts'), /"Flowing lyrics": "/);
 });
 
@@ -53,7 +54,7 @@ caso('quem a lê: o scroll salta e avisa só no iPhone, e cada linha volta com a
   assert.match(v, /const pauseFollowing=\(\)=>\{ultimoY\.current=null;/, 'a mão no scroll recomeça a conta');
   const l = ler('src/components/LinhaDaLetra.tsx');
   assert.match(l, /Animated\.spring\(desvio,\{toValue:0,[^}]*delay:atraso,useNativeDriver:true\}\)/);
-  assert.match(l, /const comMola=useAparencia\(s=>s\.letraComMola\)&&!reduced;/, 'com Reduzir movimento, nada');
+  assert.match(l, /const comMola=useAparencia\(s=>s\.molaNaLetra\)&&!reduced;/, 'com Reduzir movimento, nada');
   assert.match(l, /const transform=useMemo\(/, 'uma interpolação por linha, não por desenho');
 });
 

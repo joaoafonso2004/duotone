@@ -31,7 +31,7 @@ export const LinhaDaLetra=memo(function LinhaDaLetra({text,timeMs,index,estado,o
   // A letra com mola (25/11, item 4 do plano, `lib/molaDaLetra.ts`): quando o
   // scroll salta, esta linha põe-se onde estava e volta com uma mola, mais tarde
   // quanto mais abaixo da linha nova; e a linha cantada cresce, presa à esquerda.
-  const comMola=useAparencia(s=>s.letraComMola)&&!reduced;
+  const comMola=useAparencia(s=>s.molaNaLetra)&&!reduced;
   const desvio=useRef(new Animated.Value(0)).current;
   const escala=useRef(new Animated.Value(1)).current;
   const [largura,setLargura]=useState(0);
