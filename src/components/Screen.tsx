@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { BlurView } from 'expo-blur';
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View, ViewStyle, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FUNDO_APARECE_EM, geometriaDoTitulo } from '../lib/tituloQueEncolhe';
@@ -24,6 +24,13 @@ export type CabecalhoQueEncolhe = {
   definirEspaco: (altura: number) => void;
   /** Volta ao cabeçalho aberto (uma lista trocada por outra que começa no topo). */
   repor: () => void;
+  /**
+   * Quanto se rola até o cabeçalho ficar compacto (o título na barra pequena e o
+   * `fixo` logo por baixo dela). 0 até o cabeçalho se medir. A pesquisa da Home
+   * leva a `rolagem` até aqui ao abrir (26/11, item 16 do plano).
+   */
+  distancia: number;
+  definirDistancia: (d: number) => void;
 };
 
 export function useCabecalhoQueEncolhe(): CabecalhoQueEncolhe {
@@ -31,6 +38,7 @@ export function useCabecalhoQueEncolhe(): CabecalhoQueEncolhe {
   const rolagem = useRef(new Animated.Value(0)).current;
   // Uma estimativa até o cabeçalho se medir: a lista não salta no arranque.
   const [espaco, setEspaco] = useState(insets.top + 96);
+  const [distancia, setDistancia] = useState(0);
   const onScroll = useMemo(
     () => Animated.event([{ nativeEvent: { contentOffset: { y: rolagem } } }], { useNativeDriver: true }),
     [rolagem],
@@ -42,7 +50,9 @@ export function useCabecalhoQueEncolhe(): CabecalhoQueEncolhe {
     espaco,
     definirEspaco: (a: number) => setEspaco((antes) => (Math.abs(antes - a) > 0.5 ? a : antes)),
     repor: () => rolagem.setValue(0),
-  }), [rolagem, onScroll, espaco]);
+    distancia,
+    definirDistancia: (d: number) => setDistancia((antes) => (Math.abs(antes - d) > 0.5 ? d : antes)),
+  }), [rolagem, onScroll, espaco, distancia]);
 }
 
 interface Props {
@@ -208,6 +218,10 @@ function ScreenQueEncolhe({ title, subtitle, right, topLeft, onBack, antes, chil
       centroDoVoltar: voltar ? linha.y + voltar.y + voltar.height / 2 : undefined,
     });
   }, [linha, coluna, titulo, direita, voltar, width, insets.top, tamanho]);
+
+  // Quem precisa de compactar o cabeçalho sem rolar (a pesquisa da Home) fica a saber quanto.
+  const definirDistancia = cab.definirDistancia;
+  useEffect(() => { if (g) definirDistancia(g.distancia); }, [g, definirDistancia]);
 
   const anim = useMemo(() => {
     const r = cab.rolagem;

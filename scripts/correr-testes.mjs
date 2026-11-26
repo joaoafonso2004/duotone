@@ -230,6 +230,7 @@ const TESTES = [
   `${TS} scripts/test-voo-do-quadrado.ts`,
   `${TS} scripts/test-atividade-ao-vivo.ts`,
   `${TS} scripts/test-icone-da-app.ts`,
+  `${TS} scripts/test-pesquisa-abre.ts`,
   `${RESOLVER} scripts/test-menu-do-lancamento.ts`,
   `${TS} scripts/test-playlist-colaborativa.ts`,
   `${TS} scripts/test-destinos.ts`,

@@ -1,10 +1,13 @@
 import { abrirAlbum } from '../navigation/abrirAlbum';
 import { levantar } from '../components/levantarAoSegurar';
 import { EntradaEmCascata, EntradaPelaDireita } from '../components/EntradaEmCascata';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+import { ENTRADA } from '../lib/movimento';
+import { pedirFluidez } from '../state/fluidez';
 import { useRecommendationFeedback } from '../state/recommendationFeedback';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FILTROS_DE_VERSAO, filtrosComResultados, versaoPassa, type FiltroDeVersao } from '../lib/filtroDeVersao';
 import {
   ActivityIndicator,
@@ -712,6 +715,47 @@ export function SearchScreen() {
     }
   };
 
+  // A pesquisa abre a crescer do campo (26/11, item 16 do plano, `#m16` da maquete):
+  // o cabeçalho compacta-se (o título sobe para a barra e o campo com ele), a Home
+  // recua (0,94) e apaga-se por baixo, e o que se pesquisa abre por cima, já
+  // encostado ao campo. Enquanto se pesquisa o cabeçalho fica compacto, como na
+  // pesquisa do iOS, e as listas da pesquisa não o mexem. O Cancel faz o contrário.
+  const modoPesquisa = isFocused || query.trim().length >= 2;
+  const reduzido = useReducedMotion();
+  const recuo = useRef(new Animated.Value(0)).current;
+  /** Onde a Home estava rolada: é para lá que o cabeçalho volta no Cancel. */
+  const rolagemDaCasa = useRef(0);
+  const guardarRolagemDaCasa = useCallback((e: { nativeEvent: { contentOffset: { y: number } } }) => {
+    rolagemDaCasa.current = Math.max(0, e.nativeEvent.contentOffset.y);
+  }, []);
+  const primeiraVez = useRef(true);
+  useEffect(() => {
+    if (primeiraVez.current) { primeiraVez.current = false; return; }
+    const d = cab.distancia, casa = rolagemDaCasa.current;
+    // Com a Home rolada para lá da distância o cabeçalho já estava compacto: fica.
+    const mexeCabecalho = d > 0 && casa < d;
+    const alvo = modoPesquisa ? d : casa;
+    if (reduzido) {
+      recuo.setValue(modoPesquisa ? 1 : 0);
+      if (mexeCabecalho) cab.rolagem.setValue(alvo);
+      return;
+    }
+    pedirFluidez(700);
+    Animated.spring(recuo, { toValue: modoPesquisa ? 1 : 0, ...ENTRADA, useNativeDriver: true }).start();
+    if (mexeCabecalho) Animated.spring(cab.rolagem, { toValue: alvo, ...ENTRADA, useNativeDriver: true }).start();
+    // Só quando se entra ou sai da pesquisa.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modoPesquisa]);
+  /** O topo do que se pesquisa: logo por baixo do cabeçalho compacto. */
+  const topoDaPesquisa = Math.max(0, cab.espaco - cab.distancia);
+  const estiloDaCasa = useMemo(() => ({
+    opacity: recuo.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+    transform: [
+      { translateY: recuo.interpolate({ inputRange: [0, 1], outputRange: [0, 30] }) },
+      { scale: recuo.interpolate({ inputRange: [0, 1], outputRange: [1, 0.94] }) },
+    ],
+  }), [recuo]);
+
   // O refrescar vive no cabecalho, como no PC -- um icone, nao uma linha de
   // texto encostada a direita por cima de tudo. E so aparece quando ha
   // recomendacoes: antes disso nao ha nada para refrescar, e o botao chegava
@@ -787,17 +831,76 @@ export function SearchScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
       >
-        {tipoAtivo !== 'musicas' ? (
-          porTipo.loading ? <View style={{ paddingTop: cab.espaco }}><SkeletonDeFaixas /></View> : (
-            <Animated.FlatList
-              onScroll={cab.onScroll}
+        {/* A Home fica montada por baixo enquanto se pesquisa (26/11, item 16): recua e
+            apaga-se, e volta do mesmo sítio no Cancel (e com a mesma rolagem). */}
+        <Animated.View
+          pointerEvents={modoPesquisa ? 'none' : 'box-none'}
+          accessibilityElementsHidden={modoPesquisa}
+          importantForAccessibility={modoPesquisa ? 'no-hide-descendants' : 'auto'}
+          style={[StyleSheet.absoluteFill, { transformOrigin: 'top' }, estiloDaCasa]}
+        >
+          {/* Default state - Show Recommendations */}
+            <Animated.ScrollView
+              ref={topoDaPagina}
+              refreshControl={puxar}
+              onScroll={modoPesquisa ? undefined : cab.onScroll}
+              onScrollEndDrag={guardarRolagemDaCasa}
+              onMomentumScrollEnd={guardarRolagemDaCasa}
               scrollEventThrottle={cab.scrollEventThrottle}
               scrollIndicatorInsets={{ top: cab.espaco }}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: bottomPad }}
+              showsVerticalScrollIndicator={false}
+            >
+              {/* A cabeca de tudo, e so quando ha alguem: quem esta online
+                  agora, e o que esta a ouvir. Sem ninguem, o componente nao devolve nada e a pagina
+                  comeca onde sempre comecou -- e por isso que isto pode viver
+                  no sitio mais caro do ecra sem custar nada nos dias em que
+                  nao ha ninguem online. */}
+              <AmigosAOuvir />
+              {/* A grelha de atalhos, a cabeca da pagina.
+                  ------------------------------------------------------------
+                  Sao os mesmos mixes que estao nas prateleiras la em baixo, e a
+                  repeticao e deliberada: la o mosaico e grande e serve para
+                  olhar, aqui e pequeno e serve para chegar la num toque, sem
+                  rolar. E o "Liked songs" a abrir, porque e o unico destino que
+                  se abre sempre e nunca muda de nome.
+
+                  So aparece com mixes: uma grelha com um quadrado sozinho nao e
+                  uma grelha, e no primeiro dia de uma conta nova nao ha mixes
+                  nenhuns. */}
+              {secoesDaHome.map((secao) => <React.Fragment key={secao}>{blocoDaHome(secao)}</React.Fragment>)}
+              {/* O vazio deixa de ser so uma frase.
+                  ------------------------------------------------------------
+                  Dizia "comeca a ouvir musica" a quem acabou de instalar a
+                  app -- verdade, e inutil: a pagina que devia mostrar musica
+                  estava a mandar a pessoa ir descobri-la sozinha. Escolher
+                  tres artistas da a esta pagina por onde comecar, e o botao
+                  desaparece assim que houver recomendacoes. */}
+              {!loadingRecs && !temRecomendacoes(recs) && (
+                <View style={{ alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.xl, paddingTop: spacing.xl }}>
+                  <Text style={styles.emptyRecsText}>
+                    {hasFeedback
+                      ? 'No suggestions match your current preferences. You can review them in Settings → Recommendations, or search for music above.'
+                      : 'Nothing to go on yet. Tell the app three artists you like and it starts from there.'}
+                  </Text>
+                  {!hasFeedback && (
+                    <PillButton label="Pick 3 artists" onPress={() => setEscolherAberto(true)} />
+                  )}
+                </View>
+              )}
+            </Animated.ScrollView>
+        </Animated.View>
+        {!modoPesquisa ? null : tipoAtivo !== 'musicas' ? (
+          porTipo.loading ? <View style={{ paddingTop: topoDaPesquisa }}><SkeletonDeFaixas /></View> : (
+            <Animated.FlatList
+                  scrollIndicatorInsets={{ top: topoDaPesquisa }}
               data={(tipoAtivo === 'artistas' ? porTipo.artistas
                 : tipoAtivo === 'albuns' ? porTipo.albuns.map((a) => ({ id: a.id, titulo: a.titulo, legenda: legendaDoAlbumEncontrado(a), capa: a.capa }))
                 : porTipo.playlists) as (ArtistaEncontrado | ItemEmCapa)[]}
               keyExtractor={(x) => ('canal' in x ? x.canal : x.id)}
-              contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: bottomPad, flexGrow: 1 }}
+              contentContainerStyle={{ paddingTop: topoDaPesquisa, paddingBottom: bottomPad, flexGrow: 1 }}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
               ListHeaderComponent={tipoAtivo === 'playlists' ? cartaoDoDestaque : null}
@@ -820,9 +923,9 @@ export function SearchScreen() {
             />
           )
         ) : estado.tipo === 'a-carregar' ? (
-          <View style={{ paddingTop: cab.espaco }}><SkeletonDeFaixas /></View>
+          <View style={{ paddingTop: topoDaPesquisa }}><SkeletonDeFaixas /></View>
         ) : estado.tipo === 'falhou' ? (
-          <Pressable style={{ flex: 1, paddingTop: cab.espaco }} onPress={Keyboard.dismiss}>
+          <Pressable style={{ flex: 1, paddingTop: topoDaPesquisa }} onPress={Keyboard.dismiss}>
             <EmptyState
               icon="cloud-offline-outline"
               title={FRASES_DA_PESQUISA.falhou}
@@ -834,12 +937,10 @@ export function SearchScreen() {
         ) : query.trim().length < 2 && isFocused && history.length > 0 ? (
           /* Focused Search input - Show Search History */
           <Animated.ScrollView
-            onScroll={cab.onScroll}
-            scrollEventThrottle={cab.scrollEventThrottle}
-            scrollIndicatorInsets={{ top: cab.espaco }}
+            scrollIndicatorInsets={{ top: topoDaPesquisa }}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
-            contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingTop: cab.espaco, paddingBottom: bottomPad }}
+            contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingTop: topoDaPesquisa, paddingBottom: bottomPad }}
           >
             {/* As recentes chegam uma a uma (25/11, item 16 do plano de melhorias). */}
             <EntradaEmCascata indice={0}>
@@ -872,59 +973,8 @@ export function SearchScreen() {
               </EntradaEmCascata>
             ))}
           </Animated.ScrollView>
-        ) : query.trim().length < 2 && !isFocused ? (
-          /* Default state - Show Recommendations */
-          <Animated.ScrollView
-            ref={topoDaPagina}
-            refreshControl={puxar}
-            onScroll={cab.onScroll}
-            scrollEventThrottle={cab.scrollEventThrottle}
-            scrollIndicatorInsets={{ top: cab.espaco }}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="on-drag"
-            contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: bottomPad }}
-            showsVerticalScrollIndicator={false}
-          >
-            {/* A cabeca de tudo, e so quando ha alguem: quem esta online
-                agora, e o que esta a ouvir. Sem ninguem, o componente nao devolve nada e a pagina
-                comeca onde sempre comecou -- e por isso que isto pode viver
-                no sitio mais caro do ecra sem custar nada nos dias em que
-                nao ha ninguem online. */}
-            <AmigosAOuvir />
-            {/* A grelha de atalhos, a cabeca da pagina.
-                ------------------------------------------------------------
-                Sao os mesmos mixes que estao nas prateleiras la em baixo, e a
-                repeticao e deliberada: la o mosaico e grande e serve para
-                olhar, aqui e pequeno e serve para chegar la num toque, sem
-                rolar. E o "Liked songs" a abrir, porque e o unico destino que
-                se abre sempre e nunca muda de nome.
-
-                So aparece com mixes: uma grelha com um quadrado sozinho nao e
-                uma grelha, e no primeiro dia de uma conta nova nao ha mixes
-                nenhuns. */}
-            {secoesDaHome.map((secao) => <React.Fragment key={secao}>{blocoDaHome(secao)}</React.Fragment>)}
-            {/* O vazio deixa de ser so uma frase.
-                ------------------------------------------------------------
-                Dizia "comeca a ouvir musica" a quem acabou de instalar a
-                app -- verdade, e inutil: a pagina que devia mostrar musica
-                estava a mandar a pessoa ir descobri-la sozinha. Escolher
-                tres artistas da a esta pagina por onde comecar, e o botao
-                desaparece assim que houver recomendacoes. */}
-            {!loadingRecs && !temRecomendacoes(recs) && (
-              <View style={{ alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.xl, paddingTop: spacing.xl }}>
-                <Text style={styles.emptyRecsText}>
-                  {hasFeedback
-                    ? 'No suggestions match your current preferences. You can review them in Settings → Recommendations, or search for music above.'
-                    : 'Nothing to go on yet. Tell the app three artists you like and it starts from there.'}
-                </Text>
-                {!hasFeedback && (
-                  <PillButton label="Pick 3 artists" onPress={() => setEscolherAberto(true)} />
-                )}
-              </View>
-            )}
-          </Animated.ScrollView>
         ) : estado.tipo !== 'resultados' ? (
-          <Pressable style={{ flex: 1, paddingTop: cab.espaco }} onPress={Keyboard.dismiss}>
+          <Pressable style={{ flex: 1, paddingTop: topoDaPesquisa }} onPress={Keyboard.dismiss}>
             <EmptyState
               icon="search-outline"
               title={estado.tipo === 'sem-resultados' ? FRASES_DA_PESQUISA.semResultados : 'Start typing to search'}
@@ -934,12 +984,10 @@ export function SearchScreen() {
         ) : (
           <Animated.FlatList
             ref={topoDosResultados}
-            onScroll={cab.onScroll}
-            scrollEventThrottle={cab.scrollEventThrottle}
-            scrollIndicatorInsets={{ top: cab.espaco }}
+            scrollIndicatorInsets={{ top: topoDaPesquisa }}
             data={results.filter((r) => versaoPassa(r.title, versao))}
             keyExtractor={(t) => `${t.source}:${t.sourceId}`}
-            contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: bottomPad }}
+            contentContainerStyle={{ paddingTop: topoDaPesquisa, paddingBottom: bottomPad }}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
             /* O que já é teu vem PRIMEIRO, e sem esperar pela rede. A procura
