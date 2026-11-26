@@ -397,6 +397,7 @@ const TESTES = [
   `${TS} scripts/test-menos-pedidos-app-publica.ts`,
   `${DUPLOS} scripts/test-menos-logs.ts`,
   `${TS} scripts/test-presenca-ao-vivo.ts`,
+  'scripts/test-presenca-ao-vivo-religa.cjs',
   `${TS} scripts/test-menos-egress.ts`,
   `${RESOLVER} scripts/test-o-que-mudou.ts`,
   `${RESOLVER} scripts/test-atualizacao-obrigatoria.ts`,
