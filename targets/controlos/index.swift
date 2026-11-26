@@ -17,6 +17,8 @@ import WidgetKit
 @main
 struct ControlosDoDuotone: WidgetBundle {
   var body: some Widget {
+    // A Live Activity (26/11, `AtividadeDoDuotone.swift`): no mesmo alvo, sem App ID novo.
+    AtividadeDoDuotone()
     if #available(iOS 18.0, *) {
       ControloContinuar()
       ControloMisturaDoDia()

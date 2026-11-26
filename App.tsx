@@ -16,6 +16,7 @@ import { AppState, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { UpdateSheet } from './src/components/UpdateSheet';
+import { AtividadeAoVivo } from './src/hooks/useAtividadeAoVivo';
 import { ProvedorDoTeclado } from './src/components/Teclado';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { definirEstiloDaCapaDoEcraBloqueado } from './modules/duotone-remote-commands';
@@ -486,6 +487,9 @@ export default function App() {
           `components/ResumoDoMes.tsx`. */}
       <ResumoDoMes />
       <UpdateSheet />
+      {/* A Live Activity (26/11, item 8 do plano): a Jam, o temporizador e o AutoMix no
+          ecrã bloqueado, só quando os há. Num componente só dela, para não redesenhar a raiz. */}
+      <AtividadeAoVivo />
       {/* O eclipse do arranque, por cima de tudo e por isso em último. A app
           arranca por baixo enquanto ele toca. Ver `components/Abertura.tsx`. */}
       <Abertura />

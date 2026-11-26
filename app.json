@@ -23,6 +23,7 @@
         ],
         "ITSAppUsesNonExemptEncryption": false,
         "CADisableMinimumFrameDurationOnPhone": true,
+        "NSSupportsLiveActivities": true,
         "UIApplicationShortcutItems": [
           {
             "UIApplicationShortcutItemType": "com.joao.duotone.continuar",

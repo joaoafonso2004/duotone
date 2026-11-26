@@ -2548,4 +2548,17 @@ export const FR: Readonly<Record<string, string>> = {
   "Password changed.": "Mot de passe changé.",
   "Use the new one the next time you sign in.": "Utilisez le nouveau la prochaine fois que vous vous connectez.",
   "We'll email you a code to choose a new one.": "Nous vous enverrons un code par e-mail pour en choisir un nouveau.",
+  // A Live Activity (26/11, lib/atividadeAoVivo.ts).
+  "Your Jam": "Votre Jam",
+  "Jam with {0}": "Jam avec {0}",
+  "Jam with {0} and {1}": "Jam avec {0} et {1}",
+  "Jam with {0}, {1} and {2:n} more": "Jam avec {0}, {1} et {2} autres",
+  "You added this song": "Vous avez ajouté ce titre",
+  "{0} added this song": "{0} a ajouté ce titre",
+  "You're hosting": "Vous animez la Jam",
+  "{0} is hosting": "{0} anime la Jam",
+  "{0:n} listening": "{0} à l'écoute",
+  "Music stops in": "La musique s'arrête dans",
+  "Music stops after this song": "La musique s'arrête après ce titre",
+  "Mixing into {0}": "Enchaînement vers {0}",
 };
