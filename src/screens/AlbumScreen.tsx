@@ -63,6 +63,7 @@ export function AlbumScreen({ route }: Props) {
   const [titulo, setTitulo] = useState(p.titulo);
   const [acao, setAcao] = useState<Track | null>(null);
   const [aGuardar, setAGuardar] = useState(false);
+  const [aGuardarLista, setAGuardarLista] = useState(false);
   const guardado = useAlbumGuardado(p.id);
   const cor = useCorDoAmbiente(p.capa ?? null);
   // O mesmo lado que a camada do voo prevê para o centro (\`alvoPrevisto\`).
@@ -108,7 +109,8 @@ export function AlbumScreen({ route }: Props) {
     }
   };
   const guardarComoPlaylist = async () => {
-    if (!faixas?.length) return;
+    if (!faixas?.length || aGuardarLista) return;
+    setAGuardarLista(true);
     try {
       const pl = await createPlaylist(titulo);
       await addTracksToPlaylist(pl.id, faixas);
@@ -116,6 +118,8 @@ export function AlbumScreen({ route }: Props) {
       avisarFeito(`Saved "${titulo}"`, `${faixas.length} ${faixas.length === 1 ? 'song' : 'songs'}`);
     } catch (e) {
       avisarErro(mensagemDeErro(e, "Couldn't save playlist."));
+    } finally {
+      setAGuardarLista(false);
     }
   };
 
@@ -138,9 +142,6 @@ export function AlbumScreen({ route }: Props) {
           <Ionicons name="shuffle" size={22} color={colors.text} />
         </Pressable>
       </View>
-      <Pressable onPress={() => void guardarComoPlaylist()} disabled={!faixas?.length} hitSlop={8} accessibilityRole="button">
-        <Text style={[type.caption, styles.guardarComo]}>Save as playlist</Text>
-      </Pressable>
     </View>
   );
 
@@ -163,6 +164,13 @@ export function AlbumScreen({ route }: Props) {
         style={[styles.voltar, { top: insets.top + 8 }]}>
         <Ionicons name="chevron-back" size={22} color={colors.text} />
       </Pressable>
+      {/* "Save as playlist" (26/11, o João: "tira este texto e põe um ícone bem
+          posicionado"): em espelho com o voltar, como as ações de página do iOS. */}
+      <Pressable onPress={() => void guardarComoPlaylist()} disabled={!faixas?.length || aGuardarLista} hitSlop={12}
+        accessibilityRole="button" accessibilityLabel="Save as playlist"
+        style={({ pressed }) => [styles.guardarComo, { top: insets.top + 8 }, (pressed || aGuardarLista) && { opacity: 0.6 }, !faixas?.length && { opacity: 0.4 }]}>
+        <Ionicons name="add" size={24} color={colors.text} />
+      </Pressable>
       <TrackActionsSheet visible={!!acao} track={acao} origem={origem} onClose={() => setAcao(null)} />
     </View>
   );
@@ -178,6 +186,7 @@ const styles = StyleSheet.create({
   meta: { textAlign: 'center' },
   accoes: { flexDirection: 'row', alignItems: 'center', gap: spacing.xl, marginTop: spacing.sm },
   redondo: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
-  guardarComo: { color: colors.textSecondary, marginTop: spacing.xs },
+  // O par do voltar, no canto da direita.
+  guardarComo: { position: 'absolute', right: spacing.lg, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.35)' },
   voltar: { position: 'absolute', left: spacing.lg, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.35)' },
 });

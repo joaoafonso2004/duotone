@@ -44,5 +44,14 @@ caso('os quatro sítios que abriam a folha abrem a página', () => {
   assert.match(ler('src/screens/ConversaScreen.tsx'), /aoAbrirAlbum=\{\(a\)=>abrirAlbum\(navigation,/);
 });
 
+caso('"Save as playlist" é um ícone no canto, em espelho com o voltar, e não um texto (26/11)', () => {
+  const p = ler('src/screens/AlbumScreen.tsx');
+  assert.doesNotMatch(p, /<Text[^>]*>Save as playlist<\/Text>/);
+  assert.match(p, /accessibilityRole="button" accessibilityLabel="Save as playlist"/);
+  assert.match(p, /<Ionicons name="add" size=\{24\}/);
+  assert.match(p, /guardarComo: \{ position: 'absolute', right: spacing\.lg, width: 36, height: 36, borderRadius: 18/);
+  assert.match(p, /if \(!faixas\?\.length \|\| aGuardarLista\) return;/, 'um segundo toque não cria outra');
+});
+
 if (falhas) { console.log(`\n${falhas} falha(s)`); process.exit(1); }
 console.log('\ntudo certo');
