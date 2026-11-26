@@ -18,6 +18,8 @@ export type PropsDaLinha={
   visible:boolean;text:string;timeMs:number;index:number;estado:EstadoDaLinha;refrao:boolean;
   onPress:(timeMs:number)=>void;onLayout:(index:number,y:number)=>void;reduced:boolean;
   tamanho:{fontSize:number;lineHeight:number};
+  /** O tempo de cada palavra (26/11, item 23): só o iPhone o usa; o PC mostra a linha como sempre. */
+  palavras?:readonly unknown[];
 };
 
 const COR_DA_LINHA:Record<EstadoDaLinha,{color:string;opacity:number}>={

@@ -94,7 +94,7 @@ export function LyricsView({track,visible,escala=1}:{track:Track;visible:boolean
         <SemLetra tipo={data?.instrumental?'instrumental':entry.status==='missing'?'semLetra':'letraFalhou'} mensagem={entry.message} visible={visible} aoRepetir={retry} />:
       <>
         <View style={{flex:1,overflow:'hidden'}}><ScrollView ref={scroll} onLayout={e=>setHeight(e.nativeEvent.layout.height)} onContentSizeChange={()=>setRevision(v=>v+1)} {...({onWheel:pauseFollowing,style:{touchAction:'pan-y'}} as any)} onScrollBeginDrag={pauseFollowing} onTouchStart={pauseFollowing} showsVerticalScrollIndicator={false} contentContainerStyle={{paddingHorizontal:24,paddingTop:height*0.28,paddingBottom:height*0.65}}>
-          {synced?lines.map((line,i)=><LinhaDaLetra key={`${key}:${i}`} text={line.text} timeMs={line.timeMs} index={i} estado={estadoDaLinha(i,index)} refrao={i===linhaDoRefrao} reduced={reduced} visible={visible} tamanho={tamanho.linha} onLayout={guardarAltura} onPress={tocarDaLinha} />):<Text style={[styles.words,tamanho.texto]}>{data?.plainLyrics}</Text>}
+          {synced?lines.map((line,i)=><LinhaDaLetra key={`${key}:${i}`} text={line.text} timeMs={line.timeMs} index={i} estado={estadoDaLinha(i,index)} refrao={i===linhaDoRefrao} reduced={reduced} visible={visible} tamanho={tamanho.linha} palavras={line.palavras} onLayout={guardarAltura} onPress={tocarDaLinha} />):<Text style={[styles.words,tamanho.texto]}>{data?.plainLyrics}</Text>}
         </ScrollView>
         </View>
         {/* Só aparece rodapé quando há mesmo o que dizer. O "LYRICS" em cima e

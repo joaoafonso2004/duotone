@@ -4,6 +4,8 @@ import {atrasoDaLinha,MOLA_DA_LETRA,ouvirSaltoDaLetra} from '../lib/molaDaLetra'
 import {pedirFluidez} from '../state/fluidez';
 import {useAparencia} from '../state/aparencia';
 import type {Track} from '../types';
+import type {PalavraDaLetra} from '../lib/lyricsParser';
+import {PalavrasDaLetra} from './PalavrasDaLetra';
 
 /**
  * Uma linha da letra sincronizada, no iPhone (o verso da capa, 🔒): a ativa
@@ -18,9 +20,11 @@ export type PropsDaLinha={
   refrao:boolean;
   onPress:(timeMs:number)=>void;onLayout:(index:number,y:number)=>void;reduced:boolean;
   tamanho:{fontSize:number;lineHeight:number};
+  /** O tempo de cada palavra, quando a letra o traz (26/11, item 23): a cantada acende palavra a palavra. */
+  palavras?:readonly PalavraDaLetra[];
 };
 
-export const LinhaDaLetra=memo(function LinhaDaLetra({text,timeMs,index,estado,onPress,onLayout,reduced,visible,tamanho}:PropsDaLinha){
+export const LinhaDaLetra=memo(function LinhaDaLetra({text,timeMs,index,estado,onPress,onLayout,reduced,visible,tamanho,palavras}:PropsDaLinha){
   const active=estado==='ativa';
   const opacity=useRef(new Animated.Value(active?1:0.4)).current;
   useEffect(()=>{const animation=Animated.timing(opacity,{toValue:active?1:0.4,duration:reduced?0:220,useNativeDriver:true});animation.start();return()=>animation.stop();},[active,reduced]);
@@ -56,7 +60,8 @@ export const LinhaDaLetra=memo(function LinhaDaLetra({text,timeMs,index,estado,o
     {scale:escala},
   ]:undefined,[comMola,largura,desvio,escala]);
   return <Pressable disabled={!visible} onLayout={e=>{onLayout(index,e.nativeEvent.layout.y);const w=e.nativeEvent.layout.width;if(Math.abs(w-largura)>0.5)setLargura(w);}} accessibilityRole="button" accessibilityLabel={text?`Play from: ${text}`:'Instrumental break'} accessibilityState={{selected:active}} onPress={()=>onPress(timeMs)} style={styles.line}>
-    <Animated.Text style={[styles.words,tamanho,{opacity,transform}]}>{text||'♪'}</Animated.Text>
+    {/* Palavra a palavra só na cantada e só com os tempos das palavras; senão, a linha de sempre. */}
+    <Animated.Text style={[styles.words,tamanho,{opacity,transform}]}>{active&&palavras&&palavras.length>1?<PalavrasDaLetra palavras={palavras} />:(text||'♪')}</Animated.Text>
   </Pressable>;
 });
 

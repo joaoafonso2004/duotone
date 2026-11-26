@@ -68,7 +68,9 @@ const { LyricsView } = carregar('src/components/LyricsView.tsx', {
   // A linha é um par de plataforma (1/11): aqui a do iPhone, a verdadeira.
   './LinhaDaLetra': carregar('src/components/LinhaDaLetra.tsx', { react: h.React, 'react-native': rn,
     '../lib/molaDaLetra': carregar('src/lib/molaDaLetra.ts'), '../state/fluidez': { pedirFluidez() {} },
-    '../state/aparencia': { useAparencia: selector => selector(aparencia) } }),
+    '../state/aparencia': { useAparencia: selector => selector(aparencia) },
+    // A cantada palavra a palavra (26/11): aqui nenhuma linha tem os tempos das palavras.
+    './PalavrasDaLetra': { PalavrasDaLetra: 'Palavras' } }),
 });
 const props = { track: { sourceId: 'ensaio' }, visible: true };
 const desenhar = () => todos(h.render(LyricsView, props)).filter(n => n.type?.name === 'LinhaDaLetra');
