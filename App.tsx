@@ -1,5 +1,6 @@
 import 'react-native-url-polyfill/auto';
-import { startConnectivity,useConnectivity } from './src/state/connectivity';
+import { confirmarLigacao,desconfirmarLigacao,startConnectivity,useConnectivity } from './src/state/connectivity';
+import { aoChegarRespostaDoSupabase } from './src/lib/fetchDoSupabase';
 import { loadRecommendationFeedback,useRecommendationFeedback } from './src/state/recommendationFeedback';
 import { refreshSuggestionPreferences } from './src/state/recomendacoes';
 import { StatusBar } from 'expo-status-bar';
@@ -97,6 +98,10 @@ import { iniciarMedidorDoFolego } from './src/state/folego';
 import { iniciarEnergiaEmSegundoPlano } from './src/state/energiaEmSegundoPlano';
 import { carregarRecentes, instalarRecentes } from './src/state/recentes';
 import { BarreiraDeErros } from './src/components/BarreiraDeErros';
+
+// Uma resposta do Supabase prova que há internet, mesmo com o teste do NetInfo a
+// falhar (26/11, `confirmarLigacao`). Antes de qualquer pedido: a sessão é o primeiro.
+aoChegarRespostaDoSupabase(confirmarLigacao, desconfirmarLigacao);
 
 // Antes de qualquer ecrã: o handler global dos erros, o que ficou da abertura
 // anterior e o relógio do arranque. Ver `state/saudeDaApp.ts`.

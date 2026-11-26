@@ -115,16 +115,25 @@ export const useAuth = create<AuthState>((set) => ({
     // supabase-js renova-a e avisa pelo onAuthStateChange): nunca sai da conta
     // daqui, que sem rede a conta do aparelho é o que abre os downloads.
     const semSessao=()=>Platform.OS==='ios'&&!useAuth.getState().session&&!!useAuth.getState().offlineUserId;
+    // Com sessão mas o NetInfo a dizer "sem rede": um pedido leve ao Supabase; se
+    // a resposta chegar, a ligação confirma-se (`confirmarLigacao`).
+    const semRede=()=>Platform.OS==='ios'&&!!useAuth.getState().session&&useConnectivity.getState().offline;
     const tentar=()=>{
+      if(semRede()){void supabase.auth.getUser().catch(()=>{});return;}
       if(!semSessao())return;
       void supabase.auth.getSession().then(({data})=>{
         if(data.session&&semSessao())set({session:data.session,offlineUserId:data.session.user.id,initialized:true});
       }).catch(()=>{});
     };
     const tentativas=[2000,6000,15000].map(ms=>setTimeout(tentar,ms));
-    const rede=useConnectivity.subscribe((s,antes)=>{if(antes.offline&&!s.offline)tentar();});
+    // Ao ficar "sem rede" com sessão, uma confirmação 2 s depois (um pedido por queda).
+    let depoisDeCair:ReturnType<typeof setTimeout>|undefined;
+    const rede=useConnectivity.subscribe((s,antes)=>{
+      if(antes.offline&&!s.offline)tentar();
+      else if(!antes.offline&&s.offline){clearTimeout(depoisDeCair);depoisDeCair=setTimeout(tentar,2000);}
+    });
     const frente=AppState.addEventListener('change',estado=>{if(estado==='active')tentar();});
-    unsubscribeAuth=()=>{subscription.unsubscribe();for(const t of tentativas)clearTimeout(t);rede();frente.remove();};
+    unsubscribeAuth=()=>{subscription.unsubscribe();for(const t of tentativas)clearTimeout(t);clearTimeout(depoisDeCair);rede();frente.remove();};
   },
 
   refreshSession:async()=>{

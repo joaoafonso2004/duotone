@@ -95,6 +95,18 @@ function comAparelho(init: RequestInit | undefined, url: string | null, pelaPont
   return { ...init, headers };
 }
 
+/**
+ * Quem quer saber que chegou uma resposta do Supabase (26/11): no iPhone, a prova
+ * de que há internet (`confirmarLigacao` de `state/connectivity.ts`, ligada no
+ * App.tsx). Só as respostas que chegam: um pedido que falha não conta.
+ */
+let aoResponder: (() => void) | null = null;
+let aoFalhar: (() => void) | null = null;
+export function aoChegarRespostaDoSupabase(f: (() => void) | null, falhou: (() => void) | null = null): void {
+  aoResponder = f;
+  aoFalhar = falhou;
+}
+
 export function criarFetchDoSupabase(ponte: Ponte | undefined, base: typeof fetch = (entrada, init) => fetch(entrada, init)): typeof fetch {
   return async (entrada: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = enderecoDe(entrada);
@@ -102,7 +114,16 @@ export function criarFetchDoSupabase(ponte: Ponte | undefined, base: typeof fetc
     registarPedidoAoSupabase(url ?? (entrada as Request).url, metodo);
     const corpo = init?.body;
     if (!ponte || !url || !PELA_PONTE.test(url) || (corpo != null && typeof corpo !== 'string')) {
-      return base(entrada, comAparelho(init, url, false));
+      let resposta: Response;
+      try {
+        resposta = await base(entrada, comAparelho(init, url, false));
+      } catch (e) {
+        // Sem resposta (e não um cancelamento): a rede pode ter ido.
+        if ((e as Error)?.name !== 'AbortError') { try { aoFalhar?.(); } catch { /* idem */ } }
+        throw e;
+      }
+      try { aoResponder?.(); } catch { /* quem ouve não parte o pedido */ }
+      return resposta;
     }
     if (init?.signal?.aborted) throw abortado();
     let resposta: RespostaPelaPonte;
