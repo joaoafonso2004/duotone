@@ -1,5 +1,5 @@
 /**
- * O AsyncStorage do iPhone por cima do MMKV (16/11, lib/armazenamento.ts): nada
+ * O AsyncStorage do iPhone por cima do MMKV (16/11, armazem/armazenamento.ts): nada
  * do que estava no aparelho se perde (senão eram pedidos a mais ao Supabase no
  * dia da atualização), apagar apaga dos dois, os grandes ficam no antigo, e sem
  * o módulo nativo é o de sempre. E o desvio do Metro, lido como texto.
@@ -7,8 +7,8 @@
  * Correr: node --experimental-strip-types --import ./scripts/registar-duplos.mjs scripts/test-armazenamento.ts
  */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { criarArmazem, GRANDE, type CofreLento, type CofreRapido } from '../src/lib/armazenamento.ts';
+import { readdirSync, readFileSync } from 'node:fs';
+import { criarArmazem, GRANDE, type CofreLento, type CofreRapido } from '../src/armazem/armazenamento.ts';
 
 let falhas = 0;
 async function caso(nome: string, fn: () => Promise<void> | void) {
@@ -91,7 +91,11 @@ await caso('sem o módulo nativo, é o AsyncStorage de sempre', async () => {
 
 await caso('o Metro desvia o AsyncStorage do código da app no iPhone, e só ele', () => {
   const metro = readFileSync(new URL('../metro.config.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
-  assert.match(metro, /const ARMAZEM = path\.join\(__dirname, 'src', 'lib', 'armazenamento\.ts'\);/);
+  assert.match(metro, /const ARMAZEM = path\.join\(__dirname, 'src', 'armazem', 'armazenamento\.ts'\);/);
+  // O Metro guarda a resolução por pasta: um vizinho do armazém decidia por ele
+  // (26/11, a 7.2.3 sem login). Na pasta dele só pode estar ele.
+  assert.deepEqual(readdirSync(new URL('../src/armazem/', import.meta.url)), ['armazenamento.ts'],
+    'src/armazem/ só com o armazenamento.ts');
   assert.match(metro, /moduleName === '@react-native-async-storage\/async-storage' && platform === 'ios'/);
   assert.match(metro, /&& origem !== ARMAZEM/, 'o próprio armazém usa o verdadeiro');
 });

@@ -25,11 +25,21 @@ const RUNTIMES = {
   'react/jsx-runtime': path.join(PASTA_I18N, 'jsx-runtime.ts'),
   'react/jsx-dev-runtime': path.join(PASTA_I18N, 'jsx-dev-runtime.ts'),
 };
-// O MMKV por baixo do AsyncStorage no iPhone (16/11, src/lib/armazenamento.ts):
+// O MMKV por baixo do AsyncStorage no iPhone (16/11, src/armazem/armazenamento.ts):
 // o `import AsyncStorage` do código da app vai para lá, e o código fica igual.
 // Nunca o das bibliotecas, nunca o do próprio armazém (que usa o verdadeiro
 // para ler o que lá estava) e nunca no PC.
-const ARMAZEM = path.join(__dirname, 'src', 'lib', 'armazenamento.ts');
+//
+// O armazém vive SOZINHO na pasta dele (26/11, a 7.2.3 não deixava entrar na
+// conta: "Cannot read property 'removeItem' of undefined"). O Metro guarda a
+// resolução de um import POR PASTA (o `_resolutionCache` do DependencyGraph),
+// e não por ficheiro: com o armazém em src/lib, o primeiro ficheiro da pasta a
+// ser resolvido decidia por todos. Ou a src/lib inteira saltava o MMKV, ou o
+// armazém importava-se a si próprio e ficava sem o AsyncStorage verdadeiro (e o
+// supabase-js, ao guardar a sessão, rebentava no `removeItem`). Dependia da
+// ordem do build. Nenhum outro ficheiro entra em src/armazem/
+// (`test-armazenamento.ts`).
+const ARMAZEM = path.join(__dirname, 'src', 'armazem', 'armazenamento.ts');
 const resolverDeAntes = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   const destino = RUNTIMES[moduleName];
