@@ -8,7 +8,7 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { existsSync, readFileSync } from 'node:fs';
-import { ICONES_DA_APP, iconeEmUso } from '../src/lib/iconeDaApp.ts';
+import { FICHEIRO_DO_ORIGINAL, ICONES_DA_APP, iconeEmUso, ORIGINAL_NO_CATALOGO } from '../src/lib/iconeDaApp.ts';
 import { FR } from '../src/i18n/fr.ts';
 
 let falhas = 0;
@@ -32,12 +32,21 @@ caso('o de sempre e os quatro da maquete, pela ordem', () => {
   assert.equal(iconeEmUso(null).nome, 'Original');
   assert.equal(iconeEmUso('AppIconNight').nome, 'Night');
   assert.equal(iconeEmUso('UmQueJaNaoExiste').nome, 'Original');
+  assert.equal(iconeEmUso(ORIGINAL_NO_CATALOGO).nome, 'Original', 'a cópia do de sempre conta como ele');
+});
+
+caso('voltar ao de sempre: pela cópia dele no catálogo, e o nil só num binário sem ela (26/11)', () => {
+  const ecra = ler('src/components/EscolherIconeDaApp.tsx');
+  assert.match(ecra, /const pedido = id === null \? mudar\(ORIGINAL_NO_CATALOGO\)\.catch\(\(\) => mudar\(null\)\) : mudar\(id\);/);
+  const p = png(FICHEIRO_DO_ORIGINAL);
+  assert.equal(p.largura, 1024); assert.equal(p.altura, 1024);
+  assert.equal(p.tipo, 2, 'em RGB, sem alfa');
 });
 
 caso('o plugin põe no catálogo exatamente os da app, com os mesmos nomes', () => {
   const { ICONES } = require('../plugins/icones-alternativos.js') as { ICONES: Record<string, string> };
   const daApp = Object.fromEntries(ICONES_DA_APP.filter((i) => i.id).map((i) => [i.id, i.ficheiro]));
-  assert.deepEqual(ICONES, daApp);
+  assert.deepEqual(ICONES, { [ORIGINAL_NO_CATALOGO]: FICHEIRO_DO_ORIGINAL, ...daApp });
   assert.match(ler('app.json'), /"\.\/plugins\/icones-alternativos"/);
   const plugin = ler('plugins/icones-alternativos.js');
   assert.match(plugin, /ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES/);

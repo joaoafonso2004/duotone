@@ -16,7 +16,18 @@ export const ICONES_DA_APP: readonly IconeDaApp[] = [
   { id: 'AppIconNight', nome: 'Night', ficheiro: 'assets/icones/icone-night.png' },
 ];
 
+/**
+ * O de sempre, também no catálogo como um alternativo (26/11, o João: "o icon do
+ * DUOTONE original não dá para selecionar depois de selecionar uma das outras").
+ * Voltar ao de sempre era `setAlternateIconName(nil)`, e no iPhone dele não
+ * voltava. Agora escolhe-se este, que é o mesmo desenho; o `nil` fica só para um
+ * binário que ainda não o tem.
+ */
+export const ORIGINAL_NO_CATALOGO = 'AppIconOriginal';
+export const FICHEIRO_DO_ORIGINAL = 'assets/icones/icone-original.png';
+
 /** O ícone em uso pelo nome que o iOS devolve (um nome que já não existe conta como o de sempre). */
 export function iconeEmUso(nome: string | null | undefined): IconeDaApp {
+  if (nome === ORIGINAL_NO_CATALOGO) return ICONES_DA_APP[0];
   return ICONES_DA_APP.find((i) => i.id === (nome ?? null)) ?? ICONES_DA_APP[0];
 }

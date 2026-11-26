@@ -13,6 +13,9 @@ const path = require('node:path');
  * (é gerado a cada prebuild), por isso é aqui que vive.
  */
 const ICONES = {
+  // O de sempre, também como alternativo: voltar a ele com o `nil` do iOS não
+  // voltava no iPhone do João (26/11). Uma cópia em PNG do assets/icon.png (que é um JPEG).
+  AppIconOriginal: 'assets/icones/icone-original.png',
   AppIconMetal: 'assets/icones/icone-metal.png',
   AppIconTwoTone: 'assets/icones/icone-twotone.png',
   AppIconLight: 'assets/icones/icone-light.png',

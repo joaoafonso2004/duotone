@@ -3,7 +3,7 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { iconeNativo } from '../../modules/duotone-icone';
 import { avisarErro } from '../lib/avisoDeRemocao';
 import { hapticSelection } from '../lib/haptics';
-import { ICONES_DA_APP, iconeEmUso } from '../lib/iconeDaApp';
+import { ICONES_DA_APP, iconeEmUso, ORIGINAL_NO_CATALOGO } from '../lib/iconeDaApp';
 import { colors, spacing } from '../theme';
 
 /** As miniaturas (os ícones a sério, em pequeno): `assets/icones/previa-*.png`. */
@@ -36,7 +36,12 @@ export function EscolherIconeDaApp() {
     hapticSelection();
     const antes = estado.nome;
     setEstado({ pode: true, nome: id });
-    void iconeNativo?.mudar?.(id).catch(() => {
+    const mudar = iconeNativo?.mudar;
+    if (!mudar) return;
+    // O de sempre pela cópia dele no catálogo (o `nil` não voltava, 26/11); num
+    // binário sem ela, o `nil`.
+    const pedido = id === null ? mudar(ORIGINAL_NO_CATALOGO).catch(() => mudar(null)) : mudar(id);
+    void pedido.catch(() => {
       setEstado({ pode: true, nome: antes });
       avisarErro("Couldn't change the icon.");
     });
