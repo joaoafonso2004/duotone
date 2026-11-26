@@ -73,6 +73,19 @@ const CHUNK_PACING_MS = 0;
  */
 const PRIMEIRO_BOCADO_A_TOCAR = 262_144;
 const MAX_ATTEMPTS_PER_CHUNK = 4;
+/**
+ * Quantos bocados de cada vez (26/11, um comentário no Reddit: "sometimes when I
+ * skip, it takes 5+ seconds to load/play the next song"). A música que se está à
+ * espera (`reproducao`) e a seguinte (`seguinte`) pedem os bocados 3 a 3
+ * depois do primeiro; o resto, um de cada vez como sempre. Um ficheiro de 3-4 MB
+ * eram quatro pedidos seguidos, cada um com a espera do servidor; assim são dois
+ * tempos de bocado. O primeiro vai sozinho: é ele que confirma o URL (e o renova
+ * depois de um 403) antes de se abrirem mais pedidos.
+ */
+export const BOCADOS_EM_PARALELO = 3;
+export function bocadosEmParalelo(prioridade: Prioridade | undefined): number {
+  return prioridade === 'reproducao' || prioridade === 'seguinte' ? BOCADOS_EM_PARALELO : 1;
+}
 
 /**
  * De quanto em quanto tempo um pedido à espera da rede volta a perguntar se deve
@@ -928,17 +941,59 @@ async function pedirBocados(
   primeiroBocado: number = CHUNK_BYTES,
   /** Com o módulo nativo: cada bocado vai direto para este ficheiro (`receber` não é chamado). */
   paraFicheiro?: string,
+  /**
+   * Quantos bocados de cada vez depois do primeiro (`bocadosEmParalelo`). Só para
+   * quem recebe fora de ordem (o ficheiro, ou o buffer pelo offset): o que toca
+   * enquanto descarrega quer os bocados por ordem e fica em 1.
+   */
+  emParalelo: number = 1,
 ): Promise<void> {
   let currentUrl = url;
   let chunkSize = CHUNK_BYTES;
   let offset = 0;
   let first = true;
+  /** Um lote falhou (um 403, a rede): o resto vai um a um, com o encolher e a renovação de sempre. */
+  let semParalelo = emParalelo <= 1;
+  const avancar = () => {
+    opts.onProgress?.(Math.min(1, offset / total));
+    if (registo) {
+      registo.bytes = offset;
+      registo.bocados += 1;
+      registo.bocadoBytes = chunkSize;
+      registo.ultimoBocadoEm = Date.now();
+      registo.tentativas = 0;
+      avisarDownloads();
+    }
+  };
   while (offset < total) {
     if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
     if (!first) await sleep(CHUNK_PACING_MS);
     if (!first && opts.entreBocados) {
       await opts.entreBocados(total);
       if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
+    }
+    // Depois do primeiro, com o URL confirmado: um lote de bocados ao mesmo
+    // tempo. Sem renovação dentro do lote (vários pedidos a renovar eram várias
+    // resoluções de uma vez); um bocado que falhe faz o resto seguir um a um a
+    // partir dele, e os que já tinham chegado depois dele voltam a pedir-se.
+    if (!first && !semParalelo && chunkSize === CHUNK_BYTES && total - offset > chunkSize) {
+      const lote: { inicio: number; fim: number }[] = [];
+      for (let o = offset; lote.length < emParalelo && o < total; ) {
+        const fim = Math.min(o + chunkSize, total) - 1;
+        lote.push({ inicio: o, fim });
+        o = fim + 1;
+      }
+      const chegados = await Promise.allSettled(lote.map((b) =>
+        fetchChunkWithRetry(currentUrl, b.inicio, b.fim, undefined, opts.shouldAbort, total, registo, paraFicheiro)));
+      if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
+      for (let i = 0; i < lote.length; i++) {
+        const r = chegados[i], b = lote[i];
+        if (r.status === 'rejected' || r.value.escritos !== b.fim - b.inicio + 1) { semParalelo = true; break; }
+        if (r.value.bytes && receber) receber(r.value.bytes, b.inicio);
+        offset = b.fim + 1;
+        avancar();
+      }
+      continue;
     }
     const pedido = first ? Math.min(chunkSize, primeiroBocado) : chunkSize;
     first = false;
@@ -971,15 +1026,7 @@ async function pedirBocados(
     }
     if (part && receber) receber(part, offset);
     offset = end + 1;
-    opts.onProgress?.(Math.min(1, offset / total));
-    if (registo) {
-      registo.bytes = offset;
-      registo.bocados += 1;
-      registo.bocadoBytes = chunkSize;
-      registo.ultimoBocadoEm = Date.now();
-      registo.tentativas = 0;
-      avisarDownloads();
-    }
+    avancar();
   }
 }
 
@@ -1007,7 +1054,7 @@ async function descarregarAgora(
     const antes = relogio();
     combined.set(part, offset);
     proc.juntarMs += relogio() - antes;
-  });
+  }, CHUNK_BYTES, undefined, bocadosEmParalelo(opts.prioridade));
   if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
 
   // Opus (o itag 251 vem em WebM, que o AVPlayer não abre): os mesmos pacotes
@@ -1087,7 +1134,7 @@ async function descarregarParaFicheiro(
   let convertido: any = null;
   try {
     parcial.create();
-    await pedirBocados(url, total, opts, registo, null, CHUNK_BYTES, parcial.uri);
+    await pedirBocados(url, total, opts, registo, null, CHUNK_BYTES, parcial.uri, bocadosEmParalelo(opts.prioridade));
     if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
     if (parcial.size !== total) throw new Error(AUDIO_INCOMPLETO);
 

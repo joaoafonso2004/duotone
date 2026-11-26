@@ -776,6 +776,72 @@ await check('um novo download volta a aplicar o teto sem reiniciar a app', async
   parar();
 });
 
+// Os bocados 3 a 3 (26/11, o Reddit: "sometimes when I skip, it takes 5+ seconds").
+// Um ficheiro de 3,5 MB (uma box mdat inteira, que passa pelo fixer sem mexer),
+// servido aos bocados pelo Range, cada resposta 100 ms depois (relógio virtual).
+{
+  const TOTAL = 3_500_000;
+  const grande = new Uint8Array(TOTAL);
+  new DataView(grande.buffer).setUint32(0, TOTAL);
+  grande.set([109, 100, 97, 116], 4);
+  for (let i = 8; i < TOTAL; i++) grande[i] = i % 251;
+  const servidor = ({ recusarUmaVez = null } = {}) => {
+    const s = { pedidos: [], aMeio: 0, maximo: 0, recusou: false, h: null };
+    s.fetch = (_url, opts) => {
+      const [, a, b] = /bytes=(\d+)-(\d+)/.exec(opts.headers.Range);
+      const inicio = Number(a), fim = Number(b);
+      s.pedidos.push(inicio);
+      s.aMeio++;
+      s.maximo = Math.max(s.maximo, s.aMeio);
+      return new Promise((resolver) => s.h.time.setTimeout(() => {
+        s.aMeio--;
+        if (recusarUmaVez === inicio && !s.recusou) {
+          s.recusou = true;
+          resolver(response({ status: 403, start: inicio, end: fim, total: TOTAL }));
+          return;
+        }
+        resolver(response({ body: async () => grande.slice(inicio, fim + 1).buffer, start: inicio, end: fim, total: TOTAL }));
+      }, 100));
+    };
+    return s;
+  };
+  const descarregar = async (s, id, prioridade) => {
+    const h = harness((...args) => s.fetch(...args));
+    s.h = h;
+    const r = observe(h.cache.downloadProgressiveAudio(id, `https://audio.test/${id}`, TOTAL, null, { prioridade }));
+    for (let i = 0; i < 200 && r.state === 'pending'; i++) await h.time.advance(50);
+    assert.equal(r.state, 'fulfilled', `o download não acabou: ${r.error?.message}`);
+    const ficheiro = [...h.disk.entries()].find(([uri, bytes]) => uri.includes(id) && !uri.endsWith('.part') && bytes.length === TOTAL);
+    assert.ok(ficheiro, 'o ficheiro publicado tem o tamanho todo');
+    assert.ok(ficheiro[1].every((byte, i) => byte === grande[i]), 'os bocados ficaram no sítio certo');
+    return h;
+  };
+
+  await check('a música que se espera pede os bocados 3 a 3 depois do primeiro', async () => {
+    const s = servidor();
+    await descarregar(s, 'paralelo', 'reproducao');
+    assert.equal(s.maximo, 3);
+    assert.equal(s.pedidos[0], 0, 'o primeiro vai sozinho');
+    assert.equal(s.pedidos.length, 4, 'nenhum bocado pedido duas vezes');
+  });
+
+  await check('a seguinte também; um adiantamento continua um de cada vez', async () => {
+    const seguinte = servidor();
+    await descarregar(seguinte, 'seguinte', 'seguinte');
+    assert.equal(seguinte.maximo, 3);
+    const adiantar = servidor();
+    await descarregar(adiantar, 'adiantar', 'adiantar');
+    assert.equal(adiantar.maximo, 1);
+  });
+
+  await check('um 403 num bocado do lote: o resto segue um a um a partir dele, e o ficheiro sai certo', async () => {
+    const s = servidor({ recusarUmaVez: 2_000_000 });
+    await descarregar(s, 'recusado', 'reproducao');
+    assert.equal(s.recusou, true);
+    assert.equal(s.pedidos.filter((p) => p === 2_000_000).length, 2, 'o recusado pede-se outra vez');
+  });
+}
+
 if (failures) {
   console.error(`\n${failures} teste(s) de esperas falharam (sem aguardar relógios reais).`);
   process.exitCode = 1;
