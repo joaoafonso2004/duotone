@@ -1,5 +1,5 @@
 import { CapaComTransicao } from './CapaComTransicao';
-import { OcultacaoDaCapa } from './OcultacaoDaCapa';
+import { DiscoDaOcultacao, OcultacaoDaCapa, useOcultacao } from './OcultacaoDaCapa';
 import { sentidoDaTransicao, type Sentido } from '../lib/transicaoDaCapa';
 import { pausouDeForaHaPouco } from '../lib/pausaDeFora';
 import { CapaFlutuante3D } from './CapaFlutuante3D';
@@ -2417,19 +2417,27 @@ const CapaDoLeitor = React.memo(function CapaDoLeitor({
   /** O leitor aberto. Fechado, a capa fica montada mas parada (25/10). */
   aVista: boolean;
 }) {
+  // A Ocultação decide-se aqui (26/11), e não dentro da frente: as laterais da
+  // capa 3D precisam da mesma passagem no MESMO desenho do skip, para a velha
+  // ficar por cima delas com a mesma opacidade nativa. Só com a capa à frente,
+  // não com a letra, e nunca no Poster pousado.
+  const ocultacao = useOcultacao({
+    chave: transicao?.chave ?? null, sentido: transicao?.sentido === -1 ? -1 : 1, lado: size, capa: artSource,
+    corDe: track.artworkUrl ?? null, ligada: aVista && !showLyrics && !capaDaFrente,
+  });
   return (
     <CapaFlutuante3D size={size} enabled={capaFlutuante} montagem={montagem} transicao={transicao} forcaDaPose={forcaDaPose} aFlutuar={aFlutuar && aVista} aVista={aVista}>
       {(pose3D) => (
         <CapaComLuas size={size} raio={capaFlutuante ? CAPA_FLUTUANTE.raio : capaInteira ? 0 : 20} pose3D={pose3D} capaDaQueSai={artSource} aVista={aVista} letras={showLyrics}>
         <ArtworkLyricsCube track={track} size={size} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar} raio={capaFlutuante ? CAPA_FLUTUANTE.raio : capaInteira ? 0 : 20} aVista={aVista}
-          frenteTransparente={!!capaDaFrente}
+          frenteTransparente={!!capaDaFrente} velhaDasLaterais={ocultacao.velha} opacidadeDaVelha={capaDaFrente ? null : ocultacao.opacidadeDaVelha}
           front={capaDaFrente ? <>
             <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: capaDaFrente }]}>
               {artSource ? <CapaComTransicao uri={artSource} onError={onArtError} /> : null}
               <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} />
             </Animated.View>
             <DuploToqueParaGostar aoGostar={aoGostar} />
-          </> : <>{artSource?<OcultacaoDaCapa chave={transicao?.chave ?? null} sentido={transicao?.sentido === -1 ? -1 : 1} lado={size} capa={artSource} corDe={track.artworkUrl ?? null} ligada={aVista && !showLyrics}><CapaComTransicao uri={artSource} onError={onArtError} /></OcultacaoDaCapa>:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} />{!capaFlutuante && !capaInteira && <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.arestaDaCapa]} />}<DuploToqueParaGostar aoGostar={aoGostar} /></>} pose3D={pose3D} />
+          </> : <>{artSource?<DiscoDaOcultacao passagem={ocultacao} capa={artSource}><CapaComTransicao uri={artSource} onError={onArtError} /></DiscoDaOcultacao>:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} />{!capaFlutuante && !capaInteira && <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.arestaDaCapa]} />}<DuploToqueParaGostar aoGostar={aoGostar} /></>} pose3D={pose3D} />
         </CapaComLuas>
       )}
     </CapaFlutuante3D>

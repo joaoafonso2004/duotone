@@ -111,8 +111,6 @@ caso('a primeira abertura não roda uma capa parada nem monta as letras', () => 
   const { ArtworkLyricsCube } = carregar('src/components/ArtworkLyricsCube.tsx', {
     react: h.React, 'react-native': a.rn, 'expo-image': { Image: 'Image' }, 'expo-linear-gradient': { LinearGradient: 'Gradient' },
     '../hooks/useReducedMotion': { useReducedMotion: () => reduzido }, './LyricsView': { LyricsView: 'Lyrics' },
-    // As laterais esperam pelo eclipse (26/11): aqui não há passagem, ficam com a capa que vem.
-    '../hooks/useAtrasadoPelaOcultacao': { useAtrasadoPelaOcultacao: (valor) => valor },
     '../lib/lyricsCubeGesture': carregar('src/lib/lyricsCubeGesture.ts'),
     '../lib/capaFlutuante3D': carregar('src/lib/capaFlutuante3D.ts'), '../lib/capaGrande': carregar('src/lib/capaGrande.ts'),
   }, a.globais);

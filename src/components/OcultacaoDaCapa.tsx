@@ -36,8 +36,14 @@ const CURVA = curvaDaOcultacao();
  * primeira faixa não passa (é abrir), nem com Reduzir movimento (fica o
  * cruzamento), nem em segundo plano, nem com as Duas luas (a passagem já se viu).
  * O que corta o disco é quem a contém (`overflow: hidden`, com o raio da capa).
+ *
+ * **As laterais da capa 3D** (26/11) usam a mesma passagem: o leitor chama o
+ * `useOcultacao` e dá-a ao disco (`DiscoDaOcultacao`) e ao cubo, que põe a velha
+ * por cima de cada lateral com a mesma opacidade nativa. Antes trocavam por um
+ * re-render a meio da passagem (`b3927f1`), e esse trabalho na thread da
+ * interface comia-lhe os fotogramas: o disco engasgava ou nem se via.
  */
-export function OcultacaoDaCapa({ chave, sentido, lado, capa, corDe, ligada, children }: {
+type EntradaDaOcultacao = {
   /** A faixa: a passagem corre quando muda. */
   chave: string | null;
   /** +1 a seguinte, -1 a anterior (`sentidoDaOcultacao`). */
@@ -49,12 +55,31 @@ export function OcultacaoDaCapa({ chave, sentido, lado, capa, corDe, ligada, chi
   /** De onde se lê a cor da sombra (a capa das listas: mesma cache que o tema). */
   corDe: string | null;
   ligada: boolean;
-  children: ReactNode;
-}) {
+};
+
+export type PassagemDaOcultacao = {
+  /** A capa que sai, enquanto passa; `null` em repouso. */
+  velha: string | null;
+  /** A opacidade da velha: 1 até à totalidade, 0 depois e em repouso. Nativa. */
+  opacidadeDaVelha: Animated.AnimatedInterpolation<number>;
+  disco: Animated.AnimatedInterpolation<number>;
+  translateX: Animated.AnimatedMultiplication<number>;
+  /** Cada passagem tem o seu número; 0 antes da primeira. */
+  id: number;
+  corDe: string | null;
+  lado: number;
+};
+
+export function OcultacaoDaCapa({ children, ...entrada }: EntradaDaOcultacao & { children: ReactNode }) {
+  const passagem = useOcultacao(entrada);
+  return <DiscoDaOcultacao passagem={passagem} capa={entrada.capa}>{children}</DiscoDaOcultacao>;
+}
+
+/** A decisão e a animação da passagem, para quem a desenha (o disco, e as laterais da capa 3D). */
+export function useOcultacao({ chave, sentido, lado, capa, corDe, ligada }: EntradaDaOcultacao): PassagemDaOcultacao {
   const reduzir = useReducedMotion();
   const fase = useRef(new Animated.Value(1)).current;
   const sinal = useRef(new Animated.Value(1)).current;
-  const [cor, setCor] = useState(COR_DO_DISCO_SEM_CAPA);
   const [, redesenhar] = useReducer((n: number) => n + 1, 0);
 
   // Decide-se no DESENHO em que a faixa nova chega (como o `salto` do recuo): a
@@ -83,12 +108,6 @@ export function OcultacaoDaCapa({ chave, sentido, lado, capa, corDe, ligada, chi
   const id = s.id;
   useLayoutEffect(() => {
     if (!id || estado.current.velha === null) return undefined;
-    let vivo = true;
-    setCor(COR_DO_DISCO_SEM_CAPA);
-    // A cor chega quando chega (quase sempre já em cache): o movimento não espera.
-    if (corDe) {
-      void lerCelulasDaCapa(corDe).then((c) => { if (vivo) setCor(corDoDisco(c)); }).catch(() => {});
-    }
     pedirFluidez(CURVA.duracaoMs + 100);
     // O tom da app troca quando o disco tapa a capa, e não no toque (item 17,
     // `state/esperaDaOcultacao.ts`). A animação é nativa e não avisa a meio: um
@@ -107,7 +126,7 @@ export function OcultacaoDaCapa({ chave, sentido, lado, capa, corDe, ligada, chi
         estado.current.velha = null;
         redesenhar();
       });
-    return () => { vivo = false; clearTimeout(relogioDoTom); tapar(); };
+    return () => { clearTimeout(relogioDoTom); tapar(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -123,7 +142,28 @@ export function OcultacaoDaCapa({ chave, sentido, lado, capa, corDe, ligada, chi
     };
   }, [fase, sinal, ladoDoDisco]);
 
-  const velha = s.velha ?? capa;
+  return { velha: s.velha, opacidadeDaVelha: nos.velha, disco: nos.disco, translateX: nos.translateX, id, corDe, lado };
+}
+
+/** O disco e a velha por cima da capa (`children`). */
+export function DiscoDaOcultacao({ passagem, capa, children }: { passagem: PassagemDaOcultacao; capa: string | null; children: ReactNode }) {
+  const { lado } = passagem;
+  // A cor fica aqui: chega a meio da passagem, e só o disco se redesenha com ela.
+  const [cor, setCor] = useState(COR_DO_DISCO_SEM_CAPA);
+  useLayoutEffect(() => {
+    if (!passagem.id || passagem.velha === null) return undefined;
+    let vivo = true;
+    setCor(COR_DO_DISCO_SEM_CAPA);
+    // A cor chega quando chega (quase sempre já em cache): o movimento não espera.
+    if (passagem.corDe) {
+      void lerCelulasDaCapa(passagem.corDe).then((c) => { if (vivo) setCor(corDoDisco(c)); }).catch(() => {});
+    }
+    return () => { vivo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [passagem.id]);
+  const ladoDoDisco = lado * OCULTACAO.ladoDoDisco;
+  const nos = { velha: passagem.opacidadeDaVelha, disco: passagem.disco, translateX: passagem.translateX };
+  const velha = passagem.velha ?? capa;
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       {children}

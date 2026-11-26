@@ -171,14 +171,16 @@ caso('iPhone: a peça — uma animação nativa, a velha sempre montada, e as re
   assert.match(p, /!luasNoEcra\(\)/, 'com as Duas luas não passa');
   assert.match(p, /AppState\.currentState === 'active'/, 'em segundo plano não passa');
   assert.match(p, /ligadaAntes\.current && ligada/, 'a primeira faixa (abrir) não passa');
-  assert.match(p, /const velha = s\.velha \?\? capa;/, 'a imagem de cima fica montada com a capa que se vê');
+  assert.match(p, /const velha = passagem\.velha \?\? capa;/, 'a imagem de cima fica montada com a capa que se vê');
   assert.match(p, /experimental_backgroundImage: gradienteDoDisco\(cor\)/);
 });
 
 caso('iPhone: no leitor aberto (só com a capa à frente, não no Poster) e no mini', () => {
   const l = ler('src/components/PlayerRoot.tsx');
-  assert.match(l, /<OcultacaoDaCapa chave=\{transicao\?\.chave \?\? null\} sentido=\{transicao\?\.sentido === -1 \? -1 : 1\} lado=\{size\} capa=\{artSource\} corDe=\{track\.artworkUrl \?\? null\} ligada=\{aVista && !showLyrics\}><CapaComTransicao uri=\{artSource\}/);
-  assert.equal((l.match(/<OcultacaoDaCapa/g) ?? []).length, 2, 'o leitor aberto e o mini; o Poster pousado fica de fora');
+  // No leitor aberto a passagem decide-se na capa (26/11): o disco e as laterais usam-na.
+  assert.match(l, /const ocultacao = useOcultacao\(\{\n\s+chave: transicao\?\.chave \?\? null, sentido: transicao\?\.sentido === -1 \? -1 : 1, lado: size, capa: artSource,\n\s+corDe: track\.artworkUrl \?\? null, ligada: aVista && !showLyrics && !capaDaFrente,/);
+  assert.match(l, /<DiscoDaOcultacao passagem=\{ocultacao\} capa=\{artSource\}><CapaComTransicao uri=\{artSource\}/);
+  assert.equal((l.match(/<OcultacaoDaCapa/g) ?? []).length, 1, 'o mini; o leitor aberto usa o disco com a passagem da capa');
   assert.match(l, /ligada=\{!origemDaEntrada\}/, 'no mini, não no pouso de uma música vinda de uma lista');
 });
 
@@ -236,18 +238,29 @@ caso('a peça: o disco maior, sem a opacidade da Ocultação, com a orla, e o mo
   reporParaTestes();
 }
 
-caso('iPhone: as laterais da capa 3D trocam quando o eclipse tapa a frente, e não no toque', () => {
+caso('iPhone: as laterais da capa 3D trocam na totalidade, sem nada a correr a meio da passagem', () => {
+  // 26/11: a b3927f1 trocava-as num re-render na totalidade, e esse trabalho na
+  // thread da interface engasgava o disco ou não o deixava ver-se.
   const cubo = ler('src/components/ArtworkLyricsCube.tsx');
-  assert.match(cubo, /const artworkDasLaterais=useAtrasadoPelaOcultacao\(artwork\);/);
-  assert.match(cubo, /<LateralDaCaixa [^>]*artwork=\{artworkDasLaterais\} \/>/);
-  assert.match(ler('src/hooks/useAtrasadoPelaOcultacao.ts'), /return depoisDeTapar\(\(\) => setMostrado\(ultimo\.current\)\);/);
+  assert.doesNotMatch(cubo, /useAtrasadoPelaOcultacao/);
+  assert.match(cubo, /<LateralDaCaixa key=\{l\.lado\} [^>]*artwork=\{artwork\} \/>/, 'as de baixo com a capa nova, já no skip');
+  assert.match(cubo, /<LateralDaCaixa key=\{'velha-'\+l\.lado\} [^>]*artwork=\{velhaDasLaterais\?\?artwork\} opacidade=\{opacidadeDaVelha\} \/>/, 'por cima, a que sai');
+  assert.match(cubo, /opacity:opacidade\?Animated\.multiply\(base,opacidade\):base,/, 'apagada na própria camada');
+  const l = ler('src/components/PlayerRoot.tsx');
+  assert.match(l, /velhaDasLaterais=\{ocultacao\.velha\} opacidadeDaVelha=\{capaDaFrente \? null : ocultacao\.opacidadeDaVelha\}/);
+  // A passagem não redesenha o leitor a meio: só no fim (a velha volta a ser a capa que se vê).
+  const p = ler('src/components/OcultacaoDaCapa.tsx');
+  const gancho = p.slice(p.indexOf('export function useOcultacao'), p.indexOf('export function DiscoDaOcultacao'));
+  assert.doesNotMatch(gancho, /useState\(/, 'a cor fica no disco');
+  assert.equal((gancho.match(/redesenhar\(\)/g) ?? []).length, 1, 'só quando a animação acaba');
+  assert.match(p.slice(p.indexOf('export function DiscoDaOcultacao')), /const \[cor, setCor\] = useState\(COR_DO_DISCO_SEM_CAPA\);/);
 });
 
 caso('iPhone: a Ocultação conta-se, e o tom espera por ela', () => {
   const p = ler('src/components/OcultacaoDaCapa.tsx');
   assert.match(p, /comecouATapar\(\);\n\s+let tapada = false;/);
   assert.match(p, /const relogioDoTom = setTimeout\(tapar, OCULTACAO\.entradaMs\);/, 'na totalidade (220 ms)');
-  assert.match(p, /return \(\) => \{ vivo = false; clearTimeout\(relogioDoTom\); tapar\(\); \};/, 'cancelada, deixa de prender o tom');
+  assert.match(p, /return \(\) => \{ clearTimeout\(relogioDoTom\); tapar\(\); \};/, 'cancelada, deixa de prender o tom');
   assert.match(ler('src/hooks/useAcompanharCapa.ts'), /return depoisDeTapar\(\(\) => \{ void aplicarCapa\(capa\); \}\);/);
 });
 

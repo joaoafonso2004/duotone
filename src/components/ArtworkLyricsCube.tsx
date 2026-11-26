@@ -3,7 +3,6 @@ import React, {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {Animated,PanResponder,Platform,StyleSheet,View} from 'react-native';
 import { Image as ImagemDaCapa } from 'expo-image';
 import {useReducedMotion} from '../hooks/useReducedMotion';
-import {useAtrasadoPelaOcultacao} from '../hooks/useAtrasadoPelaOcultacao';
 import type {Track} from '../types';
 import {LyricsView} from './LyricsView';
 import {LinearGradient} from 'expo-linear-gradient';
@@ -50,7 +49,14 @@ type Props={track:Track;size:number;artwork?:string|null;front:React.ReactNode;s
    * letras não: liam a linha a cada verso, com o ecrã apagado. Montam-se de
    * novo `LETRAS_DEPOIS_MS` depois de ele abrir, já com a abertura acabada.
    */
-  aVista?:boolean};
+  aVista?:boolean;
+  /**
+   * A Ocultação nas laterais da capa 3D (26/11, `useOcultacao` no leitor): a capa
+   * que sai, enquanto passa, e a opacidade nativa dela. Sem isto (o Poster, o
+   * PC), as laterais trocam com a frente, como sempre.
+   */
+  velhaDasLaterais?:string|null;
+  opacidadeDaVelha?:Animated.AnimatedInterpolation<number>|null};
 // Translação Z equivalente, também nos motores nativos que só expõem X e Y.
 /** Quanto as letras esperam pela faixa: o fim da abertura e do recuo do skip. */
 const LETRAS_DEPOIS_MS=900;
@@ -77,8 +83,10 @@ const chegar=(m:AnimacaoDaMontagem|null,i:number,distancia:number)=>m
  * fotograma da flutuação em vez de recorte, degradê e mosaicos. A transformação
  * 3D continua a animar por cima dele.
  */
-const LateralDaCaixa=React.memo(function LateralDaCaixa({lado,size,pose3D,virar,artwork}:{lado:Lateral;size:number;pose3D:PoseDaCapa3D;
-  virar:Animated.AnimatedInterpolation<string>|string;artwork?:string|null}){
+const LateralDaCaixa=React.memo(function LateralDaCaixa({lado,size,pose3D,virar,artwork,opacidade}:{lado:Lateral;size:number;pose3D:PoseDaCapa3D;
+  virar:Animated.AnimatedInterpolation<string>|string;artwork?:string|null;
+  /** Só na cópia de cima (a capa que sai na Ocultação): a opacidade nativa dela. */
+  opacidade?:Animated.AnimatedInterpolation<number>|null}){
   const t=pose3D.espessura;
   const g=geometriaDaLateral(lado,size,t);
   const meio=size/2-CAPA_FLUTUANTE.recuoDasLaterais;
@@ -95,12 +103,16 @@ const LateralDaCaixa=React.memo(function LateralDaCaixa({lado,size,pose3D,virar,
   const grupo=lado==='esquerda'?0:1;
   // Guardado entre desenhos: a lateral redesenha-se a cada faixa (a capa muda),
   // e um nó animado novo era religar o grafo nativo no instante do skip (2/10).
-  const estilo=useMemo(()=>({position:'absolute' as const,left:g.left,top:g.top,width:g.largura,height:g.altura,
+  const estilo=useMemo(()=>{
+    const base=!m?pose3D.pose:fechaACaixa?Animated.multiply(pose3D.pose,m.fecho):Animated.multiply(pose3D.pose,m.opacidades[grupo]);
+    return {position:'absolute' as const,left:g.left,top:g.top,width:g.largura,height:g.altura,
     overflow:'hidden' as const,backfaceVisibility:'hidden' as const,
-    opacity:!m?pose3D.pose:fechaACaixa?Animated.multiply(pose3D.pose,m.fecho):Animated.multiply(pose3D.pose,m.opacidades[grupo]),
-    transform:[...pose3D.postura,...depth(-t/2),{rotateY:virar},...colocar,...(fechaACaixa?[]:chegar(m,grupo,0.26*size))]}),
+    // A cópia de cima apaga-se na própria camada rasterizada: compor o bitmap com
+    // outra opacidade não o volta a rasterizar.
+    opacity:opacidade?Animated.multiply(base,opacidade):base,
+    transform:[...pose3D.postura,...depth(-t/2),{rotateY:virar},...colocar,...(fechaACaixa?[]:chegar(m,grupo,0.26*size))]};},
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [lado,size,pose3D,virar,m,t]);
+    [lado,size,pose3D,virar,m,t,opacidade]);
   return <Animated.View pointerEvents="none" shouldRasterizeIOS style={estilo}>
     <View style={{width:g.largura,height:g.altura,overflow:'hidden',transform:[g.espelho==='x'?{scaleX:-1}:{scaleY:-1}]}}>
       {artwork?<ImagemDaCapa source={{uri:artwork}} cachePolicy="memory-disk" contentFit="cover" style={{position:'absolute',left:g.imagem.x,top:g.imagem.y,width:size,height:size}} />:null}
@@ -110,11 +122,8 @@ const LateralDaCaixa=React.memo(function LateralDaCaixa({lado,size,pose3D,virar,
 });
 
 /** Duas faces do mesmo cubo. O motor de áudio vive fora destas transformações. */
-export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,aoRodar,raio=20,pose3D,aVista=true,frenteTransparente=false}:Props){
+export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,aoRodar,raio=20,pose3D,aVista=true,frenteTransparente=false,velhaDasLaterais=null,opacidadeDaVelha=null}:Props){
   const reduced=useReducedMotion();
-  // As laterais trocam de capa quando o eclipse tapa a frente (26/11), e não no
-  // toque: viam-se as bordas da música nova com a capa velha ainda à frente.
-  const artworkDasLaterais=useAtrasadoPelaOcultacao(artwork);
   const progress=useRef(new Animated.Value(showLyrics?1:0)).current;
   // Já nasce na face pedida. Uma mola 0 -> 0 marcava o cubo como a rodar e
   // montava as letras no primeiro fotograma da abertura. Também evita repetir
@@ -277,7 +286,12 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,
       if(['ArrowLeft','ArrowRight','Enter',' '].includes(event.key)){event.preventDefault();onChange(!showLyrics);}
       else if(event.key==='Escape'&&showLyrics){event.preventDefault();onChange(false);}
     }}:{})} style={[{width:size,height:size},Platform.OS==='web'&&({touchAction:'pan-y',userSelect:'none'} as any)]}>
-    {pose3D?LATERAIS.map((l)=><LateralDaCaixa key={l.lado} lado={l.lado} size={size} pose3D={pose3D} virar={reduced?'0deg':virar} artwork={artworkDasLaterais} />):null}
+    {pose3D?LATERAIS.map((l)=><LateralDaCaixa key={l.lado} lado={l.lado} size={size} pose3D={pose3D} virar={reduced?'0deg':virar} artwork={artwork} />):null}
+    {/* A capa que sai, por cima de cada lateral (26/11): fica no skip, como a da
+        frente, e a Ocultação apaga-a na totalidade com a mesma opacidade nativa.
+        Nada corre em JavaScript a meio da passagem. Em repouso é a mesma imagem
+        da de baixo, apagada. */}
+    {pose3D&&opacidadeDaVelha?LATERAIS.map((l)=><LateralDaCaixa key={'velha-'+l.lado} lado={l.lado} size={size} pose3D={pose3D} virar={reduced?'0deg':virar} artwork={velhaDasLaterais??artwork} opacidade={opacidadeDaVelha} />):null}
     {/* O lugar da face antes de ela pousar, e a luz que lhe dá a volta enquanto
         ainda não há download. Ver lib/montagemDaCapa.ts. */}
     {m?<Animated.View pointerEvents="none" style={[styles.fantasma,{borderRadius:raio,opacity:m.contorno,transform:transformDaFace}]} />:null}
