@@ -182,7 +182,17 @@ caso('Not interested vem antes do Recommendations…, nas listas', () => {
   assert.ok(l.indexOf('nao-interessa') < l.indexOf('recomendacoes'));
 });
 caso('No leitor, uma sugestão continua com o menu curto mais o Not interested', () => {
-  assert.deepEqual(ids({ onde: 'leitor', sugestao: true }), ['guardar', 'por-em-playlist', 'partilhar', 'nao-interessa']);
+  assert.deepEqual(ids({ onde: 'leitor', sugestao: true }), ['guardar', 'por-em-playlist', 'sobre', 'partilhar', 'nao-interessa']);
+});
+
+caso('About this song (26/11): nas reticências do iPhone, no leitor e nas listas; nem na fila nem no PC', () => {
+  assert.ok(ids({ onde: 'leitor' }).includes('sobre'));
+  assert.ok(ids({ onde: 'lista' }).includes('sobre'));
+  assert.ok(!ids({ onde: 'fila', fila: { emJam: false, mudou: false } } as any).includes('sobre'));
+  assert.ok(!ids({ plataforma: 'pc', onde: 'lista' } as any).includes('sobre'), 'o PC tem a aba About');
+  const sobre = achar('sobre', { onde: 'leitor', semRede: true });
+  assert.equal(sobre.rotulo, 'About this song');
+  assert.equal(sobre.indisponivel, null, 'sem rede abre na mesma: é tudo do aparelho');
 });
 
 caso('Na barra do leitor do PC (24/10): Open Now Playing primeiro, sem tocar nem pôr na fila (já está a tocar)', () => {

@@ -1,5 +1,6 @@
 import { useOfflineMode } from '../hooks/useOfflineMode';
 import { RecommendationPreferences } from './RecommendationPreferences';
+import { FolhaSobreAMusica } from './FolhaSobreAMusica';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React from 'react';
@@ -84,6 +85,8 @@ export function TrackActionsSheet({ visible, track, onClose, actions = [], cabec
   const { width, height } = useWindowDimensions();
   const [recommendationTrack, setRecommendationTrack] = React.useState<Track | null>(null);
   const [paraPartilhar, setParaPartilhar] = React.useState<Track | null>(null);
+  /** O About de uma música (26/11, item 22): pelas reticências. */
+  const [paraSobre, setParaSobre] = React.useState<Track | null>(null);
   const [paraPlaylist, setParaPlaylist] = React.useState<Track | null>(null);
   const lida = useSaved((s) => s.loaded);
   const naLoja = useSaved((s) => (track ? s.keys.has(savedKey(track)) : false));
@@ -133,6 +136,7 @@ export function TrackActionsSheet({ visible, track, onClose, actions = [], cabec
         irParaNoIphone({ tipo: 'artista', nome: nomeDoArtista });
         return;
       case 'partilhar': setParaPartilhar(t); return;
+      case 'sobre': setParaSobre(t); return;
       case 'descarregar': void alternarDownload(t); return;
       case 'recomendacoes': setRecommendationTrack(t); return;
       case 'nao-interessa':
@@ -211,6 +215,7 @@ export function TrackActionsSheet({ visible, track, onClose, actions = [], cabec
         item={paraPartilhar}
         onClose={() => setParaPartilhar(null)}
       />
+      <FolhaSobreAMusica visible={!!paraSobre} track={paraSobre} onClose={() => setParaSobre(null)} />
     </>
   );
 }

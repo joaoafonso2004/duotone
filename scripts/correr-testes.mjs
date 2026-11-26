@@ -233,6 +233,7 @@ const TESTES = [
   `${TS} scripts/test-pesquisa-abre.ts`,
   `${TS} scripts/test-letra-palavra-a-palavra.ts`,
   `${TS} scripts/test-paleta-do-pc.ts`,
+  `${RESOLVER} scripts/test-andamento-da-faixa.ts`,
   `${RESOLVER} scripts/test-menu-do-lancamento.ts`,
   `${TS} scripts/test-playlist-colaborativa.ts`,
   `${TS} scripts/test-destinos.ts`,

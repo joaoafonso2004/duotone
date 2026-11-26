@@ -2582,4 +2582,9 @@ export const FR: Readonly<Record<string, string>> = {
   "to open": "pour ouvrir",
   "to close": "pour fermer",
   "to go back": "pour revenir",
+  // O About de uma música no iPhone (26/11, components/FolhaSobreAMusica.tsx).
+  "About this song": "À propos de ce titre",
+  "Key": "Tonalité",
+  "{0} minor": "{0} mineur",
+  "{0} major": "{0} majeur",
 };

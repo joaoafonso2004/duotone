@@ -90,6 +90,7 @@ import { registarAccoesDaFila, useFilaNativa } from '../state/filaNativa';
 import { PlayerControlRow } from './PlayerControlRow';
 import { accoesDoMenu, PlayerActionsSheet, type PlayerAction } from './PlayerActionsSheet';
 import { RecommendationPreferences } from './RecommendationPreferences';
+import { FolhaSobreAMusica } from './FolhaSobreAMusica';
 import { menuDaFaixa, MOTIVOS, type IdDaAcao } from '../lib/menuDaFaixa';
 import { alternarDownload, downloadNoMenuDe, podeDescarregar, tocaSemRede } from '../lib/descarregarFaixa';
 import { MenuFlutuante, type Ancora } from './MenuFlutuante';
@@ -407,6 +408,8 @@ export function PlayerRoot() {
   };
   const [partilhaAberta, setPartilhaAberta] = useState(false);
   const [recomendacoesAbertas, setRecomendacoesAbertas] = useState(false);
+  /** O About da música que toca (26/11, item 22): pelas reticências do leitor. */
+  const [sobreAberto, setSobreAberto] = useState(false);
   const [scrubbing, setScrubbing] = useState(false);
   /**
    * A capa esta a virar para as letras?
@@ -1367,6 +1370,7 @@ export function PlayerRoot() {
       case 'por-em-playlist': fecharEEntao(() => setPlaylistOpen(true)); return;
       case 'ver-artista': fecharEEntao(abrirArtista); return;
       case 'partilhar': fecharEEntao(() => setPartilhaAberta(true)); return;
+      case 'sobre': fecharEEntao(() => setSobreAberto(true)); return;
       case 'descarregar': fecharMenu(); void alternarDownload(faixa); return;
       case 'recomendacoes': fecharEEntao(() => setRecomendacoesAbertas(true)); return;
       case 'nao-interessa':
@@ -2337,6 +2341,7 @@ export function PlayerRoot() {
         reason={contextoDaRecomendacaoAtual()?.reason}
         onClose={() => setRecomendacoesAbertas(false)}
       />
+      <FolhaSobreAMusica visible={sobreAberto} track={current} onClose={() => setSobreAberto(false)} />
 
       {/* A fila passou a uma folha nativa do iOS (3/10): é o ecrã `Fila` do
           stack, e o que só o leitor sabe fazer chega-lhe pelo

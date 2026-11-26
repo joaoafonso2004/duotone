@@ -111,7 +111,8 @@ caso('o resto vai em grupos, com o traço só onde o grupo muda', () => {
   const m = menuCompacto(menuDaFaixa(c), c);
   assert.deepEqual(m.linhas.map((a) => [a.id, a.inicioDeGrupo]), [
     ['tocar-agora', false], ['radio', false],
-    ['ver-artista', true], ['partilhar', false], ['descarregar', false],
+    // O About (26/11) vai com o que é sobre a música, a seguir ao artista.
+    ['ver-artista', true], ['sobre', false], ['partilhar', false], ['descarregar', false],
     ['nao-interessa', true], ['recomendacoes', false],
     ['tirar-da-playlist', true],
   ]);

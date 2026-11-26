@@ -38,6 +38,7 @@ export type IdDaAcao =
   | 'guardar'
   | 'por-em-playlist'
   | 'ver-artista'
+  | 'sobre'
   | 'partilhar'
   | 'descarregar'
   | 'nao-interessa'
@@ -56,6 +57,7 @@ export const ORDEM: readonly IdDaAcao[] = [
   'guardar',
   'por-em-playlist',
   'ver-artista',
+  'sobre',
   'partilhar',
   'descarregar',
   'nao-interessa',
@@ -76,6 +78,7 @@ export type IconeDoMenu =
   | 'heart-outline'
   | 'albums-outline'
   | 'mic-outline'
+  | 'information-circle-outline'
   | 'share-social-outline'
   | 'arrow-down-circle-outline'
   | 'checkmark-circle'
@@ -176,6 +179,8 @@ function aplicaSe(id: IdDaAcao, c: ContextoDoMenu): boolean {
     case 'tirar-da-playlist': return c.onde === 'lista' && !!c.playlist;
     case 'tirar-da-fila': return c.onde === 'fila' && !!c.fila;
     case 'tirar-do-perfil': return c.onde === 'lista' && !!c.momentoDoPerfil;
+    // O About do iPhone (26/11): pelas reticências, no leitor e nas listas. O PC tem a aba dele.
+    case 'sobre': return c.plataforma === 'ios' && (c.onde === 'leitor' || c.onde === 'lista');
     default: return true;
   }
 }
@@ -200,6 +205,7 @@ function descrever(id: IdDaAcao, c: ContextoDoMenu): AcaoDoMenu {
     // No PC abre um painel ao lado (24/10), com a seta: as reticências querem dizer "abre uma folha".
     case 'por-em-playlist': return acao(c.plataforma === 'pc' ? 'Add to playlist' : 'Add to playlist…', 'albums-outline', semRede);
     case 'ver-artista': return acao('View artist', 'mic-outline', c.temArtista ? null : MOTIVOS.semArtista);
+    case 'sobre': return acao('About this song', 'information-circle-outline', null);
     case 'partilhar': return acao('Share with friends or groups…', 'share-social-outline', semRede);
     // Tirar um download não precisa de rede; fazê-lo sim -- a não ser que o
     // ficheiro já esteja em disco (tocou antes): aí "Download" só o guarda.
@@ -232,7 +238,7 @@ export function menuDaFaixa(c: ContextoDoMenu): AcaoDoMenu[] {
 export const GRUPO: Readonly<Record<IdDaAcao, number>> = {
   'abrir-leitor': 0, 'tocar-agora': 0, 'tocar-a-seguir': 0, 'por-na-fila': 0, 'radio': 0,
   'guardar': 1, 'por-em-playlist': 1,
-  'ver-artista': 2, 'partilhar': 2, 'descarregar': 2,
+  'ver-artista': 2, 'sobre': 2, 'partilhar': 2, 'descarregar': 2,
   'nao-interessa': 3, 'recomendacoes': 3,
   'tirar-da-playlist': 4, 'tirar-da-fila': 4, 'tirar-do-perfil': 4,
 };
