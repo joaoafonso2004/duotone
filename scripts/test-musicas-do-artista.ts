@@ -159,7 +159,7 @@ caso('nenhum cabeçalho diz "0 songs" ou "0 saved tracks"', () => {
   assert.match(pc, /metaDoArtista\(tracks\.length, data\.loading, vizinhanca\.fas\)/);
   assert.doesNotMatch(pc, /saved \{tracks\.length === 1 \? 'track' : 'tracks'\}/);
   assert.doesNotMatch(iphone, /`Album · \$\{tracks\.length\} songs`/);
-  assert.match(ler('src/components/CabecalhoDaPlaylist.tsx'), /\{meta === null \? null : <Text style=\{styles\.meta\}>/);
+  assert.match(ler('src/components/CabecalhoDaPlaylist.tsx'), /\{meta === null \? null : <(?:Text|TextoQueRola) style=\{styles\.meta\}/);
 });
 
 caso('a foto do cabeçalho abre a cobrir, e não num quadrado ao centro (26/10)', () => {
