@@ -87,6 +87,9 @@ export function PaginaDoQuadrado({ voo, navigation, children }: {
 
   // Sem a página de trás na janela (o pop nativo não começou): sai sem animação.
   const sairJa = useCallback(() => { navigation.setOptions({ animation: 'none' }); navigation.goBack(); }, [navigation]);
+  // Voltar a deslizar (27/11): a capa sai da da página, que se esconde enquanto ela anda.
+  const medirCapa = useCallback(() => dadosDoVoo(voo)?.medirAlvo?.() ?? Promise.resolve(null), [voo]);
+  const esconderCapa = useCallback((sim: boolean) => marcarCapaNoAr(voo, sim), [voo]);
 
   const pagina = (
     <Animated.View style={{ flex: 1, opacity: opacidade }} onLayout={() => marcarPaginaPronta(voo)}>
@@ -97,7 +100,8 @@ export function PaginaDoQuadrado({ voo, navigation, children }: {
     <VoltarDoQuadrado.Provider value={voltar}>
       <CascataDaPagina.Provider value={cascata}>
         {temVoltaADeslizar
-          ? <VoltaADeslizar cartao={cartao} capaDoCartao={capaDoCartao} ativa={comVolta && fase === 'aberta'} sair={sairJa}>{pagina}</VoltaADeslizar>
+          ? <VoltaADeslizar cartao={cartao} capaDoCartao={capaDoCartao} ativa={comVolta && fase === 'aberta'} sair={sairJa}
+              medirCapa={medirCapa} esconderCapa={esconderCapa}>{pagina}</VoltaADeslizar>
           : pagina}
       </CascataDaPagina.Provider>
     </VoltarDoQuadrado.Provider>

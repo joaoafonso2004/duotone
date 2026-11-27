@@ -257,6 +257,41 @@ export function encolherDoDedo(dx: number, largura: number): number {
 }
 
 /**
+ * A capa ao voltar a deslizar (27/11), em coordenadas da página. O João, com um
+ * vídeo: "quando saio da playlist, a imagem do carro fica gigante". A capa era um
+ * quadrado a cobrir o recorte inteiro (da altura do ecrã) a encolher até ao cartão.
+ * Agora sai do sítio onde está na página, com o tamanho que lá tem, e encolhe até
+ * ao cartão, como a da seta (`CamadaDoQuadrado`): nunca é maior do que era.
+ *
+ * Uma caixa quadrada do lado maior da capa da página (a foto de um artista é mais
+ * alta do que larga: o recorte corta os lados, como o ecrã), no centro dela, que
+ * anda até ao centro do cartão e escala até ao lado dele. `entrada`: `null` quando
+ * a capa se levanta da página (a dela esconde-se, e esta já lá está por cima); a
+ * de um artista acende depressa por cima da foto (a capa da página leva o nome e
+ * os botões, que se apagariam de uma vez); fora da vista (a lista rolou), aparece
+ * ao centro, do tamanho da de uma playlist, e acende como antes.
+ */
+export function capaDaVolta(
+  naPagina: Retangulo | null,
+  cartao: Retangulo,
+  pagina: { width: number; height: number },
+  forma: FormaDoQuadrado,
+): { caixa: Retangulo; dx: number; dy: number; escala: number; entrada: [number, number] | null } {
+  const vista = !!naPagina && naPagina.width > 0 && naPagina.height > 0
+    && naPagina.y + naPagina.height > 0 && naPagina.y < pagina.height;
+  const lado = vista ? Math.max(naPagina!.width, naPagina!.height) : Math.min(240, Math.round(pagina.width * 0.52));
+  const cx = vista ? naPagina!.x + naPagina!.width / 2 : pagina.width / 2;
+  const cy = vista ? naPagina!.y + naPagina!.height / 2 : pagina.height / 2;
+  return {
+    caixa: { x: cx - lado / 2, y: cy - lado / 2, width: lado, height: lado },
+    dx: cartao.x + cartao.width / 2 - cx,
+    dy: cartao.y + cartao.height / 2 - cy,
+    escala: cartao.width / Math.max(1, lado),
+    entrada: !vista ? [0.12, 0.5] : forma === 'circulo' ? [0, 0.25] : null,
+  };
+}
+
+/**
  * O recorte da página em `p` (0 = o ecrã inteiro, 1 = o cartão), em coordenadas da
  * página. Na maquete é um `clip-path: inset(...)`; aqui uma caixa com `overflow:
  * hidden` que se desloca e escala (`tx`, `ty`, `sx`, `sy`, à volta do centro) e

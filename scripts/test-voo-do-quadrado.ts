@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  amostrasDaVolta, CASCATA, COR_ATE, corTapa, curvaDaMola, decidirVolta, duracaoDaMola, encolherDoDedo, entradaDaLinha, momentoDeAbrir,
+  amostrasDaVolta, capaDaVolta, CASCATA, COR_ATE, corTapa, curvaDaMola, decidirVolta, duracaoDaMola, encolherDoDedo, entradaDaLinha, momentoDeAbrir,
   MOLA_DO_VOO, recorteDaVolta, TAPAR_MS, VEU_MAXIMO, VOLTA, vooDaCapa, vooDaCor, vooDoCirculoParaLarga,
 } from '../src/lib/vooDoQuadrado.ts';
 import { ENTRADA } from '../src/lib/movimento.ts';
@@ -230,13 +230,40 @@ caso('a seta: a pilha sabe que sai sem animação antes do goBack', () => {
 });
 caso('arrastar acaba na capa do cartão, e não num retângulo escuro', () => {
   const v = ler('src/components/VoltaADeslizar.tsx');
-  assert.match(v, /aMexer && desenho && capaDoCartao \?/);
-  assert.match(v, /const escala = Animated\.multiply\(sy, pagina\.height \/ lado\);/, 'cobre o recorte, que é mais alto do que largo');
+  assert.match(v, /aMexer && desenho && capa && capaDoCartao \?/);
   assert.match(v, /borderRadius: Animated\.divide\(raioVisto, escala\)/, 'os cantos vistos, numa caixa que só cresce por igual');
-  assert.match(v, /transform: \[\{ scaleX: Animated\.divide\(1, sx\) \}, \{ scaleY: Animated\.divide\(1, sy\) \}\]/);
-  // No fim tem o tamanho do cartão: lado × sy(1) × altura / lado = altura do cartão.
-  const r = recorteDaVolta(1, ecra, cartao, 55);
-  assert.ok(Math.abs(ecra.height * r.sy - cartao.height) < 1e-9);
+});
+
+console.log('\n27/11: a capa ao voltar a deslizar não fica gigante');
+caso('sai do sítio e do tamanho da capa da página, e acaba no cartão', () => {
+  // A capa de uma playlist no topo da página (o `CabecalhoDaPlaylist`: 52 % da largura).
+  const naPagina = { x: 93, y: 110, width: 204, height: 204 };
+  const g = capaDaVolta(naPagina, cartao, ecra, 'quadrado');
+  assert.deepEqual(g.caixa, naPagina, 'no começo, a da página');
+  assert.equal(g.entrada, null, 'levanta-se da página (a dela esconde-se)');
+  // No fim: o centro e o lado do cartão.
+  assert.equal(g.caixa.x + g.caixa.width / 2 + g.dx, cartao.x + cartao.width / 2);
+  assert.equal(g.caixa.y + g.caixa.height / 2 + g.dy, cartao.y + cartao.height / 2);
+  assert.ok(Math.abs(g.caixa.width * g.escala - cartao.width) < 1e-9);
+  // Nunca maior do que era: a caixa só encolhe (era um quadrado da altura do ecrã).
+  assert.ok(g.escala <= 1 && g.caixa.width < ecra.height / 2);
+});
+caso('o artista: a foto larga no sítio dela, a acender por cima do nome; fora da vista, ao centro', () => {
+  const foto = { x: 0, y: 0, width: 390, height: 538 };
+  const a = capaDaVolta(foto, circulo, ecra, 'circulo');
+  assert.equal(a.caixa.width, 538, 'o lado maior, como a da seta (o recorte corta os lados)');
+  assert.equal(a.caixa.x + a.caixa.width / 2, 195);
+  assert.deepEqual(a.entrada, [0, 0.25], 'a capa da página leva o nome e os botões: não se esconde de uma vez');
+  const longe = capaDaVolta({ x: 93, y: -400, width: 204, height: 204 }, cartao, ecra, 'quadrado');
+  assert.deepEqual(longe.entrada, [0.12, 0.5], 'a lista rolou: aparece');
+  assert.equal(longe.caixa.width, Math.round(ecra.width * 0.52));
+  assert.equal(capaDaVolta(null, cartao, ecra, 'quadrado').caixa.width, Math.round(ecra.width * 0.52));
+  const pagina = ler('src/components/PaginaDoQuadrado.tsx');
+  assert.match(pagina, /const medirCapa = useCallback\(\(\) => dadosDoVoo\(voo\)\?\.medirAlvo\?\.\(\) \?\? Promise\.resolve\(null\), \[voo\]\);/);
+  assert.match(pagina, /const esconderCapa = useCallback\(\(sim: boolean\) => marcarCapaNoAr\(voo, sim\), \[voo\]\);/);
+  const v = ler('src/components/VoltaADeslizar.tsx');
+  assert.match(v, /if \(!capa\?\.levanta\) return undefined;\n\s+esconderCapa\?\.\(true\);\n\s+return \(\) => esconderCapa\?\.\(false\);/, 'a da página volta quando a página reabre');
+  assert.match(v, /setCapaNaPagina\(undefined\);\n\s+setEstado\('parada'\);/);
 });
 
 caso('a página acende assim que existe, com a capa ainda a voar (o "refresh" do vídeo de 26/11)', () => {
