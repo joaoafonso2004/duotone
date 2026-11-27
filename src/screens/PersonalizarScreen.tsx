@@ -3,7 +3,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Image as ImagemRN, Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
+import { Animated, Image as ImagemRN, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
 import { EscolherIconeDaApp } from '../components/EscolherIconeDaApp';
@@ -17,6 +17,7 @@ import { PromptSheet } from '../components/PromptSheet';
 import { avisarFeito, avisarRemocao } from '../lib/avisoDeRemocao';
 import { chaveDoAspeto, MAXIMO_DE_PRESETS, MAXIMO_DO_NOME, nomeDoPreset, nomeSugerido } from '../lib/presetsDaAparencia';
 import { usePresetsDaAparencia } from '../state/presetsDaAparencia';
+import { medirNoEcra } from '../state/vooDoQuadrado';
 import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import {
   BOTOES_DO_LEITOR, degradesDoPoster, emCinzento, ESTILOS_DA_CAPA, fonteDosTitulos, MAXIMO_DE_BOTOES, NOMES_DAS_SECOES, NOMES_DOS_BOTOES, TEMAS, veuDoLeitor,
@@ -109,13 +110,19 @@ export function PersonalizarScreen({ navigation }: Props) {
   const cheioDePresets = presets.length >= MAXIMO_DE_PRESETS;
   /** A caixa do nome: um preset novo (`id` null) ou mudar o nome de um. */
   const [nomear, setNomear] = useState<{ id: string | null; inicial: string } | null>(null);
-  const [menuDoPreset, setMenuDoPreset] = useState<{ id: string; ancora: Ancora } | null>(null);
+  const [menuDoPreset, setMenuDoPreset] = useState<{ id: string; ancora: Ancora | null } | null>(null);
   /** O que o menu de um preset faz depois de fechar (a caixa do nome é outro Modal). */
   const depoisDoMenu = useRef<(() => void) | null>(null);
-  const segurarPreset = (id: string) => (e: GestureResponderEvent) => {
+  /**
+   * Cada preset mede-se pela sua vista, e não pelo `currentTarget` do toque longo
+   * (27/11, depois da 7.2.8: segurar fechava a app). O toque longo chega por um
+   * temporizador com o evento do toque, e o React já lhe pôs o `currentTarget` a
+   * null: o `measureInWindow` de null rebentava.
+   */
+  const vistasDosPresets = useRef(new Map<string, View>());
+  const segurarPreset = (id: string) => () => {
     hapticSelection();
-    const alvo = e.currentTarget as unknown as View;
-    alvo.measureInWindow((x, y, width, height) => setMenuDoPreset({ id, ancora: { x, y, width, height } }));
+    void medirNoEcra(vistasDosPresets.current.get(id) ?? null).then((ancora) => setMenuDoPreset({ id, ancora }));
   };
   const accoesDoPreset: PlayerAction[] = (() => {
     const p = menuDoPreset ? presets.find((x) => x.id === menuDoPreset.id) : undefined;
@@ -251,6 +258,7 @@ export function PersonalizarScreen({ navigation }: Props) {
             {presets.map((p) => (
               <Pressable
                 key={p.id}
+                ref={(v) => { if (v) vistasDosPresets.current.set(p.id, v); else vistasDosPresets.current.delete(p.id); }}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: emUso === p.id }}
                 accessibilityHint="Hold for options"
