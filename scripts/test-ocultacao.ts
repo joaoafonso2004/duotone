@@ -243,9 +243,17 @@ caso('iPhone: as laterais da capa 3D trocam na totalidade, sem nada a correr a m
   // thread da interface engasgava o disco ou não o deixava ver-se.
   const cubo = ler('src/components/ArtworkLyricsCube.tsx');
   assert.doesNotMatch(cubo, /useAtrasadoPelaOcultacao/);
-  assert.match(cubo, /<LateralDaCaixa key=\{l\.lado\} [^>]*artwork=\{artwork\} \/>/, 'as de baixo com a capa nova, já no skip');
-  assert.match(cubo, /<LateralDaCaixa key=\{'velha-'\+l\.lado\} [^>]*artwork=\{velhaDasLaterais\?\?artwork\} opacidade=\{opacidadeDaVelha\} \/>/, 'por cima, a que sai');
-  assert.match(cubo, /opacity:opacidade\?Animated\.multiply\(base,opacidade\):base,/, 'apagada na própria camada');
+  assert.match(cubo, /<LateralDaCaixa key=\{l\.lado\} [^>]*artwork=\{artwork\} velha=\{velhaDasLaterais\?\?artwork\} opacidadeDaVelha=\{opacidadeDaVelha\} \/>/, 'a capa nova já no skip, e a que sai com ela');
+  // 27/11: numa cópia da lateral por cima não se via (camadas irmãs com 3D no
+  // mesmo plano empatam na profundidade, e ganhava a de baixo). Dentro da lateral,
+  // por cima da nova, vale a ordem dos filhos.
+  assert.doesNotMatch(cubo, /key=\{'velha-'/, 'sem a segunda caixa de laterais');
+  const lateral = cubo.slice(cubo.indexOf('const LateralDaCaixa'), cubo.indexOf('export function ArtworkLyricsCube'));
+  const nova = lateral.indexOf('source={{uri:artwork}}'), daVelha = lateral.indexOf('source={{uri:velha}}');
+  assert.ok(nova > 0 && daVelha > nova, 'a que sai desenha-se depois (por cima) da nova, na mesma camada');
+  assert.match(lateral, /<Animated\.View collapsable=\{false\} style=\{estiloDaVelha\}>/, 'a vista que o motor nativo anima não se achata');
+  assert.match(lateral, /const estiloDaVelha=useMemo\(\(\)=>opacidadeDaVelha\?\[sitio,\{opacity:opacidadeDaVelha\}\]:null,/, 'o estilo animado fica entre desenhos');
+  assert.match(lateral, /\n\s+opacity:base,\n/, 'a camada da lateral não leva a opacidade da passagem');
   const l = ler('src/components/PlayerRoot.tsx');
   assert.match(l, /velhaDasLaterais=\{ocultacao\.velha\} opacidadeDaVelha=\{capaDaFrente \? null : ocultacao\.opacidadeDaVelha\}/);
   // A passagem não redesenha o leitor a meio: só no fim (a velha volta a ser a capa que se vê).
