@@ -147,9 +147,11 @@ async function main() {
   assert.equal(nodes(tree).filter(n => n.props?.accessibilityRole === 'tab').length, 0, 'sem separadores');
   const topo = find(n => n.type === 'SectionHeader' && n.props.titulo === 'Top Songs');
   assert.ok(topo, 'o título "Top Songs"');
-  // As tuas aparecem logo, sem esperar pelas do canal (que entram por baixo).
-  assert.deepEqual(ids(grelha().props.musicas), ['saved-a', 'saved-b'], 'as tuas não esperam pela rede');
-  assert.ok(find(n => n.type === 'Skeleton' && n.props.linhas === 2), 'as outras dele a chegar, por baixo');
+  // A lista aparece uma vez, inteira (27/11): à espera do canal, o esqueleto.
+  // As tuas antes dele eram reordenadas a seguir (o João: "tudo se altera várias vezes").
+  assert.ok(!grelha(), 'sem a grelha antes do canal');
+  assert.ok(find(n => n.type === 'Skeleton' && n.props.linhas === 4), 'o esqueleto fica até o canal responder');
+  assert.equal(play().props.desligado, false, 'o Play não se apaga à espera da lista');
   assert.ok(find(n => n.type === 'ShelfSkeleton'), 'a discografia a chegar');
   play().props.onPress();
   assert.deepEqual(ids(calls.at(-1)[1]), ['saved-a', 'saved-b'], 'o Play toca o que já há');

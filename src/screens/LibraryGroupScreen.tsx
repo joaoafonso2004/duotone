@@ -82,14 +82,21 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   // um artista sem página musical.
   const [detalhesDaPesquisa, setDetalhesDaPesquisa] = useState<Record<string, DetalheDaPesquisa>>({});
   const [ytAlbums, setYtAlbums] = useState<any[]>([]);
-  const [loadingYtTracks, setLoadingYtTracks] = useState(false);
-  const [loadingYtAlbums, setLoadingYtAlbums] = useState(false);
+  // A pesquisa arranca ao abrir: começa "a carregar" (27/11), senão o primeiro
+  // desenho dava-a por respondida.
+  const [loadingYtTracks, setLoadingYtTracks] = useState(type === 'artist');
+  /** A página do canal já respondeu (com discos, sem eles, ou falhou). */
+  const [canalRespondeu, setCanalRespondeu] = useState(false);
 
   // Recommendations sheet states
   const [selectedYtPlaylistId, setSelectedYtPlaylistId] = useState<string | null>(null);
   const [selectedYtPlaylistTitle, setSelectedYtPlaylistTitle] = useState<string | null>(null);
   const [selectedYtPlaylistArtwork, setSelectedYtPlaylistArtwork] = useState<string | null>(null);
 
+  // A página já lida (27/11): ao voltar a ela relê-se por baixo do que está à
+  // vista. O "a carregar" de cada regresso trocava tudo pelo esqueleto e voltava
+  // a pedir o canal.
+  const lidaPara = useRef<string | null>(null);
   const load = useCallback(async () => {
     const pedido = ++leitura.current;
     try {
@@ -111,13 +118,13 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
     } catch {
       // ignorar
     } finally {
-      if (pedido === leitura.current) setLoading(false);
+      if (pedido === leitura.current) { setLoading(false); lidaPara.current = `${type}:${name}`; }
     }
   }, [type, name]);
 
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
+      if (lidaPara.current !== `${type}:${name}`) setLoading(true);
       // A cache resolve numa microtask. Ceder um frame impede a biblioteca
       // inteira de bloquear a primeira imagem da navegação.
       let timer: ReturnType<typeof setTimeout> | undefined;
@@ -150,14 +157,18 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   // `paginaDoArtista`): pelo nome vinham os de um homónimo. Por isso espera que
   // a biblioteca seja lida.
   const [pagina, setPagina] = useState<PaginaDoArtista | null>(null);
-  useEffect(() => { setPagina(null); }, [type, name]);
+  useEffect(() => { setPagina(null); setCanalRespondeu(false); }, [type, name]);
   const provas = tracks.slice(0, 3).map((t) => t.sourceId).join(',');
   useEffect(() => {
     if (type !== 'artist' || !name || loading) return;
     let alive = true;
-    setLoadingYtAlbums(true);
-    void paginaDoArtista(name, tracks).then(res => { if (alive) { setPagina(res); setYtAlbums(res.albuns); } })
-      .finally(() => { if (alive) setLoadingYtAlbums(false); });
+    // A página, os discos e o "respondeu" no mesmo desenho (27/11). Uma releitura
+    // (a biblioteca mudou) não volta a esperar: fica o que estava até chegar a nova.
+    void paginaDoArtista(name, tracks).then((res) => res, () => null).then((res) => {
+      if (!alive) return;
+      if (res) { setPagina(res); setYtAlbums(res.albuns); }
+      setCanalRespondeu(true);
+    });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `provas` resume as faixas que contam
   }, [type, name, loading, provas]);
@@ -197,7 +208,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   }, [doCanal, ytTracks, tracks, ordenar]);
   const tracksDaAba = useMemo(() => ordenar(tracks), [tracks, ordenar]);
   // As do canal chegam com os álbuns; a pesquisa pelo nome é o recurso.
-  const aCarregarOutras = loadingYtAlbums || (!doCanal && loadingYtTracks);
+  const aCarregarOutras = type === 'artist' && !doCanal && (!canalRespondeu || loadingYtTracks);
   // Uma lista só (16/11, como no PC): as tuas e as outras dele juntas, pela
   // ordem escolhida (o coração da linha marca as tuas). As outras só quando a
   // fonte certa responder: a pesquisa pelo nome chega antes do canal, e
@@ -235,9 +246,12 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   // O Play toca as músicas da página toda (as tuas e as dele), e não só as
   // cinco que se veem.
   const faixasDaAba = musicas;
-  // Só se espera sem nada para mostrar: as tuas aparecem logo, e as outras dele
-  // entram por baixo quando chegarem (com o esqueleto no rodapé até lá).
-  const waiting = loading || (musicas.length === 0 && aCarregarOutras);
+  // A lista aparece UMA vez, inteira e pela ordem certa (27/11). O João, com um
+  // vídeo: "tudo se altera várias vezes". Abria com as tuas e o título "Songs",
+  // passava a "Top Songs", reordenava pelas visualizações da pesquisa e outra
+  // vez pelas reproduções do canal, que trazia as outras dele. Agora o esqueleto
+  // fica até a fonte certa responder.
+  const waiting = loading || aCarregarOutras;
   const shuffleLigado = usePlayer((s) => s.shuffle);
   const shuffleInteligente = usePlayer((s) => s.shuffleInteligente);
   const alternarShuffle = usePlayer((s) => s.toggleShuffle);
@@ -297,7 +311,8 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
     else if (acao === 'partilhar') setDiscoAPartilhar(d);
     else if (acao === 'tocar' || acao === 'baralhar' || acao === 'fila') void discoSemAbrir(d, acao);
   };
-  const tocarTudo = () => { if (!waiting) void tocarLista(faixasDaAba, shuffleLigado, shuffleInteligente, { tipo: 'artista', nome: name }); };
+  // À espera da lista, o Play toca o que já há (as tuas).
+  const tocarTudo = () => { if (!loading && faixasDaAba.length) void tocarLista(faixasDaAba, shuffleLigado, shuffleInteligente, { tipo: 'artista', nome: name }); };
   const detalheDe = useCallback((t: Track) => detalheDaLinha(ordem, infoDaFaixa(t)) ?? undefined, [ordem, infoDaFaixa]);
   const tocarDaPagina = useCallback((t: Track) => tocarMusica(t, musicas, true, undefined, origemDaPagina),
     [tocarMusica, musicas, origemDaPagina]);
@@ -316,10 +331,11 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
     <PilulaDeVidro icone="radio-outline" texto="Mix" label={`${name} Mix`} ocupado={aAbrirMix} onPress={() => void tocarMix()} />
     <View style={{ flex: 1 }} />
     {faixasDaAba.length || waiting ? <>
-      <BolaDeVidro icone="shuffle" lado={46} ativo={shuffleLigado} desligado={waiting}
+      {/* Não se apagam à espera da lista: acendiam quando ela chegava. */}
+      <BolaDeVidro icone="shuffle" lado={46} ativo={shuffleLigado} desligado={loading}
         label={shuffleInteligente ? 'Smart shuffle on' : shuffleLigado ? 'Shuffle on' : 'Shuffle off'}
         onPress={() => { hapticSelection(); alternarShuffle(); }} />
-      <BotaoDeTocar label={`Play ${name}`} desligado={waiting} onPress={tocarTudo} />
+      <BotaoDeTocar label={`Play ${name}`} desligado={loading} onPress={tocarTudo} />
     </> : null}
   </>;
   const barraDoArtista = <View style={styles.barra} pointerEvents="box-none">
@@ -327,7 +343,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
     <View style={{ flex: 1 }} pointerEvents="none" />
     {faixasDaAba.length ? <Animated.View style={{ opacity: playPequeno }} pointerEvents={passouONome ? 'auto' : 'none'}
       accessibilityElementsHidden={!passouONome} importantForAccessibility={passouONome ? 'auto' : 'no-hide-descendants'}>
-      <BotaoDeTocar label={`Play ${name}`} lado={36} desligado={waiting} onPress={tocarTudo} />
+      <BotaoDeTocar label={`Play ${name}`} lado={36} desligado={loading} onPress={tocarTudo} />
     </Animated.View> : null}
     {/* Favoritar dentro da página (29/9): só se podia na lista dos artistas. */}
     <BolaDeVidro icone={favorito ? 'heart' : 'heart-outline'} ativo={favorito}
@@ -337,7 +353,8 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
 
   const fas = fasDoArtista(vizinhanca.fas);
   // A página do canal respondeu, e não há discos nenhuns.
-  const semDiscografia = !loadingYtAlbums && !pagina?.maisRecente && !discos.albuns.length && !discos.singles.length;
+  // Só quando a lista aparece: o "Songs" e a lista sem grelha entram com ela.
+  const semDiscografia = canalRespondeu && !aCarregarOutras && !pagina?.maisRecente && !discos.albuns.length && !discos.singles.length;
   // Quantas são tuas, só quando se sabe e são (o "0 songs" parecia uma página avariada).
   const tuas = !loading && tracks.length > 0 ? `${tracks.length} in your library` : null;
   const numerosDoArtista = [
@@ -410,11 +427,9 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
             // vão todas, numa lista, em vez de doze numa grelha.
             : semDiscografia ? musicas.map((t) => <React.Fragment key={`${t.source}:${t.sourceId}`}>{linhaDaGrelha(t)}</React.Fragment>)
             : <GrelhaDeMusicas musicas={musicasAVista(musicas, false, MUSICAS_NA_GRELHA)} renderLinha={linhaDaGrelha} />}
-          {/* As outras dele ainda a chegar (as tuas já estão à vista). */}
-          {!waiting && aCarregarOutras ? <SkeletonDeFaixas linhas={2} /> : null}
 
           {pagina?.maisRecente ? <LancamentoEmDestaque album={pagina.maisRecente} aoAbrir={abrirDisco} aoSegurar={setDiscoComMenu} /> : null}
-          {loadingYtAlbums ? <SkeletonDePrateleira /> : <>
+          {!canalRespondeu ? <SkeletonDePrateleira /> : <>
             <DiscosDoArtista titulo="Albums" discos={discos.albuns} aoAbrir={abrirDisco} aoSegurar={setDiscoComMenu} />
             <DiscosDoArtista titulo="Singles & EPs" discos={discos.singles} aoAbrir={abrirDisco} aoSegurar={setDiscoComMenu} lado={136} />
           </>}

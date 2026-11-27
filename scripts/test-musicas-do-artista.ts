@@ -102,7 +102,7 @@ caso('uma página por secções, sem separadores, nos dois lados', () => {
   assert.match(iphone, /\{fas \? <SobreOArtista foto=\{capaDoArtista\} fas=\{fas\} numeros=\{numerosDoArtista\} \/> : null\}/, 'o About só com os fãs');
   assert.doesNotMatch(iphone, /UltimoLancamento|See all songs|setTodas/, 'iPhone: a caixa colada aos botões e o botão grande saíram');
   // Sem discografia, as músicas vão todas numa lista (23/10, a página acabava nas Top Songs).
-  assert.match(iphone, /const semDiscografia = !loadingYtAlbums && !pagina\?\.maisRecente && !discos\.albuns\.length && !discos\.singles\.length;/);
+  assert.match(iphone, /const semDiscografia = canalRespondeu && !aCarregarOutras && !pagina\?\.maisRecente && !discos\.albuns\.length && !discos\.singles\.length;/);
   assert.match(iphone, /: semDiscografia \? musicas\.map\(\(t\) => <React\.Fragment key=\{`\$\{t\.source\}:\$\{t\.sourceId\}`\}>\{linhaDaGrelha\(t\)\}<\/React\.Fragment>\)/);
   // PC (23/10, variante A de docs/artista-pc-maquete.html): todas as músicas e
   // uma coluna parada com o último lançamento, a discografia e os parecidos.
@@ -148,6 +148,11 @@ caso('os fãs e os parecidos pela vizinhança confirmada, e os parecidos abrem a
 });
 caso('uma lista só, pela ordem escolhida, e as dele só quando a fonte certa responde (16/11)', () => {
   assert.match(iphone, /ordenar\(musicasDoArtista\(tracks, aCarregarOutras \? \[\] : otherTracks\)\)/);
+  // 27/11: a lista aparece uma vez, inteira -- o esqueleto até a fonte certa responder.
+  assert.match(iphone, /const aCarregarOutras = type === 'artist' && !doCanal && \(!canalRespondeu \|\| loadingYtTracks\);/);
+  assert.match(iphone, /const waiting = loading \|\| aCarregarOutras;/);
+  assert.match(iphone, /const \[loadingYtTracks, setLoadingYtTracks\] = useState\(type === 'artist'\);/, 'a pesquisa começa a carregar');
+  assert.match(iphone, /if \(lidaPara\.current !== `\$\{type\}:\$\{name\}`\) setLoading\(true\);/, 'ao voltar, sem esqueleto nem pedir o canal outra vez');
   assert.match(pc, /ordenarMusicasDoArtista\(musicasDoArtista\(tracks, aProcurarMusicas \? \[\] : outrasSemRepetir\), ordem, infoDaFaixa\)/);
   assert.match(iphone, /<TrackRow track=\{t\} showSavedBadge acompanharATocar mostrarDuracao=\{false\}/, 'iPhone: as tuas marcadas');
   assert.match(pc, /<TrackTable plain colunaDoArtista=\{false\} showSavedBadge tracks=\{musicasFiltradas\}/, 'PC: as tuas marcadas');
@@ -159,7 +164,7 @@ caso('nenhum cabeçalho diz "0 songs" ou "0 saved tracks"', () => {
   assert.match(pc, /metaDoArtista\(tracks\.length, data\.loading, vizinhanca\.fas\)/);
   assert.doesNotMatch(pc, /saved \{tracks\.length === 1 \? 'track' : 'tracks'\}/);
   assert.doesNotMatch(iphone, /`Album · \$\{tracks\.length\} songs`/);
-  assert.match(ler('src/components/CabecalhoDaPlaylist.tsx'), /\{meta === null \? null : <(?:Text|TextoQueRola) style=\{styles\.meta\}/);
+  assert.match(ler('src/components/CabecalhoDaPlaylist.tsx'), /\{meta === null \? null : <(?:Text|TextoQueRola)(?: key=\{[^}]+\})? style=\{styles\.meta\}/);
 });
 
 caso('a foto do cabeçalho abre a cobrir, e não num quadrado ao centro (26/10)', () => {
