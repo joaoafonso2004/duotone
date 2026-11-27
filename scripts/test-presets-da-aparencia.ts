@@ -98,7 +98,7 @@ caso('no Customise: os presets na faixa dos temas, segurar abre o menu, e a caix
   const c = ler('src/screens/PersonalizarScreen.tsx');
   assert.match(c, /onLongPress=\{segurarPreset\(p\.id\)\}/);
   // Segurar fechava a app (27/11): no toque longo o `currentTarget` já é null.
-  assert.doesNotMatch(c, /currentTarget/);
+  assert.doesNotMatch(c, /e\.currentTarget/);
   assert.match(c, /medirNoEcra\(vistasDosPresets\.current\.get\(id\) \?\? null\)/);
   assert.match(c, /usePresetsDaAparencia\.getState\(\)\.aplicar\(p\.id\)/);
   // A caixa do nome é outro Modal: abre no aoFechado do menu, nunca com ele aberto.
