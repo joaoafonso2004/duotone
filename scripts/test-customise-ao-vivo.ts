@@ -28,7 +28,7 @@ caso('o Liquid Glass é o vidro do sistema, só no iOS 26, e só com a opção',
   assert.match(v, /<GlassView glassEffectStyle="regular" colorScheme="dark"/);
   const doca = ler('src/components/Doca.tsx');
   assert.match(doca, /const vidro = useVidro\(\);/);
-  assert.match(doca, /\{vidro \? <Vidro style=\{\[StyleSheet\.absoluteFill, \{ borderRadius: RAIO_DO_CARTAO \}\]\} \/> : <>\n\s+<BlurView/, 'sem a opção, o vidro desfocado de sempre');
+  assert.match(doca, /<Animated\.View style=\{\[styles\.vidro, \{ height: altura, transform: \[\{ translateY: desvioDoVidro \}\] \}\]\}>\n\s+<BlurView/, 'sem a opção, o vidro desfocado de sempre');
   const leitor = ler('src/components/PlayerRoot.tsx');
   assert.match(leitor, /\{vidro \? \(\n\s+<Vidro style=\{styles\.capsulaDosBotoes\}>/);
   const personalizar = ler('src/screens/PersonalizarScreen.tsx');

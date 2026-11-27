@@ -15,6 +15,7 @@ import { pedirFluidez } from '../state/fluidez';
 import { useAbertura } from '../state/abertura';
 import { COMECAR_DEPOIS_MS, ENTRE_SEPARADORES_MS, proximoAMontar } from '../lib/separadoresAMontar';
 import { useAparencia } from '../state/aparencia';
+import { selecaoDoVidro, VIDRO_DA_BASE } from '../lib/vidroDaBase';
 
 const ICONES_DOS_SEPARADORES: Record<string, keyof typeof Ionicons.glyphMap> = {
   Search: 'home',
@@ -121,8 +122,8 @@ function SeparadorActivo({ activo, tamanho, children }: {
  * viver aqui dentro, debaixo dos ecrãs: o navegador só publica o estado e a
  * navegação, e a base desenha os `IconesDosSeparadores`.
  */
-export function BarraDeSeparadores({ state, navigation }: MaterialTopTabBarProps) {
-  React.useLayoutEffect(() => { publicarSeparadores({ state, navigation }); }, [state, navigation]);
+export function BarraDeSeparadores({ state, navigation, position }: MaterialTopTabBarProps) {
+  React.useLayoutEffect(() => { publicarSeparadores({ state, navigation, position }); }, [state, navigation, position]);
   React.useEffect(() => () => publicarSeparadores(null), []);
   useMontarDepoisDaAbertura(state, navigation);
   return null;
@@ -236,8 +237,57 @@ export function IconesDosSeparadores({ state, navigation }: Pick<MaterialTopTabB
   );
 }
 
+/**
+ * A cápsula do separador escolhido no Liquid Glass (27/11, `lib/vidroDaBase.ts`):
+ * lisa, clara, com um rebordo de um píxel, POR CIMA do vidro e não de vidro (vidro
+ * sobre vidro funde-se e não se vê). Anda com o pager: a deslizar entre
+ * separadores segue o dedo, e a tocar num, a página a passar leva-a. Na rota sem
+ * botão (o Social, depois do Perfil) fica no Perfil e apaga-se.
+ */
+export function SelecaoDoVidro({ state, position, largura, altura }: {
+  state: MaterialTopTabBarProps['state'];
+  position: MaterialTopTabBarProps['position'] | undefined;
+  largura: number;
+  altura: number;
+}) {
+  const visiveis = state.routes.filter((r) => r.name !== 'Social');
+  const s = selecaoDoVidro(largura, visiveis.length, altura);
+  const chaves = state.routes.map((r) => r.key).join('|');
+  const movimento = React.useMemo(() => {
+    if (!s.coluna) return null;
+    const ultimo = visiveis.length - 1;
+    const xs = state.routes.map((r) => { const v = visiveis.findIndex((x) => x.key === r.key); return s.x(v >= 0 ? v : ultimo); });
+    const vistas = state.routes.map((r) => (r.name === 'Social' ? 0 : 1));
+    if (!position || state.routes.length < 2) {
+      return { x: xs[state.index] ?? 0, opacidade: vistas[state.index] ?? 1 };
+    }
+    const inputRange = state.routes.map((_, i) => i);
+    return {
+      x: position.interpolate({ inputRange, outputRange: xs, extrapolate: 'clamp' }),
+      opacidade: position.interpolate({ inputRange, outputRange: vistas, extrapolate: 'clamp' }),
+    };
+    // As rotas mudam pela chave; o índice só conta sem o `position`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [position, s.coluna, s.largura, chaves, position ? -1 : state.index]);
+  if (!movimento) return null;
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[styles.selecao, {
+        top: s.topo, width: s.largura, height: s.altura, borderRadius: s.raio,
+        opacity: movimento.opacidade, transform: [{ translateX: movimento.x }],
+      }]}
+    />
+  );
+}
+
 const styles = StyleSheet.create({
   linha: { flexDirection: 'row', paddingTop: 8, paddingBottom: 6 },
+  selecao: {
+    position: 'absolute', left: 0, borderCurve: 'continuous',
+    backgroundColor: VIDRO_DA_BASE.corDaSelecao,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: VIDRO_DA_BASE.rebordoDaSelecao,
+  },
   separador: { flex: 1, alignItems: 'center', gap: 3 },
   // Em minúsculas, como no iOS (3/10): as maiúsculas espaçadas do `micro`
   // liam-se como um painel de administração.

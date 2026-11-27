@@ -16,7 +16,8 @@ export const desvioDoVidro = new Animated.Value(0);
 /** Quanto os separadores descem: saem nos ecrãs abertos por cima das secções. */
 export const desvioDosIcones = new Animated.Value(0);
 
-type Separadores = Pick<MaterialTopTabBarProps, 'state' | 'navigation'>;
+/** `position`: onde vai o pager, com o dedo (a cápsula do escolhido no Liquid Glass segue-o). */
+type Separadores = Pick<MaterialTopTabBarProps, 'state' | 'navigation'> & Partial<Pick<MaterialTopTabBarProps, 'position'>>;
 
 export const useDoca = create<{
   modo: ModoDaDoca;

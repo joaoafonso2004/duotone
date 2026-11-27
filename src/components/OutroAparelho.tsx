@@ -16,6 +16,8 @@ import { abrirOutroAparelho, fecharOutroAparelho, useOutroAparelho } from '../st
 import { useTheme } from '../state/theme';
 import { colors, MINI_PLAYER_HEIGHT, radii } from '../theme';
 import { BottomSheet } from './BottomSheet';
+import { useVidro } from './Vidro';
+import { MUSICA_NO_VIDRO } from '../lib/vidroDaBase';
 
 /**
  * O outro aparelho a tocar, no iPhone (1/11, `docs/continuar-aqui-maquete.html`).
@@ -106,6 +108,7 @@ export function MiniDoOutroAparelho() {
   const separadores = useAlturaDosSeparadores();
   const posicao = usePosicaoDoOutro(oferta);
   const { comandar, aMandar } = useComandarOutro(oferta);
+  const vidro = useVidro();
   if (!oferta) return null;
   const nome = deviceLabel(oferta);
   const ouve = estaAcordado(oferta);
@@ -113,9 +116,9 @@ export function MiniDoOutroAparelho() {
   const fracao = duracao > 0 ? Math.min(1, posicao / duracao) : 0;
   const capa = capaParaLista(oferta.track.artworkUrl);
   return (
-    <Animated.View style={[estilos.mini, { bottom: separadores + insets.bottom + 4, transform: [{ translateY: desvioDaMusica }] }]}>
+    <Animated.View style={[estilos.mini, vidro && estilos.miniNoVidro, { bottom: separadores + insets.bottom + 4, transform: [{ translateY: desvioDaMusica }] }]}>
       <Pressable accessibilityRole="button" accessibilityLabel={`Playing on ${nome}: ${tituloDaFaixa(oferta.track)}`}
-        onPress={() => { hapticSelection(); abrirOutroAparelho(); }} style={estilos.miniDentro}>
+        onPress={() => { hapticSelection(); abrirOutroAparelho(); }} style={[estilos.miniDentro, vidro && estilos.miniDentroNoVidro]}>
         {capa ? <Image source={{ uri: capa }} style={estilos.miniCapa} contentFit="cover" /> : <View style={estilos.miniCapa} />}
         <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
           <Text numberOfLines={1} style={estilos.miniTitulo}>{tituloDaFaixa(oferta.track)}</Text>
@@ -133,7 +136,7 @@ export function MiniDoOutroAparelho() {
           <Ionicons name="play-skip-forward" size={20} color={colors.text} />
         </Pressable>
       </Pressable>
-      <View style={estilos.miniFio} pointerEvents="none">
+      <View style={[estilos.miniFio, vidro && estilos.miniFioNoVidro]} pointerEvents="none">
         <View style={{ height: 2, borderRadius: 1, width: `${fracao * 100}%`, backgroundColor: cor }} />
       </View>
     </Animated.View>
@@ -211,6 +214,10 @@ const estilos = StyleSheet.create({
   linguetaNome: { fontSize: 12, fontWeight: '700' },
   linguetaFaixa: { fontSize: 12, fontWeight: '500', color: colors.textSecondary, flexShrink: 1 },
   mini: { position: 'absolute', left: 0, right: 0, height: MINI_PLAYER_HEIGHT, overflow: 'hidden' },
+  // Na cápsula de vidro da música (o Liquid Glass, `lib/vidroDaBase.ts`), como a do PlayerRoot.
+  miniNoVidro: { left: MUSICA_NO_VIDRO.margem, right: MUSICA_NO_VIDRO.margem, borderRadius: MINI_PLAYER_HEIGHT / 2, borderCurve: 'continuous' },
+  miniDentroNoVidro: { paddingLeft: MUSICA_NO_VIDRO.dentro, paddingRight: 8 },
+  miniFioNoVidro: { left: MUSICA_NO_VIDRO.progressoLados, right: MUSICA_NO_VIDRO.progressoLados, bottom: MUSICA_NO_VIDRO.progressoFundo },
   miniDentro: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 16, paddingRight: 10 },
   miniCapa: { width: 48, height: 48, borderRadius: radii.sm, borderCurve: 'continuous', backgroundColor: colors.surface },
   miniTitulo: { fontSize: 13, fontWeight: '600', color: colors.text },

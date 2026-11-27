@@ -79,6 +79,7 @@ import { desvioDaMusica, useDoca } from '../state/doca';
 import { useVidro, Vidro } from './Vidro';
 import { pedirFluidez, segurarFluidez } from '../state/fluidez';
 import { posicoesDaDoca } from '../lib/doca';
+import { MUSICA_NO_VIDRO } from '../lib/vidroDaBase';
 import { contextoParaAnalytics } from '../lib/contextoDaDescoberta';
 import { registar } from '../lib/eventos';
 import { AddToPlaylistSheet } from './AddToPlaylistSheet';
@@ -1176,7 +1177,9 @@ export function PlayerRoot() {
     : Math.min(W - MARGEM_DA_CAPA, H * 0.42,
       Math.max(96, H - insets.top - insets.bottom - HEADER_H - RESERVA_DOS_CONTROLOS * Math.min(fontScale, 1.4)));
   const vidMini = {
-    x: 16,
+    // Com o Liquid Glass, a linha da música vive numa cápsula com margens (27/11,
+    // `lib/vidroDaBase.ts`), e a capa fica mais para dentro: a capa que voa parte dali.
+    x: vidro ? MUSICA_NO_VIDRO.margem + MUSICA_NO_VIDRO.dentro : 16,
     y: keyboardVisible && !expanded
       ? H + 500
       : H - miniBottom - MINI_PLAYER_HEIGHT + (MINI_PLAYER_HEIGHT - 48) / 2,
@@ -2015,6 +2018,7 @@ export function PlayerRoot() {
         pointerEvents={shouldHide || expanded ? 'none' : 'auto'}
         style={[
           styles.mini,
+          vidro && styles.miniNoVidro,
           {
             bottom: miniBottom,
             // Ao abrir sobe um pouco a crescer e some; no gesto de fechar volta
@@ -2024,7 +2028,7 @@ export function PlayerRoot() {
           },
         ]}
       >
-          <Pressable style={styles.miniInner} onPress={() => {if(!swiping.current)setExpanded(true);}}>
+          <Pressable style={[styles.miniInner, vidro && styles.miniInnerNoVidro]} onPress={() => {if(!swiping.current)setExpanded(true);}}>
             {isYt ? (
               // slot — o WebView flutua exatamente por cima desta área
               <View style={styles.miniVideoSlot} />
@@ -2092,7 +2096,7 @@ export function PlayerRoot() {
           </Pressable>
 
           {/* linha de progresso fina */}
-          <View style={styles.miniTrack} pointerEvents="none">
+          <View style={[styles.miniTrack, vidro && styles.miniTrackNoVidro]} pointerEvents="none">
             <PreenchimentoDoMini />
           </View>
         </Animated.View>
@@ -2784,7 +2788,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceHigh,
   },
   // A cápsula de vidro dos botões de baixo (o Liquid Glass, 27/11).
-  capsulaDosBotoes: { marginHorizontal: 28, borderRadius: 26, paddingVertical: 4, overflow: 'hidden' },
+  // O raio no próprio vidro, sem `overflow`: cortado, o vidro perde o rebordo.
+  capsulaDosBotoes: { marginHorizontal: 28, borderRadius: 26, borderCurve: 'continuous', paddingVertical: 4 },
+  // A linha da música na cápsula de vidro dela (o Liquid Glass, `lib/vidroDaBase.ts`):
+  // as margens da cápsula, e o arredondado corta a barra de progresso nas pontas.
+  miniNoVidro: { left: MUSICA_NO_VIDRO.margem, right: MUSICA_NO_VIDRO.margem, borderRadius: MINI_PLAYER_HEIGHT / 2, borderCurve: 'continuous' },
+  miniInnerNoVidro: { paddingLeft: MUSICA_NO_VIDRO.dentro, paddingRight: 8 },
+  miniTrackNoVidro: { left: MUSICA_NO_VIDRO.progressoLados, right: MUSICA_NO_VIDRO.progressoLados, bottom: MUSICA_NO_VIDRO.progressoFundo },
   // Sem fundo nem moldura (3/10): o vidro é da base (components/Doca.tsx), e a
   // linha está por cima dele. Era um cartão opaco pousado na barra.
   mini: {

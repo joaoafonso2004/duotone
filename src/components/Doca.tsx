@@ -1,12 +1,14 @@
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { comAlfa, posicoesDaDoca, ZONA_DA_MUSICA } from '../lib/doca';
 import { molaIOS } from '../lib/transicaoDoLeitor';
-import { IconesDosSeparadores } from '../navigation/BarraDeSeparadores';
+import { geometriaDoVidro, MUSICA_NO_VIDRO, VIDRO_DA_BASE } from '../lib/vidroDaBase';
+import { MINI_PLAYER_HEIGHT } from '../theme';
+import { IconesDosSeparadores, SelecaoDoVidro } from '../navigation/BarraDeSeparadores';
 import { definirAlturaDosSeparadores, desvioDaMusica, desvioDoVidro, desvioDosIcones, useAlturaDosSeparadores, useDoca } from '../state/doca';
 import { pedirFluidez } from '../state/fluidez';
 import { usePlayer } from '../state/player';
@@ -33,9 +35,6 @@ import { useVidro, Vidro } from './Vidro';
  * Vive DENTRO da app de trás (RootNavigator), por cima dos ecrãs: recua com ela
  * quando o leitor abre, como a barra dos separadores recuava.
  */
-/** Os cantos do cartão de vidro (o Liquid Glass). */
-const RAIO_DO_CARTAO = 30;
-
 export function Doca() {
   const insets = useSafeAreaInsets();
   const modo = useDoca((s) => s.modo);
@@ -70,29 +69,67 @@ export function Doca() {
   }, [modo, temMusica, insets.bottom, alturaDosSeparadores, reduzido]);
 
   const altura = ZONA_DA_MUSICA + alturaDosSeparadores + insets.bottom;
-  // O Liquid Glass (27/11, opção da Customise): o mesmo vidro, mas o do iOS 26, num
-  // cartão a flutuar com margens e cantos redondos. A geometria de dentro (a música,
-  // os separadores) e os movimentos não mudam: só o material e a moldura.
+  // O Liquid Glass (opção da Customise), refeito a 27/11 depois da 7.2.8
+  // (`lib/vidroDaBase.ts`): duas cápsulas soltas como a barra do iOS 26, a dos
+  // separadores e a da música, cada uma com o vidro do sistema e a sua forma (o
+  // raio no próprio vidro, sem vista de fora a cortá-lo: cortado, perde o rebordo).
   const vidro = useVidro();
-  const folga = vidro ? Math.max(6, insets.bottom - 14) : 0;
+  const [linha, setLinha] = useState(0);
+  const [larguraDaCapsula, setLarguraDaCapsula] = useState(0);
+  const geo = geometriaDoVidro(insets.bottom, linha);
+  // A altura que o resto da app conta (o fim das listas, a linha da música, os
+  // avisos) passa a ser a da cápsula: tudo fica por cima dela.
+  useEffect(() => { if (vidro && linha > 0) definirAlturaDosSeparadores(geo.separadores); }, [vidro, linha, geo.separadores]);
+  const musicaNoVidro = useRef(new Animated.Value(temMusica ? 1 : 0)).current;
+  useEffect(() => {
+    if (!vidro || reduzido) { musicaNoVidro.setValue(temMusica ? 1 : 0); return; }
+    pedirFluidez(400);
+    const a = Animated.timing(musicaNoVidro, { toValue: temMusica ? 1 : 0, duration: 220, useNativeDriver: true });
+    a.start();
+    return () => a.stop();
+  }, [vidro, temMusica, reduzido, musicaNoVidro]);
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-      {/* Sem `pointerEvents`: o vidro engole os toques que não acertam num botão,
-          para não irem parar à lista por baixo. */}
-      <Animated.View style={[styles.vidro, vidro && styles.flutuante, { height: altura - folga, bottom: folga, transform: [{ translateY: desvioDoVidro }] }]}>
-        {vidro ? <Vidro style={[StyleSheet.absoluteFill, { borderRadius: RAIO_DO_CARTAO }]} /> : <>
+      {vidro ? <>
+        {/* O fundo a escurecer por trás das cápsulas: o que passa por baixo do vidro
+            não compete com os nomes (o "deliquify" das referências do iOS 26). */}
+        <Animated.View pointerEvents="none" style={[styles.esbatido, { height: altura + 28, transform: [{ translateY: desvioDoVidro }] }]}>
+          <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.5)', 'rgba(0,0,0,0.72)']} locations={[0, 0.55, 1]} style={StyleSheet.absoluteFill} />
+        </Animated.View>
+        {/* A cápsula da música, por baixo da linha dela (que é do PlayerRoot). */}
+        <Animated.View pointerEvents="none" style={[styles.capsulaDaMusica, {
+          bottom: alturaDosSeparadores + insets.bottom + 4, opacity: musicaNoVidro, transform: [{ translateY: desvioDaMusica }],
+        }]}>
+          <Vidro style={[StyleSheet.absoluteFill, { borderRadius: MINI_PLAYER_HEIGHT / 2 }]} />
+        </Animated.View>
+      </> : (
+        // Sem `pointerEvents`: o vidro engole os toques que não acertam num botão,
+        // para não irem parar à lista por baixo.
+        <Animated.View style={[styles.vidro, { height: altura, transform: [{ translateY: desvioDoVidro }] }]}>
           <BlurView tint="dark" intensity={85} style={StyleSheet.absoluteFill} />
           <TintaDaDoca />
-        </>}
-      </Animated.View>
+        </Animated.View>
+      )}
       <Animated.View
         pointerEvents={modo === 'separadores' ? 'box-none' : 'none'}
-        style={[styles.icones, { paddingBottom: insets.bottom, transform: [{ translateY: desvioDosIcones }] }]}
+        style={[styles.icones, { paddingBottom: vidro ? geo.fundo : insets.bottom, transform: [{ translateY: desvioDosIcones }] }]}
       >
-        {/* Medidos aqui: é esta altura que o resto da app usa (auditoria 1.3). */}
-        <View onLayout={(e) => definirAlturaDosSeparadores(e.nativeEvent.layout.height)}>
-          {separadores ? <IconesDosSeparadores state={separadores.state} navigation={separadores.navigation} /> : null}
-        </View>
+        {vidro ? (
+          // A cápsula dos separadores: o vidro, a cápsula do escolhido e os ícones.
+          // Engole os toques que não acertam num ícone.
+          <View style={[styles.capsulaDosSeparadores, { height: geo.altura }]} onLayout={(e) => setLarguraDaCapsula(e.nativeEvent.layout.width)}>
+            <Vidro style={[StyleSheet.absoluteFill, { borderRadius: geo.raio }]} />
+            {separadores ? <SelecaoDoVidro state={separadores.state} position={separadores.position} largura={larguraDaCapsula} altura={geo.altura} /> : null}
+            <View style={styles.linhaNoVidro} onLayout={(e) => setLinha(e.nativeEvent.layout.height)}>
+              {separadores ? <IconesDosSeparadores state={separadores.state} navigation={separadores.navigation} /> : null}
+            </View>
+          </View>
+        ) : (
+          // Medidos aqui: é esta altura que o resto da app usa (auditoria 1.3).
+          <View onLayout={(e) => definirAlturaDosSeparadores(e.nativeEvent.layout.height)}>
+            {separadores ? <IconesDosSeparadores state={separadores.state} navigation={separadores.navigation} /> : null}
+          </View>
+        )}
       </Animated.View>
       {/* O outro aparelho (1/11): a lingueta no canto do vidro com música aqui,
           o mini dele na linha da música sem nada aqui. */}
@@ -142,11 +179,13 @@ const styles = StyleSheet.create({
   // me" entre "Songs" e "Artists"): mais desfoque e um pouco mais de tinta. A
   // cor do que passa continua a ver-se; as letras não.
   tinta: { backgroundColor: 'rgba(6,6,8,0.74)' },
-  // O cartão de vidro do Liquid Glass: solto das bordas, com os quatro cantos redondos.
-  flutuante: {
-    left: 10, right: 10, borderRadius: 30, borderTopLeftRadius: 30, borderTopRightRadius: 30,
-    borderTopWidth: 0, backgroundColor: 'transparent',
+  // O Liquid Glass (`lib/vidroDaBase.ts`).
+  esbatido: { position: 'absolute', left: 0, right: 0, bottom: 0 },
+  capsulaDaMusica: {
+    position: 'absolute', left: MUSICA_NO_VIDRO.margem, right: MUSICA_NO_VIDRO.margem, height: MINI_PLAYER_HEIGHT,
   },
+  capsulaDosSeparadores: { marginHorizontal: VIDRO_DA_BASE.margem, justifyContent: 'center' },
+  linhaNoVidro: { paddingHorizontal: VIDRO_DA_BASE.folgaDaLinha },
   icones: {
     position: 'absolute',
     left: 0,
