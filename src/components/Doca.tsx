@@ -13,6 +13,7 @@ import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
 import { useOutroAparelho } from '../state/outroAparelho';
 import { LinguetaDoOutroAparelho, MiniDoOutroAparelho } from './OutroAparelho';
+import { useVidro, Vidro } from './Vidro';
 
 /**
  * A base de baixo do iPhone: o mini-player e os separadores numa peça só de
@@ -32,6 +33,9 @@ import { LinguetaDoOutroAparelho, MiniDoOutroAparelho } from './OutroAparelho';
  * Vive DENTRO da app de trás (RootNavigator), por cima dos ecrãs: recua com ela
  * quando o leitor abre, como a barra dos separadores recuava.
  */
+/** Os cantos do cartão de vidro (o Liquid Glass). */
+const RAIO_DO_CARTAO = 30;
+
 export function Doca() {
   const insets = useSafeAreaInsets();
   const modo = useDoca((s) => s.modo);
@@ -66,13 +70,20 @@ export function Doca() {
   }, [modo, temMusica, insets.bottom, alturaDosSeparadores, reduzido]);
 
   const altura = ZONA_DA_MUSICA + alturaDosSeparadores + insets.bottom;
+  // O Liquid Glass (27/11, opção da Customise): o mesmo vidro, mas o do iOS 26, num
+  // cartão a flutuar com margens e cantos redondos. A geometria de dentro (a música,
+  // os separadores) e os movimentos não mudam: só o material e a moldura.
+  const vidro = useVidro();
+  const folga = vidro ? Math.max(6, insets.bottom - 14) : 0;
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
       {/* Sem `pointerEvents`: o vidro engole os toques que não acertam num botão,
           para não irem parar à lista por baixo. */}
-      <Animated.View style={[styles.vidro, { height: altura, transform: [{ translateY: desvioDoVidro }] }]}>
-        <BlurView tint="dark" intensity={85} style={StyleSheet.absoluteFill} />
-        <TintaDaDoca />
+      <Animated.View style={[styles.vidro, vidro && styles.flutuante, { height: altura - folga, bottom: folga, transform: [{ translateY: desvioDoVidro }] }]}>
+        {vidro ? <Vidro style={[StyleSheet.absoluteFill, { borderRadius: RAIO_DO_CARTAO }]} /> : <>
+          <BlurView tint="dark" intensity={85} style={StyleSheet.absoluteFill} />
+          <TintaDaDoca />
+        </>}
       </Animated.View>
       <Animated.View
         pointerEvents={modo === 'separadores' ? 'box-none' : 'none'}
@@ -131,6 +142,11 @@ const styles = StyleSheet.create({
   // me" entre "Songs" e "Artists"): mais desfoque e um pouco mais de tinta. A
   // cor do que passa continua a ver-se; as letras não.
   tinta: { backgroundColor: 'rgba(6,6,8,0.74)' },
+  // O cartão de vidro do Liquid Glass: solto das bordas, com os quatro cantos redondos.
+  flutuante: {
+    left: 10, right: 10, borderRadius: 30, borderTopLeftRadius: 30, borderTopRightRadius: 30,
+    borderTopWidth: 0, backgroundColor: 'transparent',
+  },
   icones: {
     position: 'absolute',
     left: 0,

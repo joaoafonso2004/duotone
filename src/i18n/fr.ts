@@ -2609,4 +2609,11 @@ export const FR: Readonly<Record<string, string>> = {
   "Save the look you have now. Hold a preset to rename, update or delete it.": "Enregistrez l'apparence actuelle. Maintenez un préréglage pour le renommer, le mettre à jour ou le supprimer.",
   // A versão da app no perfil de outra pessoa (27/11, só na conta do João).
   "App version": "Version de l'app",
+  // A Customise ao vivo, o Liquid Glass e o fundo da música (27/11).
+  "Background follows the song": "Le fond suit la musique",
+  "The artwork's colour washes the top of each page, and changes with the music.": "La couleur de la pochette baigne le haut de chaque page et change avec la musique.",
+  "Next song ›": "Titre suivant ›",
+  "Made for you": "Pour vous",
+  "Preview of Home": "Aperçu de l'accueil",
+  "Preview of a playlist": "Aperçu d'une playlist",
 };

@@ -2,11 +2,14 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Image as ImagemRN, Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
 import { EscolherIconeDaApp } from '../components/EscolherIconeDaApp';
+import { temLiquidGlass, Vidro } from '../components/Vidro';
+import { comAlfa } from '../lib/doca';
+import type { Track } from '../types';
 import { Grupo, Linha, LinhaInterruptor } from '../components/ListaAgrupada';
 import { MenuFlutuante, type Ancora } from '../components/MenuFlutuante';
 import type { PlayerAction } from '../components/PlayerActionsSheet';
@@ -77,9 +80,24 @@ export function PersonalizarScreen({ navigation }: Props) {
     fundoApp: s.fundoApp, listas: s.listas, rotulos: s.rotulos, topo: s.topo, titulo: s.titulo, barra: s.barra,
     play: s.play, metalNoPlay: s.metalNoPlay, controlos: s.controlos, posterImagem: s.posterImagem, posterMono: s.posterMono, botoes: s.botoes, flutuar: s.flutuar, fundoLeitor: s.fundoLeitor, brilho: s.brilho,
     titulos: s.titulos, tamanhoDasLetras: s.tamanhoDasLetras, abrirNasLetras: s.abrirNasLetras, molaNaLetra: s.molaNaLetra,
+    vidro: s.vidro, fundoDaMusica: s.fundoDaMusica,
     secoesDaHome: s.secoesDaHome, escondidasDaHome: s.escondidasDaHome,
   })));
   const capa = useCapaIOS((s) => s.style);
+  // A pré-visualização ao vivo (27/11): acende o ecrã a que a última opção mexida diz
+  // respeito, e à direita mostra a Home ou a Playlist (as listas). Vê-se pela
+  // aparência que mudou, e não por cada linha: assim apanha também os temas e os presets.
+  const [foco, setFoco] = useState<EcraDaPrevia>('np');
+  const [direita, setDireita] = useState<'home' | 'lista'>('home');
+  const anterior = useRef(ap);
+  useEffect(() => {
+    const mudou = (Object.keys(ap) as (keyof typeof ap)[]).find((k) => ap[k] !== anterior.current[k]);
+    anterior.current = ap;
+    const f = mudou ? ecraDaOpcao(mudou) : null;
+    if (f) { setFoco(f); if (f !== 'np') setDireita(f); }
+  }, [ap]);
+  const capaAntes = useRef(capa);
+  useEffect(() => { if (capaAntes.current !== capa) { capaAntes.current = capa; setFoco('np'); } }, [capa]);
   const tema = useTemaDaAparencia();
   const { mudar, escolherTema, alternarBotao, alternarSecao, moverSecao } = useAparencia.getState();
 
@@ -179,7 +197,10 @@ export function PersonalizarScreen({ navigation }: Props) {
   const cheio = ap.botoes.length >= MAXIMO_DE_BOTOES;
 
   return (
-    <Screen title="Customise" onBack={() => navigation.goBack()} encolhe={cab}>
+    <Screen title="Customise" onBack={() => navigation.goBack()} encolhe={cab}
+      // Presa por baixo do título (27/11): as opções rolam por baixo dela.
+      fixo={<PreviaAoVivo ap={ap} capa={capa} foco={foco} direita={direita}
+        aoEscolher={(e) => { hapticSelection(); setDireita(e); setFoco(e); }} />}>
       <MenuFlutuante visivel={!!menu} ancora={menu?.ancora ?? null} accoes={accoes} aoFechar={() => setMenu(null)} />
       <MenuFlutuante visivel={!!menuDaCapa} ancora={menuDaCapa} accoes={accoesDaCapa} aoFechar={() => setMenuDaCapa(null)} />
       <MenuFlutuante visivel={!!menuDaSecao} ancora={menuDaSecao?.ancora ?? null} accoes={accoesDaSecao} aoFechar={() => setMenuDaSecao(null)} />
@@ -212,8 +233,6 @@ export function PersonalizarScreen({ navigation }: Props) {
         scrollIndicatorInsets={{ top: cab.espaco }}
         contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: cab.espaco, paddingBottom: insets.bottom + 48, gap: spacing.xl }}
       >
-        <PreviaDoLeitor ap={ap} capa={capa} />
-
         <View style={{ gap: spacing.sm }}>
           <Text accessibilityRole="header" style={styles.tituloDosTemas}>THEMES</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
@@ -266,7 +285,15 @@ export function PersonalizarScreen({ navigation }: Props) {
           </Text>
         </View>
 
-        <Grupo titulo="App" rodape="The accent colour is in Settings → Appearance.">
+        <Grupo titulo="App" rodape={[
+          ap.fundoDaMusica ? "The artwork's colour washes the top of each page, and changes with the music." : null,
+          'The accent colour is in Settings → Appearance.',
+        ]}>
+          {/* O Liquid Glass do iOS 26 (27/11): só aparece onde o vidro existe. */}
+          {temLiquidGlass ? (
+            <LinhaInterruptor icone="water-outline" rotulo="Liquid Glass" valor={ap.vidro} aoMudar={(v) => mudar('vidro', v)} />
+          ) : null}
+          <LinhaInterruptor icone="color-fill-outline" rotulo="Background follows the song" valor={ap.fundoDaMusica} aoMudar={(v) => mudar('fundoDaMusica', v)} />
           {linha('fundoApp')}
           {linha('listas')}
           {linha('titulos')}
@@ -345,11 +372,10 @@ export function PersonalizarScreen({ navigation }: Props) {
  * a barra, o botão play e os botões de baixo. Com a música que está a tocar, ou
  * um quadrado da cor do destaque.
  */
-function PreviaDoLeitor({ ap, capa }: { ap: Aparencia; capa: EstiloDaCapa }) {
-  const arte = usePlayer((s) => s.current?.artworkUrl ?? null);
+function PreviaDoLeitor({ ap, capa, faixa }: { ap: Aparencia; capa: EstiloDaCapa; faixa: Track | null }) {
+  const arte = faixa?.artworkUrl ?? null;
   // O título limpo, como o leitor o mostra (o cru é o do vídeo: "Artista - Música ...").
-  // Lê a faixa e não calcula no seletor, que corria a cada aviso de posição.
-  const faixa = usePlayer((s) => s.current);
+  // A faixa vem da pré-visualização ao vivo: a que toca, ou uma das seguintes ("Next song").
   const titulo = faixa ? tituloNoLeitor(faixa) : null;
   const corDoTema = useTheme((s) => s.theme.color);
   const corDosControlos = ap.controlos === 'branco' ? colors.text : corDoTema;
@@ -417,6 +443,143 @@ function PreviaDoLeitor({ ap, capa }: { ap: Aparencia; capa: EstiloDaCapa }) {
   );
 }
 
+type EcraDaPrevia = 'np' | 'home' | 'lista';
+
+/** Que ecrã mostra o que uma opção muda (null: nenhum, como o tamanho da letra das músicas). */
+function ecraDaOpcao(k: keyof Aparencia): EcraDaPrevia | null {
+  if (k === 'listas') return 'lista';
+  if (k === 'fundoApp' || k === 'rotulos' || k === 'vidro' || k === 'fundoDaMusica' || k === 'secoesDaHome' || k === 'escondidasDaHome') return 'home';
+  if (k === 'tamanhoDasLetras' || k === 'abrirNasLetras' || k === 'molaNaLetra') return null;
+  return 'np';
+}
+
+/**
+ * A app ao vivo, presa em cima da Customise (27/11, `docs/personalizar-ao-vivo-maquete.html`,
+ * aprovada pelo João). Dois ecrãs lado a lado: o Now Playing e a Home ou a Playlist,
+ * desenhados com as escolhas de agora e a música que toca. Acende-se o que a última
+ * opção mexeu. "Next song" passa pelas próximas da fila (`upcomingQueue`) só aqui,
+ * sem mudar a música: é para ver a cor seguir a capa.
+ */
+function PreviaAoVivo({ ap, capa, foco, direita, aoEscolher }: {
+  ap: Aparencia; capa: EstiloDaCapa; foco: EcraDaPrevia; direita: 'home' | 'lista'; aoEscolher: (e: 'home' | 'lista') => void;
+}) {
+  const atual = usePlayer((s) => s.current);
+  const [indice, setIndice] = useState(0);
+  const chaveDaAtual = atual ? `${atual.source}:${atual.sourceId}` : '';
+  const faixas = useMemo(() => {
+    const seguintes = usePlayer.getState().upcomingQueue().slice(0, 4).map((p) => p.track);
+    return [atual, ...seguintes].filter((t): t is Track => !!t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- muda com a música que toca
+  }, [chaveDaAtual]);
+  useEffect(() => { setIndice(0); }, [chaveDaAtual]);
+  const faixa = faixas.length ? faixas[indice % faixas.length]! : null;
+  const chip = (rotulo: string, ligado: boolean, aoTocar: () => void, desligado = false) => (
+    <Pressable accessibilityRole="button" accessibilityState={{ selected: ligado, disabled: desligado }} disabled={desligado}
+      onPress={aoTocar} hitSlop={6} style={[styles.chipDaPrevia, ligado && styles.chipDaPreviaLigado, desligado && { opacity: 0.4 }]}>
+      <Text style={[styles.textoDoChip, ligado && { color: colors.bg }]}>{rotulo}</Text>
+    </Pressable>
+  );
+  return (
+    <View style={styles.aoVivo}>
+      <View style={styles.molduras}>
+        <MolduraDaPrevia acesa={foco === 'np'}><PreviaDoLeitor ap={ap} capa={capa} faixa={faixa} /></MolduraDaPrevia>
+        <MolduraDaPrevia acesa={foco !== 'np'}><PreviaDaApp ap={ap} ecra={direita} faixa={faixa} faixas={faixas} /></MolduraDaPrevia>
+      </View>
+      <View style={styles.chipsDaPrevia}>
+        {chip('Home', direita === 'home', () => aoEscolher('home'))}
+        {chip('Playlist', direita === 'lista', () => aoEscolher('lista'))}
+        {chip('Next song ›', false, () => { hapticSelection(); setIndice((i) => i + 1); }, faixas.length < 2)}
+      </View>
+    </View>
+  );
+}
+
+/** Um ecrã de 200 × 360 a três quartos (150 × 270), com o anel que diz qual mudou. */
+function MolduraDaPrevia({ acesa, children }: { acesa: boolean; children: React.ReactNode }) {
+  return (
+    <View style={[styles.moldura, acesa && styles.molduraAcesa]}>
+      <View style={styles.dentroDaMoldura}>{children}</View>
+    </View>
+  );
+}
+
+/**
+ * A Home ou a Playlist em pequeno: o fundo da app (escuro, OLED, e a cor da música),
+ * o título com a letra escolhida, as capas da fila, as linhas confortáveis ou
+ * compactas, e a base com o mini leitor e os separadores (com ou sem nomes, e com o
+ * Liquid Glass quando está ligado e existe).
+ */
+function PreviaDaApp({ ap, ecra, faixa, faixas }: { ap: Aparencia; ecra: 'home' | 'lista'; faixa: Track | null; faixas: Track[] }) {
+  const uri = faixa?.artworkUrl ? capaParaLista(faixa.artworkUrl) : null;
+  const corDaMusica = useCorDoAmbiente(ap.fundoDaMusica ? uri : null);
+  const corDoTema = useTheme((s) => s.theme.color);
+  const capas = faixas.length ? faixas : [];
+  const capaDe = (i: number) => {
+    const t = capas.length ? capas[i % capas.length] : null;
+    return t?.artworkUrl ? capaParaLista(t.artworkUrl) : null;
+  };
+  const quadrado = (i: number, lado: number, raio: number) => {
+    const u = capaDe(i);
+    return u ? <Image key={i} source={{ uri: u }} style={{ width: lado, height: lado, borderRadius: raio }} contentFit="cover" />
+      : <View key={i} style={{ width: lado, height: lado, borderRadius: raio, backgroundColor: colors.surfaceHigh }} />;
+  };
+  const compacta = ap.listas === 'compact';
+  const vidro = ap.vidro && temLiquidGlass;
+  return (
+    <View style={[styles.previa, styles.previaDaApp]} accessible accessibilityLabel={ecra === 'home' ? 'Preview of Home' : 'Preview of a playlist'}>
+      {ap.fundoApp === 'dark' ? (
+        <Image source={require('../../assets/login_bg.png')} style={StyleSheet.absoluteFill} contentFit="cover" blurRadius={12} />
+      ) : null}
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: ap.fundoApp === 'oled' ? '#000' : 'rgba(6,6,8,0.88)' }]} />
+      {corDaMusica ? (
+        <LinearGradient colors={[comAlfa(corDaMusica, 0.55), comAlfa(corDaMusica, 0.22), comAlfa(corDaMusica, 0)]}
+          locations={[0, 0.28, 0.6]} style={StyleSheet.absoluteFill} />
+      ) : null}
+      <View style={styles.appCorpo}>
+        <Text numberOfLines={1} style={[styles.appTitulo, fonteDosTitulos(ap.titulos)]}>{ecra === 'home' ? 'Home' : 'Liked Songs'}</Text>
+        {ecra === 'home' ? (
+          <>
+            <Text style={styles.appSeccao}>Jump back in</Text>
+            <View style={styles.prateleira}>{[1, 2, 3].map((i) => quadrado(i, 50, 6))}</View>
+            <Text style={styles.appSeccao}>Made for you</Text>
+            <View style={styles.prateleira}>{[2, 3, 4].map((i) => quadrado(i, 50, 6))}</View>
+          </>
+        ) : (
+          [0, 1, 2, 3, 4, 5, 6].map((i) => {
+            const t = capas.length ? capas[i % capas.length] : null;
+            return (
+              <View key={i} style={[styles.appLinha, { height: compacta ? 30 : 36 }]}>
+                {quadrado(i, compacta ? 20 : 24, 3)}
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text numberOfLines={1} style={styles.appLinhaTitulo}>{t ? tituloNoLeitor(t) : 'Song title'}</Text>
+                </View>
+              </View>
+            );
+          })
+        )}
+      </View>
+      {/* A base: com o Liquid Glass, um cartão de vidro a flutuar; sem ele, o vidro escuro de sempre. */}
+      <View style={[styles.appBase, vidro && styles.appBaseFlutuante]}>
+        {vidro ? <Vidro style={[StyleSheet.absoluteFill, { borderRadius: 18 }]} /> : <View style={[StyleSheet.absoluteFill, styles.appBaseEscura]} />}
+        <View style={styles.appMini}>
+          {quadrado(0, 22, 4)}
+          <Text numberOfLines={1} style={[styles.appLinhaTitulo, { flex: 1 }]}>{faixa ? tituloNoLeitor(faixa) : 'Song title'}</Text>
+          <Ionicons name="pause" size={13} color={colors.text} />
+        </View>
+        <View style={styles.appSeparadores}>
+          {(['home', 'heart', 'mic', 'albums', 'person'] as const).map((icone, i) => (
+            <View key={icone} style={styles.appSeparador}>
+              <Ionicons name={i === (ecra === 'home' ? 0 : 1) ? icone : (`${icone}-outline` as any)} size={14}
+                color={i === (ecra === 'home' ? 0 : 1) ? corDoTema : colors.textSecondary} />
+              {ap.rotulos ? <View style={[styles.appRotulo, { backgroundColor: i === (ecra === 'home' ? 0 : 1) ? corDoTema : colors.textTertiary }]} /> : null}
+            </View>
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+}
+
 /** O Poster em pequeno: a imagem até ao título, a dissolver-se na cor dela (`FundoDoPoster`). */
 function PosterEmPequeno({ uri, tom, mono }: { uri: string | null; tom: string; mono: boolean }) {
   const d = degradesDoPoster(tom);
@@ -448,6 +611,41 @@ const styles = StyleSheet.create({
     alignSelf: 'center', width: 200, height: 360, borderRadius: 28, borderCurve: 'continuous', overflow: 'hidden',
     borderWidth: 1, borderColor: colors.border, paddingHorizontal: 18, paddingTop: 18, paddingBottom: 14,
   },
+  // A pré-visualização ao vivo (27/11): dois ecrãs a 3/4, e os chips por baixo.
+  aoVivo: { paddingTop: spacing.sm, paddingBottom: spacing.md, gap: spacing.sm, backgroundColor: colors.bg },
+  molduras: { flexDirection: 'row', justifyContent: 'center', gap: spacing.md },
+  moldura: {
+    width: 150, height: 270, borderRadius: 22, borderCurve: 'continuous', overflow: 'hidden',
+    borderWidth: 1.5, borderColor: colors.border,
+  },
+  molduraAcesa: { borderColor: colors.text },
+  // O ecrã de 200 × 360 encolhido a 3/4 à volta do centro: fica certo nos 150 × 270.
+  dentroDaMoldura: { position: 'absolute', left: -25, top: -45, width: 200, height: 360, transform: [{ scale: 0.75 }] },
+  chipsDaPrevia: { flexDirection: 'row', justifyContent: 'center', gap: spacing.sm },
+  chipDaPrevia: {
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: radii.pill, borderCurve: 'continuous',
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+  },
+  chipDaPreviaLigado: { backgroundColor: colors.text, borderColor: colors.text },
+  textoDoChip: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
+  previaDaApp: { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, borderWidth: 0 },
+  appCorpo: { paddingTop: 22, paddingHorizontal: 12, gap: 4 },
+  appTitulo: { fontSize: 20, fontWeight: '800', color: colors.text, marginBottom: 4 },
+  appSeccao: { fontSize: 11, fontWeight: '700', color: colors.text, marginTop: 6 },
+  prateleira: { flexDirection: 'row', gap: 7, marginTop: 4 },
+  appLinha: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  appLinhaTitulo: { fontSize: 11, fontWeight: '600', color: colors.text },
+  appBase: {
+    position: 'absolute', left: 0, right: 0, bottom: 0, height: 74, overflow: 'hidden',
+    borderTopLeftRadius: 14, borderTopRightRadius: 14, borderCurve: 'continuous',
+  },
+  appBaseFlutuante: { left: 6, right: 6, bottom: 6, height: 68, borderRadius: 18 },
+  appBaseEscura: { backgroundColor: 'rgba(20,20,26,0.94)' },
+  appMini: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 9, paddingTop: 7, height: 34 },
+  appSeparadores: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', height: 34, paddingBottom: 4 },
+  appSeparador: { alignItems: 'center', gap: 3 },
+  // O nome por baixo do ícone, a risco: a 3/4 um texto de 11 já não se lia.
+  appRotulo: { width: 12, height: 2, borderRadius: 1 },
   previaTopo: { alignItems: 'center', height: 28, justifyContent: 'center' },
   previaMarca: { fontSize: 11, fontWeight: '600', letterSpacing: 2.2, color: colors.text },
   previaOlho: { fontSize: 11, fontWeight: '600', letterSpacing: 0.8, color: colors.textSecondary },

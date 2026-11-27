@@ -76,6 +76,7 @@ import { lyricsCacheKey, useLyrics } from '../state/lyrics';
 import { ROTULO_DO_JAM, rotuloDaOrigem } from '../lib/origemDaFila';
 import { trackKey as chaveDaFaixaNaFila } from '../lib/shuffle';
 import { desvioDaMusica, useDoca } from '../state/doca';
+import { useVidro, Vidro } from './Vidro';
 import { pedirFluidez, segurarFluidez } from '../state/fluidez';
 import { posicoesDaDoca } from '../lib/doca';
 import { contextoParaAnalytics } from '../lib/contextoDaDescoberta';
@@ -220,6 +221,8 @@ export function PlayerRoot() {
     posterImagem: s.posterImagem, posterMono: s.posterMono,
     flutuar: s.flutuar, fundoLeitor: s.fundoLeitor, brilho: s.brilho, titulos: s.titulos, abrirNasLetras: s.abrirNasLetras,
   })));
+  // O Liquid Glass (27/11): os botões de baixo numa cápsula de vidro. Só com a opção e o iOS 26.
+  const vidro = useVidro();
   // Os símbolos do leitor aberto (16/11): na cor do destaque, ou brancos (a cor
   // da capa fica só no fundo). O mini-player e o aviso de erro seguem o destaque.
   const corDosControlos = ap.controlos === 'branco' ? colors.text : theme.color;
@@ -1978,11 +1981,22 @@ export function PlayerRoot() {
               </Toque>
             ) : null}
 
-            <PlayerControlRow>
-              <View />
-              {ap.botoes.map(botaoDeBaixo)}
-              <View />
-            </PlayerControlRow>
+            {/* Com o Liquid Glass (27/11), os botões de baixo numa cápsula de vidro. */}
+            {vidro ? (
+              <Vidro style={styles.capsulaDosBotoes}>
+                <PlayerControlRow>
+                  <View />
+                  {ap.botoes.map(botaoDeBaixo)}
+                  <View />
+                </PlayerControlRow>
+              </Vidro>
+            ) : (
+              <PlayerControlRow>
+                <View />
+                {ap.botoes.map(botaoDeBaixo)}
+                <View />
+              </PlayerControlRow>
+            )}
           </Animated.View>
         </ScrollView>
       </Animated.View>
@@ -2769,6 +2783,8 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     backgroundColor: colors.surfaceHigh,
   },
+  // A cápsula de vidro dos botões de baixo (o Liquid Glass, 27/11).
+  capsulaDosBotoes: { marginHorizontal: 28, borderRadius: 26, paddingVertical: 4, overflow: 'hidden' },
   // Sem fundo nem moldura (3/10): o vidro é da base (components/Doca.tsx), e a
   // linha está por cima dele. Era um cartão opaco pousado na barra.
   mini: {

@@ -42,6 +42,7 @@ import { FolhaDoOutroAparelho } from '../components/OutroAparelho';
 import { PlayerRoot } from '../components/PlayerRoot';
 import { PreEscutaDoRefrao } from '../components/PreEscutaDoRefrao';
 import { Doca } from '../components/Doca';
+import { FundoDaMusica } from '../components/FundoDaMusica';
 import { atualizarDoca } from '../state/doca';
 import { ArtistsScreen } from '../screens/ArtistsScreen';
 import { AuthScreen } from '../screens/AuthScreen';
@@ -536,6 +537,8 @@ export function RootNavigator() {
                 { backgroundColor: fundoApp === 'oled' ? '#000' : 'rgba(6, 6, 8, 0.88)' }
               ]}
             />
+            {/* A cor da capa que toca a lavar o topo das páginas (27/11, opção da Customise). */}
+            <FundoDaMusica />
 
             <Stack.Navigator screenOptions={stackScreenOptions} screenLayout={envolverEcra}>
               <Stack.Screen name="Tabs" component={Tabs} />

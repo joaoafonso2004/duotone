@@ -106,6 +106,17 @@ export type Aparencia = {
    * gente começar sem ela, mesmo quem já tinha a de origem guardada.
    */
   molaNaLetra: boolean;
+  /**
+   * O Liquid Glass do iOS 26 (27/11, pedido do João): a barra de baixo, o mini
+   * leitor e os botões do leitor em vidro nativo (`expo-glass-effect`). Desligado
+   * de origem: a app fica como estava. Sem iOS 26 não faz nada (a opção nem aparece).
+   */
+  vidro: boolean;
+  /**
+   * O fundo da app a seguir a música (27/11): a cor da capa que toca a lavar o
+   * topo das páginas, e a mudar devagar com a música. Desligado de origem.
+   */
+  fundoDaMusica: boolean;
   /** As secções da Home, pela ordem escolhida (todas, também as escondidas). */
   secoesDaHome: SecaoDaHome[];
   escondidasDaHome: SecaoDaHome[];
@@ -116,6 +127,7 @@ export const PADRAO: Aparencia = {
   topo: 'marca', titulo: 'centro', barra: 'fina', play: 'metal', metalNoPlay: true, controlos: 'destaque', posterImagem: 'artista', posterMono: false,
   botoes: ['fila', 'visibilidade', 'eq'], flutuar: true, fundoLeitor: 'capa', brilho: 50,
   titulos: 'padrao', tamanhoDasLetras: 'm', abrirNasLetras: false, molaNaLetra: false,
+  vidro: false, fundoDaMusica: false,
   secoesDaHome: [...SECOES_DA_HOME], escondidasDaHome: [],
 };
 
@@ -179,7 +191,7 @@ export function alternarBotao(botoes: readonly BotaoDoLeitor[], b: BotaoDoLeitor
   return botoes.length >= MAXIMO_DE_BOTOES ? [...botoes] : [...botoes, b];
 }
 
-type ChaveComValores = Exclude<keyof Aparencia, 'botoes' | 'brilho' | 'rotulos' | 'flutuar' | 'posterMono' | 'abrirNasLetras' | 'molaNaLetra' | 'secoesDaHome' | 'escondidasDaHome' | 'metalNoPlay'>;
+type ChaveComValores = Exclude<keyof Aparencia, 'botoes' | 'brilho' | 'rotulos' | 'flutuar' | 'posterMono' | 'abrirNasLetras' | 'molaNaLetra' | 'vidro' | 'fundoDaMusica' | 'secoesDaHome' | 'escondidasDaHome' | 'metalNoPlay'>;
 const VALORES: { [K in ChaveComValores]: readonly Aparencia[K][] } = {
   fundoApp: ['dark', 'oled'],
   listas: ['comfortable', 'compact'],
@@ -209,6 +221,8 @@ export function lerAparencia(guardado: unknown): Aparencia {
   if (typeof g.posterMono === 'boolean') fora.posterMono = g.posterMono;
   if (typeof g.abrirNasLetras === 'boolean') fora.abrirNasLetras = g.abrirNasLetras;
   if (typeof g.molaNaLetra === 'boolean') fora.molaNaLetra = g.molaNaLetra;
+  if (typeof g.vidro === 'boolean') fora.vidro = g.vidro;
+  if (typeof g.fundoDaMusica === 'boolean') fora.fundoDaMusica = g.fundoDaMusica;
   // O play de metal passou a ser o de origem (23/11): o `cheio` de antes dele vira metal, uma vez.
   if (fora.play === 'cheio' && g.metalNoPlay !== true) fora.play = 'metal';
   if (typeof g.brilho === 'number' && Number.isFinite(g.brilho)) fora.brilho = Math.min(100, Math.max(0, Math.round(g.brilho)));
