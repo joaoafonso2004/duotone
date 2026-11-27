@@ -285,8 +285,11 @@ caso('a capa voa para a página já inteira: só as músicas esperam, no sítio 
   assert.match(p, /if \(previa\) return \[\.\.\.\(daLista\?\.artworks \?\? capasDoVoo \?\? \[\]\)\];/, 'o mosaico da grelha');
   assert.match(p, /const cabecalhoDaLista = \(tracks\.length > 0 \|\| previa\) && !editMode \? \(/, 'o cabeçalho já na prévia');
   assert.match(p, /faixas=\{previa \? daLista\?\.trackCount \?\? 0 : tracks\.length\}/, 'a contagem da lista');
-  assert.match(p, /ListFooterComponent=\{previa \? <SkeletonDeFaixas \/> : null\}/, 'o esqueleto por baixo do cabeçalho');
-  assert.match(p, /\) : tracks\.length === 0 && !previa \? \(/, 'a prévia não é a playlist vazia');
+  // Numa vista simples, e não na Legend List: sem dados, ela punha o cabeçalho mais abaixo.
+  assert.match(p, /\) : previa \? \([\s\S]{0,700}<Animated\.ScrollView[\s\S]{0,300}contentContainerStyle=\{\{ paddingTop: cab\.espaco, paddingBottom: bottomPad \}\}\n\s+>\n\s+\{cabecalhoDaLista\}\n\s+<SkeletonDeFaixas \/>/, 'o esqueleto por baixo do cabeçalho, no sítio da lista');
+  assert.doesNotMatch(p, /ListFooterComponent=\{previa/, 'a lista monta-se já com as músicas');
+  const rola = ler('src/components/TextoQueRola.tsx');
+  assert.match(rola, /casas\.push\(new Animated\.Value\(noSitio \? -\(algarismos\[algarismos\.length - 1 - k\]\?\.algarismo \?\? 0\) \* linha : 0\)\);/, 'a contagem nasce no número, sem um fotograma a zeros');
   assert.match(p, /desligado=\{!previa && filaTocavel\.length === 0\}/, 'o play não se apaga e acende');
   assert.equal((p.match(/\{podeMexerAVista&&<Pressable/g) ?? []).length, 2, 'Add tracks e Edit já lá');
   const cab = ler('src/components/CabecalhoDaPlaylist.tsx');

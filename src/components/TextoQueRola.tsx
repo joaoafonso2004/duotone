@@ -33,8 +33,14 @@ export function TextoQueRola({ texto, style, atrasoMs = 0, rolarAoMontar = true 
   // Uma coluna por casa, a contar da direita, que dura entre textos: um número
   // que muda (18 → 19) roda a partir do que estava, e não do zero (25/11).
   const casas = useRef<Animated.Value[]>([]).current;
-  while (casas.length < algarismos.length) casas.push(new Animated.Value(0));
   const primeira = useRef(true);
+  // Sem rolar ao montar, cada coluna nasce já no algarismo dela (27/11): nascia no
+  // 0 e só o efeito a punha no sítio, depois de pintar -- um fotograma com "00 songs".
+  const noSitio = primeira.current && !rolarAoMontar;
+  while (casas.length < algarismos.length) {
+    const k = casas.length;
+    casas.push(new Animated.Value(noSitio ? -(algarismos[algarismos.length - 1 - k]?.algarismo ?? 0) * linha : 0));
+  }
 
   useEffect(() => {
     if (reduzido) return undefined;

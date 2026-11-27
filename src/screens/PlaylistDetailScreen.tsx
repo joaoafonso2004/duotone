@@ -907,6 +907,21 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
           vermelho, cru, e o "Try again" era só uma palavra. */}
       {loadError ? <View style={{paddingTop:cab.espaco}}><EmptyState icon="cloud-offline-outline" title="Couldn't load this playlist" subtitle={loadError}><PillButton label="Try again" onPress={()=>void load()} /></EmptyState></View> : loading && !previa && tracks.length === 0 ? (
         <View style={{ marginTop: cab.espaco + 8 }}><SkeletonDeFaixas /></View>
+      ) : previa ? (
+        // A prévia numa vista simples, e não na Legend List (27/11, depois da 7.2.7: o
+        // vídeo do João, "a imagem fica abaixo e depois vai pra cima"). Sem dados, a
+        // lista punha o cabeçalho ~44 pt mais abaixo do que com eles: a capa pousava
+        // na prévia e o cabeçalho subia quando as músicas chegavam. Aqui fica no sítio
+        // exato da lista (o mesmo `paddingTop`), e a lista monta-se já com elas.
+        <Animated.ScrollView
+          onScroll={cab.onScroll}
+          scrollEventThrottle={cab.scrollEventThrottle}
+          scrollIndicatorInsets={{ top: cab.espaco }}
+          contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: bottomPad }}
+        >
+          {cabecalhoDaLista}
+          <SkeletonDeFaixas />
+        </Animated.ScrollView>
       ) : rascunho ? (
         // A edição (28/9): arrasta-se pela pega ou com meio segundo de dedo
         // parado, como na fila, e desliza-se para tirar. Nada vai ao servidor
@@ -979,7 +994,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             )}
           />
         </View>
-      ) : tracks.length === 0 && !previa ? (
+      ) : tracks.length === 0 ? (
         <View style={{ flex: 1, paddingTop: cab.espaco }}>
         <EmptyState
           icon="musical-notes-outline"
@@ -1006,8 +1021,6 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
           keyExtractor={(t) => t.id}
           estimatedItemSize={64}
           ListHeaderComponent={cabecalhoDaLista}
-          // A prévia (27/11): as músicas a chegar, por baixo do cabeçalho que já lá está.
-          ListFooterComponent={previa ? <SkeletonDeFaixas /> : null}
           refreshControl={puxar}
           contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: bottomPad }}
           renderItem={({ item, index }) => {
