@@ -52,6 +52,7 @@ export function CabecalhoDaPlaylist({
   artista = false,
   aoMedirNome,
   meta,
+  previa = false,
 }: {
   /** Onde acaba o nome (pt desde o topo do cabeçalho): a barra de cima mostra
    *  o nome pequeno quando ele passa por baixo dela (3/10, `tituloCompacto`). */
@@ -69,6 +70,12 @@ export function CabecalhoDaPlaylist({
    * "0 songs" ao abrir (`lib/musicasDoArtista.ts`).
    */
   meta?: string | null;
+  /**
+   * A playlist ainda à espera das músicas (27/11): a contagem é a da lista das
+   * Playlists. Quando elas chegam a linha monta-se outra vez, já com a duração,
+   * sem rolar (só rola quando a contagem muda).
+   */
+  previa?: boolean;
   /** A fila de botões -- play, shuffle, o resto. Vem de fora porque o que se
    *  pode fazer a uma playlist não é assunto de um cabeçalho. */
   accoes?: React.ReactNode;
@@ -90,7 +97,7 @@ export function CabecalhoDaPlaylist({
       <Text numberOfLines={2} style={styles.nome}
         onLayout={aoMedirNome ? (e) => aoMedirNome(e.nativeEvent.layout.y + e.nativeEvent.layout.height) : undefined}>{nome}</Text>
       {/* A contagem rola quando muda (juntar ou tirar uma música), não ao abrir (25/11, item 5). */}
-      {meta === null ? null : <TextoQueRola style={styles.meta} texto={meta ?? linhaDeMeta(faixas, duracaoSegundos)} rolarAoMontar={false} />}
+      {meta === null ? null : <TextoQueRola key={previa ? 'previa' : 'meta'} style={styles.meta} texto={meta ?? linhaDeMeta(faixas, duracaoSegundos)} rolarAoMontar={false} />}
 
       {accoes ? <View style={styles.accoes}>{accoes}</View> : null}
     </View>

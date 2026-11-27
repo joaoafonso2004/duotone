@@ -88,7 +88,7 @@ caso('o Skeleton: nada pisca por barra; o MaskedView, a banda no driver nativo e
   assert.ok(abre >= 7, `os esqueletos todos com a luz (${abre})`);
 });
 caso('as páginas que eram uma roda: a playlist, as estatísticas, a retrospetiva, o You two e a importação', () => {
-  assert.match(ler('src/screens/PlaylistDetailScreen.tsx'), /loading \? \(\n\s*<View style=\{\{ marginTop: cab\.espaco \+ 8 \}\}><SkeletonDeFaixas \/><\/View>/);
+  assert.match(ler('src/screens/PlaylistDetailScreen.tsx'), /loading && !previa && tracks\.length === 0 \? \(\n\s*<View style=\{\{ marginTop: cab\.espaco \+ 8 \}\}><SkeletonDeFaixas \/><\/View>/);
   for (const f of ['ListeningStatsScreen', 'RetrospetivaScreen', 'VocesOsDoisScreen', 'ImportYouTubeScreen']) {
     const s = ler(`src/screens/${f}.tsx`);
     assert.ok(!/<ActivityIndicator\b/.test(s), `${f}: sem roda`);

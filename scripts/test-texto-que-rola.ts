@@ -40,7 +40,7 @@ caso('um número que muda roda a partir do que estava; a contagem não rola ao a
   const p = ler('src/components/TextoQueRola.tsx');
   assert.match(p, /const casas = useRef<Animated\.Value\[\]>\(\[\]\)\.current;/, 'as colunas duram entre textos');
   assert.match(p, /const semRolar = primeira\.current && !rolarAoMontar;/);
-  assert.match(ler('src/components/CabecalhoDaPlaylist.tsx'), /<TextoQueRola style=\{styles\.meta\} texto=\{meta \?\? linhaDeMeta\(faixas, duracaoSegundos\)\} rolarAoMontar=\{false\} \/>/);
+  assert.match(ler('src/components/CabecalhoDaPlaylist.tsx'), /<TextoQueRola key=\{previa \? 'previa' : 'meta'\} style=\{styles\.meta\} texto=\{meta \?\? linhaDeMeta\(faixas, duracaoSegundos\)\} rolarAoMontar=\{false\} \/>/);
 });
 
 caso('o resumo do mês rola no driver nativo, e não redesenha a cada fotograma', () => {

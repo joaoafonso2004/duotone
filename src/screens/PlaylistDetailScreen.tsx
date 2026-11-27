@@ -95,6 +95,7 @@ import { LinhaArrastavel } from '../components/LinhaArrastavel';
 import { DeslizarParaTirar } from '../components/DeslizarParaTirar';
 import { PlayDeMetal } from '../components/PlayDeMetal';
 import { LinhaEmCascata, useVoltarDaPagina } from '../components/PaginaDoQuadrado';
+import { dadosDoVoo } from '../state/vooDoQuadrado';
 import { useArrastarLista } from '../hooks/useArrastarLista';
 import {
   comecarRascunho, desfazerTirada, haAlgoParaGravar, moverNoRascunho, planoDeGravacao, tirarDoRascunho,
@@ -571,10 +572,26 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   /** A capa escolhida (26/11), ou as quatro primeiras capas, para o mosaico -- como na grelha. */
   const daLista = usePlaylists((s) => s.items.find((p) => p.id === id));
   const capaPropria = capaEscolhida(daLista);
-  const capasDaPlaylist = React.useMemo(
-    () => (capaPropria ? [capaPropria] : tracks.map((t) => t.artworkUrl).filter((u): u is string => !!u).slice(0, 4)),
-    [tracks, capaPropria],
-  );
+  /**
+   * A página antes de a playlist chegar (27/11). O João: "a meio da animação de
+   * abrir a playlist aparece o skeleton loading mal" -- a capa voava para uma
+   * página só com linhas falsas no topo, e a capa, o nome e os botões só se
+   * montavam quando o servidor respondia. A lista das Playlists (as minhas e
+   * aquelas em que colaboro) já diz o nome, as capas e quantas tem; a de um amigo,
+   * aberta pelo quadrado, traz as capas no voo. Com isso a página abre inteira, e
+   * só as músicas esperam, em esqueleto, no sítio delas. Sem nada disto (um link
+   * numa conversa), o esqueleto de sempre.
+   */
+  const [capasDoVoo] = useState(() => dadosDoVoo(route.params.voo)?.capa?.capas ?? null);
+  const previa = loading && tracks.length === 0 && (daLista ? daLista.trackCount > 0 : !!capasDoVoo);
+  const capasDaPlaylist = React.useMemo(() => {
+    if (capaPropria) return [capaPropria];
+    if (previa) return [...(daLista?.artworks ?? capasDoVoo ?? [])];
+    return tracks.map((t) => t.artworkUrl).filter((u): u is string => !!u).slice(0, 4);
+  }, [tracks, capaPropria, previa, daLista?.artworks, capasDoVoo]);
+  // Os botões de quem a pode mexer já na prévia: a lista diz se é minha ou se
+  // colaboro, e a barra não muda quando a playlist chega.
+  const podeMexerAVista = previa ? !!daLista && !offline : canEdit;
   /**
    * A soma das durações, e só quando se sabem TODAS.
    *
@@ -634,22 +651,26 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
    * uma playlist longa e o caso em que MENOS se quer ter de rolar ate acima
    * para chegar ao campo.
    */
-  const cabecalhoDaLista = tracks.length > 0 && !editMode ? (
+  const cabecalhoDaLista = (tracks.length > 0 || previa) && !editMode ? (
         <>
           <CabecalhoDaPlaylist
             aoMedirNome={setFimDoNome}
             nome={name}
             artworks={capasDaPlaylist}
-            faixas={tracks.length}
+            faixas={previa ? daLista?.trackCount ?? 0 : tracks.length}
             duracaoSegundos={duracaoTotal}
+            // A de um amigo, na prévia: ainda não se sabe quantas tem, e a linha guarda o lugar.
+            meta={previa && !daLista ? '\u00a0' : undefined}
+            previa={previa}
           />
-          {offline ? (
+          {/* Estas duas contam as músicas: só quando elas chegam. */}
+          {offline && !previa ? (
             <View style={styles.semRede}>
               <Ionicons name="cloud-offline-outline" size={15} color={colors.textSecondary} />
               <Text style={type.caption}>{`Offline · ${filaTocavel.length} of ${visibleTracks.length} on this iPhone`}</Text>
             </View>
           ) : null}
-          {linhaDoDownload ? (
+          {linhaDoDownload && !previa ? (
             <View style={styles.semRede}>
               <Ionicons
                 name={loteDaLista.aCorrer ? 'arrow-down-circle-outline' : loteDaLista.parouPorFalhas ? 'alert-circle-outline' : 'checkmark-circle'}
@@ -672,8 +693,10 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
           <View style={styles.actionRow}>
             {/* O play de metal (24/11), como todos os da app. Sem rótulo: um
                 triângulo num disco não precisa de dizer "Play". */}
-            <PlayDeMetal lado={60} label={`Play ${name}`} desligado={filaTocavel.length === 0}
-              onPress={() => void tocarLista(filaTocavel, ligado, inteligente, origem)} />
+            {/* Na prévia não se apaga: as músicas estão a chegar, e um play a
+                acender quando chegam via-se como um refrescar. */}
+            <PlayDeMetal lado={60} label={`Play ${name}`} desligado={!previa && filaTocavel.length === 0}
+              onPress={() => { if (!previa) void tocarLista(filaTocavel, ligado, inteligente, origem); }} />
 
             <Pressable
               style={[
@@ -703,8 +726,9 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
           </View>
 
           <View style={styles.playlistToolbar}>
-            {canEdit&&<Pressable
+            {podeMexerAVista&&<Pressable
               style={styles.toolbarItem}
+              disabled={previa}
               onPress={() => {
                 hapticSelection();
                 setAddTracksOpen(true);
@@ -757,9 +781,10 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
               <Text style={styles.toolbarLabel}>Sort</Text>
             </Pressable>
 
-            {canEdit&&<Pressable
+            {podeMexerAVista&&<Pressable
               style={styles.toolbarItem}
               accessibilityRole="button"
+              disabled={previa}
               onPress={abrirEdicao}
             >
               <Ionicons name="pencil" size={16} color={colors.text} />
@@ -809,7 +834,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   return (
     <Screen
       encolhe={cab}
-      tituloCompacto={!editMode && tracks.length > 0 ? { texto: name, aparecerEm: fimDoNome } : undefined}
+      tituloCompacto={!editMode && (tracks.length > 0 || previa) ? { texto: name, aparecerEm: fimDoNome } : undefined}
       fundoSempre={editMode}
       fixo={procurarAberto && !editMode && tracks.length > 0 ? (
         <View style={styles.playlistSearchBox}>
@@ -851,7 +876,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
               <Ionicons name="chevron-back" size={26} color={colors.text} />
             </Pressable>
             <View style={styles.acoesDeCima}>
-              {tracks.length > 0 ? (
+              {tracks.length > 0 || previa ? (
                 <Pressable
                   hitSlop={8}
                   onPress={alternarPesquisa}
@@ -880,7 +905,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
 
       {/* O estado de erro das outras listas (20/10): o texto do erro estava a
           vermelho, cru, e o "Try again" era só uma palavra. */}
-      {loadError ? <View style={{paddingTop:cab.espaco}}><EmptyState icon="cloud-offline-outline" title="Couldn't load this playlist" subtitle={loadError}><PillButton label="Try again" onPress={()=>void load()} /></EmptyState></View> : loading ? (
+      {loadError ? <View style={{paddingTop:cab.espaco}}><EmptyState icon="cloud-offline-outline" title="Couldn't load this playlist" subtitle={loadError}><PillButton label="Try again" onPress={()=>void load()} /></EmptyState></View> : loading && !previa && tracks.length === 0 ? (
         <View style={{ marginTop: cab.espaco + 8 }}><SkeletonDeFaixas /></View>
       ) : rascunho ? (
         // A edição (28/9): arrasta-se pela pega ou com meio segundo de dedo
@@ -954,7 +979,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             )}
           />
         </View>
-      ) : tracks.length === 0 ? (
+      ) : tracks.length === 0 && !previa ? (
         <View style={{ flex: 1, paddingTop: cab.espaco }}>
         <EmptyState
           icon="musical-notes-outline"
@@ -981,6 +1006,8 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
           keyExtractor={(t) => t.id}
           estimatedItemSize={64}
           ListHeaderComponent={cabecalhoDaLista}
+          // A prévia (27/11): as músicas a chegar, por baixo do cabeçalho que já lá está.
+          ListFooterComponent={previa ? <SkeletonDeFaixas /> : null}
           refreshControl={puxar}
           contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: bottomPad }}
           renderItem={({ item, index }) => {

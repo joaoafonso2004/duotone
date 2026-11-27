@@ -250,5 +250,21 @@ caso('a página acende assim que existe, com a capa ainda a voar (o "refresh" do
   assert.ok(momentoDeAbrir(cartao, ecra, 'quadrado', 12) < 190);
 });
 
+console.log('\na playlist antes de chegar (27/11)');
+caso('a capa voa para a página já inteira: só as músicas esperam, no sítio delas', () => {
+  const p = ler('src/screens/PlaylistDetailScreen.tsx');
+  assert.match(p, /const \[capasDoVoo\] = useState\(\(\) => dadosDoVoo\(route\.params\.voo\)\?\.capa\?\.capas \?\? null\);/, 'as capas que voaram');
+  assert.match(p, /const previa = loading && tracks\.length === 0 && \(daLista \? daLista\.trackCount > 0 : !!capasDoVoo\);/);
+  assert.match(p, /if \(previa\) return \[\.\.\.\(daLista\?\.artworks \?\? capasDoVoo \?\? \[\]\)\];/, 'o mosaico da grelha');
+  assert.match(p, /const cabecalhoDaLista = \(tracks\.length > 0 \|\| previa\) && !editMode \? \(/, 'o cabeçalho já na prévia');
+  assert.match(p, /faixas=\{previa \? daLista\?\.trackCount \?\? 0 : tracks\.length\}/, 'a contagem da lista');
+  assert.match(p, /ListFooterComponent=\{previa \? <SkeletonDeFaixas \/> : null\}/, 'o esqueleto por baixo do cabeçalho');
+  assert.match(p, /\) : tracks\.length === 0 && !previa \? \(/, 'a prévia não é a playlist vazia');
+  assert.match(p, /desligado=\{!previa && filaTocavel\.length === 0\}/, 'o play não se apaga e acende');
+  assert.equal((p.match(/\{podeMexerAVista&&<Pressable/g) ?? []).length, 2, 'Add tracks e Edit já lá');
+  const cab = ler('src/components/CabecalhoDaPlaylist.tsx');
+  assert.match(cab, /<TextoQueRola key=\{previa \? 'previa' : 'meta'\}/, 'a contagem não rola ao chegar');
+});
+
 console.log(falhas ? `\n  ${falhas} caso(s) falharam.\n` : '\n  Todos os casos passaram.\n');
 process.exit(falhas ? 1 : 0);
