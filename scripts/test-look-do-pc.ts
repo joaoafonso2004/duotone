@@ -90,9 +90,13 @@ caso('a fila é um cartão redondo de vidro, com uma borda fina (como na maquete
   assert.match(ESTILOS, /npFila: \{ flex: 1, minWidth: 300, minHeight: 0, borderRadius: 22, borderWidth: 1, borderColor: COR\.linhaSuave,/);
   assert.match(ESTILOS, /backgroundColor: 'rgba\(8,8,12,\.5\)', paddingHorizontal: ESP\.lg, paddingTop: ESP\.md, overflow: 'hidden'/);
 });
-caso('a que toca vem à cabeça da fila: o rótulo, a capa, o tempo e o fio de progresso (25/11, a proposta A)', () => {
+caso('o Up next é só a fila: sem a linha da que toca, que repetia a barra de baixo (27/11, a opção A)', () => {
   const fila = ler('src/desktop/FilaDoLeitor.web.tsx');
-  assert.match(NP, /<AgoraNaFila track=\{track\} \/>\n\s+<RotuloDasProximas fila=\{fila\} \/>\n\s+\{linhas\}/, 'antes das próximas');
+  assert.match(NP, /\{abaDaFila === 'fila' \? <>[\s\S]{0,700}<RotuloDasProximas fila=\{fila\} \/>\n\s+\{linhas\}/, 'a fila começa nas próximas');
+  assert.doesNotMatch(NP, /<AgoraNaFila/, 'no Now Playing não há a linha');
+  const painel = ler('src/desktop/PainelDoLeitor.web.tsx');
+  assert.match(painel, /<FilaDoLeitor more=\{more\} notify=\{notify\} atual=\{track \? null : identidade\}/, 'no painel também não (sem nada a tocar, o vazio)');
+  // A linha fica para a letra do painel (de que música é a letra).
   assert.match(fila, /<View style=\{styles\.npAgora\} accessibilityLabel=\{`Now playing: \$\{tituloDaFaixa\(track\)\}`\}/);
   assert.match(fila, /<View style=\{\[styles\.npFioFeito, \{ transform: \[\{ scaleX: fracao \}\] \}\]\} \/>/, 'o fio cresce no compositor');
   assert.doesNotMatch(ESTILOS, /npAtual:/, 'a barra cinzenta acesa saiu');

@@ -54,7 +54,9 @@ function ConteudoDoPainel({ aba, more, notify }: Pick<CommonPageProps, 'more' | 
   const identidade = track ? <AgoraNaFila track={track} aoMenu={() => more(track)} />
     : <Empty icon="musical-notes-outline" title={FRASES_DOS_ESTADOS.nadaATocar.titulo} body={FRASES_DOS_ESTADOS.nadaATocar.corpo} />;
   // Aqui não há o topo do Now Playing a dizer de onde é a fila: diz-se na linha do Radio.
-  if (aba === 'fila') return <FilaDoLeitor more={more} notify={notify} atual={identidade} origem={<OrigemNoPainel />} />;
+  // Na fila, sem a linha da que toca (27/11, a opção A): repetia a barra de baixo. Sem
+  // nada a tocar, fica o vazio.
+  if (aba === 'fila') return <FilaDoLeitor more={more} notify={notify} atual={track ? null : identidade} origem={<OrigemNoPainel />} />;
   // O About (31/10): o artista e a música, o mesmo do cartão do Now Playing.
   if (aba === 'sobre') return <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: ESP.sm }}>{track ? <SobreAMusica track={track} more={more} notify={notify} /> : identidade}</ScrollView>;
   return <View style={{ flex: 1, minHeight: 0 }}>

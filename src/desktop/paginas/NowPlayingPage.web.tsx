@@ -1,4 +1,4 @@
-import { AbasDoCartao, AgoraNaFila, CabecaDaFila, LinhasDaFila, RotuloDasProximas, type AbaDoCartao } from '../FilaDoLeitor.web';
+import { AbasDoCartao, CabecaDaFila, LinhasDaFila, RotuloDasProximas, type AbaDoCartao } from '../FilaDoLeitor.web';
 import { SobreAMusica } from '../SobreAMusica.web';
 import { LyricsView } from '../../components/LyricsView';
 import { useFilaDoLeitor } from '../useFilaDoLeitor.web';
@@ -411,8 +411,8 @@ export function NowPlayingPage({
       <CabecaDaFila fila={fila} abas={{ aba: abaDaFila, aoMudar: setAbaDaFila }} />
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: ESP.xl }}
         scrollEventThrottle={100} onScroll={fila.aoRolar}>
-        {/* A que toca, à cabeça (25/11, a proposta A), e depois "Next · 12 songs". */}
-        <AgoraNaFila track={track} />
+        {/* Só a fila (27/11, a opção A da maquete docs/fila-sem-now-playing-maquete.html):
+            a linha "Now playing" que estava aqui repetia a barra de baixo. */}
         <RotuloDasProximas fila={fila} />
         {linhas}
       </ScrollView>
