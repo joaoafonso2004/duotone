@@ -152,7 +152,12 @@ export function AlvoDoVoo({ children, style }: { children: React.ReactNode; styl
   const aoMedir = () => {
     if (!voo) return;
     const medir = () => medirNoEcra(ref.current);
-    void medir().then((r) => { if (r) marcarAlvo(voo, r, medir); });
+    const marcar = () => void medir().then((r) => { if (r) marcarAlvo(voo, r, medir); });
+    marcar();
+    // O que está à volta pode mexer-se no desenho seguinte sem esta vista se mexer
+    // dentro do pai, e o `onLayout` não volta (27/11: o espaço de cima da página a
+    // medir-se levava a capa 44 pt para cima, e a que voa pousava no sítio antigo).
+    requestAnimationFrame(() => requestAnimationFrame(marcar));
   };
   return <View ref={ref} collapsable={false} style={[style, noAr && { opacity: 0 }]} onLayout={voo ? aoMedir : undefined}>{children}</View>;
 }

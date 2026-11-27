@@ -79,9 +79,11 @@ export function marcarPaginaPronta(id: string): void {
 export function marcarAlvo(id: string, alvo: Retangulo, medir: () => Promise<Retangulo | null>): void {
   const d = dados.get(id);
   if (!d) return;
+  const igual = d.alvo && Math.abs(d.alvo.x - alvo.x) < 0.5 && Math.abs(d.alvo.y - alvo.y) < 0.5
+    && Math.abs(d.alvo.width - alvo.width) < 0.5;
   d.alvo = alvo;
   d.medirAlvo = medir;
-  avisar(id);
+  if (!igual) avisar(id);
 }
 
 /**

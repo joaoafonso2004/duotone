@@ -295,6 +295,20 @@ caso('a capa voa para a página já inteira: só as músicas esperam, no sítio 
   const cab = ler('src/components/CabecalhoDaPlaylist.tsx');
   assert.match(cab, /<TextoQueRola key=\{previa \? 'previa' : 'meta'\}/, 'a contagem não rola ao chegar');
 });
+caso('a capa da página mede-se no sítio final (o vídeo de 27/11, depois da 7.2.8)', () => {
+  const ecraTs = ler('src/components/Screen.tsx');
+  // A estimativa do espaço de cima de uma página herói é a barra dela, e não a do título grande.
+  assert.match(ecraTs, /export const ESPACO_DO_HEROI = spacing\.sm \+ 40 \+ spacing\.xs;/);
+  assert.match(ecraTs, /useState\(insets\.top \+ \(heroi \? ESPACO_DO_HEROI : 96\)\)/);
+  assert.match(ecraTs, /<View pointerEvents="box-none" style=\{\{ paddingTop: insets\.top \+ spacing\.sm \}\}>/, 'a barra do herói é a que a estimativa conta');
+  assert.match(ecraTs, /topLeftRow: \{\n    paddingHorizontal: spacing\.xl,\n    paddingBottom: spacing\.xs,/);
+  assert.match(ler('src/screens/PlaylistDetailScreen.tsx'), /const cab = useCabecalhoQueEncolhe\(true\);/);
+  assert.match(ler('src/screens/PlaylistDetailScreen.tsx'), /botaoDeCima: \{\n    width: 40,\n    height: 40,/);
+  // E se a página se mexer depois, a capa mede-se outra vez.
+  const pagina = ler('src/components/PaginaDoQuadrado.tsx');
+  assert.match(pagina, /requestAnimationFrame\(\(\) => requestAnimationFrame\(marcar\)\)/);
+  assert.match(ler('src/state/vooDoQuadrado.ts'), /if \(!igual\) avisar\(id\);/, 'a mesma medida não mexe na camada');
+});
 
 console.log(falhas ? `\n  ${falhas} caso(s) falharam.\n` : '\n  Todos os casos passaram.\n');
 process.exit(falhas ? 1 : 0);

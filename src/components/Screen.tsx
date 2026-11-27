@@ -33,11 +33,23 @@ export type CabecalhoQueEncolhe = {
   definirDistancia: (d: number) => void;
 };
 
-export function useCabecalhoQueEncolhe(): CabecalhoQueEncolhe {
+/**
+ * A barra de cima de uma página herói (`ScreenHeroi`): o `paddingTop` dela, uma
+ * linha de botões de 40 pt (o voltar, a lupa e o ⋯ da playlist) e o `paddingBottom`.
+ */
+export const ESPACO_DO_HEROI = spacing.sm + 40 + spacing.xs;
+
+/**
+ * `heroi`: a página com a capa grande e sem título (`tituloCompacto`). A estimativa
+ * do título grande (96) punha a lista 44 pt mais abaixo no primeiro desenho, e ela
+ * subia quando a barra se media (27/11, o vídeo do João: a capa que voa pousava
+ * abaixo e saltava para cima, porque a da página se mediu nesse primeiro desenho).
+ */
+export function useCabecalhoQueEncolhe(heroi = false): CabecalhoQueEncolhe {
   const insets = useSafeAreaInsets();
   const rolagem = useRef(new Animated.Value(0)).current;
   // Uma estimativa até o cabeçalho se medir: a lista não salta no arranque.
-  const [espaco, setEspaco] = useState(insets.top + 96);
+  const [espaco, setEspaco] = useState(insets.top + (heroi ? ESPACO_DO_HEROI : 96));
   const [distancia, setDistancia] = useState(0);
   const onScroll = useMemo(
     () => Animated.event([{ nativeEvent: { contentOffset: { y: rolagem } } }], { useNativeDriver: true }),

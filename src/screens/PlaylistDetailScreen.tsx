@@ -118,7 +118,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   const voltar = useVoltarDaPagina();
   // A barra de cima flutua sobre a capa e mostra o nome pequeno quando o
   // grande passa por baixo dela (3/10, o modo herói do Screen).
-  const cab = useCabecalhoQueEncolhe();
+  const cab = useCabecalhoQueEncolhe(true);
   const [fimDoNome, setFimDoNome] = useState(260);
   const { id } = route.params;
   // A conta do aparelho: sem rede a sessão pode não se renovar (16/10).
@@ -909,10 +909,9 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
         <View style={{ marginTop: cab.espaco + 8 }}><SkeletonDeFaixas /></View>
       ) : previa ? (
         // A prévia numa vista simples, e não na Legend List (27/11, depois da 7.2.7: o
-        // vídeo do João, "a imagem fica abaixo e depois vai pra cima"). Sem dados, a
-        // lista punha o cabeçalho ~44 pt mais abaixo do que com eles: a capa pousava
-        // na prévia e o cabeçalho subia quando as músicas chegavam. Aqui fica no sítio
-        // exato da lista (o mesmo `paddingTop`), e a lista monta-se já com elas.
+        // vídeo do João, "a imagem fica abaixo e depois vai pra cima"), no sítio exato
+        // da lista (o mesmo `paddingTop`). Os 44 pt a mais eram a estimativa do espaço
+        // de cima (`useCabecalhoQueEncolhe(true)`, corrigida depois da 7.2.8).
         <Animated.ScrollView
           onScroll={cab.onScroll}
           scrollEventThrottle={cab.scrollEventThrottle}
