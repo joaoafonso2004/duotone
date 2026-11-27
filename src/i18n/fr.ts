@@ -2607,4 +2607,6 @@ export const FR: Readonly<Record<string, string>> = {
   "Hold for options": "Maintenir pour les options",
   "Save the look you have now as a preset.": "Enregistrez l'apparence actuelle comme préréglage.",
   "Save the look you have now. Hold a preset to rename, update or delete it.": "Enregistrez l'apparence actuelle. Maintenez un préréglage pour le renommer, le mettre à jour ou le supprimer.",
+  // A versão da app no perfil de outra pessoa (27/11, só na conta do João).
+  "App version": "Version de l'app",
 };

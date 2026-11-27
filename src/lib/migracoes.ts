@@ -110,6 +110,7 @@ export const MIGRACOES: readonly Migracao[] = [
   { ficheiro: 'playlists-colaborativas.sql', marca: 'fn:pessoas_da_playlist', efeito: 'Collaborative playlists' },
   { ficheiro: 'playlists-ao-vivo.sql', marca: 'pub:playlist_mudancas', efeito: 'Collaborative playlists update live' },
 
+  { ficheiro: 'versoes-no-perfil.sql', marca: 'fn:versoes_da_app_de', efeito: "App versions on a profile (admin only)" },
   { ficheiro: 'estado-das-migracoes.sql', marca: 'fn:marcas_em_falta', efeito: 'This check' },
 ];
 

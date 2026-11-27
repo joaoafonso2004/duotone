@@ -39,6 +39,7 @@ import type { Playlist } from '../types';
 import { savePlaylistCopy, unsavePlaylistCopy } from '../api/playlists';
 import { useDestinos } from '../navigation/destinos';
 import { useMenuDoAmigoNoPc } from './MenuDoAmigoNoPc';
+import { VersoesDaApp } from './VersoesDaApp';
 
 export function SocialProfileView({userId,onBack,active=true,scrollRef,aoMenuDaFaixa}:{userId:string;onBack?:()=>void;active?:boolean;
   /**
@@ -400,6 +401,8 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef,aoMenuDaF
       {loading&&!profile&&<SkeletonDoPerfil/>}
       {!!error&&sectionFailure(error)}
       {profile&&<>
+        {/* A versão da app desta pessoa no iPhone e no Windows (27/11): só na conta do João. */}
+        {!own&&<VersoesDaApp userId={userId}/>}
         {friend?.currentlyPlaying&&profile.canView&&<Pressable accessibilityRole="button" accessibilityLabel={`Play ${friend.currentlyPlaying.title}`}
           onPress={()=>{const t=friend.currentlyPlaying;if(t)void usePlayer.getState().playTrack({...t,id:t.id??undefined,album:null},undefined,undefined,undefined,undefined,origemDe('a-ouvir'));}}
           style={({pressed}:any)=>[estilos.cartao,pressed&&{opacity:0.75}]}>

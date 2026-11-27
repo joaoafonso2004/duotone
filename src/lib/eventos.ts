@@ -166,7 +166,11 @@ export function iniciarEventos(userId: string): () => void {
   jaHouveConta = true;
   soOsQueOServidorGuarda = true;
   // O João (administrador) continua a mandar tudo: é o painel de saúde dele.
-  void souAdministrador(userId).then((sim) => { if (utilizador === userId) soOsQueOServidorGuarda = !sim; });
+  // E a abertura segue logo a seguir (27/11), em vez de esperar que a janela se
+  // esconda: é dela que sai a versão no perfil (supabase/versoes-no-perfil.sql),
+  // e o PC fica aberto dias. Um pedido por abertura da app; só depois de se saber
+  // o filtro, para os eventos de antes não se perderem nele.
+  void souAdministrador(userId).then((sim) => { if (utilizador === userId) { soOsQueOServidorGuarda = !sim; void enviar(); } });
   porEnviar = [...porEnviar, ...antesDaConta];
   antesDaConta = [];
   registar('app_aberta');

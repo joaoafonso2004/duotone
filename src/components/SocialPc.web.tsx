@@ -182,7 +182,8 @@ function PainelDoAmigo({ amigo, musica }: { amigo: SocialFriend; musica: any }) 
       <Barrinhas/>
       <Text numberOfLines={1} style={{ ...TIPO.micro, color: COR.textoMedio, flexShrink: 1 }}>{sigo ? 'LISTENING ALONG' : `${nome} IS LISTENING`}</Text>
     </View>
-    <View style={{ width: '100%', aspectRatio: 1, borderRadius: RAIO.cartao, overflow: 'hidden', boxShadow: '0 28px 70px rgba(0,0,0,0.6)' } as any}>
+    {/* Sem a sombra grande por baixo (27/11): escurecia o título e a barra num retângulo. */}
+    <View style={{ width: '100%', aspectRatio: 1, borderRadius: RAIO.cartao, overflow: 'hidden' }}>
       <CapaDuotone uri={capa} viva style={{ borderRadius: RAIO.cartao }}/>
     </View>
     <View style={{ gap: 2 }}>

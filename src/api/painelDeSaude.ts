@@ -51,6 +51,22 @@ export function souAdministrador(conta: string | null | undefined): Promise<bool
   return administrador.resposta;
 }
 
+/** A última versão aberta numa plataforma ('ios', 'web' = o PC), e quando. */
+export type VersaoDaApp = { plataforma: string; versao: string; em: string };
+
+/**
+ * Que versão da app usa outra pessoa, no iPhone e no PC (27/11,
+ * supabase/versoes-no-perfil.sql): a última abertura de cada plataforma nos 30
+ * dias do `app_events`. Só a conta de quem gere a app recebe linhas; noutra, ou
+ * sem a migração, vem vazio.
+ */
+export async function versoesDaAppDe(conta: string): Promise<VersaoDaApp[]> {
+  const { data, error } = await supabase.rpc('versoes_da_app_de', { p_user: conta });
+  if (error) return [];
+  return lista(data).map((x) => ({ plataforma: t(x?.plataforma), versao: t(x?.versao), em: t(x?.em) }))
+    .filter((x) => x.plataforma && x.versao);
+}
+
 export async function lerPainelDeSaude(dias: number): Promise<PainelDeSaude> {
   const { data, error } = await supabase.rpc('painel_de_saude', { p_dias: dias });
   if (error) throw error;

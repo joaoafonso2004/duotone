@@ -129,7 +129,7 @@ await caso('só saem os eventos que o servidor guarda, e a mesma lista do SQL (1
   assert.deepEqual([...doCliente].sort(), [...doSql].sort(), 'a app e o servidor guardam os mesmos');
   assert.match(ev, /\? porEnviar\.filter\(\(e\) => EVENTOS_QUE_O_SERVIDOR_GUARDA\.has\(e\.nome\)\)/);
   assert.match(ev, /if \(!lote\.length\) return;/, 'um lote vazio não faz pedido');
-  assert.match(ev, /void souAdministrador\(userId\)\.then\(\(sim\) => \{ if \(utilizador === userId\) soOsQueOServidorGuarda = !sim; \}\);/, 'o administrador manda tudo');
+  assert.match(ev, /void souAdministrador\(userId\)\.then\(\(sim\) => \{ if \(utilizador === userId\) \{ soOsQueOServidorGuarda = !sim; void enviar\(\); \} \}\);/, 'o administrador manda tudo, e a abertura segue logo (a versão no perfil)');
 });
 
 if (falhas) { console.error(`\n${falhas} caso(s) falharam.`); process.exit(1); }
