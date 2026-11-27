@@ -100,7 +100,10 @@ import { EscolhaDoModelo, LinhaDoRecomendado } from '../components/RecomendadoDo
 import { ligarRecomendado, useRecomendado } from '../state/recomendado';
 import { BottomSheet, BottomSheetGestureGuard } from '../components/BottomSheet';
 import { RecuperarPassword } from '../components/RecuperarPassword';
-import { Grupo, Linha, LinhaAlta, LinhaInterruptor } from '../components/ListaAgrupada';
+import { Grupo, GrupoQueAbre, Linha, LinhaAlta, LinhaInterruptor, RealceDaLinha } from '../components/ListaAgrupada';
+import { Input } from '../components/Input';
+import { NOMES_DAS_SECCOES_DO_IPHONE, procurarDefinicoes, type DefinicaoProcuravel, type SeccaoDoIphone } from '../lib/procuraDasDefinicoes';
+import { guardarSeccoesAbertas, lerSeccoesAbertas } from '../state/seccoesAbertas';
 import { MenuFlutuante, type Ancora } from '../components/MenuFlutuante';
 import type { PlayerAction } from '../components/PlayerActionsSheet';
 import { chaveDaFaixa, ePlano, PLANO } from '../lib/equalizer';
@@ -112,7 +115,7 @@ import { getLibrary } from '../api/library';
 import { DURACOES_DO_CROSSFADE, type DuracaoDoCrossfade } from '../lib/crossfade';
 import { resumoDoVarrimento, varrerCatalogo } from '../state/catalogoDeFaixas';
 import { partilharRelatorioDeReproducao } from '../lib/relatorioDeReproducao';
-import { spacing, type } from '../theme';
+import { colors, spacing, type } from '../theme';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
 import { useTemaDaAparencia } from '../state/aparencia';
 import { TEMAS } from '../lib/aparencia';
@@ -152,6 +155,38 @@ export function SettingsScreen({ navigation }: Props) {
   const offline=useOfflineMode();
   // O título encolhe ao rolar (3/10, lib/tituloQueEncolhe.ts).
   const cab = useCabecalhoQueEncolhe();
+  // As secções que abrem (27/11): quais estão abertas (lembram-se no aparelho), a
+  // procura, e a linha encontrada que acende um instante.
+  const rolo = useRef<any>(null);
+  const [abertas, setAbertas] = useState<Set<SeccaoDoIphone>>(() => new Set());
+  useEffect(() => { void lerSeccoesAbertas().then((a) => setAbertas(new Set(a))); }, []);
+  const alternar = (id: SeccaoDoIphone) => {
+    hapticSelection();
+    setAbertas((antes) => {
+      const depois = new Set(antes);
+      if (depois.has(id)) depois.delete(id); else depois.add(id);
+      void guardarSeccoesAbertas([...depois]);
+      return depois;
+    });
+  };
+  const ondeEsta = useRef<Partial<Record<SeccaoDoIphone, number>>>({});
+  const inicioDasSeccoes = useRef(0);
+  const medir = (id: SeccaoDoIphone) => (y: number) => { ondeEsta.current[id] = y; };
+  const [procura, setProcura] = useState('');
+  const encontradas = useMemo(() => procurarDefinicoes(procura, 'iphone'), [procura]);
+  const [realce, setRealce] = useState<string | null>(null);
+  const irParaDefinicao = (d: DefinicaoProcuravel) => {
+    const seccao = d.iphone!;
+    setProcura('');
+    setAbertas((antes) => (antes.has(seccao) ? antes : new Set([...antes, seccao])));
+    setRealce(d.rotulo);
+    // Depois de a secção voltar a ver-se (e abrir): rola até ela, e a linha acende 1,8 s.
+    setTimeout(() => {
+      const y = ondeEsta.current[seccao];
+      if (y !== undefined) rolo.current?.scrollTo?.({ y: Math.max(0, inicioDasSeccoes.current + y - cab.espaco), animated: true });
+    }, 60);
+    setTimeout(() => setRealce((r) => (r === d.rotulo ? null : r)), 1800);
+  };
   const coverStyle = useCapaIOS(s => s.style);
   const temaDaAparencia = useTemaDaAparencia();
   const nomeDoTema = TEMAS.find((t) => t.id === temaDaAparencia)?.nome ?? 'Custom';
@@ -578,6 +613,8 @@ export function SettingsScreen({ navigation }: Props) {
       <EqualizadorPadrao visivel={eqAberto} aoFechar={() => setEqAberto(false)} ganhos={padraoGanhos} presets={presetsNaFila} efeito={efeitos.equalizador} />
       <MenuFlutuante visivel={!!menu} ancora={menu?.ancora ?? null} accoes={accoesDoMenu} aoFechar={() => setMenu(null)} />
       <Animated.ScrollView
+        ref={rolo}
+        keyboardShouldPersistTaps="handled"
         style={{ flex: 1 }}
         onScroll={cab.onScroll}
         scrollEventThrottle={cab.scrollEventThrottle}
@@ -589,59 +626,82 @@ export function SettingsScreen({ navigation }: Props) {
           gap: spacing.xl,
         }}
       >
-        {/* Arrumadas a 26/9 (pedido do João): o que se usa, e mais nada.
-            A 4/10 passaram à lista agrupada dos Ajustes do iPhone (auditoria
-            1.6, variante B): o que cada opção está a fazer agora é o rodapé
-            do grupo, com as frases de sempre (lib/efeitoDasDefinicoes.ts). */}
-        <Grupo titulo="Playback" rodape={efeitos.smart}>
+        {/* Arrumadas a 26/9 (pedido do João): o que se usa, e mais nada. A 4/10
+            passaram à lista agrupada dos Ajustes do iPhone, com o que cada opção faz
+            no rodapé (lib/efeitoDasDefinicoes.ts). A 27/11, por secções que abrem
+            (`docs/definicoes-por-seccoes-maquete.html`): cada uma mostra as uma ou
+            duas que mais se mexem, e "More" abre o resto ali mesmo; a procura em
+            cima encontra qualquer uma (`lib/procuraDasDefinicoes.ts`). */}
+        <Input icon="search" placeholder="Search settings" value={procura} onChangeText={setProcura}
+          onClear={() => setProcura('')} autoCorrect={false} autoCapitalize="none" returnKeyType="search" />
+        {procura.trim() ? (
+          encontradas.length ? (
+            <Grupo titulo="Results">
+              {encontradas.map((d) => (
+                <Linha key={d.rotulo} icone="search" rotulo={d.rotulo} valor={NOMES_DAS_SECCOES_DO_IPHONE[d.iphone!]} chevron
+                  aoTocar={() => irParaDefinicao(d)} />
+              ))}
+            </Grupo>
+          ) : <Text style={styles.semResultados}>No settings match.</Text>
+        ) : null}
+
+        <View style={procura.trim() ? styles.escondidas : undefined} onLayout={(e) => { inicioDasSeccoes.current = e.nativeEvent.layout.y; }}>
+        <RealceDaLinha.Provider value={realce}>
+        <GrupoQueAbre titulo="Playback" aberto={abertas.has('playback')} aoAlternar={() => alternar('playback')} aoMedir={medir('playback')}
+          rodape={[efeitos.smart, efeitos.crossfade]} rodapeDoResto={[efeitos.automix, efeitos.refrao, efeitos.velocidade, efeitos.temporizador, efeitos.radio]}
+          resto={<>
+            {/* O AutoMix (25/10): só com o binário que sabe agendar a entrada.
+                Sem ele seria uma opção que não faz nada. */}
+            {temAutomixNativo ? (
+              <LinhaInterruptor icone="pulse" rotulo={ROTULOS.automix} valor={automix} aoMudar={toggleAutomix} />
+            ) : null}
+            <LinhaInterruptor icone="flag-outline" rotulo={ROTULOS.refraoNaBarra} valor={marcaDoRefrao}
+              aoMudar={(v) => { hapticSelection(); ligarMarcaDoRefrao(v); }} />
+            <LinhaAlta icone="speedometer-outline" rotulo={ROTULOS.velocidade}>
+              <BarraVelocidade valor={padraoRate} aoMudar={(v) => setPlaybackRate(v, true)} />
+            </LinhaAlta>
+            <Linha
+              icone="moon"
+              rotulo={ROTULOS.temporizador}
+              valor={sleepTimerTimeLeft > 0 ? formatTimeLeft(sleepTimerTimeLeft) : 'Off'}
+              chevron
+              aoTocar={abrirMenu('temporizador')}
+            />
+            <LinhaInterruptor icone="radio-outline" rotulo={ROTULOS.autoplay} valor={autoplayRadio} aoMudar={toggleAutoplayRadio} />
+          </>}>
           <Linha icone="sparkles" rotulo={ROTULOS.smartShuffle} valor={valorDe('smart')} chevron aoTocar={abrirMenu('smart')} />
-        </Grupo>
-        {/* Desligado de origem. A passagem só entra em mudanças automáticas
-            de faixa: num salto manual faria o botão parecer lento. */}
-        <Grupo rodape={[efeitos.crossfade, efeitos.automix]}>
           <Linha icone="swap-horizontal" rotulo={ROTULOS.crossfade} valor={valorDe('crossfade')} chevron aoTocar={abrirMenu('crossfade')} />
-          {/* O AutoMix (25/10): só com o binário que sabe agendar a entrada.
-              Sem ele seria uma opção que não faz nada. */}
-          {temAutomixNativo ? (
-            <LinhaInterruptor icone="pulse" rotulo={ROTULOS.automix} valor={automix} aoMudar={toggleAutomix} />
-          ) : null}
-        </Grupo>
-        <Grupo rodape={efeitos.refrao}>
-          <LinhaInterruptor icone="flag-outline" rotulo={ROTULOS.refraoNaBarra} valor={marcaDoRefrao}
-            aoMudar={(v) => { hapticSelection(); ligarMarcaDoRefrao(v); }} />
-        </Grupo>
-        <Grupo rodape={efeitos.velocidade}>
-          <LinhaAlta icone="speedometer-outline" rotulo={ROTULOS.velocidade}>
-            <BarraVelocidade valor={padraoRate} aoMudar={(v) => setPlaybackRate(v, true)} />
-          </LinhaAlta>
-        </Grupo>
-        <Grupo rodape={[efeitos.temporizador, efeitos.radio]}>
-          <Linha
-            icone="moon"
-            rotulo={ROTULOS.temporizador}
-            valor={sleepTimerTimeLeft > 0 ? formatTimeLeft(sleepTimerTimeLeft) : 'Off'}
-            chevron
-            aoTocar={abrirMenu('temporizador')}
-          />
-          <LinhaInterruptor icone="radio-outline" rotulo={ROTULOS.autoplay} valor={autoplayRadio} aoMudar={toggleAutoplayRadio} />
-        </Grupo>
+        </GrupoQueAbre>
 
-        <Grupo titulo="Sound" rodape={efeitos.qualidade}>
-          <Linha icone="pulse" rotulo="Audio quality" valor={valorDe('qualidade')} chevron aoTocar={abrirMenu('qualidade')} />
-        </Grupo>
-        <Grupo rodape={efeitos.normalizacao}>
-          <LinhaInterruptor icone="volume-medium" rotulo="Even out volume" valor={volumeNormalization} aoMudar={toggleVolumeNormalization} />
-        </Grupo>
-        {/* O equalizador base: vale para as faixas que não tenham o seu, e não
-            mexe na que está a tocar. Os presets: quais aparecem, os teus, e
-            o do carro. */}
-        <Grupo rodape={[efeitos.equalizador, resumoDosPresets(memoriaDosPresets)]}>
+        <GrupoQueAbre titulo="Sound" aberto={abertas.has('sound')} aoAlternar={() => alternar('sound')} aoMedir={medir('sound')}
+          rodape={[efeitos.equalizador, efeitos.qualidade]} rodapeDoResto={[efeitos.normalizacao, resumoDosPresets(memoriaDosPresets)]}
+          resto={<>
+            <LinhaInterruptor icone="volume-medium" rotulo="Even out volume" valor={volumeNormalization} aoMudar={toggleVolumeNormalization} />
+            <Linha icone="list" rotulo="Presets" valor={String(presetsNaFila.length)} chevron aoTocar={() => setPresetsOpen(true)} />
+          </>}>
           <Linha icone="options" rotulo={ROTULOS.equalizador} valor={valorDoEq} chevron aoTocar={() => setEqAberto(true)} />
-          <Linha icone="list" rotulo="Presets" valor={String(presetsNaFila.length)} chevron aoTocar={() => setPresetsOpen(true)} />
-        </Grupo>
+          <Linha icone="pulse" rotulo="Audio quality" valor={valorDe('qualidade')} chevron aoTocar={abrirMenu('qualidade')} />
+        </GrupoQueAbre>
 
-        <Grupo titulo="Appearance" rodape={[efeitos.idioma, 'Cover follows the artwork of whatever is playing, and the sheets show it blurred.']}>
-          <Linha icone="language-outline" rotulo={ROTULOS.idioma} valor={valorDe('idioma')} chevron aoTocar={abrirMenu('idioma')} />
+        <GrupoQueAbre titulo="Appearance" aberto={abertas.has('appearance')} aoAlternar={() => alternar('appearance')} aoMedir={medir('appearance')}
+          rodapeDoResto={[efeitos.idioma, 'Cover follows the artwork of whatever is playing, and the sheets show it blurred.']}
+          resto={<>
+            <Linha icone="language-outline" rotulo={ROTULOS.idioma} valor={valorDe('idioma')} chevron aoTocar={abrirMenu('idioma')} />
+            {Platform.OS === 'ios' && (
+              <Linha icone="cube-outline" rotulo="Artwork style" valor={valorDe('capa')} chevron aoTocar={abrirMenu('capa')} />
+            )}
+            {/* O ecrã bloqueado (10/11): a capa que o iOS mostra no cartão, em grande e no fundo. */}
+            {Platform.OS === 'ios' && (
+              <LinhaInterruptor icone="contrast-outline" rotulo="Two-tone lock screen" valor={capaADoisTons}
+                aoMudar={(v: boolean) => { setCapaADoisTons(v); definirEstiloDaCapaDoEcraBloqueado(v ? 'duotone' : 'original'); void setCapaDoEcraBloqueadoADoisTons(v); }} />
+            )}
+            <LinhaInterruptor icone="time-outline" rotulo={ROTULOS.duracao} valor={showDuration} aoMudar={toggleShowDuration} />
+            <LinhaInterruptor icone="play-back" rotulo={ROTULOS.recuo} valor={showRewindButton} aoMudar={toggleShowRewind} />
+          </>}>
+          {/* A personalização (10/10): temas, o fundo, as listas e o leitor. */}
+          {Platform.OS === 'ios' && (
+            <Linha icone="color-wand-outline" rotulo="Customise" valor={nomeDoTema} chevron aoTocar={() => navigation.navigate('Personalizar')} />
+          )}
           <Linha
             icone="color-palette"
             rotulo={ROTULOS.acento}
@@ -652,122 +712,118 @@ export function SettingsScreen({ navigation }: Props) {
             chevron
             aoTocar={abrirMenu('destaque')}
           />
-          {Platform.OS === 'ios' && (
-            <Linha icone="cube-outline" rotulo="Artwork style" valor={valorDe('capa')} chevron aoTocar={abrirMenu('capa')} />
-          )}
-          {/* O ecrã bloqueado (10/11): a capa que o iOS mostra no cartão, em grande e no fundo. */}
-          {Platform.OS === 'ios' && (
-            <LinhaInterruptor icone="contrast-outline" rotulo="Two-tone lock screen" valor={capaADoisTons}
-              aoMudar={(v: boolean) => { setCapaADoisTons(v); definirEstiloDaCapaDoEcraBloqueado(v ? 'duotone' : 'original'); void setCapaDoEcraBloqueadoADoisTons(v); }} />
-          )}
-          {/* A personalização (10/10): temas, o fundo, as listas e o leitor. */}
-          {Platform.OS === 'ios' && (
-            <Linha icone="color-wand-outline" rotulo="Customise" valor={nomeDoTema} chevron aoTocar={() => navigation.navigate('Personalizar')} />
-          )}
-        </Grupo>
-        <Grupo>
-          <LinhaInterruptor icone="time-outline" rotulo={ROTULOS.duracao} valor={showDuration} aoMudar={toggleShowDuration} />
-          <LinhaInterruptor icone="play-back" rotulo={ROTULOS.recuo} valor={showRewindButton} aoMudar={toggleShowRewind} />
-        </Grupo>
+        </GrupoQueAbre>
 
-        <Grupo titulo="General" rodape={[efeitos.outroAparelho, efeitos.ecra]}>
-          <LinhaInterruptor icone="notifications" rotulo={ROTULOS.mensagens} valor={notificationsOn} aoMudar={toggleNotifications} />
-          <LinhaInterruptor icone="desktop-outline" rotulo={ROTULOS.outroAparelhoNoIphone} valor={mostrarOutro}
-            aoMudar={(v: boolean) => { hapticSelection(); mostrarOutroAparelho(v); }} />
+        <GrupoQueAbre titulo="General" aberto={abertas.has('general')} aoAlternar={() => alternar('general')} aoMedir={medir('general')}
+          rodapeDoResto={[efeitos.outroAparelho, efeitos.ecra]}
+          resto={<>
+            <LinhaInterruptor icone="desktop-outline" rotulo={ROTULOS.outroAparelhoNoIphone} valor={mostrarOutro}
+              aoMudar={(v: boolean) => { hapticSelection(); mostrarOutroAparelho(v); }} />
+            <LinhaInterruptor icone="sunny" rotulo="Keep screen awake" valor={keepAwakeOn} aoMudar={toggleKeepAwake} />
+            <LinhaInterruptor
+              icone="car"
+              rotulo="Keep screen on in car mode"
+              valor={carroMantemEcra}
+              aoMudar={(v) => { setCarroMantemEcraState(v); void setCarroMantemEcra(v).catch(() => {}); }}
+            />
+          </>}>
           <LinhaInterruptor icone="phone-portrait-outline" rotulo="Haptic feedback" valor={hapticsOn} aoMudar={toggleHaptics} />
-          <LinhaInterruptor icone="sunny" rotulo="Keep screen awake" valor={keepAwakeOn} aoMudar={toggleKeepAwake} />
-          <LinhaInterruptor
-            icone="car"
-            rotulo="Keep screen on in car mode"
-            valor={carroMantemEcra}
-            aoMudar={(v) => { setCarroMantemEcraState(v); void setCarroMantemEcra(v).catch(() => {}); }}
-          />
-        </Grupo>
+          <LinhaInterruptor icone="notifications" rotulo={ROTULOS.mensagens} valor={notificationsOn} aoMudar={toggleNotifications} />
+        </GrupoQueAbre>
 
-        <Grupo
-          titulo="Library"
-          rodape={offline
-            ? 'Connect to the internet to change your recommendations.'
-            : Platform.OS === 'ios' ? efeitos.spotify : 'Songs you hid and artists you want to hear less often.'}
-        >
-          <Linha icone="heart" rotulo={ROTULOS.recomendacoes} chevron desativada={offline} aoTocar={() => setRecommendationsOpen(true)} />
-          {/* A conta do Spotify (11/11): o cartão está no ecrã de importar, com o login do próprio Spotify. */}
-          {Platform.OS === 'ios' && (
-            <Linha icone="musical-notes" rotulo={ROTULOS.contaDoSpotify} chevron desativada={offline}
-              aoTocar={() => navigation.navigate('ImportYouTube')} />
-          )}
-        </Grupo>
-        <Grupo rodape={resumoDoCatalogo ?? 'Fix artist names, titles and covers with a music catalogue, or find duplicates and songs that no longer play.'}>
-          <Linha
-            icone="pricetag"
-            rotulo={aIdentificar ? 'Stop identifying' : ROTULOS.identificar}
-            acao
-            valor={progresso ? `${progresso.feitas} of ${progresso.total}` : null}
-            aCarregar={aIdentificar && !progresso}
-            desativada={offline && !aIdentificar}
-            aoTocar={aIdentificar ? () => { pararIdentificacao.current = true; } : () => void identificarBiblioteca()}
-          />
+        <GrupoQueAbre titulo="Library" aberto={abertas.has('library')} aoAlternar={() => alternar('library')} aoMedir={medir('library')}
+          rodapeDoResto={[
+            offline ? 'Connect to the internet to change your recommendations.' : Platform.OS === 'ios' ? efeitos.spotify : 'Songs you hid and artists you want to hear less often.',
+            resumoDoCatalogo ?? 'Fix artist names, titles and covers with a music catalogue, or find duplicates and songs that no longer play.',
+            'Playlists you imported from a link pick up the songs added there since, once a day when you open them.',
+          ]}
+          resto={<>
+            <Linha icone="heart" rotulo={ROTULOS.recomendacoes} chevron desativada={offline} aoTocar={() => setRecommendationsOpen(true)} />
+            {/* A conta do Spotify (11/11): o cartão está no ecrã de importar, com o login do próprio Spotify. */}
+            {Platform.OS === 'ios' && (
+              <Linha icone="musical-notes" rotulo={ROTULOS.contaDoSpotify} chevron desativada={offline}
+                aoTocar={() => navigation.navigate('ImportYouTube')} />
+            )}
+            <Linha
+              icone="pricetag"
+              rotulo={aIdentificar ? 'Stop identifying' : ROTULOS.identificar}
+              acao
+              valor={progresso ? `${progresso.feitas} of ${progresso.total}` : null}
+              aCarregar={aIdentificar && !progresso}
+              desativada={offline && !aIdentificar}
+              aoTocar={aIdentificar ? () => { pararIdentificacao.current = true; } : () => void identificarBiblioteca()}
+            />
+            <Linha icone="download" rotulo={ROTULOS.exportarBiblioteca} chevron aCarregar={aExportar} desativada={offline || aExportar} aoTocar={() => setExportarAberto(true)} />
+            <LinhaInterruptor icone="refresh" rotulo={ROTULOS.atualizarImportadas} valor={atualizarImportadas}
+              aoMudar={(v: boolean) => { setAtualizarImportadasEstado(v); void setAtualizarImportadas(v); }} />
+          </>}>
           <Linha icone="checkmark-done" rotulo={ROTULOS.libraryCheck} chevron aoTocar={() => navigation.navigate('LibraryCheck')} />
-          <Linha icone="download" rotulo={ROTULOS.exportarBiblioteca} chevron aCarregar={aExportar} desativada={offline || aExportar} aoTocar={() => setExportarAberto(true)} />
-        </Grupo>
-        <Grupo rodape="Playlists you imported from a link pick up the songs added there since, once a day when you open them.">
-          <LinhaInterruptor icone="refresh" rotulo={ROTULOS.atualizarImportadas} valor={atualizarImportadas}
-            aoMudar={(v: boolean) => { setAtualizarImportadasEstado(v); void setAtualizarImportadas(v); }} />
-        </Grupo>
+        </GrupoQueAbre>
 
         {/* O "Clear cache" apaga TODO o áudio guardado, os downloads feitos de
             propósito incluídos -- e o rodapé di-lo antes de se carregar. */}
-        <Grupo titulo="Storage" rodape={[efeitos.gostadas, efeitos.cache, 'Songs are kept on the phone so they play with the screen locked.',
-          Number.isFinite(limiteDoAudio)
-            ? 'Above the limit, the oldest cached songs and downloads are removed automatically.'
-            : 'With no limit, songs stay on the phone until you clear the cache.']}>
-          {Platform.OS === 'ios' && (
-            <LinhaInterruptor icone="heart-circle" rotulo={ROTULOS.descarregarGostadas} valor={gostadasLigada}
-              aoMudar={(v: boolean) => { void mudarGostadas(v); }} />
-          )}
+        <GrupoQueAbre titulo="Storage" aberto={abertas.has('storage')} aoAlternar={() => alternar('storage')} aoMedir={medir('storage')}
+          rodape={['Songs are kept on the phone so they play with the screen locked.',
+            Number.isFinite(limiteDoAudio)
+              ? 'Above the limit, the oldest cached songs and downloads are removed automatically.'
+              : 'With no limit, songs stay on the phone until you clear the cache.']}
+          rodapeDoResto={[efeitos.gostadas, efeitos.cache]}
+          resto={<>
+            {Platform.OS === 'ios' && (
+              <LinhaInterruptor icone="heart-circle" rotulo={ROTULOS.descarregarGostadas} valor={gostadasLigada}
+                aoMudar={(v: boolean) => { void mudarGostadas(v); }} />
+            )}
+            <Linha icone="trash" rotulo="Clear cache" acao aoTocar={() => void doClearCache()} />
+          </>}>
           <Linha icone="arrow-down-circle" rotulo="Downloads" valor={formatCacheSize(cacheBytes)} chevron aoTocar={() => navigation.navigate('Downloads')} />
           {/* O teto (11/11): era 300 MB fixos. */}
           <LinhaAlta icone="server" rotulo="Storage limit">
             <BarraDoLimite valor={limitePorConfirmar ?? limiteDoAudio} aoMudar={mudarLimite} />
           </LinhaAlta>
-          <Linha icone="trash" rotulo="Clear cache" acao aoTocar={() => void doClearCache()} />
-        </Grupo>
+        </GrupoQueAbre>
 
-        <Grupo titulo="Account" rodape={offline ? 'Offline · connect to manage your account.' : null}>
+        <GrupoQueAbre titulo="Account" aberto={abertas.has('account')} aoAlternar={() => alternar('account')} aoMedir={medir('account')}
+          rodape={offline ? 'Offline · connect to manage your account.' : null}
+          resto={<>
+            <Linha icone="key" rotulo={ROTULOS.reporPassword} acao desativada={offline} aoTocar={() => setARepor(true)} />
+            <Linha icone="log-out-outline" rotulo={ROTULOS.sair} acao aoTocar={() => setSignOutOpen(true)} />
+            <Linha icone="heart-dislike" rotulo="Clear Liked Songs" perigo desativada={offline} aoTocar={() => setClearLibraryOpen(true)} />
+            <Linha icone="trash" rotulo={ROTULOS.apagarConta} perigo desativada={offline} aoTocar={() => setDeleteAccountOpen(true)} />
+          </>}>
           <Linha icone="mail" rotulo={ROTULOS.email} valor={session?.user?.email ?? '—'} />
-          <Linha icone="key" rotulo={ROTULOS.reporPassword} acao desativada={offline} aoTocar={() => setARepor(true)} />
-          <Linha icone="log-out-outline" rotulo={ROTULOS.sair} acao aoTocar={() => setSignOutOpen(true)} />
-        </Grupo>
-        <Grupo>
-          <Linha icone="heart-dislike" rotulo="Clear Liked Songs" perigo desativada={offline} aoTocar={() => setClearLibraryOpen(true)} />
-          <Linha icone="trash" rotulo={ROTULOS.apagarConta} perigo desativada={offline} aoTocar={() => setDeleteAccountOpen(true)} />
-        </Grupo>
+        </GrupoQueAbre>
 
         {/* As escutas vão do iPhone direto ao ListenBrainz (16/11): nada passa pelo servidor do Duotone. */}
-        <Grupo titulo="Scrobbling" rodape="Songs count at half their length, or four minutes. Private listening sends nothing.">
+        <GrupoQueAbre titulo="Scrobbling" aberto={false} aoAlternar={() => {}} aoMedir={medir('scrobbling')}
+          rodape="Songs count at half their length, or four minutes. Private listening sends nothing.">
           <Linha icone="radio" rotulo={FRASES_DO_SCROBBLING.titulo} chevron desativada={offline}
             valor={utilizadorDoListenBrainz ?? FRASES_DO_SCROBBLING.desligado} aoTocar={() => setListenBrainzAberto(true)} />
-        </Grupo>
+        </GrupoQueAbre>
         <FolhaDoListenBrainz visible={listenBrainzAberto} onClose={() => setListenBrainzAberto(false)} />
 
         {/* O relatório vai pela folha de partilha: quem precisa dele é quem o
             vai mandar a alguém. */}
-        <Grupo titulo="About" rodape="If a song won't play, send this so it can be fixed.">
-          <Linha icone="information-circle" rotulo={ROTULOS.versao} valor={APP_VERSION} />
-          <Linha icone="cafe" rotulo={ROTULOS.apoiar} chevron aoTocar={() => { void Linking.openURL(ENDERECO_DO_APOIO).catch(() => {}); }} />
-          <Linha icone="shield-checkmark" rotulo={ROTULOS.privacidade} chevron aoTocar={() => { void Linking.openURL(ENDERECO_DA_PRIVACIDADE).catch(() => {}); }} />
+        <GrupoQueAbre titulo="About" aberto={abertas.has('about')} aoAlternar={() => alternar('about')} aoMedir={medir('about')}
+          rodape="If a song won't play, send this so it can be fixed."
+          resto={<>
+            <Linha icone="information-circle" rotulo={ROTULOS.versao} valor={APP_VERSION} />
+            <Linha icone="cafe" rotulo={ROTULOS.apoiar} chevron aoTocar={() => { void Linking.openURL(ENDERECO_DO_APOIO).catch(() => {}); }} />
+            <Linha icone="shield-checkmark" rotulo={ROTULOS.privacidade} chevron aoTocar={() => { void Linking.openURL(ENDERECO_DA_PRIVACIDADE).catch(() => {}); }} />
+            <Linha
+              icone="paper-plane"
+              rotulo="Send playback report"
+              acao
+              aoTocar={() => { void partilharRelatorioDeReproducao().catch(() => {}); }}
+            />
+            {/* Só na conta do João (7/10, supabase/painel-de-saude.sql). */}
+            {administrador ? <Linha icone="pulse" rotulo="App health" chevron aoTocar={() => setPainelAberto(true)} /> : null}
+          </>}>
           {/* Com uma descrição, direto para o João (15/11): várias pessoas
               adicionavam-no como amigo só para dizer que algo falhava. */}
           <Linha icone="bug" rotulo={ROTULOS.relatarProblema} acao desativada={offline} aoTocar={() => setRelatoAberto(true)} />
-          <Linha
-            icone="paper-plane"
-            rotulo="Send playback report"
-            acao
-            aoTocar={() => { void partilharRelatorioDeReproducao().catch(() => {}); }}
-          />
-          {/* Só na conta do João (7/10, supabase/painel-de-saude.sql). */}
-          {administrador ? <Linha icone="pulse" rotulo="App health" chevron aoTocar={() => setPainelAberto(true)} /> : null}
-        </Grupo>
+        </GrupoQueAbre>
+        </RealceDaLinha.Provider>
+        </View>
         <PainelDeSaude visivel={painelAberto} aoFechar={() => setPainelAberto(false)} />
         <RelatarProblema visible={relatoAberto} onClose={() => setRelatoAberto(false)} />
         <TrackActionsSheet
@@ -935,6 +991,9 @@ function EqualizadorPadrao({ visivel, aoFechar, ganhos: padrao, presets, efeito 
 }
 
 const styles = StyleSheet.create({
+  // A procura (27/11): as secções saem enquanto há texto, e o vazio diz-se.
+  escondidas: { display: 'none' },
+  semResultados: { fontSize: 15, color: colors.textTertiary, textAlign: 'center', paddingVertical: spacing.lg },
   amostra: { width: 16, height: 16, borderRadius: 8 },
   cabecalhoDoEq: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
 });

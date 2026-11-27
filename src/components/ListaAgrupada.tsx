@@ -1,9 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { useRef } from 'react';
-import { ActivityIndicator, StyleSheet, Switch, Text, View } from 'react-native';
+import React, { useContext, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, Easing, StyleSheet, Switch, Text, View } from 'react-native';
 import { colors, radii, spacing, type } from '../theme';
 import type { Ancora } from './MenuFlutuante';
 import { Toque } from './Toque';
+import { RealceDaLinha } from './RealceDaLinha';
 
 /**
  * A lista agrupada dos Ajustes do iPhone (auditoria 1.6, variante B de
@@ -17,6 +18,88 @@ import { Toque } from './Toque';
 
 const ICONE = 28;
 const ESQUERDA_DO_TRACO = spacing.lg + ICONE + spacing.md;
+
+export { RealceDaLinha };
+const useAcesa = (rotulo: string) => useContext(RealceDaLinha) === rotulo;
+
+/**
+ * Um grupo que mostra as principais e abre o resto ali mesmo (27/11, as Definições
+ * por secções, `docs/definicoes-por-seccoes-maquete.html`): por baixo, "More · N
+ * more" abre e "Less" fecha, com a altura a crescer. O rodapé do resto só se lê aberto.
+ */
+/** As linhas, com os fragmentos desdobrados (`resto={<>...</>}`) e sem as vazias. */
+function linhasDe(no: React.ReactNode): React.ReactNode[] {
+  return React.Children.toArray(no).flatMap((c) => (React.isValidElement(c) && c.type === React.Fragment
+    ? linhasDe((c.props as { children?: React.ReactNode }).children) : [c]));
+}
+
+export function GrupoQueAbre({ titulo, rodape, rodapeDoResto, children, resto, aberto, aoAlternar, aoMedir }: {
+  titulo: string;
+  rodape?: string | (string | null | undefined | false)[] | null;
+  rodapeDoResto?: string | (string | null | undefined | false)[] | null;
+  children: React.ReactNode;
+  resto?: React.ReactNode;
+  aberto: boolean;
+  aoAlternar: () => void;
+  /** Onde o grupo está no conteúdo (para a procura lá rolar). */
+  aoMedir?: (y: number) => void;
+}) {
+  const principais = linhasDe(children);
+  const outras = linhasDe(resto);
+  const [altura, setAltura] = useState(0);
+  const abertura = useRef(new Animated.Value(aberto ? 1 : 0)).current;
+  const primeira = useRef(true);
+  useEffect(() => {
+    if (primeira.current) { primeira.current = false; abertura.setValue(aberto ? 1 : 0); return undefined; }
+    // A altura não anda no motor nativo: é JavaScript, 280 ms numa página parada.
+    const a = Animated.timing(abertura, { toValue: aberto ? 1 : 0, duration: 280, easing: Easing.out(Easing.cubic), useNativeDriver: false });
+    a.start();
+    return () => a.stop();
+  }, [aberto, abertura]);
+  const listas = (Array.isArray(rodape) ? rodape : [rodape]);
+  const doResto = aberto ? (Array.isArray(rodapeDoResto) ? rodapeDoResto : [rodapeDoResto]) : [];
+  const frases = [...listas, ...doResto].filter((f): f is string => !!f);
+  const comTraco = (linha: React.ReactNode, i: number) => (
+    <View key={i}>
+      {i > 0 && <View style={styles.traco} />}
+      {linha}
+    </View>
+  );
+  return (
+    <View style={styles.bloco} onLayout={aoMedir ? (e) => aoMedir(e.nativeEvent.layout.y) : undefined}>
+      <Text accessibilityRole="header" style={styles.titulo}>{titulo}</Text>
+      <View style={styles.grupo}>
+        {principais.map(comTraco)}
+        {outras.length ? (
+          <>
+            <Animated.View style={{ height: abertura.interpolate({ inputRange: [0, 1], outputRange: [0, altura] }), overflow: 'hidden' }}
+              accessibilityElementsHidden={!aberto} importantForAccessibility={aberto ? 'auto' : 'no-hide-descendants'}>
+              {/* Medida à parte (absoluta), para a altura aberta se saber fechada. */}
+              <View style={styles.medida} onLayout={(e) => setAltura(e.nativeEvent.layout.height)}>
+                {outras.map((linha, i) => comTraco(linha, i + 1))}
+              </View>
+            </Animated.View>
+            <View style={styles.traco} />
+            <Toque acende accessibilityRole="button" accessibilityState={{ expanded: aberto }}
+              accessibilityLabel={aberto ? `Show fewer ${titulo} settings` : `Show all ${titulo} settings`}
+              onPress={aoAlternar} style={styles.linha}>
+              <Text style={[styles.rotulo, styles.mais]}>{aberto ? 'Less' : 'More'}</Text>
+              {aberto ? null : <Text style={styles.valor}>{`${outras.length} more`}</Text>}
+              <Animated.View style={{ transform: [{ rotate: abertura.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] }) }] }}>
+                <Ionicons name="chevron-down" size={17} color="rgba(233,234,238,0.45)" />
+              </Animated.View>
+            </Toque>
+          </>
+        ) : null}
+      </View>
+      {frases.length > 0 && (
+        <View style={styles.rodape}>
+          {frases.map((f) => <Text key={f} style={styles.textoDoRodape}>{f}</Text>)}
+        </View>
+      )}
+    </View>
+  );
+}
 
 export function Grupo({ titulo, rodape, children }: {
   titulo?: string;
@@ -71,6 +154,7 @@ export function Linha({
   accessibilityHint?: string;
 }) {
   const ref = useRef<View>(null);
+  const acesa = useAcesa(rotulo);
   const corpo = (
     <>
       <QuadradoDoIcone icone={icone} perigo={perigo} desativada={desativada} />
@@ -88,13 +172,13 @@ export function Linha({
   );
   if (!aoTocar) {
     return (
-      <View style={styles.linha} accessible accessibilityLabel={valor ? `${rotulo}, ${valor}` : rotulo}>
+      <View style={[styles.linha, acesa && styles.acesa]} accessible accessibilityLabel={valor ? `${rotulo}, ${valor}` : rotulo}>
         {corpo}
       </View>
     );
   }
   return (
-    <View ref={ref} collapsable={false}>
+    <View ref={ref} collapsable={false} style={acesa ? styles.acesa : undefined}>
       <Toque
         acende
         // A carregar continua a poder tocar-se: "Identify library" pára assim.
@@ -121,8 +205,9 @@ export function LinhaInterruptor({ icone, rotulo, valor, aoMudar, desativada }: 
   valor: boolean;
   aoMudar: (v: boolean) => void;
 }) {
+  const acesa = useAcesa(rotulo);
   return (
-    <View style={styles.linha}>
+    <View style={[styles.linha, acesa && styles.acesa]}>
       <QuadradoDoIcone icone={icone} desativada={desativada} />
       <Text numberOfLines={1} style={[styles.rotulo, desativada && styles.apagada]}>{rotulo}</Text>
       <Switch
@@ -139,8 +224,9 @@ export function LinhaInterruptor({ icone, rotulo, valor, aoMudar, desativada }: 
 
 /** Uma linha mais alta: o rótulo em cima e um controlo por baixo (a velocidade). */
 export function LinhaAlta({ icone, rotulo, children }: Comum & { children: React.ReactNode }) {
+  const acesa = useAcesa(rotulo);
   return (
-    <View style={styles.alta}>
+    <View style={[styles.alta, acesa && styles.acesa]}>
       <View style={styles.cimaDaAlta}>
         <QuadradoDoIcone icone={icone} />
         <Text numberOfLines={1} style={styles.rotulo}>{rotulo}</Text>
@@ -198,6 +284,10 @@ const styles = StyleSheet.create({
   acao: { fontWeight: '500' },
   valor: { ...type.body, fontSize: 16, color: colors.textSecondary, flexShrink: 1, maxWidth: '55%' },
   apagada: { opacity: 0.4 },
+  // A linha que a procura encontrou (27/11).
+  acesa: { backgroundColor: 'rgba(255,255,255,0.12)' },
+  mais: { color: colors.textSecondary },
+  medida: { position: 'absolute', left: 0, right: 0, top: 0 },
   rodape: { paddingHorizontal: spacing.xl, gap: 2 },
   textoDoRodape: { ...type.caption, fontWeight: '400', lineHeight: 18 },
 });

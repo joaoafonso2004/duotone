@@ -2616,4 +2616,12 @@ export const FR: Readonly<Record<string, string>> = {
   "Made for you": "Pour vous",
   "Preview of Home": "Aperçu de l'accueil",
   "Preview of a playlist": "Aperçu d'une playlist",
+  // As Definições por secções que abrem, e a procura (27/11).
+  "Search settings": "Rechercher dans les réglages",
+  "No settings match.": "Aucun réglage ne correspond.",
+  "{0:n} more": "{0} de plus",
+  "Results": "Résultats",
+  "Show all {0} settings": "Afficher tous les réglages {0}",
+  "Show fewer {0} settings": "Afficher moins de réglages {0}",
+  "{0}, in {1}": "{0}, dans {1}",
 };

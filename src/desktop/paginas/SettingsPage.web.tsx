@@ -13,7 +13,7 @@ import { apagarAsMinhasCapas } from '../../api/capasDasPlaylists';
  * que ALGUÉM a lê fora deste ecrã.
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import React, { ReactNode, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { APP_VERSION } from '../../lib/buildInfo';
@@ -42,7 +42,9 @@ import { usePlayer } from '../../state/player';
 import { useTheme } from '../../state/theme';
 import { styles } from '../estilos.web';
 import { COR, ESP } from '../tokens.web';
-import { Button, ContentScroll, Dialog, Interruptor, marcar } from '../ui.web';
+import { Button, ContentScroll, Dialog, Field, Interruptor, marcar } from '../ui.web';
+import { RealceDaLinha } from '../../components/RealceDaLinha';
+import { NOMES_DAS_SECCOES_DO_PC, procurarDefinicoes, type DefinicaoProcuravel } from '../../lib/procuraDasDefinicoes';
 import { RecuperarPassword } from '../RecuperarPassword.web';
 import { BarraVelocidade } from '../BarraVelocidade.web';
 import { AtalhosDoTeclado } from '../AtalhosDoTeclado.web';
@@ -412,6 +414,19 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   // na casca) em vez de trocar no mesmo fotograma. Ao abrir as Definições não: a página já entra.
   const [mudouDeSeccao, setMudouDeSeccao] = useState(false);
   const escolher = (id: IdDaSeccao) => { seccaoAberta = id; setSeccao(id); setMudouDeSeccao(true); };
+  // A procura (27/11, `lib/procuraDasDefinicoes.ts`): o João não encontrou o "Ambient
+  // full screen". Com texto, os resultados ficam no lugar das secções; escolher um
+  // abre a secção dele e acende a linha 1,8 s.
+  const [procura, setProcura] = useState('');
+  const encontradas = useMemo(() => procurarDefinicoes(procura, 'pc')
+    .filter((d) => seccoes.some((x) => x.id === d.pc)), [procura, seccoes]);
+  const [realce, setRealce] = useState<string | null>(null);
+  const irParaDefinicao = (d: DefinicaoProcuravel) => {
+    setProcura('');
+    escolher(d.pc!);
+    setRealce(d.rotulo);
+    setTimeout(() => setRealce((r) => (r === d.rotulo ? null : r)), 1800);
+  };
 
   return (
     <View style={{ flex: 1, minWidth: 0 }}>
@@ -423,7 +438,17 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
               deixava o painel com duzentos e poucos píxeis. */}
           <View style={[styles.definicoesCorpo, estreita && { flexDirection: 'column', alignItems: 'stretch', gap: ESP.lg }]}>
             <View style={[styles.definicoesIndice, estreita && styles.definicoesIndiceEmLinha]}>
-              {seccoes.map((s) => (
+              <Field icon="search" placeholder="Search settings" value={procura} onChangeText={setProcura} accessibilityLabel="Search settings"
+                style={{ minWidth: 0 }} />
+              {procura.trim() ? (encontradas.length ? encontradas.map((d) => (
+                <Pressable key={d.rotulo} onPress={() => irParaDefinicao(d)} accessibilityRole="button"
+                  accessibilityLabel={`${d.rotulo}, in ${NOMES_DAS_SECCOES_DO_PC[d.pc!]}`}
+                  style={({ hovered }: any) => [styles.definicoesItem, hovered && styles.definicoesItemHover, { flexDirection: 'column', alignItems: 'flex-start', gap: 1 }]}>
+                  <Text style={[styles.definicoesItemTexto, { color: COR.texto }]}>{d.rotulo}</Text>
+                  <Text style={styles.settingDescription}>{NOMES_DAS_SECCOES_DO_PC[d.pc!]}</Text>
+                </Pressable>
+              )) : <Text style={[styles.settingDescription, { paddingHorizontal: ESP.sm }]}>No settings match.</Text>) : null}
+              {procura.trim() ? null : seccoes.map((s) => (
                 <Pressable key={s.id} onPress={() => escolher(s.id)} accessibilityRole="tab" accessibilityState={{ selected: aberta === s.id }}
                   style={({ hovered }: any) => [styles.definicoesItem, hovered && styles.definicoesItemHover, aberta === s.id && styles.definicoesItemAtivo]}>
                   <Ionicons name={s.icone} size={17} color={aberta === s.id ? COR.texto : COR.textoFraco} />
@@ -431,6 +456,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                 </Pressable>
               ))}
             </View>
+            <RealceDaLinha.Provider value={realce}>
             <View key={aberta} {...(mudouDeSeccao ? marcar('seccao-entra') : {})} style={styles.definicoesPainel}>
               {aberta === 'reproducao' && <SettingsCard title="Playback">
                 {/* Quantas músicas novas o Smart Shuffle mete (26/9). */}
@@ -626,6 +652,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                 <SettingAction danger label={ROTULOS.apagarConta} disabled={offline} onPress={() => setDeleteConfirm(true)} />
               </SettingsCard>}
             </View>
+            </RealceDaLinha.Provider>
           </View>
         </View>
       </ContentScroll>
@@ -665,9 +692,9 @@ export function definirSeccaoDasDefinicoes(id: IdDaSeccao): void { seccaoAberta 
 
 export function SettingsCard({ title, children }: { icon?: keyof typeof Ionicons.glyphMap; title: string; children: ReactNode }) { return <View style={styles.settingsCard}><View style={styles.settingsCardTitle}><Text style={styles.sectionTitle}>{title}</Text></View>{children}</View>; }
 
-export function SettingLine({ label, value }: { label: string; value: string }) { return <View style={styles.settingLine}><Text style={[styles.settingLabel, { flex: 1 }]}>{label}</Text><Text numberOfLines={1} style={styles.settingValue}>{value}</Text></View>; }
+export function SettingLine({ label, value }: { label: string; value: string }) { const acesa = useContext(RealceDaLinha) === label; return <View style={[styles.settingLine, acesa && styles.settingAcesa]}><Text style={[styles.settingLabel, { flex: 1 }]}>{label}</Text><Text numberOfLines={1} style={styles.settingValue}>{value}</Text></View>; }
 
-export function SettingAction({ label, description, onPress, danger = false, disabled = false }: { label: string; description?: string; onPress: () => void; danger?: boolean; disabled?: boolean }) { return <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityState={{ disabled }} style={({ hovered }) => [styles.settingLine, hovered && !disabled && styles.settingHover, disabled && { opacity: 0.45 }]}><View style={{ flex: 1 }}><Text style={[styles.settingLabel, danger && { color: COR.erro }]}>{label}</Text>{description ? <Text style={styles.settingDescription}>{description}</Text> : null}</View><Ionicons name="chevron-forward" size={15} color={COR.textoFraco} /></Pressable>; }
+export function SettingAction({ label, description, onPress, danger = false, disabled = false }: { label: string; description?: string; onPress: () => void; danger?: boolean; disabled?: boolean }) { const acesa = useContext(RealceDaLinha) === label; return <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityState={{ disabled }} style={({ hovered }) => [styles.settingLine, hovered && !disabled && styles.settingHover, disabled && { opacity: 0.45 }, acesa && styles.settingAcesa]}><View style={{ flex: 1 }}><Text style={[styles.settingLabel, danger && { color: COR.erro }]}>{label}</Text>{description ? <Text style={styles.settingDescription}>{description}</Text> : null}</View><Ionicons name="chevron-forward" size={15} color={COR.textoFraco} /></Pressable>; }
 
 /**
  * O que a opção está a fazer agora (lib/efeitoDasDefinicoes.ts), por baixo da
@@ -675,9 +702,9 @@ export function SettingAction({ label, description, onPress, danger = false, dis
  */
 export function Efeito({ texto }: { texto?: string | null }) { if (!texto) return null; return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 5 }}><View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: COR.texto, opacity: 0.6 }} /><Text style={{ color: COR.texto, fontSize: 12, lineHeight: 17, flex: 1 }}>{texto}</Text></View>; }
 
-export function ToggleLine({ label, description, value, onChange, efeito }: { label: string; description: string; value: boolean; onChange: (v: boolean) => void; efeito?: string | null }) { return <View style={styles.settingLine}><View style={{ flex: 1 }}><Text style={styles.settingLabel}>{label}</Text><Text style={styles.settingDescription}>{description}</Text><Efeito texto={efeito} /></View><Interruptor accessibilityLabel={label} value={value} onValueChange={onChange} /></View>; }
+export function ToggleLine({ label, description, value, onChange, efeito }: { label: string; description: string; value: boolean; onChange: (v: boolean) => void; efeito?: string | null }) { const acesa = useContext(RealceDaLinha) === label; return <View style={[styles.settingLine, acesa && styles.settingAcesa]}><View style={{ flex: 1 }}><Text style={styles.settingLabel}>{label}</Text><Text style={styles.settingDescription}>{description}</Text><Efeito texto={efeito} /></View><Interruptor accessibilityLabel={label} value={value} onValueChange={onChange} /></View>; }
 
-export function ChoiceLine({ label, description, value, choices, onChange, efeito }: { label: string; description?: string; value: string; choices: [string, string][]; onChange: (v: string) => void; efeito?: string | null }) { return <View style={[styles.settingLine, { alignItems: 'flex-start' }]}><View style={{ flex: 1, marginTop: 8, paddingRight: ESP.md }}><Text style={styles.settingLabel}>{label}</Text>{description ? <Text style={styles.settingDescription}>{description}</Text> : null}<Efeito texto={efeito} /></View><View style={styles.smallSegment}>{choices.map(([id, text]) => <Pressable key={id} onPress={() => onChange(id)} style={[styles.smallSegmentItem, value === id && styles.smallSegmentActive]}><Text style={[styles.smallSegmentText, value === id && { color: COR.texto }]}>{text}</Text></Pressable>)}</View></View>; }
+export function ChoiceLine({ label, description, value, choices, onChange, efeito }: { label: string; description?: string; value: string; choices: [string, string][]; onChange: (v: string) => void; efeito?: string | null }) { const acesa = useContext(RealceDaLinha) === label; return <View style={[styles.settingLine, { alignItems: 'flex-start' }, acesa && styles.settingAcesa]}><View style={{ flex: 1, marginTop: 8, paddingRight: ESP.md }}><Text style={styles.settingLabel}>{label}</Text>{description ? <Text style={styles.settingDescription}>{description}</Text> : null}<Efeito texto={efeito} /></View><View style={styles.smallSegment}>{choices.map(([id, text]) => <Pressable key={id} onPress={() => onChange(id)} style={[styles.smallSegmentItem, value === id && styles.smallSegmentActive]}><Text style={[styles.smallSegmentText, value === id && { color: COR.texto }]}>{text}</Text></Pressable>)}</View></View>; }
 
 /**
  * A conta do Spotify nas Definições (11/11, pedido do João). O login e a
