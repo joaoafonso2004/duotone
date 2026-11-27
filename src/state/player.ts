@@ -33,6 +33,8 @@ import { chaveDoArtistaPrincipal, lancamentoParaOLote } from './lancamentosNoRad
 import { fetchRadioTracks } from '../api/radio';
 import { ancorasDoRadio, rememberRadioListen, rememberRadioSkip, radioSessionSeeds, type RadioListeningSession } from '../lib/radioSession';
 import { comecaListaNova, origemAoTocar, valeGuardarAFilaDeixada, type OrigemDaFila, type ResumoDaFila } from '../lib/origemDaFila';
+import { chaveDoBaralho, inicioAoAcaso, ouvidasParaOFim } from '../lib/baralhoDoShuffle';
+import { marcarOuvida, ouvidasDaLista } from './baralhoDoShuffle';
 import { candidatasParaDescoberta, loteDaMix } from '../api/descoberta';
 import { lerPerfilDeRecomendacoes } from '../api/perfilDeRecomendacoes';
 import { getLibrary } from '../api/library';
@@ -133,14 +135,28 @@ function filaSemMusicasRepetidas(queue: Track[], currentIndex: number): Track[] 
   return unicas;
 }
 
-function novaOrdemDoShuffle(queue: Track[], currentIndex: number): string[] {
-  return shuffleKeys(filaSemMusicasRepetidas(queue, currentIndex), 0);
+/**
+ * Uma ordem nova, com as que já tocaram desta lista no fim (27/11, o baralho do
+ * shuffle, `lib/baralhoDoShuffle.ts`): carregar outra vez em Shuffle, ou a app
+ * reaberta, continua pelas que faltam em vez de sortear outra vez de entre todas.
+ * Sem `origem`, a da fila que está (o `playTrack` de uma lista nova passa a dela).
+ */
+function novaOrdemDoShuffle(queue: Track[], currentIndex: number, origem: OrigemDaFila | null = origemDaFilaAtual()): string[] {
+  const ordem = shuffleKeys(filaSemMusicasRepetidas(queue, currentIndex), 0);
+  return ouvidasParaOFim(ordem, ouvidasDaLista(chaveDoBaralho(origem)));
 }
 
 function reconciliarOrdemDoShuffle(
-  order: string[], queue: Track[], currentIndex: number,
+  order: string[], queue: Track[], currentIndex: number, origem: OrigemDaFila | null = origemDaFilaAtual(),
 ): string[] {
+  // Sem percurso (a app reaberta: a ordem não se guarda), é uma ordem nova.
+  if (!order.length) return novaOrdemDoShuffle(queue, currentIndex, origem);
   return reconcileOrder(order, filaSemMusicasRepetidas(queue, currentIndex), 0);
+}
+
+/** A origem da fila que está agora (a store é criada mais abaixo; só se chama depois). */
+function origemDaFilaAtual(): OrigemDaFila | null {
+  return usePlayer.getState().origemDaFila;
 }
 
 /** Registada sincronamente pela store Jam, sem depender da montagem do player. */
@@ -1459,8 +1475,10 @@ export const usePlayer = create<PlayerState>()(
     // O percurso nasce com a fila, não só no primeiro Next. Uma lista nova
     // sorteia de raiz; os saltos dentro da audição mantêm a ordem percorrida.
     const shuffleOrder = get().shuffle
-      ? listaNova ? novaOrdemDoShuffle(q, index) : reconciliarOrdemDoShuffle(get().shuffleOrder, q, index)
+      ? listaNova ? novaOrdemDoShuffle(q, index, origemSeguinte) : reconciliarOrdemDoShuffle(get().shuffleOrder, q, index, origemSeguinte)
       : [];
+    // O baralho do shuffle (27/11): esta já saiu desta lista.
+    if (get().shuffle) marcarOuvida(chaveDoBaralho(origemSeguinte), trackKey(playableTrack), shuffleOrder.length);
     set({
       current: playableTrack,
       queue: q,
@@ -1667,7 +1685,8 @@ export const usePlayer = create<PlayerState>()(
     // modo aleatório do player. Resultado: o botão Shuffle e o interruptor
     // do player discordavam, e a fila ficava fisicamente desordenada face à
     // biblioteca. Agora liga-se o modo a sério e a ordem é Fisher-Yates.
-    const start = Math.floor(Math.random() * tracks.length);
+    // A primeira ao acaso entre as que ainda não tocaram desta lista (27/11, o baralho).
+    const start = inicioAoAcaso(tracks.map(trackKey), ouvidasDaLista(chaveDoBaralho(origem)));
     fotoAntesDoShuffle = fotoParaVoltar(get());
     // Percurso limpo: sem isto o reconcile aproveitaria a ordem da fila
     // anterior e a primeira faixa podia cair no fim do percurso.

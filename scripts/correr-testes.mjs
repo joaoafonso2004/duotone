@@ -147,6 +147,7 @@ const TESTES = [
   `${TS} scripts/test-player-lifecycle.ts`,
   `${DUPLOS} scripts/test-player-store.ts`,
   `${TS} scripts/test-shuffle.ts`,
+  `${TS} scripts/test-baralho-do-shuffle.ts`,
   `${DUPLOS} scripts/test-shuffle-arranque.ts`,
   `${TS} scripts/test-radio.ts`,
   `${DUPLOS} scripts/test-radio-mode.ts`,
