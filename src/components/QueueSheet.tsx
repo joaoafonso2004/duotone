@@ -398,6 +398,12 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
           <Ionicons name="return-up-back" size={18} color={colors.textSecondary} />
           <Text numberOfLines={1} style={[type.caption, styles.voltarRotulo]}>{voltar.rotulo}</Text>
           <Text style={[type.caption, { color: colors.textTertiary }]}>{voltar.detalhe}</Text>
+          {/* O X (28/11, como no PC): tira a linha e esquece a fila deixada. */}
+          <Pressable accessibilityRole="button" accessibilityLabel="Dismiss" hitSlop={10}
+            onPress={() => { hapticSelection(); usePlayer.getState().esquecerFilaAnterior(); }}
+            style={({ pressed }) => [styles.voltarFechar, pressed && { opacity: 0.6 }]}>
+            <Ionicons name="close" size={16} color={colors.textTertiary} />
+          </Pressable>
         </Pressable>
       ) : null}
 
@@ -687,6 +693,7 @@ const styles = StyleSheet.create({
   folhaNativa: { flex: 1, paddingTop: 22, paddingHorizontal: spacing.lg },
   voltar: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44, marginTop: spacing.xs },
   voltarRotulo: { flex: 1, minWidth: 0, color: colors.text, fontWeight: '600' },
+  voltarFechar: { width: 28, height: 28, marginRight: -6, alignItems: 'center', justifyContent: 'center' },
   tituloDaFila: {
     flexDirection: 'row',
     alignItems: 'center',

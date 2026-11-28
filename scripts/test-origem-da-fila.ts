@@ -97,6 +97,10 @@ console.log('\nvoltar à fila que se deixou (9/11)');
   check('voltar usa o caminho do "Continue here" (retoma no segundo certo nos dois motores)',
     /get\(\)\.adoptSession\(\{ track: f\.faixa, queue: f\.queue, queueIndex: f\.queueIndex, positionMs: f\.posicaoMs \}\);/.test(loja));
   check('fechar o leitor larga a fila guardada', /if \(!await get\(\)\.prepararFecho\(\)\) return;\n\s+set\(\{ filaAnterior: null \}\);/.test(loja));
+  check('o X tira a linha nas duas plataformas e esquece a fila deixada (28/11)',
+    /accessibilityLabel="Dismiss" onPress=\{fila\.esquecerAnterior\}/.test(ler('src/desktop/FilaDoLeitor.web.tsx'))
+    && /usePlayer\.getState\(\)\.esquecerFilaAnterior\(\); \}\}/.test(folha)
+    && /esquecerFilaAnterior: \(\) => \{ if \(get\(\)\.filaAnterior\) set\(\{ filaAnterior: null \}\); \}/.test(loja));
 }
 
 console.log('\no perfil, o Jam e os ecrãs que tocavam sem dizer de onde (24/11)');

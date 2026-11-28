@@ -653,6 +653,8 @@ interface PlayerState {
   reporFila: (foto: FotografiaDaFila, opcoes?: { radio?: boolean }) => boolean;
   /** Volta à fila que se deixou, na música e no segundo onde se ia; a de agora fica no lugar dela. */
   voltarAFilaAnterior: () => boolean;
+  /** O X do "Back to …" (28/11): esquece a fila que se deixou, e a linha sai. */
+  esquecerFilaAnterior: () => void;
 
   seekTo: (ms: number, interno?: boolean) => Promise<void>;
 
@@ -3047,6 +3049,8 @@ export const usePlayer = create<PlayerState>()(
     persistShuffleInteligente(f.shuffleInteligente).catch(() => {});
     return true;
   },
+
+  esquecerFilaAnterior: () => { if (get().filaAnterior) set({ filaAnterior: null }); },
 
   removeFromQueue: (index) => {
     if (ouvirJuntos()) return; // A fila Jam usa retirarSugestao, por id do servidor.

@@ -195,6 +195,7 @@ export function useFilaDoLeitor({ more, notify }: Pick<CommonPageProps, 'more' |
     escolhidas, aoEscolher, largarEscolhidas: () => setEscolhidas(new Set()), baralhar, porASeguir, tirarEscolhidas,
     aGuardar, setAGuardar, pedirNome, guardar, aGravar,
     anterior, voltar: () => { usePlayer.getState().voltarAFilaAnterior(); },
+    esquecerAnterior: () => { usePlayer.getState().esquecerFilaAnterior(); },
     notaDoFim: fimDaFila({ emJam: emJam || !!seguido, repeatMode, autoplayRadio: autoplayRadio && !radioParado, vazia: !upNext.length }),
     aoTocar: (t: Track) => { if (!seguido) void playTrack(t, queue); },
     aoMenu: (t: Track, indiceReal: number) => emJam || seguido ? more(t) : more(t, undefined, { fila: indiceReal }),

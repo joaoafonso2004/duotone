@@ -216,6 +216,12 @@ export function CabecaDaFila({ fila, abas, origem = null }: {
       <Ionicons name="return-up-back" size={15} color={COR.textoMedio} />
       <Text numberOfLines={1} style={[styles.npFilaLimparTexto, { flex: 1, minWidth: 0 }]}>{fila.anterior.rotulo}</Text>
       <Text style={styles.npFilaVoltarDetalhe}>{fila.anterior.detalhe}</Text>
+      {/* O X (28/11, pedido do João): tira a linha e esquece a fila deixada. É o
+          Pressable de dentro, por isso o clique não chega ao "Back to". */}
+      <Pressable accessibilityRole="button" accessibilityLabel="Dismiss" onPress={fila.esquecerAnterior}
+        style={({ hovered, focused }: any) => [styles.npFilaVoltarFechar, (hovered || focused) && { backgroundColor: ESTADO.hover }]}>
+        {({ hovered }: any) => <Ionicons name="close" size={14} color={hovered ? COR.texto : COR.textoFraco} />}
+      </Pressable>
     </Pressable> : null}
     {fila.radioErro && !fila.emJam ? <Text accessibilityRole="alert" style={styles.npRadioErro}>{fila.radioErro}</Text> : null}
     {/* Num portal (30/10): cada View do RNW tem `z-index: 0`, e o diálogo, dentro

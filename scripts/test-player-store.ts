@@ -1053,6 +1053,9 @@ console.log('\nvoltar à fila que se deixou (9/11)');
   eq('a que se deixou agora fica no lugar dela', anterior()?.queue.map((t) => t.sourceId).join(), 'x,y');
   eq('voltar outra vez troca as duas', usePlayer.getState().voltarAFilaAnterior() && ids().join(), 'x,y');
   eq('e a primeira fica outra vez guardada', anterior()?.origem?.nome, 'Liked Songs');
+  usePlayer.getState().esquecerFilaAnterior();
+  eq('o X esquece-a (28/11)', anterior(), null);
+  eq('e a fila de agora fica como estava', ids().join(), 'x,y');
 
   preparar({ autoplayRadio: false, origemDaFila: guardadas, filaAnterior: null });
   await usePlayer.getState().playTrack(faixa('c'), fila('a', 'b', 'c', 'd'), false, false, undefined, guardadas);
