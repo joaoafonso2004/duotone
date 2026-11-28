@@ -115,8 +115,8 @@ export type Aparencia = {
   /**
    * A opacidade do Liquid Glass, de 0 a 100 (28/11, pedido do João: "uma barra de
    * ajuste de opacidade"): um fundo escuro por baixo de cada peça de vidro, que o
-   * vidro mostra. 0 é o vidro transparente com o desfocado por trás e sem escuro
-   * (28/11, `DESFOCADO_DO_VIDRO`); 100, uma cápsula escura com o rebordo do vidro.
+   * vidro mostra. 0 é o vidro limpo, transparente (o da 7.3.1); 100, uma cápsula
+   * escura com o rebordo do vidro.
    */
   opacidadeDoVidro: number;
   /**

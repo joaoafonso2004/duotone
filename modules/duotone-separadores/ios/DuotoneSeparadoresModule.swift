@@ -72,13 +72,6 @@ final class DuotoneSeparadoresView: ExpoView, UITabBarDelegate, UIGestureRecogni
    * barra. O vidro dela mostra-o, com o rebordo e a lente por cima.
    */
   private let fundo = UIView()
-  /**
-   * O desfocado por baixo da cápsula, por baixo de tudo (28/11, o João: "um vidro em
-   * que seja transparente, que vejas que há vidro e tem o filtro de desfocado por
-   * detrás"): o vidro `clear` quase não desfoca. O material mais fino e escuro, o
-   * mesmo das peças de vidro da app (`DESFOCADO_DO_VIDRO`).
-   */
-  private let desfocado = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterialDark))
 
   private var itens: [ItemDoSeparador] = []
   private var comNomes = true
@@ -102,12 +95,6 @@ final class DuotoneSeparadoresView: ExpoView, UITabBarDelegate, UIGestureRecogni
     super.init(appContext: appContext)
     backgroundColor = .clear
     clipsToBounds = false
-
-    desfocado.isUserInteractionEnabled = false
-    desfocado.isHidden = true
-    desfocado.clipsToBounds = true
-    desfocado.layer.cornerCurve = .continuous
-    addSubview(desfocado)
 
     fundo.isUserInteractionEnabled = false
     fundo.backgroundColor = UIColor(red: 6 / 255, green: 6 / 255, blue: 8 / 255, alpha: 1)
@@ -286,25 +273,22 @@ final class DuotoneSeparadoresView: ExpoView, UITabBarDelegate, UIGestureRecogni
    * Apple recomenda por baixo do vidro transparente. A barra em si (os nomes, os
    * ícones, a lente) fica no escuro.
    *
-   * E por baixo de tudo, sempre, o desfocado (28/11): a 0 % de opacidade é só ele e
-   * o vidro, transparente mas com o que passa por trás desfocado.
+   * Sem desfocado por baixo (28/11, depois da 7.3.4): o material do sistema que lá
+   * esteve desfocava muito e metia cinzento ("ainda assim não está transparente"). O
+   * baço de antes era o "Reduzir transparência" do iPhone do João, que torna fosco
+   * todo o vidro.
    */
   private func colocarFundo() {
     let capsula = acharCapsula()
     if let capsula { limparCapsula(capsula) }
     let moldura = capsula.map { $0.convert($0.bounds, to: self) } ?? molduraDosBotoes()
-    guard let r = moldura, r.width > 0, r.height > 0 else {
-      desfocado.isHidden = true
+    guard opacidade > 0, let r = moldura, r.width > 0, r.height > 0 else {
       fundo.isHidden = true
       return
     }
-    let raio = min(r.width, r.height) / 2
-    desfocado.isHidden = false
-    desfocado.frame = r
-    desfocado.layer.cornerRadius = raio
-    fundo.isHidden = opacidade <= 0
+    fundo.isHidden = false
     fundo.frame = r
-    fundo.layer.cornerRadius = raio
+    fundo.layer.cornerRadius = min(r.width, r.height) / 2
   }
 
   /**

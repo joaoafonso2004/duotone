@@ -97,15 +97,6 @@ export function fundoDoVidro(opacidade: number): string | null {
   return o > 0 ? `rgba(6,6,8,${o / 100})` : null;
 }
 
-/**
- * O desfocado por baixo de cada peça de vidro (28/11, o João: "um vidro em que seja
- * transparente, que vejas que há vidro e tem o filtro de desfocado por detrás"). O
- * material mais fino e escuro do sistema, inteiro: o mais transparente, e sem o
- * branco leitoso do vidro claro. O mesmo na barra de separadores do sistema
- * (`UIBlurEffect(style: .systemUltraThinMaterialDark)`, no Swift). A 0 % de
- * opacidade fica só ele e o vidro; o escuro do `fundoDoVidro` vai por cima dele.
- */
-export const DESFOCADO_DO_VIDRO = { tint: 'systemUltraThinMaterialDark', intensidade: 100 } as const;
 
 /**
  * A barra de separadores nativa (28/11): a `UITabBar` do iOS 26, com a lente de

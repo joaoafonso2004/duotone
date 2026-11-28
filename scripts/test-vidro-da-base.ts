@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  botaoEscolhido, DESFOCADO_DO_VIDRO, fundoDoVidro, geometriaDoVidro, MUSICA_NO_VIDRO, rotasComBotao, selecaoDoVidro, separadoresDaBarraNativa,
+  botaoEscolhido, fundoDoVidro, geometriaDoVidro, MUSICA_NO_VIDRO, rotasComBotao, selecaoDoVidro, separadoresDaBarraNativa,
   SIMBOLOS_DOS_SEPARADORES, VIDRO_DA_BASE,
 } from '../src/lib/vidroDaBase.ts';
 
@@ -59,20 +59,16 @@ caso('a cápsula da música mais baixa do que a dos separadores, com a capa cent
   assert.equal(m.progressoEsquerda, m.dentro + m.capa + 10);
   assert.ok(m.progressoDireita > r - Math.sqrt(r ** 2 - (r - m.progressoFundo) ** 2) + 4);
 });
-caso('o vidro transparente com o desfocado por trás, a 0 % e por baixo do escuro (28/11)', () => {
-  // O material mais fino e escuro, inteiro, nas peças da app e na barra do sistema.
-  assert.deepEqual(DESFOCADO_DO_VIDRO, { tint: 'systemUltraThinMaterialDark', intensidade: 100 });
+caso('a 0 %, só o vidro limpo: nada por baixo dele (28/11, depois da 7.3.4)', () => {
+  // A 7.3.4 punha o material do sistema por baixo: desfocava muito e metia cinzento.
   const v = ler('src/components/Vidro.tsx');
-  const desfocado = v.indexOf('<BlurView pointerEvents="none" tint={DESFOCADO_DO_VIDRO.tint} intensity={DESFOCADO_DO_VIDRO.intensidade}');
+  assert.doesNotMatch(v, /BlurView|expo-blur/, 'sem desfocado por baixo do vidro');
   const escuro = v.indexOf('{fundo ? <View pointerEvents="none"');
   const vidro = v.indexOf('<GlassView glassEffectStyle="clear"');
-  assert.ok(desfocado > 0 && desfocado < escuro && escuro < vidro, 'o desfocado por baixo, o escuro a seguir, o vidro por cima');
-  assert.match(v, /style=\{\[StyleSheet\.absoluteFill, forma, styles\.corta\]\}/, 'o desfocado corta-se a si próprio, com o raio');
+  assert.ok(escuro > 0 && escuro < vidro, 'só o escuro da opacidade por baixo, e o vidro por cima');
   const swift = ler('modules/duotone-separadores/ios/DuotoneSeparadoresModule.swift');
-  assert.match(swift, /private let desfocado = UIVisualEffectView\(effect: UIBlurEffect\(style: \.systemUltraThinMaterialDark\)\)/);
-  assert.ok(swift.indexOf('addSubview(desfocado)') < swift.indexOf('addSubview(fundo)') && swift.indexOf('addSubview(fundo)') < swift.indexOf('addSubview(barra)'),
-    'o desfocado por baixo do escuro, e os dois por baixo da barra');
-  assert.match(swift, /desfocado\.isHidden = false\n\s+desfocado\.frame = r\n\s+desfocado\.layer\.cornerRadius = raio\n\s+fundo\.isHidden = opacidade <= 0/);
+  assert.doesNotMatch(swift, /UIBlurEffect|desfocado\./, 'nem na barra do sistema');
+  assert.match(swift, /guard opacidade > 0, let r = moldura, r\.width > 0, r\.height > 0 else \{\n\s+fundo\.isHidden = true/);
   // Nunca se esconde a cápsula nem se lhe mexe no alpha: o UIKit deixava de pôr o vidro.
   assert.doesNotMatch(swift, /capsula\.isHidden|capsula\.alpha/);
 });

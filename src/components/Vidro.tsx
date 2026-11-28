@@ -1,8 +1,7 @@
-import { BlurView } from 'expo-blur';
 import React from 'react';
 import { Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
-import { DESFOCADO_DO_VIDRO, fundoDoVidro } from '../lib/vidroDaBase';
+import { fundoDoVidro } from '../lib/vidroDaBase';
 import { useAparencia } from '../state/aparencia';
 
 /**
@@ -38,15 +37,14 @@ export function useVidro(): boolean {
  * que a Apple recomenda por baixo do vidro transparente, e o vidro mostra-o com o
  * rebordo e a refração por cima. Por baixo e não por cima: por cima tapava o rebordo.
  *
- * Por baixo de tudo, um desfocado (28/11, o João: "um vidro em que seja
- * transparente, que vejas que há vidro e tem o filtro de desfocado por detrás"): o
- * `clear` quase não desfoca o que passa por trás, e o `regular`, que desfoca, mete
- * uma tinta que o deixa baço. O desfocado é o material mais fino e escuro do sistema
- * (`DESFOCADO_DO_VIDRO`), sem o branco leitoso; a 0 % é só ele e o vidro, e a
- * opacidade escurece por cima dele.
+ * Sem nada por baixo a 0 % (28/11, depois da 7.3.4): a 7.3.4 punha lá o desfocado
+ * do sistema (o material mais fino), e ele desfoca muito e mete cinzento -- o João:
+ * "ainda assim não está transparente". O baço de antes era o "Reduzir transparência"
+ * do iPhone dele ligado, que torna fosco todo o vidro; o de um amigo, só com o vidro
+ * limpo, "está como deve estar".
  *
  * O raio vai no próprio vidro e no fundo, nunca numa vista de fora com `overflow`
- * (cortado, o vidro perde o rebordo). O desfocado corta-se a si próprio.
+ * (cortado, o vidro perde o rebordo).
  */
 export function Vidro({ style, children, interativo = false }: {
   style?: StyleProp<ViewStyle>; children?: React.ReactNode; interativo?: boolean;
@@ -58,15 +56,9 @@ export function Vidro({ style, children, interativo = false }: {
   const fundo = fundoDoVidro(opacidade);
   return (
     <View style={style}>
-      <BlurView pointerEvents="none" tint={DESFOCADO_DO_VIDRO.tint} intensity={DESFOCADO_DO_VIDRO.intensidade}
-        style={[StyleSheet.absoluteFill, forma, styles.corta]} />
       {fundo ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, forma, { backgroundColor: fundo }]} /> : null}
       <GlassView glassEffectStyle="clear" colorScheme="light" isInteractive={interativo} style={[StyleSheet.absoluteFill, forma]} />
       {children}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  corta: { overflow: 'hidden' },
-});
