@@ -15,8 +15,9 @@ import { Deslizador } from '../components/Deslizador';
 import { MenuFlutuante, type Ancora } from '../components/MenuFlutuante';
 import type { PlayerAction } from '../components/PlayerActionsSheet';
 import { PromptSheet } from '../components/PromptSheet';
+import { ShareFriendSheet } from '../components/ShareFriendSheet';
 import { avisarFeito, avisarRemocao } from '../lib/avisoDeRemocao';
-import { chaveDoAspeto, MAXIMO_DE_PRESETS, MAXIMO_DO_NOME, nomeDoPreset, nomeSugerido } from '../lib/presetsDaAparencia';
+import { chaveDoAspeto, MAXIMO_DE_PRESETS, MAXIMO_DO_NOME, nomeDoPreset, nomeSugerido, type PresetDaAparencia } from '../lib/presetsDaAparencia';
 import { usePresetsDaAparencia } from '../state/presetsDaAparencia';
 import { medirNoEcra } from '../state/vooDoQuadrado';
 import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
@@ -112,6 +113,8 @@ export function PersonalizarScreen({ navigation }: Props) {
   /** A caixa do nome: um preset novo (`id` null) ou mudar o nome de um. */
   const [nomear, setNomear] = useState<{ id: string | null; inicial: string } | null>(null);
   const [menuDoPreset, setMenuDoPreset] = useState<{ id: string; ancora: Ancora | null } | null>(null);
+  /** O preset a mandar a amigos pelo chat (28/11): a folha de sempre do "Send to friends". */
+  const [aPartilhar, setAPartilhar] = useState<PresetDaAparencia | null>(null);
   /** O que o menu de um preset faz depois de fechar (a caixa do nome é outro Modal). */
   const depoisDoMenu = useRef<(() => void) | null>(null);
   /**
@@ -131,7 +134,9 @@ export function PersonalizarScreen({ navigation }: Props) {
     const { atualizar, apagar } = usePresetsDaAparencia.getState();
     const fechar = (depois?: () => void) => { depoisDoMenu.current = depois ?? null; setMenuDoPreset(null); };
     return [
-      { label: 'Rename', icon: 'pencil-outline', onPress: () => fechar(() => setNomear({ id: p.id, inicial: p.nome })) },
+      // Mandar a amigos (28/11): chega à conversa como um cartão, e quem o recebe vê-o, usa-o ou guarda-o.
+      { label: 'Send to friends', icon: 'paper-plane-outline', onPress: () => fechar(() => setAPartilhar(p)) },
+      { label: 'Rename', icon: 'pencil-outline', onPress: () => fechar(() => setNomear({ id: p.id, inicial: p.nome })), inicioDeGrupo: true },
       {
         label: 'Update to current look', icon: 'refresh-outline', disabled: emUso === p.id,
         onPress: () => fechar(() => { atualizar(p.id); avisarFeito('Preset updated', p.nome); }),
@@ -220,6 +225,7 @@ export function PersonalizarScreen({ navigation }: Props) {
         aoFechar={() => setMenuDoPreset(null)}
         aoFechado={() => { const f = depoisDoMenu.current; depoisDoMenu.current = null; f?.(); }}
       />
+      <ShareFriendSheet visible={!!aPartilhar} itemType="preset" item={aPartilhar} onClose={() => setAPartilhar(null)} />
       <PromptSheet
         visible={!!nomear}
         title={nomear?.id ? 'Rename preset' : 'Save preset'}
@@ -290,7 +296,7 @@ export function PersonalizarScreen({ navigation }: Props) {
             ) : null}
           </ScrollView>
           <Text style={styles.notaDosTemas}>
-            {presets.length ? 'Save the look you have now. Hold a preset to rename, update or delete it.' : 'Save the look you have now as a preset.'}
+            {presets.length ? 'Save the look you have now. Hold a preset to send it to friends, rename, update or delete it.' : 'Save the look you have now as a preset.'}
           </Text>
         </View>
 
@@ -468,7 +474,7 @@ function PreviaDoLeitor({ ap, capa, faixa }: { ap: Aparencia; capa: EstiloDaCapa
   );
 }
 
-type EcraDaPrevia = 'np' | 'home' | 'lista';
+export type EcraDaPrevia = 'np' | 'home' | 'lista';
 
 /** Que ecrã mostra o que uma opção muda (null: nenhum, como o tamanho da letra das músicas). */
 function ecraDaOpcao(k: keyof Aparencia): EcraDaPrevia | null {
@@ -485,7 +491,7 @@ function ecraDaOpcao(k: keyof Aparencia): EcraDaPrevia | null {
  * opção mexeu. "Next song" passa pelas próximas da fila (`upcomingQueue`) só aqui,
  * sem mudar a música: é para ver a cor seguir a capa.
  */
-function PreviaAoVivo({ ap, capa, foco, direita, aoEscolher }: {
+export function PreviaAoVivo({ ap, capa, foco, direita, aoEscolher }: {
   ap: Aparencia; capa: EstiloDaCapa; foco: EcraDaPrevia; direita: 'home' | 'lista'; aoEscolher: (e: 'home' | 'lista') => void;
 }) {
   const atual = usePlayer((s) => s.current);

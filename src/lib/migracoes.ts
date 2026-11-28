@@ -27,6 +27,7 @@ export const MIGRACOES: readonly Migracao[] = [
   { ficheiro: 'capas-das-playlists.sql', marca: 'col:playlists.capa', efeito: 'Choose your own playlist cover' },
   { ficheiro: 'pastas-de-playlists.sql', marca: 'col:playlists.pasta', efeito: 'Playlist folders' },
   { ficheiro: 'partilhar-albuns.sql', marca: 'fn:shared_album_valid', efeito: 'Share albums with friends' },
+  { ficheiro: 'partilhar-presets.sql', marca: 'fn:shared_preset_valid', efeito: 'Share Customise presets with friends in the chat' },
   { ficheiro: 'albuns-guardados.sql', marca: 'tab:saved_albums', efeito: 'Save albums to your library as albums, not playlists' },
   { ficheiro: 'relatar-problema.sql', marca: 'fn:relatar_problema', efeito: 'Report a problem in Settings reaches the developer' },
   { ficheiro: 'limpar-filas-e-cache.sql', marca: 'fn:limpar_filas_e_cache', efeito: 'Finished Jam queues and expired cached answers are cleaned every night' },

@@ -14,12 +14,13 @@ export type InAppNotification = {
 };
 
 /** O que uma mensagem diz numa linha: o texto, ou o que foi mandado. */
-export function resumoDaMensagem(item: Pick<SharedItem, 'message' | 'itemType' | 'trackData'> & Pick<Partial<SharedItem>, 'album'>): string {
+export function resumoDaMensagem(item: Pick<SharedItem, 'message' | 'itemType' | 'trackData'> & Pick<Partial<SharedItem>, 'album' | 'preset'>): string {
   const texto = item.message?.trim();
   if (texto) return texto;
   if (item.itemType === 'sessao') return 'Invited you to listen together';
   if (item.itemType === 'playlist') return 'Sent you a playlist';
   if (item.itemType === 'album') return item.album?.titulo ? `Sent you ${item.album.titulo}` : 'Sent you an album';
+  if (item.itemType === 'preset') return item.preset?.nome ? `Sent you the ${item.preset.nome} preset` : 'Sent you a preset';
   return item.trackData?.title ? `Sent you ${item.trackData.title}` : 'Sent you a song';
 }
 export type InboxSnapshot = {

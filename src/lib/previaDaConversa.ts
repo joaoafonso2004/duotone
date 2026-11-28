@@ -63,6 +63,12 @@ export function previaDaConversa(
     return semMusica(minha ? 'You shared a playlist' : `${prefixo}Shared a playlist`);
   }
 
+  // Um preset da Customise (28/11): o nome vem no `title`, mas não é uma música.
+  if (p.itemType === 'preset') {
+    if (mensagem) return semMusica(`${prefixo}${mensagem}`);
+    return semMusica(minha ? 'You shared a preset' : `${prefixo}Shared a preset`);
+  }
+
   // Um álbum (16/11) sem título não devia existir (o servidor exige-o); se vier, não se diz "song".
   if (p.itemType === 'album' && !p.trackTitle) {
     if (mensagem) return semMusica(`${prefixo}${mensagem}`);

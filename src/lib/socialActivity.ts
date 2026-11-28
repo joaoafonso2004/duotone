@@ -72,6 +72,7 @@ export function previewText(preview: ConversationPreview, myId: string | undefin
   const own = preview.senderId === myId;
   const text = preview.message || (preview.itemType === 'sessao' ? 'Invited you to a Jam'
     : preview.itemType === 'playlist' ? 'Shared a playlist'
+    : preview.itemType === 'preset' ? 'Shared a preset'
     : preview.itemType === 'album' && !preview.trackTitle ? 'Shared an album'
     : preview.trackTitle ? `${preview.trackTitle}${preview.trackArtist ? ` · ${preview.trackArtist}` : ''}` : 'Shared a song');
   return `${own ? 'You: ' : ''}${text}`;

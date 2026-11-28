@@ -34,10 +34,14 @@ const ICONES_DOS_SEPARADORES: Record<string, keyof typeof Ionicons.glyphMap> = {
  * `docs/barra-home-folhas.html`): a "Search" já era a página principal (os
  * amigos, o Jump back in, a Daily mix, as prateleiras), e passou a dizê-lo. A
  * rota continua `Search` -- é por esse nome que a app inteira navega até lá.
- * O mesmo com as `Songs`: chamam-se "Liked Songs" como no PC (1/11, decisão do
- * João, pendente desde 5/10), e a rota não muda.
+ *
+ * O separador das `Songs` diz "Songs" (28/11, o João: "onde diz Liked Songs passar
+ * para apenas Songs"). Foi "Liked Songs" de 1/11 a 28/11, como no PC, e era o nome
+ * mais comprido da barra: a barra do sistema do iOS 26 dá a cada botão a largura
+ * do nome, e o "Artists" ficava empurrado para a direita do meio. A página continua
+ * a chamar-se "Liked Songs", e a lateral do PC também.
  */
-const NOMES_DOS_SEPARADORES: Record<string, string> = { Search: 'Home', Songs: 'Liked Songs' };
+const NOMES_DOS_SEPARADORES: Record<string, string> = { Search: 'Home', Songs: 'Songs' };
 
 const TAMANHO = 24;
 
@@ -295,7 +299,7 @@ export function IconesDosSeparadores({ state, navigation }: Pick<MaterialTopTabB
               {route.name === 'Profile' && hasNotification && <View style={styles.ponto} />}
             </SeparadorActivo>
             {/* Sem rótulos (10/10, personalização): só os ícones; o nome fica no VoiceOver. */}
-            {/* "Liked Songs" é o nome mais comprido (1/11): cabe a 11 pt num iPhone de
+            {/* Um nome comprido ("Liked Songs", de 1/11 a 28/11) cabia a 11 pt num iPhone de
                 375 pt, mas com a letra maior do sistema já cortava. Encolhe só até
                 ao tamanho de base, nunca abaixo dos 11 pt. */}
             {rotulos ? <Text numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA.fixa} adjustsFontSizeToFit minimumFontScale={1 / ESCALA_MAXIMA.fixa} style={[styles.nome, { color: cor }]}>{nome}</Text> : null}

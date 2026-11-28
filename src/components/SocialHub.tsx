@@ -29,7 +29,8 @@ import { useTheme } from '../state/theme';
 import { SocialButton,SocialIconButton,socialStyles as s } from './socialUI';
 import { TrackActionsSheet } from './TrackActionsSheet';
 import type { OrigemDaFila } from '../lib/origemDaFila';
-import { SharedAlbumCard, SharedPlaylistCard } from './SharedPlaylistCard';
+import { SharedAlbumCard, SharedPlaylistCard, SharedPresetCard } from './SharedPlaylistCard';
+import { tocarNoPresetDaMensagem } from '../state/presetPartilhadoAberto';
 import type { AlbumPartilhado } from '../lib/albumPartilhado';
 import { MessageBubble,ReactionRow } from './ReactionRow';
 import { BarraDeResposta,CitacaoDaResposta } from './RespostaNaConversa';
@@ -431,8 +432,8 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
       // No PC (30/10, da maquete) o que escreves é um balão CLARO com letra escura, e os balões não passam dos 62 %.
       // Com uma música, uma playlist ou uma resposta lá dentro fica o balão de sempre (a letra desses é clara).
       const cit=citacao(m);
-      const claro=web&&minha&&!m.trackData&&!m.playlistId&&!m.album&&!cit;
-      const comCartao=!!(m.trackData||m.playlistId||m.album);
+      const claro=web&&minha&&!m.trackData&&!m.playlistId&&!m.album&&!m.preset&&!cit;
+      const comCartao=!!(m.trackData||m.playlistId||m.album||m.preset);
       corpo=<View style={{flexDirection:'row',alignItems:'flex-end',gap:6,alignSelf:minha?'flex-end':'flex-start',maxWidth:web?'62%':'92%'}}>
         {/* A cara de quem falou, ao lado do balão: só do lado dele, e só na
             última de um grupo -- nas outras fica o espaço, para alinharem. */}
@@ -467,6 +468,7 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
             musicasUnicas(messages.map(x=>x.trackData)),true,undefined,origemDaConversa({tipo:group?'grupo':'amigo',nome:title}))}/>}
         {m.playlistId&&<SharedPlaylistCard semFundo playlist={playlistsDoChat.get(m.playlistId)} onPress={()=>onPlaylist(m.playlistId!)}/>}
         {m.album&&<SharedAlbumCard semFundo album={m.album} onPress={()=>aoAbrirAlbum?.(m.album!)}/>}
+        {m.preset&&<SharedPresetCard semFundo preset={m.preset} onPress={()=>tocarNoPresetDaMensagem(m.preset!,minha?null:m.sender.name)}/>}
         </MessageBubble>
         <ReactionRow reactions={reacoes.get(m.id)??[]} myId={myId} own={minha}
           aberto={aReagir===m.id} onEscolher={emoji=>void reagir(m.id,emoji)} onFechar={()=>setAReagir(null)}

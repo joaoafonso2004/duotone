@@ -8,6 +8,7 @@ import {
   type ChatGroup, type Friendship,
 } from '../api/social';
 import { tipoDoAlbumPartilhado } from '../lib/albumPartilhado';
+import { legendaDoPreset, presetParaPartilhar, presetPartilhado } from '../lib/presetPartilhado';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
@@ -34,9 +35,10 @@ type Destino =
 
 interface ShareFriendSheetProps {
   visible: boolean;
-  /** `album` (16/11): um álbum do YouTube Music, com a forma de lib/albumPartilhado.ts. */
-  itemType: 'playlist' | 'track' | 'album';
-  item: any; // Track, Playlist ou AlbumPartilhado
+  /** `album` (16/11): um álbum do YouTube Music, com a forma de lib/albumPartilhado.ts.
+   * `preset` (28/11): um preset da Customise ({ nome, aparencia, capa }). */
+  itemType: 'playlist' | 'track' | 'album' | 'preset';
+  item: any; // Track, Playlist, AlbumPartilhado ou PresetDaAparencia
   onClose: () => void;
 }
 
@@ -238,6 +240,7 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
   // Um álbum (16/11) diz-se álbum (um single ou um EP também: são discos).
   const titulo = itemType === 'track' ? 'Send to friends'
     : itemType === 'album' ? 'Send album to friends'
+    : itemType === 'preset' ? 'Send preset to friends'
     : 'Send playlist to friends';
   const linha = (d: Destino) => {
     const marcado = escolhidos.includes(chaveDe(d));
@@ -391,13 +394,26 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
 
 /** O que se vai mandar: a capa, o nome e o artista (ou a playlist). */
 function OQueVai({ itemType, item, playlists, qr }: {
-  itemType: 'playlist' | 'track' | 'album';
+  itemType: 'playlist' | 'track' | 'album' | 'preset';
   item: any;
   playlists: readonly { id: string; artworks: string[]; trackCount: number }[];
   /** O botão do QR, no fim do cartão (24/11): só nas playlists. */
   qr?: { ref: React.RefObject<View | null>; aoCarregar: () => void };
 }) {
   if (!item) return null;
+  if (itemType === 'preset') {
+    const p = presetPartilhado(presetParaPartilhar(item));
+    return (
+      <View style={styles.oQue}>
+        <View style={[styles.capa, styles.semCapa]}><Ionicons name="color-wand-outline" size={18} color={colors.text} /></View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.tipo}>PRESET</Text>
+          <Text numberOfLines={1} style={styles.oQueTitulo}>{item.nome}</Text>
+          {p ? <Text numberOfLines={1} style={type.caption}>{legendaDoPreset(p)}</Text> : null}
+        </View>
+      </View>
+    );
+  }
   if (itemType === 'album') {
     const capa = capaParaLista(item.capa) ?? item.capa ?? null;
     return (

@@ -11,7 +11,8 @@ import {BotaoGuardar} from './BotaoGuardar';
 import {FriendAvatar} from './FriendAvatar';
 import {colors,radii} from './socialTokens';
 import {SocialButton,SocialIconButton,socialStyles as s} from './socialUI';
-import {SharedAlbumCard,SharedPlaylistCard} from './SharedPlaylistCard';
+import {SharedAlbumCard,SharedPlaylistCard,SharedPresetCard} from './SharedPlaylistCard';
+import {tocarNoPresetDaMensagem} from '../state/presetPartilhadoAberto';
 import {MessageBubble,ReactionRow} from './ReactionRow';
 import {CapaDaFaixaPartilhada} from './CapaDaFaixaPartilhada';
 import {capasDaFaixaPartilhada} from '../lib/capaDoEcraBloqueado';
@@ -122,6 +123,7 @@ export function GroupMessage({message:m,own,showSender=true,playlist,reactions=[
       </Pressable>}
       {m.playlistId&&<SharedPlaylistCard playlist={playlist} onPress={()=>onPlaylist(m.playlistId!)}/>}
       {m.album&&<SharedAlbumCard album={m.album} onPress={()=>onAlbum?.(m.album!)}/>}
+      {m.preset&&<SharedPresetCard preset={m.preset} onPress={()=>tocarNoPresetDaMensagem(m.preset!,own?null:m.sender.name)}/>}
       <Text style={[s.muted,{fontSize:11,lineHeight:14,alignSelf:'flex-end'}]}>{new Date(m.createdAt).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}</Text>
     </MessageBubble>
     <ReactionRow reactions={reactions} myId={myId} own={own} aberto={aReagir}

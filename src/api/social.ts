@@ -1,4 +1,5 @@
 import { albumPartilhado, paraPartilhar, type AlbumPartilhado } from '../lib/albumPartilhado';
+import { presetParaPartilhar, presetPartilhado, type PresetPartilhado } from '../lib/presetPartilhado';
 import { getPublicProfiles, searchPublicProfiles } from './profiles';
 import { supabase } from '../lib/supabase';
 import { idDaConta } from '../lib/idDaConta';
@@ -84,10 +85,12 @@ export interface SharedItem {
     avatarUrl: string | null;
   };
   groupId?: string | null;
-  itemType: 'playlist' | 'track' | 'sessao' | 'album';
+  itemType: 'playlist' | 'track' | 'sessao' | 'album' | 'preset';
   playlistId: string | null;
   /** Só em `album` (16/11, supabase/partilhar-albuns.sql): o álbum do YouTube Music que se mandou. */
   album?: AlbumPartilhado | null;
+  /** Só em `preset` (28/11, supabase/partilhar-presets.sql): um aspeto da Customise, validado. */
+  preset?: PresetPartilhado | null;
   /** Só em `sessao`: o convite para ouvir junto. */
   sessionId?: string | null;
   trackData: Track | null;
@@ -235,6 +238,13 @@ function dadosDoAlbum(item: any): Record<string, string | null> {
   return dados;
 }
 
+/** O `track_data` de um preset da Customise (lib/presetPartilhado.ts, 28/11), ou um erro que se pode mostrar. */
+function dadosDoPreset(item: any): Record<string, unknown> {
+  const dados = presetParaPartilhar({ nome: item?.nome, aparencia: item?.aparencia, capa: item?.capa });
+  if (!dados) throw new Error("Couldn't share this preset.");
+  return dados;
+}
+
 /**
  * Partilha com um amigo ou com varios de uma vez.
  *
@@ -244,7 +254,7 @@ function dadosDoAlbum(item: any): Record<string, string | null> {
  */
 export async function shareItem(
   friendId: string | readonly string[],
-  itemType: 'playlist' | 'track' | 'album',
+  itemType: 'playlist' | 'track' | 'album' | 'preset',
   item: any,
   message?: string,
   /** O id da mensagem a que isto responde. */
@@ -269,6 +279,8 @@ export async function shareItem(
     comum.playlist_id = item.id;
   } else if (itemType === 'album') {
     comum.track_data = dadosDoAlbum(item);
+  } else if (itemType === 'preset') {
+    comum.track_data = dadosDoPreset(item);
   } else {
     comum.track_data = item;
   }
@@ -331,10 +343,11 @@ export async function getInboxItems(desde: string | null = null): Promise<Shared
         name: sender?.name || 'Unknown',
         avatarUrl: sender?.avatar_url || null,
       },
-      itemType: r.item_type as 'playlist' | 'track' | 'sessao' | 'album',
+      itemType: r.item_type as 'playlist' | 'track' | 'sessao' | 'album' | 'preset',
       sessionId: r.session_id ?? null,
       playlistId: r.playlist_id,
       album: r.item_type === 'album' ? albumPartilhado(r.track_data) : null,
+      preset: r.item_type === 'preset' ? presetPartilhado(r.track_data) : null,
       trackData,
       message: r.item_type === 'track' && !trackData && !r.message ? 'This shared track is unavailable.' : r.message,
       createdAt: r.created_at,
@@ -384,7 +397,7 @@ async function getConversationMessages(target:{p_friend?:string;p_group?:string}
     const p=map.get(r.sender_id);
     const trackData=r.item_type==='track'?sharedTrack(r.track_data):null;
     return {id:r.id,groupId:r.group_id??null,sender:{id:r.sender_id,name:p?.name||'Utilizador',username:p?.username||'',avatarUrl:p?.avatar_url||null},
-      itemType:r.item_type,playlistId:r.playlist_id,album:r.item_type==='album'?albumPartilhado(r.track_data):null,sessionId:r.session_id??null,trackData,message:r.item_type==='track'&&!trackData&&!r.message?'This shared track is unavailable.':r.message,createdAt:r.created_at,replyToId:r.reply_to_id??null};
+      itemType:r.item_type,playlistId:r.playlist_id,album:r.item_type==='album'?albumPartilhado(r.track_data):null,preset:r.item_type==='preset'?presetPartilhado(r.track_data):null,sessionId:r.session_id??null,trackData,message:r.item_type==='track'&&!trackData&&!r.message?'This shared track is unavailable.':r.message,createdAt:r.created_at,replyToId:r.reply_to_id??null};
   });
 }
 
@@ -579,6 +592,7 @@ export async function getMensagensCitadas(ids: readonly string[]): Promise<Map<s
       id: r.id, groupId: r.group_id ?? null,
       sender: { id: r.sender_id, name: p?.name || 'Utilizador', username: p?.username || '', avatarUrl: p?.avatar_url || null },
       itemType: r.item_type, playlistId: r.playlist_id, album: r.item_type === 'album' ? albumPartilhado(r.track_data) : null,
+      preset: r.item_type === 'preset' ? presetPartilhado(r.track_data) : null,
       sessionId: r.session_id ?? null, trackData,
       message: r.message, createdAt: r.created_at, replyToId: r.reply_to_id ?? null,
     });
@@ -589,7 +603,7 @@ export async function getMensagensCitadas(ids: readonly string[]): Promise<Map<s
 /** Partilha (ou escreve) num grupo. */
 export async function shareComGrupo(
   groupId: string,
-  itemType: 'playlist' | 'track' | 'album',
+  itemType: 'playlist' | 'track' | 'album' | 'preset',
   item: any,
   message?: string,
   /** O id da mensagem a que isto responde. */
@@ -608,6 +622,7 @@ export async function shareComGrupo(
   };
   if (itemType === 'playlist') payload.playlist_id = item.id;
   else if (itemType === 'album') payload.track_data = dadosDoAlbum(item);
+  else if (itemType === 'preset') payload.track_data = dadosDoPreset(item);
   else payload.track_data = item;
   if (respostaA) payload.reply_to_id = respostaA;
 

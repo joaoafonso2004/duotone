@@ -9,7 +9,7 @@
 
 export const TAMANHO_DO_EXCERTO = 90;
 
-type MensagemCitada = { itemType: string; message: string | null; playlistId: string | null; album?: { titulo: string } | null };
+type MensagemCitada = { itemType: string; message: string | null; playlistId: string | null; album?: { titulo: string } | null; preset?: { nome: string } | null };
 
 /**
  * Uma linha que diz de que mensagem se trata, sem a repetir inteira.
@@ -25,6 +25,7 @@ export function excertoDaMensagem(
   if (extra.faixa) return `♫ ${extra.faixa.titulo} · ${extra.faixa.artista}`;
   if (m.playlistId) return extra.playlist ? `Playlist · ${extra.playlist}` : 'Playlist';
   if (m.itemType === 'album') return m.album?.titulo ? `Album · ${m.album.titulo}` : 'Album';
+  if (m.itemType === 'preset') return m.preset?.nome ? `Preset · ${m.preset.nome}` : 'Preset';
   const texto = (m.message ?? '').replace(/\s+/g, ' ').trim();
   if (!texto) return 'Message';
   return texto.length > TAMANHO_DO_EXCERTO

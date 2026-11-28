@@ -1,8 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import {
-  comAspetoNovo, comNomeNovo, comPresetNovo, comPresetReposto, lerPresets, semPreset, type PresetDaAparencia,
+  chaveDoAspeto, comAspetoNovo, comNomeNovo, comPresetNovo, comPresetReposto, lerPresets, MAXIMO_DE_PRESETS, semPreset, type PresetDaAparencia,
 } from '../lib/presetsDaAparencia';
+import { nomeLivre, type PresetPartilhado } from '../lib/presetPartilhado';
 import { aparenciaAtual, useAparencia } from './aparencia';
 import { useCapaIOS } from './capaIOS';
 
@@ -25,6 +26,13 @@ type Estado = {
   atualizar: (id: string) => void;
   /** Tira-o e devolve como o repor (o "Undo"). */
   apagar: (id: string) => (() => void) | null;
+  /**
+   * Guarda um preset que um amigo mandou (28/11, `lib/presetPartilhado.ts`), com um
+   * nome que ainda não haja. Já guardado (o mesmo aspeto) ou cheio, não guarda.
+   */
+  guardarRecebido: (p: PresetPartilhado) => 'guardado' | 'ja-tens' | 'cheio';
+  /** Põe o aspeto de um preset que um amigo mandou, sem o guardar. */
+  usarRecebido: (p: PresetPartilhado) => void;
 };
 
 let contador = 0;
@@ -53,6 +61,18 @@ export const usePresetsDaAparencia = create<Estado>((set, get) => {
     aplicar: (id) => {
       const p = get().presets.find((x) => x.id === id);
       if (!p) return;
+      useAparencia.getState().restaurar(p.aparencia);
+      if (useCapaIOS.getState().style !== p.capa) useCapaIOS.getState().setStyle(p.capa);
+    },
+    guardarRecebido: (p) => {
+      const presets = get().presets;
+      const chave = chaveDoAspeto(p.aparencia, p.capa);
+      if (presets.some((x) => chaveDoAspeto(x.aparencia, x.capa) === chave)) return 'ja-tens';
+      if (presets.length >= MAXIMO_DE_PRESETS) return 'cheio';
+      mudar(comPresetNovo(presets, novoId(), nomeLivre(p.nome, presets.map((x) => x.nome)), p.aparencia, p.capa));
+      return 'guardado';
+    },
+    usarRecebido: (p) => {
       useAparencia.getState().restaurar(p.aparencia);
       if (useCapaIOS.getState().style !== p.capa) useCapaIOS.getState().setStyle(p.capa);
     },

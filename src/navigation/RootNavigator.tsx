@@ -76,6 +76,7 @@ import { useInAppNotifications } from '../hooks/useInAppNotifications';
 import { NotificationBanner } from '../components/NotificationBanner';
 import { AvisoDeRemocao } from '../components/AvisoDeRemocao';
 import { FolhaDoAmigo } from '../components/FolhaDoAmigo';
+import { FolhaDoPresetPartilhado } from '../components/FolhaDoPresetPartilhado';
 import { AvisoDaReproducao } from '../components/AvisoDaReproducao';
 import { ProgressoDaImportacao } from '../components/ProgressoDaImportacao';
 import { LeitorDoSpotifyPartilhado } from '../components/LeitorDoSpotifyPartilhado';
@@ -583,6 +584,8 @@ export function RootNavigator() {
             <FolhaDoOutroAparelho />
             {/* O que um amigo está a ouvir (9/10): aberta do Social e da Home. */}
             <FolhaDoAmigo />
+            {/* Um preset da Customise mandado por um amigo (28/11): ver, usar, guardar. */}
+            <FolhaDoPresetPartilhado />
             {/* O que se tirou, com "Undo" (3/10, lib/avisoDeRemocao.ts). */}
             <AvisoDeRemocao />
             <NotificationBanner onOpen={openNotification} />

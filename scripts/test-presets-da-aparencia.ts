@@ -112,7 +112,7 @@ caso('no Customise: os presets na faixa dos temas, segurar abre o menu, e a caix
 caso('os textos novos em francês', () => {
   for (const t of ['Save preset', 'Rename preset', 'Update to current look', 'Delete preset', 'Preset saved', 'Preset updated', 'Preset deleted',
     'Save as preset', 'Hold for options', 'Save the look you have now as a preset.',
-    'Save the look you have now. Hold a preset to rename, update or delete it.']) {
+    'Save the look you have now. Hold a preset to send it to friends, rename, update or delete it.']) {
     assert.ok(FR[t], t);
   }
 });
