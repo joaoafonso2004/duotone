@@ -1,0 +1,24 @@
+# Do Perfil às Definições e à Customise.
+appId: com.joao.duotone
+---
+- runFlow:
+    file: separador.yaml
+    env:
+      X: "90%"
+- tapOn: "Settings"
+- waitForAnimationToEnd:
+    timeout: 3000
+- scrollUntilVisible:
+    element: "Show all Appearance settings|Show fewer Appearance settings"
+    timeout: 20000
+- runFlow:
+    when:
+      visible: "Show all Appearance settings"
+    commands:
+      - tapOn: "Show all Appearance settings"
+- scrollUntilVisible:
+    element: "Customise"
+    timeout: 20000
+- tapOn: "Customise"
+- waitForAnimationToEnd:
+    timeout: 3000

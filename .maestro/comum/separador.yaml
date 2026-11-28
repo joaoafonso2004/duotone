@@ -1,0 +1,8 @@
+# Um separador da barra de baixo, pela posição: a barra em JS e a do sistema têm
+# os cinco botões repartidos pela largura. O X vem de quem chama.
+appId: com.joao.duotone
+---
+- tapOn:
+    point: ${X + ", 93%"}
+- waitForAnimationToEnd:
+    timeout: 3000

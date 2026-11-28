@@ -1,0 +1,22 @@
+# Abre a app e, no ecrã de entrar, entra com a conta de teste (os secrets do CI).
+appId: com.joao.duotone
+---
+- launchApp:
+    appId: com.joao.duotone
+    permissions:
+      all: allow
+- extendedWaitUntil:
+    visible: "Email or username|Songs, artists, playlists…"
+    timeout: 40000
+- runFlow:
+    when:
+      visible: "Email or username"
+    file: entrar.yaml
+# A primeira vez de uma conta (BoasVindas): saltar.
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+- waitForAnimationToEnd:
+    timeout: 4000

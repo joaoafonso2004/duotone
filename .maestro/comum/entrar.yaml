@@ -1,0 +1,20 @@
+# Sem os secrets da conta de teste fica a captura do ecrã de entrar.
+appId: com.joao.duotone
+---
+- takeScreenshot: 00-ecra-de-entrar
+- runFlow:
+    when:
+      true: ${EMAIL && EMAIL.length > 0}
+    commands:
+      - tapOn: "Email or username"
+      - inputText: ${EMAIL}
+      - tapOn: "Password"
+      - inputText: ${PASSWORD}
+      - hideKeyboard:
+          optional: true
+      - tapOn:
+          text: "Sign in"
+          below: "Forgot password?"
+      - extendedWaitUntil:
+          visible: "Songs, artists, playlists…|Skip"
+          timeout: 45000

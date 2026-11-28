@@ -1,0 +1,14 @@
+# Do zero: estado limpo, entrar, e a Home da primeira vez.
+appId: com.joao.duotone
+---
+- launchApp:
+    appId: com.joao.duotone
+    clearState: true
+    permissions:
+      all: allow
+- extendedWaitUntil:
+    visible: "Email or username|Songs, artists, playlists…"
+    timeout: 60000
+- takeScreenshot: 01-arranque
+- runFlow: comum/abrir.yaml
+- takeScreenshot: 02-home-primeira-vez

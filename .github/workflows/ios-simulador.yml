@@ -1,0 +1,185 @@
+name: iPhone no simulador (análise)
+
+# A app no simulador do iOS 26, conduzida por percursos do Maestro (.maestro/),
+# com capturas e um vídeo como artefactos (28/11, o caminho 2 escolhido pelo João
+# para a análise do iPhone: não há simulador de iOS no Windows).
+#
+# Não publica nada nem mexe nas builds de lançamento (build-ios.yml): corre num
+# push para o ramo `simulador`, que é só um ponteiro para o commit a analisar:
+#   git push --force origin HEAD:refs/heads/simulador
+#
+# A build do simulador fica em cache pela impressão do código (tudo menos
+# .maestro/, docs/ e .github/): mudar só os percursos repete-os em ~5 min.
+#
+# O login usa uma conta de TESTE (os secrets DUOTONE_TESTE_EMAIL e
+# DUOTONE_TESTE_PASSWORD): nunca a conta do João, para o CI não mexer nas escutas
+# nem nas recomendações dele. Sem os secrets, os percursos param no ecrã de entrar.
+# Os artefactos são só capturas e vídeo: nada dos registos do Maestro, onde o texto
+# escrito nos campos aparece por extenso.
+on:
+  workflow_dispatch:
+  push:
+    branches: [simulador]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-simulador
+  cancel-in-progress: true
+
+jobs:
+  simulador:
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Impressão do código (a chave da build em cache)
+        id: chave
+        run: |
+          CHAVE=$(git ls-files -s -- . ':(exclude).maestro' ':(exclude)docs' ':(exclude).github' | shasum | cut -c1-40)
+          echo "chave=$CHAVE" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Build em cache
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: app-simulador
+          key: duotone-simulador-v1-${{ steps.chave.outputs.chave }}
+
+      # O mesmo Xcode das builds de lançamento (Swift 6.2, SDK do iOS 26: o Liquid Glass).
+      - name: Selecionar o Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - uses: actions/setup-node@v4
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          node-version: 22
+
+      - name: Instalar dependências
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: npm ci --no-audit --no-fund
+
+      - name: Gravar identificador da build
+        if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          SHORT_SHA: ${{ steps.chave.outputs.short_sha }}
+        run: |
+          VERSAO=$(node -p "require('./app.json').expo.version")
+          cat > src/lib/buildInfo.ts <<EOF
+          // Gerado pela CI (ios-simulador.yml). Não editar à mão.
+          export const BUILD_ID = 'sim-${SHORT_SHA}';
+          export const APP_VERSION = '${VERSAO}';
+          EOF
+
+      - name: Criar .env a partir do secret
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: printf '%s' "$ENV_FILE" > .env
+        env:
+          ENV_FILE: ${{ secrets.ENV_FILE }}
+
+      - name: Gerar projeto nativo iOS
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: npx expo prebuild --platform ios --no-install --clean
+        env:
+          CI: 1
+
+      - name: Instalar pods
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: cd ios && pod install
+
+      # Release (o JavaScript vai dentro, sem Metro), para o simulador e sem assinatura.
+      - name: Compilar para o simulador
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          set -o pipefail
+          xcodebuild -workspace ios/Duotone.xcworkspace \
+            -scheme Duotone \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/dd \
+            ONLY_ACTIVE_ARCH=YES \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build | tail -n 200
+          mkdir -p app-simulador
+          cp -R build/dd/Build/Products/Release-iphonesimulator/Duotone.app app-simulador/
+
+      # Um iPhone 17 Pro com o iOS 26 (ou o iPhone mais recente que houver no runner).
+      - name: Arrancar o simulador
+        id: sim
+        run: |
+          xcrun simctl list runtimes
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          d = json.load(sys.stdin)["devices"]
+          cands = []
+          for runtime, devs in d.items():
+              if "iOS" not in runtime: continue
+              ver = runtime.split("iOS-")[-1].replace("-", ".")
+              for dev in devs:
+                  if dev["name"].startswith("iPhone"):
+                      pri = 0 if dev["name"] == "iPhone 17 Pro" else 1
+                      cands.append((pri, [-int(x) for x in ver.split(".")], dev["udid"], dev["name"], ver))
+          cands.sort()
+          print(cands[0][2]); print(cands[0][3] + " / iOS " + cands[0][4], file=sys.stderr)
+          ')
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          # A app é escura e inglesa: o simulador em inglês, sem teclado de hardware.
+          xcrun simctl spawn "$UDID" defaults write -g AppleLanguages -array en
+          xcrun simctl install "$UDID" app-simulador/Duotone.app
+          xcrun simctl privacy "$UDID" grant all "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' app-simulador/Duotone.app/Info.plist)" || true
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Instalar o Maestro
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Correr os percursos (com vídeo)
+        env:
+          UDID: ${{ steps.sim.outputs.udid }}
+          DUOTONE_TESTE_EMAIL: ${{ secrets.DUOTONE_TESTE_EMAIL }}
+          DUOTONE_TESTE_PASSWORD: ${{ secrets.DUOTONE_TESTE_PASSWORD }}
+        run: |
+          mkdir -p saida/capturas
+          xcrun simctl io "$UDID" recordVideo --codec=h264 --force saida/percursos.mp4 &
+          GRAVADOR=$!
+          sleep 2
+          set +e
+          cd saida/capturas
+          maestro --device "$UDID" test ../../.maestro \
+            -e EMAIL="$DUOTONE_TESTE_EMAIL" -e PASSWORD="$DUOTONE_TESTE_PASSWORD" \
+            --format junit --output ../maestro-junit.xml > ../maestro-resumo.txt 2>&1
+          RESULTADO=$?
+          cd ../..
+          kill -INT "$GRAVADOR"; wait "$GRAVADOR" 2>/dev/null
+          # O resumo diz que percursos passaram; as linhas com o texto escrito saem.
+          grep -viE 'input text|inputText' saida/maestro-resumo.txt > saida/resumo.txt || true
+          rm -f saida/maestro-resumo.txt
+          cat saida/resumo.txt | tail -n 80
+          ls -la saida saida/capturas
+          echo "Percursos: código $RESULTADO"
+
+      - name: Guardar capturas e vídeo
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulador-${{ steps.chave.outputs.short_sha }}-${{ github.run_number }}
+          path: |
+            saida/capturas
+            saida/percursos.mp4
+            saida/resumo.txt
+            saida/maestro-junit.xml
+          retention-days: 7
+          if-no-files-found: warn

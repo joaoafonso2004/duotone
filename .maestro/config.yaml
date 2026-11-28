@@ -1,0 +1,12 @@
+# Os percursos da análise no simulador (.github/workflows/ios-simulador.yml).
+# Cada um abre a app e entra se for preciso; um que falhe não pára os outros.
+flows:
+  - "*"
+executionOrder:
+  continueOnFailure: true
+  flowsOrder:
+    - 01-entrar
+    - 02-separadores
+    - 03-leitor
+    - 04-customise-vidro
+    - 05-customise-opcoes
