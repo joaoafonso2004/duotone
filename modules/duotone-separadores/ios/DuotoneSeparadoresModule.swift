@@ -72,6 +72,13 @@ final class DuotoneSeparadoresView: ExpoView, UITabBarDelegate, UIGestureRecogni
    * barra. O vidro dela mostra-o, com o rebordo e a lente por cima.
    */
   private let fundo = UIView()
+  /**
+   * O desfocado por baixo da cápsula, por baixo de tudo (28/11, o João: "um vidro em
+   * que seja transparente, que vejas que há vidro e tem o filtro de desfocado por
+   * detrás"): o vidro `clear` quase não desfoca. O material mais fino e escuro, o
+   * mesmo das peças de vidro da app (`DESFOCADO_DO_VIDRO`).
+   */
+  private let desfocado = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterialDark))
 
   private var itens: [ItemDoSeparador] = []
   private var comNomes = true
@@ -95,6 +102,12 @@ final class DuotoneSeparadoresView: ExpoView, UITabBarDelegate, UIGestureRecogni
     super.init(appContext: appContext)
     backgroundColor = .clear
     clipsToBounds = false
+
+    desfocado.isUserInteractionEnabled = false
+    desfocado.isHidden = true
+    desfocado.clipsToBounds = true
+    desfocado.layer.cornerCurve = .continuous
+    addSubview(desfocado)
 
     fundo.isUserInteractionEnabled = false
     fundo.backgroundColor = UIColor(red: 6 / 255, green: 6 / 255, blue: 8 / 255, alpha: 1)
@@ -272,25 +285,26 @@ final class DuotoneSeparadoresView: ExpoView, UITabBarDelegate, UIGestureRecogni
    * opacidade da Customise: um fundo escuro POR TRÁS da cápsula, a camada que a
    * Apple recomenda por baixo do vidro transparente. A barra em si (os nomes, os
    * ícones, a lente) fica no escuro.
+   *
+   * E por baixo de tudo, sempre, o desfocado (28/11): a 0 % de opacidade é só ele e
+   * o vidro, transparente mas com o que passa por trás desfocado.
    */
   private func colocarFundo() {
     let capsula = acharCapsula()
-    if let capsula {
-      limparCapsula(capsula)
-      // Glass opacity a 0 (28/11, o João: "o mínimo de opacidade mesmo transparente"):
-      // sem a cápsula de vidro, os separadores soltos. Escondida, e não com alpha: o
-      // UIKit deixa de pôr o vidro numa vista quase transparente e não o volta a pôr.
-      let semVidro = opacidade <= 0
-      if capsula.isHidden != semVidro { capsula.isHidden = semVidro }
-    }
+    if let capsula { limparCapsula(capsula) }
     let moldura = capsula.map { $0.convert($0.bounds, to: self) } ?? molduraDosBotoes()
-    guard opacidade > 0, let r = moldura, r.width > 0, r.height > 0 else {
+    guard let r = moldura, r.width > 0, r.height > 0 else {
+      desfocado.isHidden = true
       fundo.isHidden = true
       return
     }
-    fundo.isHidden = false
+    let raio = min(r.width, r.height) / 2
+    desfocado.isHidden = false
+    desfocado.frame = r
+    desfocado.layer.cornerRadius = raio
+    fundo.isHidden = opacidade <= 0
     fundo.frame = r
-    fundo.layer.cornerRadius = min(r.width, r.height) / 2
+    fundo.layer.cornerRadius = raio
   }
 
   /**

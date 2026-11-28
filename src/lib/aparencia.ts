@@ -115,9 +115,8 @@ export type Aparencia = {
   /**
    * A opacidade do Liquid Glass, de 0 a 100 (28/11, pedido do João: "uma barra de
    * ajuste de opacidade"): um fundo escuro por baixo de cada peça de vidro, que o
-   * vidro mostra. 0 é sem vidro nenhum, só o que está por cima (28/11, o João: "o
-   * mínimo de opacidade mesmo transparente"); 1, o vidro limpo (o da 7.3.1); 100,
-   * uma cápsula escura com o rebordo do vidro.
+   * vidro mostra. 0 é o vidro transparente com o desfocado por trás e sem escuro
+   * (28/11, `DESFOCADO_DO_VIDRO`); 100, uma cápsula escura com o rebordo do vidro.
    */
   opacidadeDoVidro: number;
   /**
@@ -135,9 +134,7 @@ export const PADRAO: Aparencia = {
   topo: 'marca', titulo: 'centro', barra: 'fina', play: 'metal', metalNoPlay: true, controlos: 'destaque', posterImagem: 'artista', posterMono: false,
   botoes: ['fila', 'visibilidade', 'eq'], flutuar: true, fundoLeitor: 'capa', brilho: 50,
   titulos: 'padrao', tamanhoDasLetras: 'm', abrirNasLetras: false, molaNaLetra: false,
-  // 1 e não 0 (28/11): 0 passou a ser sem vidro nenhum (`haVidro`), e quem liga o
-  // Liquid Glass vê o vidro limpo de antes.
-  vidro: false, opacidadeDoVidro: 1, fundoDaMusica: false,
+  vidro: false, opacidadeDoVidro: 0, fundoDaMusica: false,
   secoesDaHome: [...SECOES_DA_HOME], escondidasDaHome: [],
 };
 

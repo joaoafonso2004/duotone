@@ -98,15 +98,14 @@ export function fundoDoVidro(opacidade: number): string | null {
 }
 
 /**
- * Há vidro, pela mesma opacidade? (28/11, o João: "queria que o mínimo de opacidade
- * fosse mesmo transparente".) A 0 não há vidro nenhum: fica só o que está por cima
- * dele, solto. De 1 a 100, o vidro limpo com o fundo escuro do `fundoDoVidro`. O
- * vidro não se esbate até desaparecer: o UIKit deixa de o pôr numa vista quase
- * transparente e não o volta a pôr (o aviso do `expo-glass-effect`).
+ * O desfocado por baixo de cada peça de vidro (28/11, o João: "um vidro em que seja
+ * transparente, que vejas que há vidro e tem o filtro de desfocado por detrás"). O
+ * material mais fino e escuro do sistema, inteiro: o mais transparente, e sem o
+ * branco leitoso do vidro claro. O mesmo na barra de separadores do sistema
+ * (`UIBlurEffect(style: .systemUltraThinMaterialDark)`, no Swift). A 0 % de
+ * opacidade fica só ele e o vidro; o escuro do `fundoDoVidro` vai por cima dele.
  */
-export function haVidro(opacidade: number): boolean {
-  return Number.isFinite(opacidade) && Math.round(opacidade) > 0;
-}
+export const DESFOCADO_DO_VIDRO = { tint: 'systemUltraThinMaterialDark', intensidade: 100 } as const;
 
 /**
  * A barra de separadores nativa (28/11): a `UITabBar` do iOS 26, com a lente de

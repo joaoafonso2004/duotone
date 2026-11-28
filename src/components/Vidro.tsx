@@ -1,7 +1,8 @@
-import React, { useMemo } from 'react';
+import { BlurView } from 'expo-blur';
+import React from 'react';
 import { Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
-import { fundoDoVidro, haVidro } from '../lib/vidroDaBase';
+import { DESFOCADO_DO_VIDRO, fundoDoVidro } from '../lib/vidroDaBase';
 import { useAparencia } from '../state/aparencia';
 
 /**
@@ -37,27 +38,35 @@ export function useVidro(): boolean {
  * que a Apple recomenda por baixo do vidro transparente, e o vidro mostra-o com o
  * rebordo e a refração por cima. Por baixo e não por cima: por cima tapava o rebordo.
  *
+ * Por baixo de tudo, um desfocado (28/11, o João: "um vidro em que seja
+ * transparente, que vejas que há vidro e tem o filtro de desfocado por detrás"): o
+ * `clear` quase não desfoca o que passa por trás, e o `regular`, que desfoca, mete
+ * uma tinta que o deixa baço. O desfocado é o material mais fino e escuro do sistema
+ * (`DESFOCADO_DO_VIDRO`), sem o branco leitoso; a 0 % é só ele e o vidro, e a
+ * opacidade escurece por cima dele.
+ *
  * O raio vai no próprio vidro e no fundo, nunca numa vista de fora com `overflow`
- * (cortado, o vidro perde o rebordo).
+ * (cortado, o vidro perde o rebordo). O desfocado corta-se a si próprio.
  */
 export function Vidro({ style, children, interativo = false }: {
   style?: StyleProp<ViewStyle>; children?: React.ReactNode; interativo?: boolean;
 }) {
   const opacidade = useAparencia((s) => s.opacidadeDoVidro);
-  // A 0, sem vidro nenhum (`haVidro`, 28/11); a troca é a animação do próprio vidro.
-  // O objeto fica o mesmo entre desenhos: um novo a cada desenho voltava a pôr o
-  // vidro no nativo, e o vidro reposto pode não se desenhar bem (expo/expo#43732).
-  const comVidro = haVidro(opacidade);
-  const estilo = useMemo(() => ({ style: comVidro ? 'clear' as const : 'none' as const, animate: true }), [comVidro]);
   if (!temLiquidGlass) return <View style={style}>{children}</View>;
   const raio = StyleSheet.flatten(style)?.borderRadius;
   const forma = { borderRadius: raio, borderCurve: 'continuous' as const };
   const fundo = fundoDoVidro(opacidade);
   return (
     <View style={style}>
+      <BlurView pointerEvents="none" tint={DESFOCADO_DO_VIDRO.tint} intensity={DESFOCADO_DO_VIDRO.intensidade}
+        style={[StyleSheet.absoluteFill, forma, styles.corta]} />
       {fundo ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, forma, { backgroundColor: fundo }]} /> : null}
-      <GlassView glassEffectStyle={estilo} colorScheme="light" isInteractive={interativo} style={[StyleSheet.absoluteFill, forma]} />
+      <GlassView glassEffectStyle="clear" colorScheme="light" isInteractive={interativo} style={[StyleSheet.absoluteFill, forma]} />
       {children}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  corta: { overflow: 'hidden' },
+});
