@@ -257,9 +257,9 @@ const styles = StyleSheet.create({
   flex: { flex: 1, minWidth: 0 },
   porLer: { fontWeight: '750' as any },
   previa: { fontFamily: FONT.body, fontSize: 13, color: COR.textoMedio },
-  hora: { fontFamily: FONT.mono, fontSize: 10, color: COR.textoFraco },
+  hora: { fontFamily: FONT.mono, fontSize: 10, color: COR.textoFraco, fontVariant: ['tabular-nums'] },
   contador: { minWidth: 18, height: 18, paddingHorizontal: 4, borderRadius: 9, backgroundColor: COR.texto, alignItems: 'center', justifyContent: 'center' },
-  contadorNumero: { fontFamily: FONT.mono, fontSize: 10, fontWeight: '700', color: COR.fundo },
+  contadorNumero: { fontFamily: FONT.mono, fontSize: 10, fontWeight: '700', color: COR.fundo, fontVariant: ['tabular-nums'] },
   empty: { minHeight: 76, gap: 10, paddingVertical: 12, paddingHorizontal: ESP.sm },
   search: { height: 40, borderRadius: RAIO.cartao, backgroundColor: COR.elevado, color: COR.texto, paddingHorizontal: ESP.md, fontFamily: FONT.body, fontSize: 14, marginBottom: ESP.xs },
 });

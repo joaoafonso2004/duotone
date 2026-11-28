@@ -177,7 +177,7 @@ export function injectDesktopDocumentStyles() {
       transition: opacity 120ms var(--dt-curva), transform 120ms var(--dt-curva); }
     #duotone-dica[data-lado="baixo"]{ transform: translateY(-2px); }
     #duotone-dica[data-visivel]{ visibility: visible; opacity: 1; transform: none; }
-    #duotone-dica kbd{ font: 400 11px/16px ${FONT.mono}; color: ${COR.textoFraco}; margin-left: 8px; }
+    #duotone-dica kbd{ font: 500 11px/16px ${FONT.mono}; color: ${COR.textoFraco}; margin-left: 8px; }
     /* Aqui vivia o "vidro": um backdrop-filter de 28px na superficie inteira.
        Nunca chegou a correr (vinha por className, que o RNW deita fora), e
        quando passou a correr, na 3.7.1, a app ficou pesada -- um

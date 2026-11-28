@@ -26,14 +26,10 @@ export const FONTES = {
     latin: require('../../assets/fonts/publicsans-latin.woff2'),
     latinExt: require('../../assets/fonts/publicsans-latin-ext.woff2'),
   },
-  jetbrainsMono: {
-    latin: require('../../assets/fonts/jetbrainsmono-latin.woff2'),
-    latinExt: require('../../assets/fonts/jetbrainsmono-latin-ext.woff2'),
-  },
 };
 
 /**
- * As `@font-face` das três famílias, para quem desenha um documento: a janela
+ * As `@font-face` das duas famílias, para quem desenha um documento: a janela
  * principal (`injectDesktopDocumentStyles`) e a do mini leitor
  * (`janelaMini.web.tsx`), que é outro documento e não herda as fontes. Estavam
  * só na casca, e o mini leitor desenhava-se em Segoe UI ao lado da app em
@@ -56,8 +52,6 @@ export function cssDasFontes(): string {
     face('Archivo', FONTES.archivo.latinExt, LATIN_EXT),
     face('Public Sans', FONTES.publicSans.latin, LATIN),
     face('Public Sans', FONTES.publicSans.latinExt, LATIN_EXT),
-    face('JetBrains Mono', FONTES.jetbrainsMono.latin, LATIN),
-    face('JetBrains Mono', FONTES.jetbrainsMono.latinExt, LATIN_EXT),
   ].join('');
 }
 
@@ -67,8 +61,16 @@ export function cssDasFontes(): string {
 export const FONT = {
   display: 'Archivo, "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif',
   body: '"Public Sans", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
-  /** Só para dígitos que alinham: durações, contagens, estatísticas. */
-  mono: '"JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace',
+  /**
+   * Os números e os rótulos pequenos em maiúsculas (durações, contagens, "NEXT · 81
+   * SONGS", "LIBRARY"). Desde 28/11 é a letra do texto, a Public Sans: era a
+   * JetBrains Mono, uma letra de programar que dava à app um ar de terminal (o
+   * João: "não achas que há melhores fontes, para um ar mais premium?"; escolheu a
+   * "Sem mono" de `docs/letra-mono-maquete.html`). Os números alinham em coluna na
+   * mesma, pelos algarismos tabulares (`TIPO.numero`). O nome fica `mono`: é por
+   * ele que a app inteira a pede.
+   */
+  mono: '"Public Sans", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
 };
 
 // ------------------------------------------------------------------ cor --
@@ -142,9 +144,11 @@ export const TIPO = {
   seccao:  { fontFamily: FONT.display, fontSize: 16, fontWeight: '600' as const, letterSpacing: -0.1 },
   corpo:   { fontFamily: FONT.body,    fontSize: 14, fontWeight: '400' as const },
   legenda: { fontFamily: FONT.body,    fontSize: 12, fontWeight: '400' as const },
-  micro:   { fontFamily: FONT.mono,    fontSize: 10, fontWeight: '400' as const, letterSpacing: 1.5, textTransform: 'uppercase' as const },
-  /** Dígitos que alinham em coluna. */
-  numero:  { fontFamily: FONT.mono,    fontSize: 12, fontWeight: '400' as const, fontVariantNumeric: 'tabular-nums' as any },
+  // Os rótulos em maiúsculas mais cheios e com menos espaço do que na mono (28/11):
+  // a 400 e afastadas, as maiúsculas da Public Sans ficavam finas de mais.
+  micro:   { fontFamily: FONT.mono,    fontSize: 10, fontWeight: '600' as const, letterSpacing: 1.1, textTransform: 'uppercase' as const, fontVariant: ['tabular-nums'] as any },
+  /** Dígitos que alinham em coluna: os algarismos tabulares da Public Sans. */
+  numero:  { fontFamily: FONT.mono,    fontSize: 12, fontWeight: '500' as const, fontVariant: ['tabular-nums'] as any },
 };
 
 // ------------------------------------------------------------------ forma --

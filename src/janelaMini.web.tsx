@@ -92,7 +92,7 @@ ${cssDasMolas()}
 .lista.baixo { clip-path: inset(100% 0 0 0 round 14px); }
 .lista.aberta { clip-path: inset(0 0 0 0 round 14px); opacity: 1; pointer-events: auto; }
 /* A etiqueta de uma secção, como no PC: mono, pequena, espaçada. */
-.lista-titulo { font: 400 10px/14px ${FONT.mono}; letter-spacing: 1.5px; color: ${COR.textoFraco}; padding: 12px 12px 6px; }
+.lista-titulo { font: 600 10px/14px ${FONT.mono}; letter-spacing: 1.1px; color: ${COR.textoFraco}; padding: 12px 12px 6px; }
 .lista-linhas { flex: 1; overflow-y: auto; padding: 0 6px 6px; }
 .lista-linhas::-webkit-scrollbar { width: 8px; }
 .lista-linhas::-webkit-scrollbar-thumb { background: rgba(233,234,238,0.16); border-radius: 4px; border: 2px solid ${COR.hover}; }
@@ -162,7 +162,7 @@ ${cssDoHoverDoDisco()}
 .barra > div { position: relative; height: 4px; width: 100%; border-radius: 2px; background: #353540; }
 .barra > div > div { height: 4px; border-radius: 2px; background: ${COR.texto}; }
 /* Os números em mono, como os tempos da barra do leitor. */
-.tempo { font: 400 11px/14px ${FONT.mono}; color: ${COR.textoFraco}; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tempo { font: 500 11px/14px ${FONT.mono}; color: ${COR.textoFraco}; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .controlos { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
 /* Os botões da janela vivem na tira de cima, com a pega (Afinado): longe dos controlos. */
 .canto { position: absolute; top: 0; right: 6px; height: 18px; align-items: center; gap: 2px; z-index: 2; }
