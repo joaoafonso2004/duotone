@@ -17,7 +17,7 @@ import { irParaNoIphone } from '../navigation/RootNavigator';
 import { useArtistasFavoritos } from '../state/artistasFavoritos';
 import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
-import { colors, spacing, type } from '../theme';
+import { colors, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
 import { BottomSheet, BottomSheetScrollView } from './BottomSheet';
 
@@ -310,8 +310,8 @@ const styles = StyleSheet.create({
   numeroValor: { fontSize: 28, fontWeight: '700', letterSpacing: -0.5, color: colors.text, fontVariant: ['tabular-nums'] },
   lista: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: 6 },
   listaTitulo: { ...type.body, color: colors.text, fontWeight: '600' },
-  capaDoLancamento: { width: 48, height: 48, borderRadius: 6 },
-  capaPequena: { width: 40, height: 40, borderRadius: 6 },
+  capaDoLancamento: { width: 48, height: 48, borderRadius: radii.sm },
+  capaPequena: { width: 40, height: 40, borderRadius: radii.sm },
   vezes: { ...type.caption, color: colors.textTertiary, fontVariant: ['tabular-nums'] },
   nomes: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 6, rowGap: 4 },
   pontoDosNomes: { ...type.body, color: colors.textTertiary },
