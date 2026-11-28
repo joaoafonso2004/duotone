@@ -1,6 +1,10 @@
-# Sem os secrets da conta de teste fica a captura do ecrã de entrar.
-# Os campos tocam-se pelo texto de ajuda ("Email", "Password") e, se o Maestro não
-# o vir, pela posição deles no ecrã (medida no vídeo de 28/11: 57 % e 64 %).
+# Entrar com a conta de teste (os secrets do CI).
+#
+# O ecrã de entrar é UM só elemento de acessibilidade: está todo dentro de um
+# `Pressable` (o que fecha o teclado), e no iOS um Pressable junta os filhos num
+# elemento só (o mesmo que o VoiceOver lê). Por isso os campos e o botão não se
+# acham pelo texto: tocam-se pela posição (medida no vídeo de 28/11) e o teclado
+# fecha-se a tocar fora deles (é o que o Pressable faz).
 appId: com.joao.duotone
 ---
 - takeScreenshot: 0000-ecra-de-entrar
@@ -9,29 +13,27 @@ appId: com.joao.duotone
       true: ${EMAIL && EMAIL.length > 0}
     commands:
       - tapOn:
-          text: "Email"
-          optional: true
-      - runFlow:
-          when:
-            notVisible: "Email"
-          commands:
-            - tapOn:
-                point: "50%, 57%"
+          point: "50%, 57%"
       - inputText: ${EMAIL}
       - tapOn:
-          text: "Password"
-          optional: true
-      - inputText: ${PASSWORD}
-      - hideKeyboard:
-          optional: true
+          point: "50%, 22%"
+      - waitForAnimationToEnd:
+          timeout: 2000
       - tapOn:
-          text: "Sign in"
-          below: "Forgot password?"
+          point: "45%, 63.7%"
+      - inputText: ${PASSWORD}
+      - tapOn:
+          point: "50%, 22%"
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - takeScreenshot: 0001-preenchido
+      - tapOn:
+          point: "50%, 75.2%"
       # O iOS pode oferecer guardar a palavra-passe.
       - tapOn:
           text: "Not Now"
           optional: true
       - extendedWaitUntil:
-          visible: "Open your drawer|Songs, artists, playlists…|Home|Skip"
+          visible: ".*Open your drawer.*|Home|Songs|Liked Songs|.*Skip.*"
           timeout: 45000
-      - takeScreenshot: 0001-depois-de-entrar
+      - takeScreenshot: 0002-depois-de-entrar

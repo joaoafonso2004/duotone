@@ -1,6 +1,6 @@
 # Abre a app e, no ecrã de entrar, entra com a conta de teste (os secrets do CI).
-# A app está pronta quando se vê o ecrã de entrar ("Sign in") ou a Home (o botão
-# da gaveta, o campo da pesquisa, ou os nomes da barra).
+# A app está pronta quando se vê o ecrã de entrar (um elemento só, que CONTÉM
+# "Sign in": ver entrar.yaml) ou a Home (o botão da gaveta, a pesquisa, a barra).
 appId: com.joao.duotone
 ---
 - launchApp:
@@ -8,11 +8,11 @@ appId: com.joao.duotone
     permissions:
       all: allow
 - extendedWaitUntil:
-    visible: "Sign in|Open your drawer|Songs, artists, playlists…|Home|Liked Songs"
+    visible: "(?s).*Sign in.*|.*Open your drawer.*|Songs, artists, playlists…|Home|Songs|Liked Songs"
     timeout: 60000
 - runFlow:
     when:
-      visible: "Forgot password?"
+      visible: "(?s).*Forgot password.*"
     file: entrar.yaml
 # A primeira vez de uma conta (BoasVindas): saltar.
 - runFlow:

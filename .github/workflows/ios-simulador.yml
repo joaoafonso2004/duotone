@@ -156,8 +156,11 @@ jobs:
         run: |
           set +e
           mkdir -p saida/capturas saida/texto-grande saida/ecra-pequeno
-          correr() { # dispositivo, pasta, etiquetas
-            ( cd "saida/$2" && maestro --device "$1" test ../../.maestro $3 \
+          # dispositivo, pasta, o que correr (a pasta dos percursos ou um ficheiro), opções.
+          # As passagens à parte vão por ficheiro: com etiquetas, o flowsOrder do
+          # config.yaml rebentava (pede percursos que a etiqueta deixou de fora).
+          correr() {
+            ( cd "saida/$2" && maestro --device "$1" test "../../$3" $4 \
                 -e EMAIL="$DUOTONE_TESTE_EMAIL" -e PASSWORD="$DUOTONE_TESTE_PASSWORD" \
                 --format junit --output "../junit-$2.xml" >> ../maestro-resumo.txt 2>&1 )
             echo "== $2: código $?" >> saida/maestro-resumo.txt
@@ -167,11 +170,11 @@ jobs:
           GRAVADOR=$!
           sleep 2
           echo "INICIO_DO_VIDEO $(python3 -c 'import time; print(int(time.time()*1000))')" >> saida/maestro-resumo.txt
-          correr "$UDID" capturas "--exclude-tags=texto-grande,ecra-pequeno"
+          correr "$UDID" capturas .maestro "--exclude-tags=texto-grande,ecra-pequeno"
           kill -INT "$GRAVADOR"; wait "$GRAVADOR" 2>/dev/null
 
           xcrun simctl ui "$UDID" content_size accessibility-medium
-          correr "$UDID" texto-grande "--include-tags=texto-grande"
+          correr "$UDID" texto-grande .maestro/20-texto-grande.yaml
           xcrun simctl ui "$UDID" content_size large
           xcrun simctl shutdown "$UDID"
 
@@ -189,7 +192,7 @@ jobs:
             echo "Ecrã pequeno: $T" >> saida/maestro-resumo.txt
             xcrun simctl boot "$PEQUENO"; xcrun simctl bootstatus "$PEQUENO" -b
             xcrun simctl install "$PEQUENO" app-simulador/Duotone.app
-            correr "$PEQUENO" ecra-pequeno "--include-tags=ecra-pequeno"
+            correr "$PEQUENO" ecra-pequeno .maestro/21-ecra-pequeno.yaml
           fi
 
           # O resumo diz que percursos passaram e onde estão as marcas; as linhas com o

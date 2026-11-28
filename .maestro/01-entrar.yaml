@@ -8,7 +8,7 @@ appId: com.joao.duotone
       all: allow
 - evalScript: ${console.log('MARCA arranque-a-frio ' + Date.now())}
 - extendedWaitUntil:
-    visible: "Sign in|Open your drawer|Songs, artists, playlists…|Home|Liked Songs"
+    visible: "(?s).*Sign in.*|.*Open your drawer.*|Songs, artists, playlists…|Home|Songs|Liked Songs"
     timeout: 90000
 - takeScreenshot: 0100-arranque
 - runFlow: comum/abrir.yaml
