@@ -28,6 +28,43 @@ export const DE_FORA = new Set([
   'pref:eqModelosDasSaidas',
 ]);
 
+/**
+ * As preferências que são da CONTA e não da pessoa ao aparelho (28/11, o João:
+ * uma conta nova no PC ficou com os "Pinned" da conta principal). O tema, o EQ ou
+ * o shuffle de quem usa o aparelho podem passar de uma conta para a outra; isto
+ * não: aponta para playlists, amigos e gostos de quem lá estava, ou diz o que ESSA
+ * conta já viu. Ao entrar noutra conta saem do aparelho, e a fusão traz as dela.
+ */
+export const DA_CONTA: ReadonlySet<string> = new Set([
+  // Os atalhos fixados na lateral do PC (playlists, músicas, amigos dessa conta).
+  'pref:atalhosDaLateral',
+  // A gaveta da Home do iPhone: as mesmas peças.
+  'pref:gaveta',
+  // O questionário da primeira vez já feito, e o que lá se escolheu.
+  'pref:boasVindas',
+  'pref:artistasSemente',
+  // O gosto lido do Spotify dessa conta (entra nas recomendações).
+  'pref:gostoDoSpotify',
+  // O último resumo do mês que essa conta viu.
+  'pref:resumoVistoEm',
+]);
+
+/**
+ * De quem são as `DA_CONTA` que estão no aparelho. Sem o `pref:`: é do aparelho
+ * e não viaja (o `prefsSync` só envia o que começa por `pref:`).
+ */
+export const CHAVE_DO_DONO = 'conta-das-prefs';
+
+/**
+ * O que sai do aparelho ao entrar na conta `userId`: as `DA_CONTA` que lá estão,
+ * se o dono delas for outra conta. Sem dono guardado (a primeira vez com esta
+ * regra) não se sabe de quem são, e ficam: o caso de sempre é a mesma conta.
+ */
+export function chavesDeOutraConta(dono: string | null, userId: string, locais: readonly string[]): string[] {
+  if (!dono || dono === userId) return [];
+  return locais.filter((chave) => DA_CONTA.has(chave));
+}
+
 
 /**
  * O que se escreve localmente ao entrar na conta.

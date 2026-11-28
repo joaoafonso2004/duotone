@@ -76,6 +76,7 @@ import { useOuvirJuntos } from './src/state/ouvirJuntos';
 import { useSeguirAmigo } from './src/state/seguirAmigo';
 import { aquecerPerfilProprio, hidratarPerfilProprio, limparCachePerfil } from './src/lib/cachePerfil';
 import { sincronizarPreferencias } from './src/lib/prefsSync';
+import { reporOQueEDaConta } from './src/state/prefsDaConta';
 import { ResumoDoMes } from './src/components/ResumoDoMes';
 import { Abertura } from './src/components/Abertura';
 import { iniciarEventos } from './src/lib/eventos';
@@ -212,11 +213,14 @@ export default function App() {
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('duotone:prefs-restauradas', { detail: chaves }));
       }
+      // Os "Pinned" e a gaveta desta conta chegaram: aparecem já (28/11).
+      reporOQueEDaConta(chaves);
       // O EQ padrão desta plataforma chegou da conta (a app foi reinstalada): passa a valer já, a
       // partir da faixa seguinte, e não só no próximo arranque.
       if (!chaves.some((chave) => chave.startsWith('pref:eqPadrao'))) return;
       void getEqPadrao().then((ganhos) => usePlayer.setState({ padraoGanhos: ganhos })).catch(() => {});
-    });
+    // Os da conta anterior saíram do aparelho (28/11): a lateral e a gaveta largam-nos.
+    }, reporOQueEDaConta);
     const pararEventos = iniciarEventos(userId);
     // Fechar a app nao e sair de uma sessao de escuta: se ficou uma aberta,
     // volta-se a entrar nela em silencio. Sair e uma decisao, e faz-se pela

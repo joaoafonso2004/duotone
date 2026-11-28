@@ -113,7 +113,7 @@ await t('a linha da conta leva só o ritmo (ganhos a null, para um aparelho anti
   assert.ok(!/guardarOPadrao\([^)]*,/.test(PLAYER), 'ninguém passa ganhos');
 });
 await t('uma plataforma reinstalada recupera o padrão da conta sem esperar pelo arranque seguinte', () => {
-  assert.match(SYNC, /export function sincronizarPreferencias\(userId: string, aoRestaurar\?: \(chaves: string\[\]\) => void\): \(\) => void \{/);
+  assert.match(SYNC, /export function sincronizarPreferencias\(\s*userId: string,\s*aoRestaurar\?: \(chaves: string\[\]\) => void,/);
   assert.match(SYNC, /aoRestaurar\?\.\(aEscrever\.map\(\(\[chave\]\) => chave\)\)/);
   assert.match(APP, /chave\.startsWith\('pref:eqPadrao'\)/);
   assert.match(APP, /usePlayer\.setState\(\{ padraoGanhos: ganhos \}\)/);

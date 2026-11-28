@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
 import { supabase } from './supabase';
 import { updateAccountPrefs } from './accountPrefs';
-import { chavesAEscrever, DE_FORA, PREFIXO } from './prefsFusao';
+import { CHAVE_DO_DONO, chavesAEscrever, chavesDeOutraConta, DE_FORA, PREFIXO } from './prefsFusao';
 
 /**
  * As preferências na conta, e não no aparelho.
@@ -77,12 +77,31 @@ async function enviarAgora(): Promise<void> {
  * `aoRestaurar` diz que chaves acabaram de entrar no aparelho (31/10): há preferências que a
  * app leu no arranque, antes de elas chegarem, e que só valiam no arranque seguinte -- o EQ
  * padrão de uma plataforma que acabou de ser reinstalada, por exemplo.
+ *
+ * `aoTrocarDeConta` diz que chaves da OUTRA conta saíram do aparelho (28/11,
+ * `DA_CONTA` em `lib/prefsFusao.ts`): quem as tem em memória larga-as. Sai antes
+ * de se ler a conta nova, para a fusão trazer as dela.
  */
-export function sincronizarPreferencias(userId: string, aoRestaurar?: (chaves: string[]) => void): () => void {
+export function sincronizarPreferencias(
+  userId: string,
+  aoRestaurar?: (chaves: string[]) => void,
+  aoTrocarDeConta?: (chaves: string[]) => void,
+): () => void {
   utilizador = userId;
   ultimoEnviado = '';
 
   void (async () => {
+    try {
+      const dono = await AsyncStorage.getItem(CHAVE_DO_DONO);
+      const apagar = chavesDeOutraConta(dono, userId, await AsyncStorage.getAllKeys());
+      if (apagar.length) await AsyncStorage.multiRemove(apagar);
+      if (dono !== userId) await AsyncStorage.setItem(CHAVE_DO_DONO, userId);
+      if (apagar.length) {
+        try { aoTrocarDeConta?.(apagar); } catch { /* quem pede não pode partir a sincronização */ }
+      }
+    } catch {
+      // Sem o disco: fica como estava.
+    }
     try {
       const { data, error } = await supabase.from('user_prefs')
         .select('prefs').eq('user_id', userId).maybeSingle();
