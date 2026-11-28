@@ -6,9 +6,12 @@ appId: com.joao.duotone
     clearState: true
     permissions:
       all: allow
+- evalScript: ${console.log('MARCA arranque-a-frio ' + Date.now())}
 - extendedWaitUntil:
-    visible: "Email or username|Songs, artists, playlists…"
-    timeout: 60000
-- takeScreenshot: 01-arranque
+    visible: "Sign in|Open your drawer|Songs, artists, playlists…|Home|Liked Songs"
+    timeout: 90000
+- takeScreenshot: 0100-arranque
 - runFlow: comum/abrir.yaml
-- takeScreenshot: 02-home-primeira-vez
+- takeScreenshot: 0101-home-primeira-vez
+- scroll
+- takeScreenshot: 0102-home-primeira-vez-rolada

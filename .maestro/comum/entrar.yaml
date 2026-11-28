@@ -1,20 +1,37 @@
 # Sem os secrets da conta de teste fica a captura do ecrã de entrar.
+# Os campos tocam-se pelo texto de ajuda ("Email", "Password") e, se o Maestro não
+# o vir, pela posição deles no ecrã (medida no vídeo de 28/11: 57 % e 64 %).
 appId: com.joao.duotone
 ---
-- takeScreenshot: 00-ecra-de-entrar
+- takeScreenshot: 0000-ecra-de-entrar
 - runFlow:
     when:
       true: ${EMAIL && EMAIL.length > 0}
     commands:
-      - tapOn: "Email or username"
+      - tapOn:
+          text: "Email"
+          optional: true
+      - runFlow:
+          when:
+            notVisible: "Email"
+          commands:
+            - tapOn:
+                point: "50%, 57%"
       - inputText: ${EMAIL}
-      - tapOn: "Password"
+      - tapOn:
+          text: "Password"
+          optional: true
       - inputText: ${PASSWORD}
       - hideKeyboard:
           optional: true
       - tapOn:
           text: "Sign in"
           below: "Forgot password?"
+      # O iOS pode oferecer guardar a palavra-passe.
+      - tapOn:
+          text: "Not Now"
+          optional: true
       - extendedWaitUntil:
-          visible: "Songs, artists, playlists…|Skip"
+          visible: "Open your drawer|Songs, artists, playlists…|Home|Skip"
           timeout: 45000
+      - takeScreenshot: 0001-depois-de-entrar
