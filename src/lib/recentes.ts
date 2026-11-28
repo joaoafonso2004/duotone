@@ -68,6 +68,23 @@ export function recentesParaMostrar(recentes: readonly Recente[], extras: readon
   return [...recentes, ...extras.filter((e) => !fora.has(e.chave))].slice(0, n);
 }
 
+/**
+ * Uma playlist recente com as capas DA PLAYLIST (28/11, um utilizador: "jump back in
+ * ... to open a playlist is a little jumpy, and it does not show the custom cover").
+ * O recente guarda as capas da fila que tocou, pela ordem dela (às vezes baralhada);
+ * a grelha das Playlists e a página mostram as da playlist, ou a capa escolhida
+ * (`capasDasPlaylists.ts`: com capa, `artworks` é só ela). Com as do recente, o atalho
+ * não tinha a capa escolhida, e a capa que voa pousava numa página com outra imagem e
+ * trocava de repente. Uma playlist que não está na lista (a de um amigo) fica como veio.
+ */
+export function comCapasDaPlaylist(
+  r: Recente, playlists: readonly { id: string; artworks: readonly string[] }[],
+): Recente {
+  if (r.tipo !== 'playlist' || !r.id) return r;
+  const p = playlists.find((x) => x.id === r.id);
+  return p && p.artworks.length ? { ...r, capas: p.artworks.slice(0, 4) } : r;
+}
+
 /** Lido do disco: só o que tem a forma certa. */
 export function lerRecentes(texto: string | null): Recente[] {
   if (!texto) return [];

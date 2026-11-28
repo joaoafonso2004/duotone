@@ -35,7 +35,8 @@ import { ORDEM_DAS_PRATELEIRAS, temRecomendacoes, useRecomendacoes, type NomeDaP
 import { useRecentes } from '../state/recentes';
 import { entrarPeloQuadrado } from '../state/vooDoQuadrado';
 import { useMisturaDoDia } from '../state/misturaDoDia';
-import { capasDaFila, chaveDoRecente, recentesParaMostrar, type Recente } from '../lib/recentes';
+import { capasDaFila, chaveDoRecente, comCapasDaPlaylist, recentesParaMostrar, type Recente } from '../lib/recentes';
+import { usePlaylists } from '../state/playlists';
 import { Toque } from '../components/Toque';
 import { ArrastoDaGaveta, BotaoDaGaveta } from '../components/BordaDaGaveta';
 import { Animated, useWindowDimensions } from 'react-native';
@@ -231,13 +232,16 @@ export function SearchScreen() {
   // O "Jump back in" (3/10): os recentes primeiro, e os atalhos de sempre a
   // encher o que falta (lib/recentes.ts).
   const recentes = useRecentes((s) => s.lista);
+  // As playlists com as capas delas, as da grelha (28/11, `comCapasDaPlaylist`): a
+  // capa escolhida aparece, e a que voa pousa na mesma imagem da página.
+  const playlists = usePlaylists((s) => s.items);
   const paraVoltar = React.useMemo(() => recentesParaMostrar(recentes, [
     { chave: chaveDoRecente({ tipo: 'guardadas', nome: 'Liked Songs' }), tipo: 'guardadas', nome: 'Liked Songs', capas: [], quando: 0 },
     ...atalhos.map((m): Recente => ({
       chave: chaveDoRecente({ tipo: 'mistura', nome: m.nome, id: m.id }), tipo: 'mistura', nome: m.nome, id: m.id,
       capas: capasDaFila(m.faixas), quando: 0,
     })),
-  ]), [recentes, atalhos]);
+  ]).map((r) => comCapasDaPlaylist(r, playlists)), [recentes, atalhos, playlists]);
   const secoesDaHome = useAparencia(useShallow((s) => secoesVisiveis(s)));
   const temMisturaDoDia = useMisturaDoDia((s) => !(s.estado === 'vazio' || (s.estado === 'pronto' && s.faixas.length === 0)));
   // O mesmo `destinoDoRecente` do "Jump back in" do PC (lib/destinos.ts).

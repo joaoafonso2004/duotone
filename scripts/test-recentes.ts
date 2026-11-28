@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  MAXIMO_DE_RECENTES, capasDaFila, chaveDoRecente, lerRecentes, podeVoltar, recentesParaMostrar, registarRecente,
+  MAXIMO_DE_RECENTES, capasDaFila, chaveDoRecente, comCapasDaPlaylist, lerRecentes, podeVoltar, recentesParaMostrar, registarRecente,
   type Recente,
 } from '../src/lib/recentes.ts';
 
@@ -81,6 +81,27 @@ caso('a Home mostra o Jump back in e chama-se Home', () => {
   assert.match(p, /title="Home"/);
   assert.match(readFileSync('src/navigation/BarraDeSeparadores.tsx', 'utf8'), /Search: 'Home'/);
   assert.match(readFileSync('App.tsx', 'utf8'), /instalarRecentes\(\)/);
+});
+
+caso('uma playlist recente mostra as capas da playlist, com a escolhida (28/11)', () => {
+  const lista = [
+    { id: 'p1', artworks: ['https://capa-escolhida'] },
+    { id: 'p2', artworks: ['m1', 'm2', 'm3', 'm4', 'm5'] },
+    { id: 'p3', artworks: [] },
+  ];
+  const fila = { chave: 'playlist:p1', tipo: 'playlist' as const, nome: 'Mix', id: 'p1', capas: ['f3', 'f1', 'f4', 'f2'], quando: 1 };
+  assert.deepEqual(comCapasDaPlaylist(fila, lista).capas, ['https://capa-escolhida'], 'a capa escolhida, e não as da fila');
+  assert.deepEqual(comCapasDaPlaylist({ ...fila, id: 'p2' }, lista).capas, ['m1', 'm2', 'm3', 'm4'], 'o mosaico da grelha, até quatro');
+  assert.deepEqual(comCapasDaPlaylist({ ...fila, id: 'p3' }, lista).capas, fila.capas, 'sem capas na lista: as do recente');
+  assert.deepEqual(comCapasDaPlaylist({ ...fila, id: 'de-um-amigo' }, lista).capas, fila.capas, 'fora da lista: como veio');
+  const mistura = { ...fila, tipo: 'mistura' as const };
+  assert.equal(comCapasDaPlaylist(mistura, lista), mistura, 'só as playlists');
+  // As duas plataformas: a Home do iPhone (que também faz voar estas capas) e a do PC.
+  const home = readFileSync('src/screens/SearchScreen.tsx', 'utf8').replace(/\r\n/g, '\n');
+  assert.match(home, /\]\)\.map\(\(r\) => comCapasDaPlaylist\(r, playlists\)\), \[recentes, atalhos, playlists\]\);/);
+  assert.match(home, /capas: r\.tipo === 'artista' \? r\.capas\.slice\(0, 1\) : r\.capas\.length >= 4/, 'o voo usa as mesmas capas do atalho');
+  const pc = readFileSync('src/desktop/VoltarAOuvir.web.tsx', 'utf8').replace(/\r\n/g, '\n');
+  assert.match(pc, /lista\.map\(\(r\) => \(\{ r: comCapasDaPlaylist\(r, playlists\), destino: destinoDoRecente\(r\) \}\)\)/);
 });
 
 if (falhas) { console.error(`\n  ${falhas} caso(s) falharam.\n`); process.exit(1); }

@@ -4,7 +4,8 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { destinoDoRecente } from '../lib/destinos';
 import { grelhaQueEnche } from '../lib/grelhaDeCartoes';
-import { NA_HOME, type Recente } from '../lib/recentes';
+import { comCapasDaPlaylist, NA_HOME, type Recente } from '../lib/recentes';
+import { usePlaylists } from '../state/playlists';
 import { useRecentes } from '../state/recentes';
 import { useDestinos } from '../navigation/destinos';
 import { COR, ESP, RAIO, TIPO } from './tokens.web';
@@ -18,10 +19,13 @@ import { COR, ESP, RAIO, TIPO } from './tokens.web';
  */
 export function VoltarAOuvir() {
   const lista = useRecentes((s) => s.lista);
+  // As playlists com as capas delas, como na grelha (28/11, `comCapasDaPlaylist`):
+  // a capa escolhida aparece aqui também.
+  const playlists = usePlaylists((s) => s.items);
   const { irPara, podeIrPara } = useDestinos();
   // O mesmo `destinoDoRecente` da Home do iPhone; o que o PC não tem (os
   // álbuns e as prateleiras, que aqui vivem dentro de outras páginas) fica de fora.
-  const visiveis = lista.map((r) => ({ r, destino: destinoDoRecente(r) }))
+  const visiveis = lista.map((r) => ({ r: comCapasDaPlaylist(r, playlists), destino: destinoDoRecente(r) }))
     .filter((x) => x.destino && podeIrPara(x.destino.tipo)).slice(0, NA_HOME);
   // Três por linha no máximo (8/11): com `flexBasis: 260` cabiam cinco numa janela
   // larga, e o sexto ficava sozinho na segunda linha. Seis são duas linhas de três
