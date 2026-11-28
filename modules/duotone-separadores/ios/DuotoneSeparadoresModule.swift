@@ -261,6 +261,7 @@ final class DuotoneSeparadoresView: ExpoView, UITabBarDelegate, UIGestureRecogni
 
   override func layoutSubviews() {
     super.layoutSubviews()
+    igualarLarguras()
     // A barra sabe a altura dela, com o fundo do ecrã (o indicador de casa) incluído.
     let cabe = barra.sizeThatFits(bounds.size)
     barra.frame = CGRect(x: 0, y: bounds.height - cabe.height, width: bounds.width, height: cabe.height)
@@ -276,6 +277,28 @@ final class DuotoneSeparadoresView: ExpoView, UITabBarDelegate, UIGestureRecogni
       diagnosticoFeito = true
       DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.mandarDiagnostico() }
     }
+  }
+
+  /**
+   * Todos os botões com a mesma largura (28/11, a captura do João: o "Artists" fora
+   * do centro). A barra do iOS 26 dá a cada botão a largura do nome, e um nome
+   * comprido ("Liked Songs", depois "Playlists") empurrava os outros: o do meio não
+   * ficava no meio. Centrados e com a largura útil repartida por igual, cada botão
+   * fica no seu quinto, seja qual for o nome. A largura útil desconta as margens da
+   * cápsula do iOS 26 (21 pt de cada lado) e uma folga dentro dela. Só muda quando a
+   * largura muda (um layout não puxa outro).
+   */
+  private var larguraDosBotoes: CGFloat = -1
+  private func igualarLarguras() {
+    let quantos = barra.items?.count ?? 0
+    guard quantos > 0, bounds.width > 0 else { return }
+    let util = max(0, bounds.width - 2 * 21 - 2 * 6)
+    let largura = floor(util / CGFloat(quantos))
+    guard largura > 0, abs(largura - larguraDosBotoes) > 0.5 else { return }
+    larguraDosBotoes = largura
+    barra.itemPositioning = .centered
+    barra.itemSpacing = 0
+    barra.itemWidth = largura
   }
 
   override func safeAreaInsetsDidChange() {
