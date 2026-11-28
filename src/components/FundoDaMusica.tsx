@@ -21,7 +21,10 @@ import { usePlayer } from '../state/player';
  * Vive no `RootNavigator`, por cima do fundo escuro e por baixo das páginas (que
  * são transparentes): um desenho por música, e mais nada.
  */
-export function FundoDaMusica() {
+export function FundoDaMusica({ imediato = false }: {
+  /** A primeira cor já inteira, sem acender (a barra de cima das páginas, `FundoDasPaginas`). */
+  imediato?: boolean;
+} = {}) {
   const ligado = useAparencia((s) => s.fundoDaMusica);
   const arte = usePlayer((s) => s.current?.artworkUrl ?? null);
   const cor = useCorDoAmbiente(ligado && arte ? capaParaLista(arte) : null);
@@ -35,7 +38,8 @@ export function FundoDaMusica() {
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       {par.baixo ? <Lavagem cor={par.baixo} /> : null}
-      {par.cima ? <CamadaQueAcende key={par.cima} cor={par.cima} /> : null}
+      {par.cima && imediato && !par.baixo ? <Lavagem cor={par.cima} />
+        : par.cima ? <CamadaQueAcende key={par.cima} cor={par.cima} /> : null}
     </View>
   );
 }

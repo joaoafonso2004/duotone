@@ -130,11 +130,33 @@ caso('a barra do sistema: uma UITabBar sozinha, e a app degrada sem ela', () => 
   assert.match(barra, /onPress=\{\(\) => carregarNoSeparador\(state, navigation, route\)\}/);
   assert.match(barra, /titulo: traduzir\(/, 'os nomes no francês também');
 });
-caso('a capa do mini com cantos redondos: a moldura encolhida leva o raio a dividir pela escala', () => {
+caso('a capa do mini com cantos redondos só com o vidro: a moldura encolhida leva o raio a dividir pela escala', () => {
   const leitor = ler('src/components/PlayerRoot.tsx');
-  assert.match(leitor, /const raioDaMolduraNoMini = \(vidro \? MUSICA_NO_VIDRO\.raioDaCapa : radii\.sm\) \* \(ART_FULL \/ ladoDaCapaNoMini\);/);
+  // Sem o vidro, os 8 de sempre (cantos quase retos no mini): os redondos eram só para o Liquid Glass (28/11).
+  assert.match(leitor, /const raioDaMolduraNoMini = vidro \? MUSICA_NO_VIDRO\.raioDaCapa \* \(ART_FULL \/ ladoDaCapaNoMini\) : radii\.sm;/);
   assert.match(leitor, /outputRange: \[raioDaMolduraNoMini, capaInteira \? 0 : 20\]/);
   assert.match(leitor, /vidMini\.x, vidMini\.y, vidMini\.w, W, H,/, 'o voo refaz-se quando o tamanho da capa do mini muda');
+  assert.match(leitor, /capaFlutuante, capaInteira, capaPoster, vidro,\n\s+\]\.join\('\|'\)/, 'e quando o vidro liga ou desliga');
+});
+caso('a capa do mini nunca pisca ao pousar, e os cantos recortam-se na descida (28/11)', () => {
+  const leitor = ler('src/components/PlayerRoot.tsx');
+  // Sempre montada: montada no fim da aterragem, o expo-image entrava com 250 ms sobre preto.
+  assert.doesNotMatch(leitor, /\{!aberto && \(origemDaEntrada\?\.uri \|\| capaParaLista\(artSource\)\) \?/);
+  assert.match(leitor, /\{\(origemDaEntrada\?\.uri \|\| capaParaLista\(artSource\)\) \? \(\n\s+<Animated\.View pointerEvents="none" style=\{\[StyleSheet\.absoluteFill, styles\.capaDoMiniNaMoldura, \{/);
+  assert.match(leitor, /borderRadius: aberto \? nos\.raioDaCapaDoMiniAberto : nos\.moldura\.borderRadius,\n\s+opacity: aberto \? nos\.capaDoMiniAberto : 1,/);
+  assert.match(leitor, /ligada=\{!origemDaEntrada && !aberto\}/, 'sem passagens escondidas com o leitor aberto');
+  // Acende quando a pose já saiu (forcaDaPose a 0 com o aterrar a 1/1,6), e com a abertura a 0.
+  assert.match(leitor, /const noMini = anim\.interpolate\(\{ inputRange: \[-0\.02, 0, 0\.02\], outputRange: \[0, 1, 0\], extrapolate: 'clamp' \}\);/);
+  assert.match(leitor, /const capaDoMiniAberto = Animated\.add\(suave\(aterrar, 0\.6, 0\.72\), noMini\)/);
+  assert.ok(0.6 < 1 / 1.6 && 1 / 1.6 < 0.72, 'a troca apanha o fim da pose');
+  assert.match(leitor, /outputRange: \[raioDaCapaGrande, raioDaMolduraNoMini\], extrapolate: 'clamp' \}\);/, 'do raio da grande ao do mini');
+  assert.match(leitor, /const raioDaCapaGrande = capaFlutuante \? CAPA_FLUTUANTE\.raio : capaInteira \? 0 : 20;/);
+  assert.match(leitor, /raio=\{capaFlutuante \? CAPA_FLUTUANTE\.raio : capaInteira \? 0 : 20\} pose3D=\{pose3D\}/, 'o mesmo raio que o cubo tem');
+  // A grande apaga-se pela do mini, que está por baixo dela.
+  assert.match(leitor, /<Animated\.View pointerEvents=\{aberto \? 'auto' : 'none'\} style=\{\[StyleSheet\.absoluteFill, \{ opacity: aberto \? nos\.capaGrandeAberto : 0 \}\]\}>\n\s+<CapaDoLeitor/);
+  assert.ok(leitor.indexOf('styles.capaDoMiniNaMoldura, {') < leitor.indexOf('<CapaDoLeitor\n'), 'a do mini por baixo da grande');
+  const transicao = ler('src/state/transicaoDoLeitor.ts');
+  assert.match(transicao, /aterrar\.interpolate\(\{ inputRange: \[0, 1 \/ 1\.6\], outputRange: \[1, 0\], extrapolate: 'clamp' \}\)/);
 });
 caso('a linha da música dentro da cápsula, e a capa que voa parte do sítio novo', () => {
   const leitor = ler('src/components/PlayerRoot.tsx');

@@ -118,7 +118,7 @@ import { reafirmarComandosDeFaixa } from '../lib/comandosDeFaixa';
 import {
   abertura, arrasto, aterrar, cartaoEsc, cartaoEscVisto, cartaoX, cartaoXVisto, cartaoY, cartaoYVisto,
   dedoX, dedoY, definirAlturaDoEcra,
-  ESCADA, folhaEscala, folhaOpacidade, folhaRaio, forcaDaPose, miniEscala, miniOpacidade, miniSubir, reporGesto,
+  ESCADA, folhaEscala, folhaOpacidade, folhaRaio, forcaDaPose, miniEscala, miniOpacidade, miniSubir, reporGesto, suave,
 } from '../state/transicaoDoLeitor';
 import { PanGestureHandler, State, type PanGestureHandlerStateChangeEvent } from 'react-native-gesture-handler';
 import {
@@ -1190,12 +1190,16 @@ export function PlayerRoot() {
     h: ladoDaCapaNoMini,
   };
   /**
-   * O raio da moldura no mini, em pontos da capa GRANDE (28/11). A moldura tem
-   * sempre o tamanho da grande e vai ao mini por escala: os 8 de antes, encolhidos
-   * para o mini, davam cantos de ~1 pt (a screenshot 4 do João). Assim, no mini, os
-   * cantos ficam com o raio da capa do mini (10 no vidro, 8 sem ele).
+   * O raio da moldura no mini, em pontos da capa GRANDE. A moldura tem sempre o
+   * tamanho da grande e vai ao mini por escala. Com o Liquid Glass (28/11, a
+   * screenshot 4 do João), os cantos redondos da capa da cápsula: o raio dela a
+   * dividir pela escala. Sem ele, os 8 de sempre, que no mini dão os cantos quase
+   * retos -- os redondos eram só para o Liquid Glass, e a 7.3.2 pô-los também sem
+   * ele (João, 28/11).
    */
-  const raioDaMolduraNoMini = (vidro ? MUSICA_NO_VIDRO.raioDaCapa : radii.sm) * (ART_FULL / ladoDaCapaNoMini);
+  const raioDaMolduraNoMini = vidro ? MUSICA_NO_VIDRO.raioDaCapa * (ART_FULL / ladoDaCapaNoMini) : radii.sm;
+  /** O raio da capa grande, o mesmo que a `CapaDoLeitor` dá ao cubo. */
+  const raioDaCapaGrande = capaFlutuante ? CAPA_FLUTUANTE.raio : capaInteira ? 0 : 20;
   const vidFull = {
     x: (W - ART_FULL) / 2,
     y: insets.top + 6 + HEADER_H + AR_ACIMA_DA_CAPA,
@@ -1293,8 +1297,31 @@ export function PlayerRoot() {
         ),
       },
     ];
+    /**
+     * A capa do mini dentro da moldura, com o leitor aberto (28/11, o vídeo do
+     * João: a capa piscava ao pousar, e os cantos chegavam quase retos e só
+     * arredondavam no fim). Ela fica sempre montada; aberto, só se vê no fim de
+     * uma aterragem (o gesto de fechar). Acende quando a capa grande já perdeu a
+     * pose (`forcaDaPose` chega a 0 com o `aterrar` a 0,625), com os cantos que a
+     * grande tem nesse instante, e daí os cantos vão até aos do mini -- recortados
+     * durante a descida, e não de repente no fim.
+     *
+     * Com a abertura a 0 já é a do mini, inteira: no fim da aterragem a abertura
+     * vai a 0 e o `aterrar` volta a 0 antes de o leitor fechado se desenhar, e
+     * nesse intervalo a capa grande voltava à frente.
+     */
+    const noMini = anim.interpolate({ inputRange: [-0.02, 0, 0.02], outputRange: [0, 1, 0], extrapolate: 'clamp' });
+    const capaDoMiniAberto = Animated.add(suave(aterrar, 0.6, 0.72), noMini)
+      .interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' });
+    const raioDaCapaDoMiniAberto = Animated.add(
+      aterrar.interpolate({ inputRange: [0.6, 1], outputRange: [0, 1], extrapolate: 'clamp' }),
+      noMini,
+    ).interpolate({ inputRange: [0, 1], outputRange: [raioDaCapaGrande, raioDaMolduraNoMini], extrapolate: 'clamp' });
     return {
       vooDaMoldura,
+      capaDoMiniAberto,
+      capaGrandeAberto: capaDoMiniAberto.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+      raioDaCapaDoMiniAberto,
       sombra: capaFlutuante ? 0 : capaInteira || capaPoster ? 0 : Animated.multiply(
         sombraAnim,
         Animated.multiply(visibilityAnim, anim.interpolate({ inputRange: faixaDoVoo, outputRange: saidaDoVoo(0, 0, 1) })),
@@ -1319,7 +1346,7 @@ export function PlayerRoot() {
   const chaveDosNos = [
     origemDaEntrada ? `${origemDaEntrada.x},${origemDaEntrada.y},${origemDaEntrada.largura},${origemDaEntrada.altura}` : '-',
     vidFull.x, vidFull.y, vidFull.w, vidMini.x, vidMini.y, vidMini.w, W, H,
-    aberto, reducedMotion, capaFlutuante, capaInteira, capaPoster,
+    aberto, reducedMotion, capaFlutuante, capaInteira, capaPoster, vidro,
   ].join('|');
   if (nosRef.current?.chave !== chaveDosNos) nosRef.current = { chave: chaveDosNos, nos: criarNos() };
   const nos = nosRef.current.nos as ReturnType<typeof criarNos>;
@@ -2220,7 +2247,16 @@ export function PlayerRoot() {
           {/* Mostramos SEMPRE a thumbnail por cima — o áudio nativo continua a
               tocar por trás. (A app é só áudio; o vídeo é irrelevante.) A capa
               "respira" (opacidade a pulsar) enquanto a música carrega. */}
-          {!aberto && (origemDaEntrada?.uri || capaParaLista(artSource)) ? (
+          {/* A capa do mini fica SEMPRE montada (28/11), e não só com o leitor
+              fechado: montava-se no fim da aterragem, e o expo-image entrava com
+              o cruzamento de 250 ms sobre o fundo preto -- a capa piscava a preto
+              depois de pousar (o vídeo do João). Aberto, só se vê no fim de uma
+              aterragem (`capaDoMiniAberto`), recortada com o raio dela. */}
+          {(origemDaEntrada?.uri || capaParaLista(artSource)) ? (
+            <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.capaDoMiniNaMoldura, {
+              borderRadius: aberto ? nos.raioDaCapaDoMiniAberto : nos.moldura.borderRadius,
+              opacity: aberto ? nos.capaDoMiniAberto : 1,
+            }]}>
             <Animated.View style={[StyleSheet.absoluteFill, { opacity: pulse }]}>
               {/* A MESMA imagem que a lista mostrava, e no mesmo formato: a
                   mini usa a mqdefault como as listas, não a que o player grande
@@ -2229,11 +2265,12 @@ export function PlayerRoot() {
                   que a animação existe para esconder. */}
               {/* A Ocultação também no mini (25/11): a mesma passagem, à escala
                   da moldura, que a corta. Não no pouso de uma música vinda de
-                  uma lista: aí quem troca a capa é o voo. */}
+                  uma lista: aí quem troca a capa é o voo. Nem com o leitor
+                  aberto, onde ela não se vê. */}
               <OcultacaoDaCapa
                 chave={chaveDaCapa} sentido={transicaoDaCapa.current?.sentido === -1 ? -1 : 1} lado={vidFull.w}
                 capa={origemDaEntrada?.uri || capaParaLista(artSource) || null} corDe={current.artworkUrl ?? null}
-                ligada={!origemDaEntrada}
+                ligada={!origemDaEntrada && !aberto}
               >
                 <Image
                   source={{ uri: origemDaEntrada?.uri || capaParaLista(artSource) || undefined }}
@@ -2243,6 +2280,7 @@ export function PlayerRoot() {
                   onError={onArtError}
                 />
               </OcultacaoDaCapa>
+            </Animated.View>
             </Animated.View>
           ) : null}
 
@@ -2273,15 +2311,17 @@ export function PlayerRoot() {
               (vídeo do João, 25/10: o fecho suave, a abertura aos saltos).
               Fechada fica invisível, sem toques, sem flutuar, sem o recuo do
               skip e sem letras (`aVista`). */}
+          {/* No fim de uma aterragem apaga-se pela capa do mini, que está por baixo
+              (`capaGrandeAberto`). */}
           {current ? (
-            <View pointerEvents={aberto ? 'auto' : 'none'} style={[StyleSheet.absoluteFill, { opacity: aberto ? 1 : 0 }]}>
+            <Animated.View pointerEvents={aberto ? 'auto' : 'none'} style={[StyleSheet.absoluteFill, { opacity: aberto ? nos.capaGrandeAberto : 0 }]}>
               <CapaDoLeitor
                 track={current} size={vidFull.w} capaFlutuante={capaFlutuante} capaInteira={capaInteira} capaDaFrente={nos.capaDaFrente} montagem={montagem.animacao}
                 transicao={transicaoDaCapa.current} artSource={artSource} showLyrics={showLyrics}
                 setShowLyrics={setShowLyrics} setCapaARodar={setCapaARodar} onArtError={onArtError}
                 escurecerCapa={escurecerCapa} aoGostar={aoGostarPelaCapa} aFlutuar={ap.flutuar} aVista={aberto && !filaAberta}
               />
-            </View>
+            </Animated.View>
           ) : null}
 
           {/* No modo mini, tocar no vídeo expande */}
@@ -2807,6 +2847,10 @@ const styles = StyleSheet.create({
   miniTrackNoVidro: { left: MUSICA_NO_VIDRO.progressoEsquerda, right: MUSICA_NO_VIDRO.progressoDireita, bottom: MUSICA_NO_VIDRO.progressoFundo },
   // A capa do mini no vidro (28/11): mais pequena e de cantos redondos, como a cápsula.
   miniArtNoVidro: { width: MUSICA_NO_VIDRO.capa, height: MUSICA_NO_VIDRO.capa, borderRadius: MUSICA_NO_VIDRO.raioDaCapa },
+  // A capa do mini dentro da moldura (28/11): recorta-se a si própria, porque na
+  // aterragem a moldura ainda não corta (o leitor está aberto). A mesma curva da
+  // moldura, para não mudar nada quando ela passa a cortar.
+  capaDoMiniNaMoldura: { overflow: 'hidden', backgroundColor: '#000' },
   // Sem fundo nem moldura (3/10): o vidro é da base (components/Doca.tsx), e a
   // linha está por cima dele. Era um cartão opaco pousado na barra.
   mini: {

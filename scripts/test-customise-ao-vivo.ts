@@ -54,7 +54,9 @@ caso('a opacidade do vidro: uma barra que se arrasta, e cada peça de vidro a l�
 
 caso('o fundo da música: a cor da capa a lavar o topo, por baixo das páginas', () => {
   const raiz = ler('src/navigation/RootNavigator.tsx');
-  assert.match(raiz, /<FundoDaMusica \/>\n\s+<Stack\.Navigator/, 'por cima do fundo escuro e por baixo das páginas');
+  assert.match(raiz, /<FundoDasPaginas \/>\n\s+<Stack\.Navigator/, 'por baixo das páginas');
+  const fundo = ler('src/components/FundoDasPaginas.tsx');
+  assert.ok(fundo.indexOf("'rgba(6, 6, 8, 0.88)'") < fundo.indexOf('<FundoDaMusica imediato={imediato} />'), 'por cima do fundo escuro');
   const f = ler('src/components/FundoDaMusica.tsx');
   assert.match(f, /useCorDoAmbiente\(ligado && arte \? capaParaLista\(arte\) : null\)/, 'só lê a capa com a opção ligada');
   assert.match(f, /<CamadaQueAcende key=\{par\.cima\} cor=\{par\.cima\} \/>/, 'a cor nova acende por cima da antiga');
@@ -70,6 +72,18 @@ caso('a pré-visualização ao vivo fica presa em cima, com dois ecrãs, e não 
   assert.doesNotMatch(p.slice(p.indexOf('function PreviaAoVivo')), /\.next\(\)|playTrack|skip/, '"Next song" não mexe no que toca');
   assert.match(p, /if \(k === 'listas'\) return 'lista';/);
   assert.match(p, /k === 'vidro' \|\| k === 'opacidadeDoVidro' \|\| k === 'fundoDaMusica'/);
+});
+
+caso('a barra de cima das páginas fica opaca ao rolar, com o fundo das páginas preso ao ecrã (28/11)', () => {
+  const ecra = ler('src/components/Screen.tsx');
+  const encolhe = ecra.slice(ecra.indexOf('function ScreenQueEncolhe'));
+  assert.doesNotMatch(encolhe, /<BlurView/, 'sem o desfoque com 72% de tinta, que deixava ler a lista');
+  assert.match(encolhe, /styles\.fundoOpaco, \{ opacity: anim\.fundo, transform: \[\{ translateY: anim\.sobe \}\] \}\]\}>\n\s+<Animated\.View style=\{\[styles\.fundoDoEcra, \{ height: alturaDoEcra, transform: \[\{ translateY: anim\.preso \}\] \}\]\}>\n\s+<FundoDasPaginas imediato \/>/);
+  assert.match(encolhe, /preso: p\.interpolate\(\{ inputRange: \[0, 1\], outputRange: \[0, g\?\.distancia \?\? 0\] \}\),/, 'o contrário do sobe');
+  assert.match(ecra, /fundoOpaco: \{ backgroundColor: '#000', overflow: 'hidden' \},/, 'o preto de baixo, e corta o fundo do ecrã');
+  const musica = ler('src/components/FundoDaMusica.tsx');
+  assert.match(musica, /par\.cima && imediato && !par\.baixo \? <Lavagem cor=\{par\.cima\} \/>/, 'na barra, a primeira cor já inteira');
+  assert.match(ler('src/components/FundoDasPaginas.tsx'), /transition=\{imediato \? null : 300\}/);
 });
 
 console.log(falhas ? `\n  ${falhas} caso(s) falharam.\n` : '\n  Todos os casos passaram.\n');

@@ -7,6 +7,7 @@ import { FUNDO_APARECE_EM, geometriaDoTitulo } from '../lib/tituloQueEncolhe';
 import { colors, spacing, type } from '../theme';
 import { fonteDosTitulos } from '../lib/aparencia';
 import { useAparencia } from '../state/aparencia';
+import { FundoDasPaginas } from './FundoDasPaginas';
 
 /**
  * O título que encolhe ao rolar (3/10, variante B). O ecrã cria-o com
@@ -201,7 +202,7 @@ type Caixa = { x: number; y: number; width: number; height: number };
 function ScreenQueEncolhe({ title, subtitle, right, topLeft, onBack, antes, children, style, fixo, cab }: Props & { cab: CabecalhoQueEncolhe }) {
   const insets = useSafeAreaInsets();
   const fonte = fonteDosTitulos(useAparencia((s) => s.titulos));
-  const { width } = useWindowDimensions();
+  const { width, height: alturaDoEcra } = useWindowDimensions();
   const [linha, setLinha] = useState<Caixa | null>(null);
   const [coluna, setColuna] = useState<Caixa | null>(null);
   const [titulo, setTitulo] = useState<Caixa | null>(null);
@@ -245,6 +246,8 @@ function ScreenQueEncolhe({ title, subtitle, right, topLeft, onBack, antes, chil
       : 1;
     return {
       sobe: p.interpolate({ inputRange: [0, 1], outputRange: [0, -(g?.distancia ?? 0)] }),
+      // O fundo da barra fica preso ao ecrã enquanto ela sobe (o contrário do `sobe`).
+      preso: p.interpolate({ inputRange: [0, 1], outputRange: [0, g?.distancia ?? 0] }),
       dx: p.interpolate({ inputRange: [0, 1], outputRange: [0, g?.dx ?? 0] }),
       dy: p.interpolate({ inputRange: [0, 1], outputRange: [0, g?.dy ?? 0] }),
       escala,
@@ -261,12 +264,16 @@ function ScreenQueEncolhe({ title, subtitle, right, topLeft, onBack, antes, chil
       <View style={[{ flex: 1 }, style]}>{children}</View>
 
       <View pointerEvents="box-none" style={styles.sobre} onLayout={(e) => cab.definirEspaco(e.nativeEvent.layout.height)}>
-        {/* O fundo da barra: transparente parado no topo (como hoje), e desfocado
-            mal haja conteúdo por baixo. Sobe com o resto. */}
+        {/* O fundo da barra: transparente parado no topo (como hoje), e OPACO mal
+            haja conteúdo por baixo (28/11, João: "deve estar opaco"; o desfoque
+            com 72% de tinta deixava ler a lista por baixo). É o fundo das páginas
+            (`FundoDasPaginas`), do tamanho do ecrã e preso a ele enquanto a barra
+            sobe: tapa o que rola e não se distingue do fundo à volta. */}
         <Animated.View pointerEvents="none"
-          style={[StyleSheet.absoluteFill, { opacity: anim.fundo, transform: [{ translateY: anim.sobe }] }]}>
-          <BlurView tint="dark" intensity={50} style={StyleSheet.absoluteFill} />
-          <View style={[StyleSheet.absoluteFill, styles.tinta]} />
+          style={[StyleSheet.absoluteFill, styles.fundoOpaco, { opacity: anim.fundo, transform: [{ translateY: anim.sobe }] }]}>
+          <Animated.View style={[styles.fundoDoEcra, { height: alturaDoEcra, transform: [{ translateY: anim.preso }] }]}>
+            <FundoDasPaginas imediato />
+          </Animated.View>
           <Animated.View style={[styles.fio, { opacity: anim.fio }]} />
         </Animated.View>
 
@@ -347,6 +354,9 @@ const styles = StyleSheet.create({
   },
   sobre: { position: 'absolute', top: 0, left: 0, right: 0 },
   tinta: { backgroundColor: 'rgba(6,6,8,0.72)' },
+  // O preto por baixo do fundo das páginas, como no `RootNavigator`.
+  fundoOpaco: { backgroundColor: '#000', overflow: 'hidden' },
+  fundoDoEcra: { position: 'absolute', top: 0, left: 0, right: 0 },
   fio: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
     height: StyleSheet.hairlineWidth, backgroundColor: colors.border,

@@ -226,7 +226,8 @@ for (const [opcao, padrao] of [
 ] as const) assert.match(leitor, padrao, `o leitor lê "${opcao}"`);
 assert.match(ler('src/components/CapaFlutuante3D.tsx'), /!foreground \|\| !aFlutuar\) return;/, 'parar de flutuar pára a animação');
 assert.match(ler('src/components/ProgressBar.tsx'), /grossa && styles\.trackGrossa/);
-assert.match(ler('src/navigation/RootNavigator.tsx'), /fundoApp === 'oled' \? '#000'/, 'o fundo OLED');
+assert.match(ler('src/components/FundoDasPaginas.tsx'), /fundoApp === 'oled' \? '#000'/, 'o fundo OLED');
+assert.match(ler('src/navigation/RootNavigator.tsx'), /fundoApp === 'oled' \? '#000'/, 'as folhas no OLED');
 assert.match(ler('src/navigation/BarraDeSeparadores.tsx'), /\{rotulos \? <Text/, 'os rótulos da barra');
 assert.match(ler('src/components/TrackRow.tsx'), /compacta && styles\.artworkCompacta/, 'as listas compactas');
 for (const f of ['src/screens/SongsScreen.tsx', 'src/screens/PrateleiraScreen.tsx']) {

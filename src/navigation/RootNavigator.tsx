@@ -28,7 +28,6 @@ import {
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { BarraDeSeparadores } from './BarraDeSeparadores';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Image } from 'expo-image';
 import React, { useEffect, useMemo } from 'react';
 import { Animated, StyleSheet, View, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { veuDoFundo } from '../state/transicaoDoLeitor';
@@ -42,7 +41,7 @@ import { FolhaDoOutroAparelho } from '../components/OutroAparelho';
 import { PlayerRoot } from '../components/PlayerRoot';
 import { PreEscutaDoRefrao } from '../components/PreEscutaDoRefrao';
 import { Doca } from '../components/Doca';
-import { FundoDaMusica } from '../components/FundoDaMusica';
+import { FundoDasPaginas } from '../components/FundoDasPaginas';
 import { atualizarDoca } from '../state/doca';
 import { ArtistsScreen } from '../screens/ArtistsScreen';
 import { AuthScreen } from '../screens/AuthScreen';
@@ -515,31 +514,9 @@ export function RootNavigator() {
                 encolhe quando ele abre nem cresce quando fecha -- só escurece
                 (o véu de baixo). Encolhida, deixava ver o que estava por trás. */}
             <Animated.View style={{ flex: 1, overflow: 'hidden', borderRadius: gaveta.raio, transform: [{ translateX: gaveta.deslize }] }}>
-            {/* Imagem de fundo abstrata global (renderizada apenas uma vez na app inteira) */}
-            {/* O desfoque vem na PRÓPRIA imagem, calculado uma vez quando ela
-                carrega. Era um BlurView de ecrã inteiro por cima dela: um
-                desfoque ao vivo que o iPhone recalculava sempre que alguma
-                coisa mexia no ecrã (a capa a flutuar, as listas a deslizar), e
-                que quase não se via -- está tapado a 88% pela camada preta. */}
-            {/* Com o fundo OLED (10/10, personalização) não há imagem: preto puro. */}
-            {fundoApp === 'dark' ? <Image
-              source={require('../../assets/login_bg.png')}
-              style={StyleSheet.absoluteFill}
-              contentFit="cover"
-              transition={300}
-              blurRadius={12}
-            /> : null}
-
-            {/* Camada preta semi-transparente para alto contraste e legibilidade */}
-            <View
-              style={[
-                StyleSheet.absoluteFill,
-                { backgroundColor: fundoApp === 'oled' ? '#000' : 'rgba(6, 6, 8, 0.88)' }
-              ]}
-            />
-            {/* A cor da capa que toca a lavar o topo das páginas (27/11, opção da Customise). */}
-            <FundoDaMusica />
-
+            {/* O fundo das páginas (a imagem desfocada, a camada escura e a cor da
+                música): o mesmo que a barra de cima delas tapa ao rolar. */}
+            <FundoDasPaginas />
             <Stack.Navigator screenOptions={stackScreenOptions} screenLayout={envolverEcra}>
               <Stack.Screen name="Tabs" component={Tabs} />
               {/* A fila numa folha NATIVA (3/10): abre a meio e sobe toda; a

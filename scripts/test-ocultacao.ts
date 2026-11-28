@@ -181,7 +181,7 @@ caso('iPhone: no leitor aberto (só com a capa à frente, não no Poster) e no m
   assert.match(l, /const ocultacao = useOcultacao\(\{\n\s+chave: transicao\?\.chave \?\? null, sentido: transicao\?\.sentido === -1 \? -1 : 1, lado: size, capa: artSource,\n\s+corDe: track\.artworkUrl \?\? null, ligada: aVista && !showLyrics && !capaDaFrente,/);
   assert.match(l, /<DiscoDaOcultacao passagem=\{ocultacao\} capa=\{artSource\}><CapaComTransicao uri=\{artSource\}/);
   assert.equal((l.match(/<OcultacaoDaCapa/g) ?? []).length, 1, 'o mini; o leitor aberto usa o disco com a passagem da capa');
-  assert.match(l, /ligada=\{!origemDaEntrada\}/, 'no mini, não no pouso de uma música vinda de uma lista');
+  assert.match(l, /ligada=\{!origemDaEntrada && !aberto\}/, 'no mini, não no pouso de uma música vinda de uma lista, nem com o leitor aberto');
 });
 
 console.log('\no Eclipse do modo limpo (25/11)');
