@@ -235,9 +235,29 @@ function abafado(volume: number): number {
   return volume > 0 ? Math.max(1, Math.round(volume * abafoDoRefrao())) : 0;
 }
 
+/**
+ * Onde o `YT.Player` se instala (28/11): uma `<div>` criada aqui, DENTRO da caixa
+ * que o React desenhou. O `YT.Player` troca o alvo pelo iframe dele, e o alvo era a
+ * `<div>` do próprio React: quando este leitor saía de cena (no Tauri ele é o
+ * recurso de uma música que o motor só de áudio não tocou, e a seguinte volta ao
+ * motor), o React tentava tirar uma `<div>` que já lá não estava -- o "NotFoundError:
+ * The node to be removed is not a child of this node" do painel de saúde, apanhado
+ * pela barreira do leitor. A caixa é sempre filha de quem o React pensa que é.
+ */
+function alvoNaCaixa(caixa: HTMLDivElement | null, id: string): HTMLElement | string {
+  if (!caixa) return id;
+  const alvo = document.createElement('div');
+  alvo.id = id;
+  caixa.appendChild(alvo);
+  return alvo;
+}
+
 export function YouTubePlayerView({ track }: { track: Track }) {
   const hostA = useRef(`duotone-player-${Math.random().toString(36).slice(2)}`);
   const hostB = useRef(`duotone-player-${Math.random().toString(36).slice(2)}`);
+  /** As caixas do React onde os dois players se instalam (`alvoNaCaixa`). */
+  const caixaA = useRef<HTMLDivElement | null>(null);
+  const caixaB = useRef<HTMLDivElement | null>(null);
   /** O player que representa a faixa da loja. */
   const ativoRef = useRef<any>(null);
   /** O outro: nasce com o primeiro crossfade e prepara a seguinte. */
@@ -440,7 +460,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (esperaRef.current || aCriarEsperaRef.current || !window.YT?.Player) return;
     aCriarEsperaRef.current = true;
     // eslint-disable-next-line no-new
-    new window.YT.Player(hostB.current, {
+    new window.YT.Player(alvoNaCaixa(caixaB.current, hostB.current), {
       host: 'https://www.youtube-nocookie.com',
       height: '1',
       width: '1',
@@ -721,7 +741,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
 
     const mount = () => {
       if (disposed || !window.YT?.Player) return;
-      player = new window.YT.Player(hostA.current, {
+      player = new window.YT.Player(alvoNaCaixa(caixaA.current, hostA.current), {
         // O mesmo player, servido do dominio sem cookies de publicidade. A app
         // do PC fica horas aberta, e o embed normal ia deixando esse rasto
         // dentro dela. O `main.cjs` ja procura os frames por
@@ -1000,8 +1020,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
 
   return (
     <>
-      <div id={hostA.current} style={{ position: 'absolute', width: 1, height: 1, opacity: 0 }} />
-      <div id={hostB.current} style={{ position: 'absolute', width: 1, height: 1, opacity: 0 }} />
+      {/* Sem opacidade 0 na caixa: o iframe que trocava a <div> antiga ficava à vista
+          (1x1), e escondido o navegador e o YouTube podem travá-lo. */}
+      <div ref={caixaA} style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden' }} />
+      <div ref={caixaB} style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden' }} />
     </>
   );
 }

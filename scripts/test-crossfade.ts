@@ -207,4 +207,16 @@ console.log('Crossfade: condições, momento, curva de igual potência e interru
     'a curva nunca manda volume 0 à que entra');
   assert.match(motor, /crossfade start was loud \(PC\)/, 'e o relatório diz se ela entrou alta');
   console.log('Crossfade no PC: a preparada fica calada até a passagem começar, e começa baixa.');
+
+  // Os dois players instalam-se numa <div> criada DENTRO da caixa do React (28/11): o
+  // YT.Player troca o alvo pelo iframe, e com o alvo a ser a <div> do React, sair de
+  // cena (a faixa seguinte volta ao motor só de áudio) dava "NotFoundError ... not a
+  // child of this node" na barreira do leitor (o painel de saúde, Windows 7.1.0 e 7.2.8).
+  assert.match(motor, /new window\.YT\.Player\(alvoNaCaixa\(caixaB\.current, hostB\.current\), \{/);
+  assert.match(motor, /player = new window\.YT\.Player\(alvoNaCaixa\(caixaA\.current, hostA\.current\), \{/);
+  assert.doesNotMatch(motor, /new window\.YT\.Player\(host[AB]\.current,/, 'nunca a <div> do React como alvo');
+  assert.match(motor, /<div ref=\{caixaA\} style=\{\{ position: 'absolute', width: 1, height: 1, overflow: 'hidden' \}\} \/>/);
+  assert.doesNotMatch(motor, /<div id=\{host[AB]\.current\}/);
+  assert.match(motor, /const alvo = document\.createElement\('div'\);\n\s+alvo\.id = id;\n\s+caixa\.appendChild\(alvo\);/);
+  console.log('Leitor de recurso do PC: o iframe do YouTube fica dentro de uma caixa do React, e sair de cena não rebenta.');
 }
