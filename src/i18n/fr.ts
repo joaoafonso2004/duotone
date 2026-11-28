@@ -2625,4 +2625,15 @@ export const FR: Readonly<Record<string, string>> = {
   "Show all {0} settings": "Afficher tous les réglages {0}",
   "Show fewer {0} settings": "Afficher moins de réglages {0}",
   "{0}, in {1}": "{0}, dans {1}",
+  // O About do iPhone com o que o PC mostra (28/11).
+  "Play from here": "Lire à partir d'ici",
+  "Play from the chorus, at {0}": "Lire à partir du refrain, à {0}",
+  "play of theirs": "écoute de cet artiste",
+  "plays of theirs": "écoutes de cet artiste",
+  "song in your library": "titre dans votre bibliothèque",
+  "songs in your library": "titres dans votre bibliothèque",
+  "{0} plays": "{0} écoutes",
+  "Add to your favourite artists": "Ajouter à vos artistes favoris",
+  "Remove from your favourite artists": "Retirer de vos artistes favoris",
+  "Go to artist, {0}": "Aller à l'artiste, {0}",
 };
