@@ -179,7 +179,8 @@ caso('a linha da música dentro da cápsula, e a capa que voa parte do sítio no
   const leitor = ler('src/components/PlayerRoot.tsx');
   assert.match(leitor, /x: vidro \? MUSICA_NO_VIDRO\.margem \+ MUSICA_NO_VIDRO\.dentro : 16,/);
   assert.match(leitor, /styles\.mini,\n\s+vidro && styles\.miniNoVidro,/);
-  assert.match(leitor, /capsulaDosBotoes: \{ marginHorizontal: 28, borderRadius: 26, borderCurve: 'continuous', paddingVertical: 4 \}/, 'a cápsula dos botões sem overflow');
+  // Os botões de baixo do leitor soltos, sem a cápsula de vidro (28/11: "um retângulo que não pedi").
+  assert.doesNotMatch(leitor, /capsulaDosBotoes|<Vidro /, 'sem o retângulo à volta dos botões');
   const outro = ler('src/components/OutroAparelho.tsx');
   assert.match(outro, /style=\{\[estilos\.mini, vidro && estilos\.miniNoVidro,/);
 });

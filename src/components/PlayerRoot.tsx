@@ -76,7 +76,7 @@ import { lyricsCacheKey, useLyrics } from '../state/lyrics';
 import { ROTULO_DO_JAM, rotuloDaOrigem } from '../lib/origemDaFila';
 import { trackKey as chaveDaFaixaNaFila } from '../lib/shuffle';
 import { dedoDoMini as dedoDoMiniPartilhado, deslizeDoMini, deslizeDoMiniVisto, desvioDaMusica, useDoca } from '../state/doca';
-import { useVidro, Vidro } from './Vidro';
+import { useVidro } from './Vidro';
 import { pedirFluidez, segurarFluidez } from '../state/fluidez';
 import { posicoesDaDoca } from '../lib/doca';
 import { MUSICA_NO_VIDRO } from '../lib/vidroDaBase';
@@ -2017,22 +2017,14 @@ export function PlayerRoot() {
               </Toque>
             ) : null}
 
-            {/* Com o Liquid Glass (27/11), os botões de baixo numa cápsula de vidro. */}
-            {vidro ? (
-              <Vidro style={styles.capsulaDosBotoes}>
-                <PlayerControlRow>
-                  <View />
-                  {ap.botoes.map(botaoDeBaixo)}
-                  <View />
-                </PlayerControlRow>
-              </Vidro>
-            ) : (
-              <PlayerControlRow>
-                <View />
-                {ap.botoes.map(botaoDeBaixo)}
-                <View />
-              </PlayerControlRow>
-            )}
+            {/* Os botões de baixo soltos, também com o Liquid Glass (28/11, o João: "um
+                retângulo que não gosto nada, eu não pedi"). A cápsula de vidro à volta
+                deles saiu. */}
+            <PlayerControlRow>
+              <View />
+              {ap.botoes.map(botaoDeBaixo)}
+              <View />
+            </PlayerControlRow>
           </Animated.View>
         </ScrollView>
       </Animated.View>
@@ -2833,9 +2825,6 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     backgroundColor: colors.surfaceHigh,
   },
-  // A cápsula de vidro dos botões de baixo (o Liquid Glass, 27/11).
-  // O raio no próprio vidro, sem `overflow`: cortado, o vidro perde o rebordo.
-  capsulaDosBotoes: { marginHorizontal: 28, borderRadius: 26, borderCurve: 'continuous', paddingVertical: 4 },
   // A linha da música na cápsula de vidro dela (o Liquid Glass, `lib/vidroDaBase.ts`):
   // as margens da cápsula, e o arredondado corta a barra de progresso nas pontas.
   miniNoVidro: { left: MUSICA_NO_VIDRO.margem, right: MUSICA_NO_VIDRO.margem, height: MUSICA_NO_VIDRO.altura, borderRadius: MUSICA_NO_VIDRO.altura / 2, borderCurve: 'continuous' },
