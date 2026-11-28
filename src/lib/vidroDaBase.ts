@@ -63,15 +63,71 @@ export function selecaoDoVidro(larguraDaCapsula: number, quantos: number, altura
 }
 
 /**
- * A linha da música dentro da cápsula dela: as margens das cápsulas, e a capa
- * mais para dentro, longe da curva (uma cápsula de 64 pt tem os lados em
- * semicírculo de 32: a capa a 16 pt da borda tocava-lhe).
+ * A linha da música dentro da cápsula dela (refeita a 28/11, screenshot 4 do
+ * João: "os cantos da capa devem ser arredondados, e a capa está maior que a
+ * barra de baixo"). A cápsula da música era da altura da dos separadores (64 e
+ * 62 pt) e a capa (48 pt) enchia-a quase toda, com cantos de ~1 pt. Agora, como o
+ * "bottom accessory" do iOS 26, mais baixa do que a barra: 56 pt, a capa com 40 e
+ * cantos de 10, a 8 pt da borda (concêntrica com a ponta da cápsula: longe da
+ * curva). A barra de progresso começa onde começa o texto, sem passar por baixo da
+ * capa, e acaba longe da ponta da direita.
  */
 export const MUSICA_NO_VIDRO = {
   margem: VIDRO_DA_BASE.margem,
-  /** Da borda da cápsula à capa. */
-  dentro: 12,
-  /** A barra de progresso fica longe dos semicírculos das pontas. */
-  progressoLados: 24,
-  progressoFundo: 5,
+  /** A altura da cápsula da música (a dos separadores tem 62). */
+  altura: 56,
+  /** O lado da capa, e o raio dos cantos dela. */
+  capa: 40,
+  raioDaCapa: 10,
+  /** Da borda da cápsula à capa: (56 - 40) / 2, a mesma em cima, em baixo e à esquerda. */
+  dentro: 8,
+  /** A barra de progresso: onde começa o texto (8 + 40 + 10), e longe da ponta da direita. */
+  progressoEsquerda: 58,
+  progressoDireita: 24,
+  progressoFundo: 6,
 } as const;
+
+/**
+ * O fundo por baixo do vidro, pela opacidade da Customise (0 a 100, 28/11): o
+ * preto da app com essa opacidade, ou nada a 0. O vidro mostra-o com o rebordo e a
+ * refração por cima, e a 100 fica uma cápsula escura.
+ */
+export function fundoDoVidro(opacidade: number): string | null {
+  const o = Math.min(100, Math.max(0, Number.isFinite(opacidade) ? Math.round(opacidade) : 0));
+  return o > 0 ? `rgba(6,6,8,${o / 100})` : null;
+}
+
+/**
+ * A barra de separadores nativa (28/11): a `UITabBar` do iOS 26, com a lente de
+ * vidro que se arrasta de separador para separador (as screenshots 1 a 3 do João:
+ * parada, a segurar, a arrastar). Os ícones são símbolos do sistema: o contorno e,
+ * no escolhido, o cheio.
+ */
+export const SIMBOLOS_DOS_SEPARADORES: Record<string, readonly [string, string]> = {
+  Search: ['house', 'house.fill'],
+  Songs: ['heart', 'heart.fill'],
+  Artists: ['music.mic', 'music.mic'],
+  Playlists: ['square.stack', 'square.stack.fill'],
+  Profile: ['person', 'person.fill'],
+};
+
+/** As rotas com botão: o Social não tem (chega-se lá a deslizar para lá do Perfil). */
+export function rotasComBotao<R extends { name: string }>(rotas: readonly R[]): R[] {
+  return rotas.filter((r) => r.name !== 'Social');
+}
+
+/** Que botão da barra está escolhido, para a rota `indice` (-1 no Social: nenhum). */
+export function botaoEscolhido(rotas: readonly { key: string; name: string }[], indice: number): number {
+  const rota = rotas[indice];
+  if (!rota) return -1;
+  return rotasComBotao(rotas).findIndex((r) => r.key === rota.key);
+}
+
+/**
+ * O que o resto da app conta por cima do `insets.bottom` com a barra nativa: a
+ * altura dela, que já inclui o fundo do ecrã (o indicador de casa e o espaço por
+ * baixo da cápsula).
+ */
+export function separadoresDaBarraNativa(alturaDaBarra: number, fundoSeguro: number): number {
+  return Math.max(0, Math.round(alturaDaBarra - fundoSeguro));
+}

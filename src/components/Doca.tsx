@@ -6,9 +6,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { comAlfa, posicoesDaDoca, ZONA_DA_MUSICA } from '../lib/doca';
 import { molaIOS } from '../lib/transicaoDoLeitor';
-import { geometriaDoVidro, MUSICA_NO_VIDRO, VIDRO_DA_BASE } from '../lib/vidroDaBase';
-import { MINI_PLAYER_HEIGHT } from '../theme';
-import { IconesDosSeparadores, SelecaoDoVidro } from '../navigation/BarraDeSeparadores';
+import { geometriaDoVidro, MUSICA_NO_VIDRO, separadoresDaBarraNativa, VIDRO_DA_BASE } from '../lib/vidroDaBase';
+import { IconesDosSeparadores, SelecaoDoVidro, SeparadoresDoSistema, temSeparadoresDoSistema } from '../navigation/BarraDeSeparadores';
 import { definirAlturaDosSeparadores, desvioDaMusica, desvioDoVidro, desvioDosIcones, useAlturaDosSeparadores, useDoca } from '../state/doca';
 import { pedirFluidez } from '../state/fluidez';
 import { usePlayer } from '../state/player';
@@ -74,12 +73,19 @@ export function Doca() {
   // separadores e a da música, cada uma com o vidro do sistema e a sua forma (o
   // raio no próprio vidro, sem vista de fora a cortá-lo: cortado, perde o rebordo).
   const vidro = useVidro();
+  // Os separadores na barra do sistema, a `UITabBar` com a lente de vidro (28/11):
+  // em todo o binário que tem o módulo. Sem ele, a cápsula em JavaScript da 7.3.0.
+  const nativa = vidro && temSeparadoresDoSistema;
+  const [alturaNativa, setAlturaNativa] = useState(0);
   const [linha, setLinha] = useState(0);
   const [larguraDaCapsula, setLarguraDaCapsula] = useState(0);
   const geo = geometriaDoVidro(insets.bottom, linha);
   // A altura que o resto da app conta (o fim das listas, a linha da música, os
   // avisos) passa a ser a da cápsula: tudo fica por cima dela.
-  useEffect(() => { if (vidro && linha > 0) definirAlturaDosSeparadores(geo.separadores); }, [vidro, linha, geo.separadores]);
+  useEffect(() => { if (vidro && !nativa && linha > 0) definirAlturaDosSeparadores(geo.separadores); }, [vidro, nativa, linha, geo.separadores]);
+  useEffect(() => {
+    if (nativa && alturaNativa > 0) definirAlturaDosSeparadores(separadoresDaBarraNativa(alturaNativa, insets.bottom));
+  }, [nativa, alturaNativa, insets.bottom]);
   const musicaNoVidro = useRef(new Animated.Value(temMusica ? 1 : 0)).current;
   useEffect(() => {
     if (!vidro || reduzido) { musicaNoVidro.setValue(temMusica ? 1 : 0); return; }
@@ -97,7 +103,7 @@ export function Doca() {
         <Animated.View pointerEvents="none" style={[styles.capsulaDaMusica, {
           bottom: alturaDosSeparadores + insets.bottom + 4, opacity: musicaNoVidro, transform: [{ translateY: desvioDaMusica }],
         }]}>
-          <Vidro style={[StyleSheet.absoluteFill, { borderRadius: MINI_PLAYER_HEIGHT / 2 }]} />
+          <Vidro style={[StyleSheet.absoluteFill, { borderRadius: MUSICA_NO_VIDRO.altura / 2 }]} />
         </Animated.View>
       </> : (
         // Sem `pointerEvents`: o vidro engole os toques que não acertam num botão,
@@ -109,9 +115,12 @@ export function Doca() {
       )}
       <Animated.View
         pointerEvents={modo === 'separadores' ? 'box-none' : 'none'}
-        style={[styles.icones, { paddingBottom: vidro ? geo.fundo : insets.bottom, transform: [{ translateY: desvioDosIcones }] }]}
+        style={[styles.icones, { paddingBottom: nativa ? 0 : vidro ? geo.fundo : insets.bottom, transform: [{ translateY: desvioDosIcones }] }]}
       >
-        {vidro ? (
+        {nativa ? (
+          // A barra do sistema já conta com o fundo do ecrã (o indicador de casa).
+          separadores ? <SeparadoresDoSistema state={separadores.state} navigation={separadores.navigation} altura={alturaNativa} aoMedir={setAlturaNativa} /> : null
+        ) : vidro ? (
           // A cápsula dos separadores: o vidro, a cápsula do escolhido e os ícones.
           // Engole os toques que não acertam num ícone.
           <View style={[styles.capsulaDosSeparadores, { height: geo.altura }]} onLayout={(e) => setLarguraDaCapsula(e.nativeEvent.layout.width)}>
@@ -178,7 +187,7 @@ const styles = StyleSheet.create({
   tinta: { backgroundColor: 'rgba(6,6,8,0.74)' },
   // O Liquid Glass (`lib/vidroDaBase.ts`).
   capsulaDaMusica: {
-    position: 'absolute', left: MUSICA_NO_VIDRO.margem, right: MUSICA_NO_VIDRO.margem, height: MINI_PLAYER_HEIGHT,
+    position: 'absolute', left: MUSICA_NO_VIDRO.margem, right: MUSICA_NO_VIDRO.margem, height: MUSICA_NO_VIDRO.altura,
   },
   capsulaDosSeparadores: { marginHorizontal: VIDRO_DA_BASE.margem, justifyContent: 'center' },
   linhaNoVidro: { paddingHorizontal: VIDRO_DA_BASE.folgaDaLinha },

@@ -240,7 +240,7 @@ assert.match(ler('src/state/aparencia.ts'), /AsyncStorage/);
 assert.match(leitor, /ap\.fundoLeitor === 'gradiente' \? <FundoEmGradiente uri=\{fundo\?\.uri \?\? null\} animar=\{aberto\} \/>/, 'o fundo em gradiente');
 assert.match(leitor, /const capaInteira = Platform\.OS === 'ios' && estiloDaCapaCarregado && estiloDaCapa === 'full'/, 'a capa Full');
 assert.match(leitor, /\? Math\.min\(W, Math\.max\(96, H - insets\.top - insets\.bottom - HEADER_H - RESERVA_COM_A_CAPA_INTEIRA/, 'a toda a largura');
-assert.match(leitor, /outputRange: \[8, capaInteira \? 0 : 20\]/, 'sem cantos');
+assert.match(leitor, /outputRange: \[raioDaMolduraNoMini, capaInteira \? 0 : 20\]/, 'sem cantos');
 assert.match(leitor, /raio=\{capaFlutuante \? CAPA_FLUTUANTE\.raio : capaInteira \? 0 : 20\}/);
 assert.match(leitor, /sombra: capaFlutuante \? 0 : capaInteira \|\| capaPoster \? 0 :/, 'sem sombra');
 assert.match(leitor, /const capaPoster = Platform\.OS === 'ios' && estiloDaCapaCarregado && estiloDaCapa === 'poster'/, 'o Poster');

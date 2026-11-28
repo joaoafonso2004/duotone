@@ -1,6 +1,7 @@
 import React from 'react';
-import { Platform, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
+import { fundoDoVidro } from '../lib/vidroDaBase';
 import { useAparencia } from '../state/aparencia';
 
 /**
@@ -25,15 +26,31 @@ export function useVidro(): boolean {
 }
 
 /**
- * Uma peça de vidro: o fundo de quem a usa (os filhos vão por cima). `clear`, o
- * vidro transparente: vê-se o que passa por baixo, como na maquete
- * (`docs/personalizar-ao-vivo-maquete.html`). A 7.3.0 usava o `regular`, que no
- * escuro fica fosco e cinzento ("é suposto não ser transparente?", 28/11). O
- * `dark` só o escurece um pouco, para os nomes se lerem por cima das capas.
+ * Uma peça de vidro: o fundo de quem a usa (os filhos vão por cima).
+ *
+ * O vidro é o `clear`, o transparente, como na maquete
+ * (`docs/personalizar-ao-vivo-maquete.html`); escuro porque a app é escura (o
+ * claro lava de branco o que mostra, e lia-se leitoso). O quanto se vê através é
+ * do João (28/11): a opacidade da Customise põe um fundo escuro POR BAIXO do vidro
+ * (`fundoDoVidro`), e o vidro mostra-o com o rebordo e a refração por cima. Por
+ * baixo e não por cima: por cima tapava o rebordo.
+ *
+ * O raio vai no próprio vidro e no fundo, nunca numa vista de fora com `overflow`
+ * (cortado, o vidro perde o rebordo).
  */
 export function Vidro({ style, children, interativo = false }: {
   style?: StyleProp<ViewStyle>; children?: React.ReactNode; interativo?: boolean;
 }) {
+  const opacidade = useAparencia((s) => s.opacidadeDoVidro);
   if (!temLiquidGlass) return <View style={style}>{children}</View>;
-  return <GlassView glassEffectStyle="clear" colorScheme="dark" isInteractive={interativo} style={style}>{children}</GlassView>;
+  const raio = StyleSheet.flatten(style)?.borderRadius;
+  const forma = { borderRadius: raio, borderCurve: 'continuous' as const };
+  const fundo = fundoDoVidro(opacidade);
+  return (
+    <View style={style}>
+      {fundo ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, forma, { backgroundColor: fundo }]} /> : null}
+      <GlassView glassEffectStyle="clear" colorScheme="dark" isInteractive={interativo} style={[StyleSheet.absoluteFill, forma]} />
+      {children}
+    </View>
+  );
 }

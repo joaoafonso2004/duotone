@@ -1176,16 +1176,26 @@ export function PlayerRoot() {
     ? Math.min(W, Math.max(96, H - insets.top - insets.bottom - HEADER_H - RESERVA_COM_A_CAPA_INTEIRA * Math.min(fontScale, 1.4)))
     : Math.min(W - MARGEM_DA_CAPA, H * 0.42,
       Math.max(96, H - insets.top - insets.bottom - HEADER_H - RESERVA_DOS_CONTROLOS * Math.min(fontScale, 1.4)));
+  // Com o Liquid Glass, a linha da música vive numa cápsula mais baixa, com
+  // margens, e a capa é mais pequena e mais para dentro (28/11, `lib/vidroDaBase.ts`):
+  // a capa que voa parte dali.
+  const alturaDoMini = vidro ? MUSICA_NO_VIDRO.altura : MINI_PLAYER_HEIGHT;
+  const ladoDaCapaNoMini = vidro ? MUSICA_NO_VIDRO.capa : 48;
   const vidMini = {
-    // Com o Liquid Glass, a linha da música vive numa cápsula com margens (27/11,
-    // `lib/vidroDaBase.ts`), e a capa fica mais para dentro: a capa que voa parte dali.
     x: vidro ? MUSICA_NO_VIDRO.margem + MUSICA_NO_VIDRO.dentro : 16,
     y: keyboardVisible && !expanded
       ? H + 500
-      : H - miniBottom - MINI_PLAYER_HEIGHT + (MINI_PLAYER_HEIGHT - 48) / 2,
-    w: 48,
-    h: 48,
+      : H - miniBottom - alturaDoMini + (alturaDoMini - ladoDaCapaNoMini) / 2,
+    w: ladoDaCapaNoMini,
+    h: ladoDaCapaNoMini,
   };
+  /**
+   * O raio da moldura no mini, em pontos da capa GRANDE (28/11). A moldura tem
+   * sempre o tamanho da grande e vai ao mini por escala: os 8 de antes, encolhidos
+   * para o mini, davam cantos de ~1 pt (a screenshot 4 do João). Assim, no mini, os
+   * cantos ficam com o raio da capa do mini (10 no vidro, 8 sem ele).
+   */
+  const raioDaMolduraNoMini = (vidro ? MUSICA_NO_VIDRO.raioDaCapa : radii.sm) * (ART_FULL / ladoDaCapaNoMini);
   const vidFull = {
     x: (W - ART_FULL) / 2,
     y: insets.top + 6 + HEADER_H + AR_ACIMA_DA_CAPA,
@@ -1297,7 +1307,7 @@ export function PlayerRoot() {
         outputRange: origemDaEntrada ? [1, 1, 1, 0] : [1, 1, 0],
         extrapolate: 'clamp',
       }) : null,
-      moldura: { borderRadius: animRaio.interpolate({ inputRange: [0, 1], outputRange: [8, capaInteira ? 0 : 20] }) },
+      moldura: { borderRadius: animRaio.interpolate({ inputRange: [0, 1], outputRange: [raioDaMolduraNoMini, capaInteira ? 0 : 20] }) },
       miniTransform: [
         { translateX: reducedMotion ? 0 : dragXVisto },
         { translateY: Animated.add(miniSubir, desvioDaMusica) },
@@ -1308,7 +1318,7 @@ export function PlayerRoot() {
   };
   const chaveDosNos = [
     origemDaEntrada ? `${origemDaEntrada.x},${origemDaEntrada.y},${origemDaEntrada.largura},${origemDaEntrada.altura}` : '-',
-    vidFull.x, vidFull.y, vidFull.w, vidMini.x, vidMini.y, W, H,
+    vidFull.x, vidFull.y, vidFull.w, vidMini.x, vidMini.y, vidMini.w, W, H,
     aberto, reducedMotion, capaFlutuante, capaInteira, capaPoster,
   ].join('|');
   if (nosRef.current?.chave !== chaveDosNos) nosRef.current = { chave: chaveDosNos, nos: criarNos() };
@@ -2031,15 +2041,15 @@ export function PlayerRoot() {
           <Pressable style={[styles.miniInner, vidro && styles.miniInnerNoVidro]} onPress={() => {if(!swiping.current)setExpanded(true);}}>
             {isYt ? (
               // slot — o WebView flutua exatamente por cima desta área
-              <View style={styles.miniVideoSlot} />
+              <View style={[styles.miniVideoSlot, vidro && styles.miniArtNoVidro]} />
             ) : current.artworkUrl ? (
               <Image
                 source={{ uri: current.artworkUrl }}
-                style={styles.miniArt}
+                style={[styles.miniArt, vidro && styles.miniArtNoVidro]}
                 contentFit="cover"
               />
             ) : (
-              <View style={[styles.miniArt, styles.artFallback]}>
+              <View style={[styles.miniArt, vidro && styles.miniArtNoVidro, styles.artFallback]}>
                 <Ionicons name="musical-notes" size={16} color={colors.textTertiary} />
               </View>
             )}
@@ -2116,7 +2126,7 @@ export function PlayerRoot() {
             right: spacing.xl,
             // Solta, com folga: um aviso que passa não é uma peça do leitor.
             // Por cima do vidro da base, e desce com ela.
-            bottom: miniBottom + (current ? MINI_PLAYER_HEIGHT + 4 : 0) + spacing.sm,
+            bottom: miniBottom + (current ? alturaDoMini + 4 : 0) + spacing.sm,
             gap: 6,
             transform: [{ translateY: desvioDaMusica }],
           }}
@@ -2288,7 +2298,7 @@ export function PlayerRoot() {
       {/* ===================== TOAST DE ERRO ===================== */}
       {aviso ? (
         <View
-          style={[styles.toast, { bottom: miniBottom + MINI_PLAYER_HEIGHT + 10 }]}
+          style={[styles.toast, { bottom: miniBottom + alturaDoMini + 10 }]}
         >
           <Ionicons name="alert-circle" size={16} color={colors.danger} />
           <View style={{ flex: 1, gap: aviso.accoes.length ? 8 : 0 }}>
@@ -2792,9 +2802,11 @@ const styles = StyleSheet.create({
   capsulaDosBotoes: { marginHorizontal: 28, borderRadius: 26, borderCurve: 'continuous', paddingVertical: 4 },
   // A linha da música na cápsula de vidro dela (o Liquid Glass, `lib/vidroDaBase.ts`):
   // as margens da cápsula, e o arredondado corta a barra de progresso nas pontas.
-  miniNoVidro: { left: MUSICA_NO_VIDRO.margem, right: MUSICA_NO_VIDRO.margem, borderRadius: MINI_PLAYER_HEIGHT / 2, borderCurve: 'continuous' },
+  miniNoVidro: { left: MUSICA_NO_VIDRO.margem, right: MUSICA_NO_VIDRO.margem, height: MUSICA_NO_VIDRO.altura, borderRadius: MUSICA_NO_VIDRO.altura / 2, borderCurve: 'continuous' },
   miniInnerNoVidro: { paddingLeft: MUSICA_NO_VIDRO.dentro, paddingRight: 8 },
-  miniTrackNoVidro: { left: MUSICA_NO_VIDRO.progressoLados, right: MUSICA_NO_VIDRO.progressoLados, bottom: MUSICA_NO_VIDRO.progressoFundo },
+  miniTrackNoVidro: { left: MUSICA_NO_VIDRO.progressoEsquerda, right: MUSICA_NO_VIDRO.progressoDireita, bottom: MUSICA_NO_VIDRO.progressoFundo },
+  // A capa do mini no vidro (28/11): mais pequena e de cantos redondos, como a cápsula.
+  miniArtNoVidro: { width: MUSICA_NO_VIDRO.capa, height: MUSICA_NO_VIDRO.capa, borderRadius: MUSICA_NO_VIDRO.raioDaCapa },
   // Sem fundo nem moldura (3/10): o vidro é da base (components/Doca.tsx), e a
   // linha está por cima dele. Era um cartão opaco pousado na barra.
   mini: {

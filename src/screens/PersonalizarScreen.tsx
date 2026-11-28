@@ -10,7 +10,8 @@ import { EscolherIconeDaApp } from '../components/EscolherIconeDaApp';
 import { temLiquidGlass, Vidro } from '../components/Vidro';
 import { comAlfa } from '../lib/doca';
 import type { Track } from '../types';
-import { Grupo, Linha, LinhaInterruptor } from '../components/ListaAgrupada';
+import { Grupo, Linha, LinhaAlta, LinhaInterruptor } from '../components/ListaAgrupada';
+import { Deslizador } from '../components/Deslizador';
 import { MenuFlutuante, type Ancora } from '../components/MenuFlutuante';
 import type { PlayerAction } from '../components/PlayerActionsSheet';
 import { PromptSheet } from '../components/PromptSheet';
@@ -81,7 +82,7 @@ export function PersonalizarScreen({ navigation }: Props) {
     fundoApp: s.fundoApp, listas: s.listas, rotulos: s.rotulos, topo: s.topo, titulo: s.titulo, barra: s.barra,
     play: s.play, metalNoPlay: s.metalNoPlay, controlos: s.controlos, posterImagem: s.posterImagem, posterMono: s.posterMono, botoes: s.botoes, flutuar: s.flutuar, fundoLeitor: s.fundoLeitor, brilho: s.brilho,
     titulos: s.titulos, tamanhoDasLetras: s.tamanhoDasLetras, abrirNasLetras: s.abrirNasLetras, molaNaLetra: s.molaNaLetra,
-    vidro: s.vidro, fundoDaMusica: s.fundoDaMusica,
+    vidro: s.vidro, opacidadeDoVidro: s.opacidadeDoVidro, fundoDaMusica: s.fundoDaMusica,
     secoesDaHome: s.secoesDaHome, escondidasDaHome: s.escondidasDaHome,
   })));
   const capa = useCapaIOS((s) => s.style);
@@ -301,6 +302,14 @@ export function PersonalizarScreen({ navigation }: Props) {
           {temLiquidGlass ? (
             <LinhaInterruptor icone="water-outline" rotulo="Liquid Glass" valor={ap.vidro} aoMudar={(v) => mudar('vidro', v)} />
           ) : null}
+          {/* A opacidade do vidro (28/11, pedido do João: "uma barra de ajuste de
+              opacidade"): 0 é o vidro limpo, 100 uma cápsula escura. Só com ele ligado. */}
+          {temLiquidGlass && ap.vidro ? (
+            <LinhaAlta icone="contrast-outline" rotulo="Glass opacity">
+              <Deslizador valor={ap.opacidadeDoVidro} rotulo="Glass opacity" formatar={(v) => `${v}%`}
+                aoMudar={(v) => mudar('opacidadeDoVidro', v)} />
+            </LinhaAlta>
+          ) : null}
           <LinhaInterruptor icone="color-fill-outline" rotulo="Background follows the song" valor={ap.fundoDaMusica} aoMudar={(v) => mudar('fundoDaMusica', v)} />
           {linha('fundoApp')}
           {linha('listas')}
@@ -456,7 +465,7 @@ type EcraDaPrevia = 'np' | 'home' | 'lista';
 /** Que ecrã mostra o que uma opção muda (null: nenhum, como o tamanho da letra das músicas). */
 function ecraDaOpcao(k: keyof Aparencia): EcraDaPrevia | null {
   if (k === 'listas') return 'lista';
-  if (k === 'fundoApp' || k === 'rotulos' || k === 'vidro' || k === 'fundoDaMusica' || k === 'secoesDaHome' || k === 'escondidasDaHome') return 'home';
+  if (k === 'fundoApp' || k === 'rotulos' || k === 'vidro' || k === 'opacidadeDoVidro' || k === 'fundoDaMusica' || k === 'secoesDaHome' || k === 'escondidasDaHome') return 'home';
   if (k === 'tamanhoDasLetras' || k === 'abrirNasLetras' || k === 'molaNaLetra') return null;
   return 'np';
 }

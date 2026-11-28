@@ -815,6 +815,7 @@ export const FR: Readonly<Record<string, string>> = {
   "Future": "À venir",
   "General": "Général",
   "Genre and year": "Genre et année",
+  "Glass opacity": "Opacité du verre",
   "Glow": "Halo",
   "Go to {0}, now playing": "Aller à {0}, en cours",
   "Go to artist": "Aller à l'artiste",

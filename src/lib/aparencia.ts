@@ -113,6 +113,13 @@ export type Aparencia = {
    */
   vidro: boolean;
   /**
+   * A opacidade do Liquid Glass, de 0 a 100 (28/11, pedido do João: "uma barra de
+   * ajuste de opacidade"): um fundo escuro por baixo de cada peça de vidro, que o
+   * vidro mostra. 0 é o vidro limpo (o da 7.3.1); 100, uma cápsula escura com o
+   * rebordo do vidro.
+   */
+  opacidadeDoVidro: number;
+  /**
    * O fundo da app a seguir a música (27/11): a cor da capa que toca a lavar o
    * topo das páginas, e a mudar devagar com a música. Desligado de origem.
    */
@@ -127,7 +134,7 @@ export const PADRAO: Aparencia = {
   topo: 'marca', titulo: 'centro', barra: 'fina', play: 'metal', metalNoPlay: true, controlos: 'destaque', posterImagem: 'artista', posterMono: false,
   botoes: ['fila', 'visibilidade', 'eq'], flutuar: true, fundoLeitor: 'capa', brilho: 50,
   titulos: 'padrao', tamanhoDasLetras: 'm', abrirNasLetras: false, molaNaLetra: false,
-  vidro: false, fundoDaMusica: false,
+  vidro: false, opacidadeDoVidro: 0, fundoDaMusica: false,
   secoesDaHome: [...SECOES_DA_HOME], escondidasDaHome: [],
 };
 
@@ -191,7 +198,7 @@ export function alternarBotao(botoes: readonly BotaoDoLeitor[], b: BotaoDoLeitor
   return botoes.length >= MAXIMO_DE_BOTOES ? [...botoes] : [...botoes, b];
 }
 
-type ChaveComValores = Exclude<keyof Aparencia, 'botoes' | 'brilho' | 'rotulos' | 'flutuar' | 'posterMono' | 'abrirNasLetras' | 'molaNaLetra' | 'vidro' | 'fundoDaMusica' | 'secoesDaHome' | 'escondidasDaHome' | 'metalNoPlay'>;
+type ChaveComValores = Exclude<keyof Aparencia, 'botoes' | 'brilho' | 'rotulos' | 'flutuar' | 'posterMono' | 'abrirNasLetras' | 'molaNaLetra' | 'vidro' | 'opacidadeDoVidro' | 'fundoDaMusica' | 'secoesDaHome' | 'escondidasDaHome' | 'metalNoPlay'>;
 const VALORES: { [K in ChaveComValores]: readonly Aparencia[K][] } = {
   fundoApp: ['dark', 'oled'],
   listas: ['comfortable', 'compact'],
@@ -226,6 +233,7 @@ export function lerAparencia(guardado: unknown): Aparencia {
   // O play de metal passou a ser o de origem (23/11): o `cheio` de antes dele vira metal, uma vez.
   if (fora.play === 'cheio' && g.metalNoPlay !== true) fora.play = 'metal';
   if (typeof g.brilho === 'number' && Number.isFinite(g.brilho)) fora.brilho = Math.min(100, Math.max(0, Math.round(g.brilho)));
+  if (typeof g.opacidadeDoVidro === 'number' && Number.isFinite(g.opacidadeDoVidro)) fora.opacidadeDoVidro = Math.min(100, Math.max(0, Math.round(g.opacidadeDoVidro)));
   if (Array.isArray(g.botoes)) {
     const vistos = new Set<BotaoDoLeitor>();
     fora.botoes = (g.botoes as unknown[]).filter((b): b is BotaoDoLeitor =>

@@ -35,6 +35,23 @@ caso('o Liquid Glass é o vidro do sistema, só no iOS 26, e só com a opção',
   assert.match(personalizar, /\{temLiquidGlass \? \(\n\s+<LinhaInterruptor icone="water-outline" rotulo="Liquid Glass"/, 'a opção só aparece onde o vidro existe');
 });
 
+caso('a opacidade do vidro: uma barra que se arrasta, e cada peça de vidro a lê (28/11)', () => {
+  assert.equal(PADRAO.opacidadeDoVidro, 0, 'de origem, o vidro limpo de antes');
+  assert.equal(lerAparencia({ opacidadeDoVidro: 37.4 }).opacidadeDoVidro, 37);
+  assert.equal(lerAparencia({ opacidadeDoVidro: 140 }).opacidadeDoVidro, 100);
+  assert.equal(lerAparencia({ opacidadeDoVidro: 'muito' }).opacidadeDoVidro, 0);
+  const p = ler('src/screens/PersonalizarScreen.tsx');
+  assert.match(p, /\{temLiquidGlass && ap\.vidro \? \(\n\s+<LinhaAlta icone="contrast-outline" rotulo="Glass opacity">\n\s+<Deslizador valor=\{ap\.opacidadeDoVidro\}/);
+  assert.match(p, /aoMudar=\{\(v\) => mudar\('opacidadeDoVidro', v\)\}/);
+  // Quem a lê fora da Customise: o vidro (por baixo dele) e a barra do sistema.
+  const v = ler('src/components/Vidro.tsx');
+  assert.match(v, /const fundo = fundoDoVidro\(opacidade\);/);
+  assert.match(v, /\{fundo \? <View pointerEvents="none" style=\{\[StyleSheet\.absoluteFill, forma, \{ backgroundColor: fundo \}\]\} \/> : null\}\n\s+<GlassView/,
+    'o fundo POR BAIXO do vidro: por cima tapava o rebordo');
+  assert.match(ler('src/navigation/BarraDeSeparadores.tsx'), /opacidade=\{opacidade \/ 100\}/);
+  assert.match(ler('src/i18n/fr.ts'), /"Glass opacity": "Opacité du verre"/);
+});
+
 caso('o fundo da música: a cor da capa a lavar o topo, por baixo das páginas', () => {
   const raiz = ler('src/navigation/RootNavigator.tsx');
   assert.match(raiz, /<FundoDaMusica \/>\n\s+<Stack\.Navigator/, 'por cima do fundo escuro e por baixo das páginas');
@@ -52,7 +69,7 @@ caso('a pré-visualização ao vivo fica presa em cima, com dois ecrãs, e não 
   assert.match(p, /usePlayer\.getState\(\)\.upcomingQueue\(\)\.slice\(0, 4\)/, 'as próximas pela upcomingQueue');
   assert.doesNotMatch(p.slice(p.indexOf('function PreviaAoVivo')), /\.next\(\)|playTrack|skip/, '"Next song" não mexe no que toca');
   assert.match(p, /if \(k === 'listas'\) return 'lista';/);
-  assert.match(p, /k === 'vidro' \|\| k === 'fundoDaMusica'/);
+  assert.match(p, /k === 'vidro' \|\| k === 'opacidadeDoVidro' \|\| k === 'fundoDaMusica'/);
 });
 
 console.log(falhas ? `\n  ${falhas} caso(s) falharam.\n` : '\n  Todos os casos passaram.\n');

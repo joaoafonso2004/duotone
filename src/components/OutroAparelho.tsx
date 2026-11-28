@@ -119,7 +119,7 @@ export function MiniDoOutroAparelho() {
     <Animated.View style={[estilos.mini, vidro && estilos.miniNoVidro, { bottom: separadores + insets.bottom + 4, transform: [{ translateY: desvioDaMusica }] }]}>
       <Pressable accessibilityRole="button" accessibilityLabel={`Playing on ${nome}: ${tituloDaFaixa(oferta.track)}`}
         onPress={() => { hapticSelection(); abrirOutroAparelho(); }} style={[estilos.miniDentro, vidro && estilos.miniDentroNoVidro]}>
-        {capa ? <Image source={{ uri: capa }} style={estilos.miniCapa} contentFit="cover" /> : <View style={estilos.miniCapa} />}
+        {capa ? <Image source={{ uri: capa }} style={[estilos.miniCapa, vidro && estilos.miniCapaNoVidro]} contentFit="cover" /> : <View style={[estilos.miniCapa, vidro && estilos.miniCapaNoVidro]} />}
         <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
           <Text numberOfLines={1} style={estilos.miniTitulo}>{tituloDaFaixa(oferta.track)}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -215,9 +215,10 @@ const estilos = StyleSheet.create({
   linguetaFaixa: { fontSize: 12, fontWeight: '500', color: colors.textSecondary, flexShrink: 1 },
   mini: { position: 'absolute', left: 0, right: 0, height: MINI_PLAYER_HEIGHT, overflow: 'hidden' },
   // Na cápsula de vidro da música (o Liquid Glass, `lib/vidroDaBase.ts`), como a do PlayerRoot.
-  miniNoVidro: { left: MUSICA_NO_VIDRO.margem, right: MUSICA_NO_VIDRO.margem, borderRadius: MINI_PLAYER_HEIGHT / 2, borderCurve: 'continuous' },
+  miniNoVidro: { left: MUSICA_NO_VIDRO.margem, right: MUSICA_NO_VIDRO.margem, height: MUSICA_NO_VIDRO.altura, borderRadius: MUSICA_NO_VIDRO.altura / 2, borderCurve: 'continuous' },
+  miniCapaNoVidro: { width: MUSICA_NO_VIDRO.capa, height: MUSICA_NO_VIDRO.capa, borderRadius: MUSICA_NO_VIDRO.raioDaCapa },
   miniDentroNoVidro: { paddingLeft: MUSICA_NO_VIDRO.dentro, paddingRight: 8 },
-  miniFioNoVidro: { left: MUSICA_NO_VIDRO.progressoLados, right: MUSICA_NO_VIDRO.progressoLados, bottom: MUSICA_NO_VIDRO.progressoFundo },
+  miniFioNoVidro: { left: MUSICA_NO_VIDRO.progressoEsquerda, right: MUSICA_NO_VIDRO.progressoDireita, bottom: MUSICA_NO_VIDRO.progressoFundo },
   miniDentro: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 16, paddingRight: 10 },
   miniCapa: { width: 48, height: 48, borderRadius: radii.sm, borderCurve: 'continuous', backgroundColor: colors.surface },
   miniTitulo: { fontSize: 13, fontWeight: '600', color: colors.text },

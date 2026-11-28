@@ -3,7 +3,9 @@ import { StackActions } from '@react-navigation/native';
 import { ICONES } from '../lib/icones';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React from 'react';
-import { Animated, InteractionManager, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, InteractionManager, Pressable, processColor, StyleSheet, Text, View } from 'react-native';
+import { SeparadoresNativos } from '../../modules/duotone-separadores';
+import { traduzir } from '../i18n';
 import { StateIcon } from '../components/StateIcon';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { ESTADO, SEPARADOR_ACTIVO } from '../lib/movimento';
@@ -15,7 +17,7 @@ import { pedirFluidez } from '../state/fluidez';
 import { useAbertura } from '../state/abertura';
 import { COMECAR_DEPOIS_MS, ENTRE_SEPARADORES_MS, proximoAMontar } from '../lib/separadoresAMontar';
 import { useAparencia } from '../state/aparencia';
-import { selecaoDoVidro, VIDRO_DA_BASE } from '../lib/vidroDaBase';
+import { botaoEscolhido, rotasComBotao, selecaoDoVidro, SIMBOLOS_DOS_SEPARADORES, VIDRO_DA_BASE } from '../lib/vidroDaBase';
 
 const ICONES_DOS_SEPARADORES: Record<string, keyof typeof Ionicons.glyphMap> = {
   Search: 'home',
@@ -166,6 +168,75 @@ function useMontarDepoisDaAbertura(state: MaterialTopTabBarProps['state'], navig
   }, [naAbertura, navigation]);
 }
 
+type Rota = MaterialTopTabBarProps['state']['routes'][number];
+
+/**
+ * Carregar no botão de um separador (o da barra em JavaScript e o da barra do
+ * sistema): a página principal dele, ou, já lá, a lista ao topo. Ver o cabeçalho.
+ */
+function carregarNoSeparador(state: MaterialTopTabBarProps['state'], navigation: MaterialTopTabBarProps['navigation'], route: Rota) {
+  pedirFluidez(500);
+  const escolhido = state.routes[state.index]?.key === route.key;
+  // Páginas abertas por cima: a pilha deste separador volta à raiz (25/10).
+  const pilha = route.state as { key?: string; index?: number } | undefined;
+  const funda = (pilha?.index ?? 0) > 0;
+  if (funda && pilha?.key) navigation.dispatch({ ...StackActions.popToTop(), target: pilha.key });
+  if (escolhido) {
+    // Já na raiz: a lista ao topo.
+    if (!funda) navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+    return;
+  }
+  const evento = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+  if (!evento.defaultPrevented) navigation.navigate(route.name);
+}
+
+/** Há a barra do sistema neste binário (o módulo `duotone-separadores`, 28/11). */
+export const temSeparadoresDoSistema = !!SeparadoresNativos;
+
+/**
+ * Os separadores na barra do sistema, com o Liquid Glass (28/11, as screenshots 1 a 3
+ * do João): a `UITabBar` do iOS 26, com a lente de vidro que se segura e arrasta de
+ * separador para separador. É a verdadeira (`modules/duotone-separadores`): a lente
+ * não tem API pública, e a cápsula em JavaScript da 7.3.0 não lhe chegava.
+ *
+ * O pager continua: deslizar entre páginas muda o escolhido na barra. O Social não
+ * tem botão: lá a barra fica sem escolhido. `aoMedir` recebe a altura da barra, com
+ * o fundo do ecrã incluído.
+ */
+export function SeparadoresDoSistema({ state, navigation, altura, aoMedir }: Pick<MaterialTopTabBarProps, 'state' | 'navigation'> & {
+  altura: number;
+  aoMedir: (altura: number) => void;
+}) {
+  const rotulos = useAparencia((s) => s.rotulos);
+  const opacidade = useAparencia((s) => s.opacidadeDoVidro);
+  const hasNotification = useNotifications((s) => s.hasNotification);
+  const theme = useTheme((s) => s.destino);
+  const visiveis = rotasComBotao(state.routes);
+  const chaves = visiveis.map((r) => `${r.key}:${r.name}`).join('|');
+  const itens = React.useMemo(() => visiveis.map((r) => {
+    const [simbolo, simboloEscolhido] = SIMBOLOS_DOS_SEPARADORES[r.name] ?? ['circle', 'circle.fill'];
+    return { titulo: traduzir(NOMES_DOS_SEPARADORES[r.name] ?? r.name), simbolo, simboloEscolhido, ponto: r.name === 'Profile' && hasNotification };
+    // As rotas mudam pela chave.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [chaves, hasNotification]);
+  const Nativa = SeparadoresNativos;
+  if (!Nativa) return null;
+  return (
+    <Nativa
+      // Antes de a barra se medir, uma altura qualquer: ela fica no fundo desta vista.
+      style={{ height: altura > 0 ? altura : 100 }}
+      itens={itens}
+      escolhido={botaoEscolhido(state.routes, state.index)}
+      comNomes={rotulos}
+      corEscolhida={processColor(theme.color) as number | null}
+      corOutros={processColor(colors.textTertiary) as number | null}
+      opacidade={opacidade / 100}
+      onEscolher={(e) => { const r = visiveis[e.nativeEvent.indice]; if (r) carregarNoSeparador(state, navigation, r); }}
+      onAltura={(e) => aoMedir(e.nativeEvent.altura)}
+    />
+  );
+}
+
 /** Os cinco botões, sem fundo: o vidro é da base. */
 export function IconesDosSeparadores({ state, navigation }: Pick<MaterialTopTabBarProps, 'state' | 'navigation'>) {
   const rotulos = useAparencia((s) => s.rotulos);
@@ -197,21 +268,7 @@ export function IconesDosSeparadores({ state, navigation }: Pick<MaterialTopTabB
             accessibilityRole="button"
             accessibilityState={{ selected: escolhido }}
             accessibilityLabel={nome}
-            onPress={() => {
-              pedirFluidez(500);
-              // Páginas abertas por cima: a pilha deste separador volta à
-              // raiz (25/10). Ver o cabeçalho.
-              const pilha = route.state as { key?: string; index?: number } | undefined;
-              const funda = (pilha?.index ?? 0) > 0;
-              if (funda && pilha?.key) navigation.dispatch({ ...StackActions.popToTop(), target: pilha.key });
-              if (escolhido) {
-                // Já na raiz: a lista ao topo.
-                if (!funda) navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-                return;
-              }
-              const evento = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-              if (!evento.defaultPrevented) navigation.navigate(route.name);
-            }}
+            onPress={() => carregarNoSeparador(state, navigation, route)}
             style={styles.separador}
           >
             {/* Sem `rodar`: cinco separadores a girar de cada vez que se

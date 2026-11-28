@@ -8,7 +8,10 @@
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { geometriaDoVidro, MUSICA_NO_VIDRO, selecaoDoVidro, VIDRO_DA_BASE } from '../src/lib/vidroDaBase.ts';
+import {
+  botaoEscolhido, fundoDoVidro, geometriaDoVidro, MUSICA_NO_VIDRO, rotasComBotao, selecaoDoVidro, separadoresDaBarraNativa,
+  SIMBOLOS_DOS_SEPARADORES, VIDRO_DA_BASE,
+} from '../src/lib/vidroDaBase.ts';
 
 let falhas = 0;
 function caso(nome: string, fn: () => void): void {
@@ -42,17 +45,42 @@ caso('a cápsula do escolhido: dentro da coluna, com 5 pt de vidro em cima e em 
   assert.equal(s.x(4), 4 + 78 * 4 + 2);
   assert.equal(selecaoDoVidro(0, 5, 62).coluna, 0, 'antes de medir, nada');
 });
-caso('a capa da música longe da curva da cápsula (64 pt, semicírculos de 32)', () => {
-  // No topo da capa (8 pt abaixo do topo da cápsula), a curva está a 32 - √(32² - 24²) da borda.
-  const curva = 32 - Math.sqrt(32 ** 2 - 24 ** 2);
-  assert.ok(MUSICA_NO_VIDRO.dentro > curva + 1);
-  // A barra de progresso, a 5 pt do fundo, longe das pontas.
-  assert.ok(MUSICA_NO_VIDRO.progressoLados > 32 - Math.sqrt(32 ** 2 - (32 - MUSICA_NO_VIDRO.progressoFundo) ** 2));
+caso('a cápsula da música mais baixa do que a dos separadores, com a capa centrada (28/11)', () => {
+  const m = MUSICA_NO_VIDRO;
+  assert.ok(m.altura < VIDRO_DA_BASE.altura, 'a screenshot 4: a da música era maior do que a barra');
+  assert.equal(m.dentro * 2 + m.capa, m.altura, 'a mesma folga em cima, em baixo e à esquerda');
+  // O canto redondo da capa longe da ponta da cápsula: o centro do arco do canto,
+  // mais o raio, fica dentro do semicírculo da ponta.
+  const r = m.altura / 2;
+  const centroDoCanto = m.dentro + m.raioDaCapa;
+  const distancia = Math.hypot(r - centroDoCanto, r - centroDoCanto);
+  assert.ok(distancia + m.raioDaCapa < r - 2, `o canto a ${(r - distancia - m.raioDaCapa).toFixed(1)} pt da curva`);
+  // A barra de progresso começa no texto (não passa por baixo da capa) e acaba longe da ponta.
+  assert.equal(m.progressoEsquerda, m.dentro + m.capa + 10);
+  assert.ok(m.progressoDireita > r - Math.sqrt(r ** 2 - (r - m.progressoFundo) ** 2) + 4);
+});
+caso('a opacidade: um fundo escuro por baixo do vidro, nada a 0', () => {
+  assert.equal(fundoDoVidro(0), null);
+  assert.equal(fundoDoVidro(40), 'rgba(6,6,8,0.4)');
+  assert.equal(fundoDoVidro(100), 'rgba(6,6,8,1)');
+  assert.equal(fundoDoVidro(250), 'rgba(6,6,8,1)');
+  assert.equal(fundoDoVidro(Number.NaN), null);
+});
+caso('a barra do sistema: os botões sem o Social, e o escolhido pela chave', () => {
+  const rotas = ['Search', 'Songs', 'Artists', 'Playlists', 'Profile', 'Social'].map((name) => ({ key: `${name}-k`, name }));
+  assert.deepEqual(rotasComBotao(rotas).map((r) => r.name), ['Search', 'Songs', 'Artists', 'Playlists', 'Profile']);
+  assert.equal(botaoEscolhido(rotas, 3), 3);
+  assert.equal(botaoEscolhido(rotas, 5), -1, 'no Social, nenhum');
+  assert.equal(botaoEscolhido(rotas, 9), -1);
+  for (const r of rotasComBotao(rotas)) assert.ok(SIMBOLOS_DOS_SEPARADORES[r.name], `${r.name} sem símbolo`);
+  // A altura da barra já traz o fundo do ecrã: o resto da app conta por cima do insets.bottom.
+  assert.equal(separadoresDaBarraNativa(104, 34), 70);
+  assert.equal(separadoresDaBarraNativa(20, 34), 0);
 });
 
 caso('a base: duas cápsulas, o raio no próprio vidro, nenhuma vista de fora a cortá-lo', () => {
   const doca = ler('src/components/Doca.tsx');
-  assert.match(doca, /<Vidro style=\{\[StyleSheet\.absoluteFill, \{ borderRadius: MINI_PLAYER_HEIGHT \/ 2 \}\]\} \/>/);
+  assert.match(doca, /<Vidro style=\{\[StyleSheet\.absoluteFill, \{ borderRadius: MUSICA_NO_VIDRO\.altura \/ 2 \}\]\} \/>/);
   assert.match(doca, /<Vidro style=\{\[StyleSheet\.absoluteFill, \{ borderRadius: geo\.raio \}\]\} \/>/);
   assert.doesNotMatch(doca, /flutuante|RAIO_DO_CARTAO/, 'o cartão único da 7.2.8 saiu');
   // A 7.3.0 escurecia o que passava por baixo (até 72% de preto) e o vidro ficava
@@ -63,7 +91,7 @@ caso('a base: duas cápsulas, o raio no próprio vidro, nenhuma vista de fora a 
     const bloco = estilos.slice(estilos.indexOf(`${nome}:`), estilos.indexOf('}', estilos.indexOf(`${nome}:`)));
     assert.doesNotMatch(bloco, /overflow/, `${nome}: sem overflow`);
   }
-  assert.match(doca, /useEffect\(\(\) => \{ if \(vidro && linha > 0\) definirAlturaDosSeparadores\(geo\.separadores\); \}/, 'o resto da app conta a cápsula');
+  assert.match(doca, /useEffect\(\(\) => \{ if \(vidro && !nativa && linha > 0\) definirAlturaDosSeparadores\(geo\.separadores\); \}/, 'o resto da app conta a cápsula');
   assert.match(doca, /<SelecaoDoVidro state=\{separadores\.state\} position=\{separadores\.position\}/);
 });
 caso('o escolhido: uma cápsula lisa com rebordo (não de vidro), que anda com o pager', () => {
@@ -74,6 +102,31 @@ caso('o escolhido: uma cápsula lisa com rebordo (não de vidro), que anda com o
   assert.match(sel, /r\.name === 'Social' \? 0 : 1/, 'no Social, que não tem botão, apaga-se');
   assert.match(barra, /publicarSeparadores\(\{ state, navigation, position \}\)/);
   assert.match(barra, /backgroundColor: VIDRO_DA_BASE\.corDaSelecao,\n\s+borderWidth: StyleSheet\.hairlineWidth, borderColor: VIDRO_DA_BASE\.rebordoDaSelecao,/);
+});
+caso('a barra do sistema: uma UITabBar sozinha, e a app degrada sem ela', () => {
+  const swift = ler('modules/duotone-separadores/ios/DuotoneSeparadoresModule.swift');
+  assert.match(swift, /private let barra = UITabBar\(frame: \.zero\)/);
+  assert.doesNotMatch(swift.replace(/\/\*[\s\S]*?\*\//g, ''), /UITabBarController/, 'sem controlador: o pager do React Navigation fica');
+  assert.match(swift, /func tabBar\(_ tabBar: UITabBar, didSelect item: UITabBarItem\)/);
+  assert.match(swift, /return vista === self \? nil : vista/, 'fora da barra, o toque passa');
+  assert.match(swift, /Events\("onEscolher", "onAltura"\)/);
+  const idx = ler('modules/duotone-separadores/index.ts');
+  assert.match(idx, /requireOptionalNativeModule\('DuotoneSeparadores'\)/, 'num binário sem o módulo, null');
+  const doca = ler('src/components/Doca.tsx');
+  assert.match(doca, /const nativa = vidro && temSeparadoresDoSistema;/);
+  assert.match(doca, /\{nativa \? \(/);
+  assert.match(doca, /definirAlturaDosSeparadores\(separadoresDaBarraNativa\(alturaNativa, insets\.bottom\)\)/);
+  const barra = ler('src/navigation/BarraDeSeparadores.tsx');
+  assert.match(barra, /onEscolher=\{\(e\) => \{ const r = visiveis\[e\.nativeEvent\.indice\]; if \(r\) carregarNoSeparador\(state, navigation, r\); \}\}/,
+    'o mesmo toque das duas barras: a página principal, ou o topo');
+  assert.match(barra, /onPress=\{\(\) => carregarNoSeparador\(state, navigation, route\)\}/);
+  assert.match(barra, /titulo: traduzir\(/, 'os nomes no francês também');
+});
+caso('a capa do mini com cantos redondos: a moldura encolhida leva o raio a dividir pela escala', () => {
+  const leitor = ler('src/components/PlayerRoot.tsx');
+  assert.match(leitor, /const raioDaMolduraNoMini = \(vidro \? MUSICA_NO_VIDRO\.raioDaCapa : radii\.sm\) \* \(ART_FULL \/ ladoDaCapaNoMini\);/);
+  assert.match(leitor, /outputRange: \[raioDaMolduraNoMini, capaInteira \? 0 : 20\]/);
+  assert.match(leitor, /vidMini\.x, vidMini\.y, vidMini\.w, W, H,/, 'o voo refaz-se quando o tamanho da capa do mini muda');
 });
 caso('a linha da música dentro da cápsula, e a capa que voa parte do sítio novo', () => {
   const leitor = ler('src/components/PlayerRoot.tsx');
