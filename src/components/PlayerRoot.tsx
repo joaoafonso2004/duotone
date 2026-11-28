@@ -75,7 +75,7 @@ import { FundoDoPoster } from './FundoDoPoster';
 import { lyricsCacheKey, useLyrics } from '../state/lyrics';
 import { ROTULO_DO_JAM, rotuloDaOrigem } from '../lib/origemDaFila';
 import { trackKey as chaveDaFaixaNaFila } from '../lib/shuffle';
-import { desvioDaMusica, useDoca } from '../state/doca';
+import { dedoDoMini as dedoDoMiniPartilhado, deslizeDoMini, deslizeDoMiniVisto, desvioDaMusica, useDoca } from '../state/doca';
 import { useVidro, Vidro } from './Vidro';
 import { pedirFluidez, segurarFluidez } from '../state/fluidez';
 import { posicoesDaDoca } from '../lib/doca';
@@ -290,7 +290,8 @@ export function PlayerRoot() {
    * não há aqui nada a sacrificar.
    */
   const animRaio = useRef(new Animated.Value(0)).current;
-  const dragX = useRef(new Animated.Value(0)).current;
+  // Partilhado com a cápsula de vidro da música (`state/doca.ts`, 28/11).
+  const dragX = deslizeDoMini;
   const widthRef = useRef(W); widthRef.current = W;
   const swiping = useRef(false);
   /*
@@ -300,7 +301,7 @@ export function PlayerRoot() {
    * JavaScript só decide no fim se fecha. Duas vistas (o mini e a capa
    * pequena), dois eventos: um `Animated.event` só se liga a uma.
    */
-  const dedoDoMini = useRef(new Animated.Value(0)).current;
+  const dedoDoMini = dedoDoMiniPartilhado;
   const eventoDoMini = useMemo(
     () => Animated.event([{ nativeEvent: { translationX: dedoDoMini } }], { useNativeDriver: true }),
     [dedoDoMini],
@@ -309,13 +310,8 @@ export function PlayerRoot() {
     () => Animated.event([{ nativeEvent: { translationX: dedoDoMini } }], { useNativeDriver: true }),
     [dedoDoMini],
   );
-  // Só para a direita (era o `Math.max(0, dx)`).
-  const dragXVisto = useMemo(
-    () => Animated.add(dragX, dedoDoMini).interpolate({
-      inputRange: [0, 1], outputRange: [0, 1], extrapolateLeft: 'clamp', extrapolateRight: 'extend',
-    }),
-    [dragX, dedoDoMini],
-  );
+  // Só para a direita (era o `Math.max(0, dx)`): `state/doca.ts`.
+  const dragXVisto = deslizeDoMiniVisto;
   const aoMudarODeslizeDoMini = useCallback((e: PanGestureHandlerStateChangeEvent) => {
     const { state, oldState, translationX, translationY, velocityX } = e.nativeEvent;
     if (state === State.ACTIVE) {

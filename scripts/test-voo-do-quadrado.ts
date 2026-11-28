@@ -309,6 +309,34 @@ caso('a capa da página mede-se no sítio final (o vídeo de 27/11, depois da 7.
   assert.match(pagina, /requestAnimationFrame\(\(\) => requestAnimationFrame\(marcar\)\)/);
   assert.match(ler('src/state/vooDoQuadrado.ts'), /if \(!igual\) avisar\(id\);/, 'a mesma medida não mexe na camada');
 });
+caso('abrir um artista: a página não entra a deslizar por baixo da camada (o vídeo de 28/11)', () => {
+  const pagina = ler('src/components/PaginaDoQuadrado.tsx');
+  // A animação de sempre só volta depois de a entrada sem animação acabar na pilha nativa.
+  assert.match(pagina, /navigation\.addListener\?\.\('transitionEnd', \(e\) => \{ if \(!e\?\.data\?\.closing\) setEntrou\(true\); \}\);/);
+  assert.match(pagina, /if \(fase !== 'aberta' \|\| !entrou\) return;\n\s+\/\/[^\n]*\n\s+navigation\.setOptions\(comVolta \? \{ animation: 'default', gestureEnabled: false \} : \{ animation: 'default' \}\);/);
+  const acender = pagina.slice(pagina.indexOf("if (fase !== 'aberta') return;"), pagina.indexOf("if (fase !== 'aberta' || !entrou) return;"));
+  assert.doesNotMatch(acender, /setOptions/, 'acender a página já não mexe na animação da pilha');
+  assert.match(pagina, /const ENTRADA_SEM_AVISO_MS = 1200;/);
+});
+caso('largar a página sem fechar: a de trás nunca se vê através dela (o vídeo de 28/11)', () => {
+  const v = ler('src/components/VoltaADeslizar.tsx');
+  // O fundo da página é sempre opaco (e não só com o dedo), e é o fundo das páginas, preso ao ecrã.
+  assert.match(v, /fundo: \{\n\s+opacity: p\.interpolate\(\{ inputRange: \[VOLTA\.corApagaDesde, 1\], outputRange: \[1, 0\], extrapolate: 'clamp' \}\),\n\s+\},/);
+  assert.match(v, /<Animated\.View pointerEvents="none" style=\{\[StyleSheet\.absoluteFill, desenho\.semEscala, desenho\.fundo, styles\.fundoOpaco\]\}>\n\s+<FundoDasPaginas imediato \/>/);
+  assert.ok(VOLTA.maximo < VOLTA.corApagaDesde, 'com o dedo nunca chega a apagar-se');
+});
+caso('o mini a deslizar para fechar leva a cápsula de vidro com ele (28/11)', () => {
+  const doca = ler('src/state/doca.ts');
+  assert.match(doca, /export const deslizeDoMiniVisto = Animated\.add\(deslizeDoMini, dedoDoMini\)\.interpolate\(/);
+  const leitor = ler('src/components/PlayerRoot.tsx');
+  assert.match(leitor, /const dragX = deslizeDoMini;/);
+  assert.match(leitor, /const dedoDoMini = dedoDoMiniPartilhado;/);
+  assert.match(leitor, /const dragXVisto = deslizeDoMiniVisto;/);
+  const base = ler('src/components/Doca.tsx');
+  assert.match(base, /opacity: reduzido \? musicaNoVidro : Animated\.multiply\(musicaNoVidro, apagarNoDeslize\),\n\s+transform: \[\{ translateY: desvioDaMusica \}, \{ translateX: reduzido \? 0 : deslizeDoMiniVisto \}\],/);
+  assert.match(base, /deslizeDoMiniVisto\.interpolate\(\{ inputRange: \[0, larguraDoEcra\], outputRange: \[1, 0\.2\], extrapolate: 'clamp' \}\)/, 'o mesmo apagar do mini');
+  assert.match(leitor, /miniFade=useMemo\(\(\)=>dragXVisto\.interpolate\(\{inputRange:\[0,W\],outputRange:\[1,0\.2\],extrapolate:'clamp'\}\)/);
+});
 
 console.log(falhas ? `\n  ${falhas} caso(s) falharam.\n` : '\n  Todos os casos passaram.\n');
 process.exit(falhas ? 1 : 0);

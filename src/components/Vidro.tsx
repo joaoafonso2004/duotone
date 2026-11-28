@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
-import { fundoDoVidro } from '../lib/vidroDaBase';
+import { fundoDoVidro, haVidro } from '../lib/vidroDaBase';
 import { useAparencia } from '../state/aparencia';
 
 /**
@@ -44,6 +44,11 @@ export function Vidro({ style, children, interativo = false }: {
   style?: StyleProp<ViewStyle>; children?: React.ReactNode; interativo?: boolean;
 }) {
   const opacidade = useAparencia((s) => s.opacidadeDoVidro);
+  // A 0, sem vidro nenhum (`haVidro`, 28/11); a troca é a animação do próprio vidro.
+  // O objeto fica o mesmo entre desenhos: um novo a cada desenho voltava a pôr o
+  // vidro no nativo, e o vidro reposto pode não se desenhar bem (expo/expo#43732).
+  const comVidro = haVidro(opacidade);
+  const estilo = useMemo(() => ({ style: comVidro ? 'clear' as const : 'none' as const, animate: true }), [comVidro]);
   if (!temLiquidGlass) return <View style={style}>{children}</View>;
   const raio = StyleSheet.flatten(style)?.borderRadius;
   const forma = { borderRadius: raio, borderCurve: 'continuous' as const };
@@ -51,7 +56,7 @@ export function Vidro({ style, children, interativo = false }: {
   return (
     <View style={style}>
       {fundo ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, forma, { backgroundColor: fundo }]} /> : null}
-      <GlassView glassEffectStyle="clear" colorScheme="light" isInteractive={interativo} style={[StyleSheet.absoluteFill, forma]} />
+      <GlassView glassEffectStyle={estilo} colorScheme="light" isInteractive={interativo} style={[StyleSheet.absoluteFill, forma]} />
       {children}
     </View>
   );

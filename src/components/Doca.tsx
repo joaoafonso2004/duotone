@@ -1,14 +1,14 @@
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { comAlfa, posicoesDaDoca, ZONA_DA_MUSICA } from '../lib/doca';
 import { molaIOS } from '../lib/transicaoDoLeitor';
 import { geometriaDoVidro, MUSICA_NO_VIDRO, separadoresDaBarraNativa, VIDRO_DA_BASE } from '../lib/vidroDaBase';
 import { IconesDosSeparadores, SelecaoDoVidro, SeparadoresDoSistema, temSeparadoresDoSistema } from '../navigation/BarraDeSeparadores';
-import { definirAlturaDosSeparadores, desvioDaMusica, desvioDoVidro, desvioDosIcones, useAlturaDosSeparadores, useDoca } from '../state/doca';
+import { definirAlturaDosSeparadores, deslizeDoMiniVisto, desvioDaMusica, desvioDoVidro, desvioDosIcones, useAlturaDosSeparadores, useDoca } from '../state/doca';
 import { pedirFluidez } from '../state/fluidez';
 import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
@@ -87,6 +87,12 @@ export function Doca() {
     if (nativa && alturaNativa > 0) definirAlturaDosSeparadores(separadoresDaBarraNativa(alturaNativa, insets.bottom));
   }, [nativa, alturaNativa, insets.bottom]);
   const musicaNoVidro = useRef(new Animated.Value(temMusica ? 1 : 0)).current;
+  // O mesmo apagar da linha do mini ao deslizar (o `miniFade` do PlayerRoot).
+  const { width: larguraDoEcra } = useWindowDimensions();
+  const apagarNoDeslize = useMemo(
+    () => deslizeDoMiniVisto.interpolate({ inputRange: [0, larguraDoEcra], outputRange: [1, 0.2], extrapolate: 'clamp' }),
+    [larguraDoEcra],
+  );
   useEffect(() => {
     if (!vidro || reduzido) { musicaNoVidro.setValue(temMusica ? 1 : 0); return; }
     pedirFluidez(400);
@@ -100,8 +106,12 @@ export function Doca() {
         {/* Nada por trás das cápsulas: o vidro mostra o que passa por baixo. A 7.3.0
             tinha um esbatido preto (até 72%) que o deixava escuro e opaco. */}
         {/* A cápsula da música, por baixo da linha dela (que é do PlayerRoot). */}
+        {/* Vai com a linha quando ela desliza para a direita para fechar (28/11): o
+            mesmo deslize e o mesmo apagar do mini (`state/doca.ts`). */}
         <Animated.View pointerEvents="none" style={[styles.capsulaDaMusica, {
-          bottom: alturaDosSeparadores + insets.bottom + 4, opacity: musicaNoVidro, transform: [{ translateY: desvioDaMusica }],
+          bottom: alturaDosSeparadores + insets.bottom + 4,
+          opacity: reduzido ? musicaNoVidro : Animated.multiply(musicaNoVidro, apagarNoDeslize),
+          transform: [{ translateY: desvioDaMusica }, { translateX: reduzido ? 0 : deslizeDoMiniVisto }],
         }]}>
           <Vidro style={[StyleSheet.absoluteFill, { borderRadius: MUSICA_NO_VIDRO.altura / 2 }]} />
         </Animated.View>

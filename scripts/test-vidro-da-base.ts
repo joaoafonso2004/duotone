@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  botaoEscolhido, fundoDoVidro, geometriaDoVidro, MUSICA_NO_VIDRO, rotasComBotao, selecaoDoVidro, separadoresDaBarraNativa,
+  botaoEscolhido, fundoDoVidro, geometriaDoVidro, haVidro, MUSICA_NO_VIDRO, rotasComBotao, selecaoDoVidro, separadoresDaBarraNativa,
   SIMBOLOS_DOS_SEPARADORES, VIDRO_DA_BASE,
 } from '../src/lib/vidroDaBase.ts';
 
@@ -58,6 +58,17 @@ caso('a cápsula da música mais baixa do que a dos separadores, com a capa cent
   // A barra de progresso começa no texto (não passa por baixo da capa) e acaba longe da ponta.
   assert.equal(m.progressoEsquerda, m.dentro + m.capa + 10);
   assert.ok(m.progressoDireita > r - Math.sqrt(r ** 2 - (r - m.progressoFundo) ** 2) + 4);
+});
+caso('a 0, sem vidro nenhum: o mínimo é mesmo transparente (28/11)', () => {
+  assert.equal(haVidro(0), false);
+  assert.equal(haVidro(0.4), false, 'arredonda como a barra');
+  assert.equal(haVidro(1), true, 'a 1, o vidro limpo de antes');
+  assert.equal(haVidro(100), true);
+  assert.equal(haVidro(Number.NaN), false);
+  // Na barra do sistema: a cápsula esconde-se (não com alpha: o UIKit deixava de pôr o vidro).
+  const swift = ler('modules/duotone-separadores/ios/DuotoneSeparadoresModule.swift');
+  assert.match(swift, /let semVidro = opacidade <= 0\n\s+if capsula\.isHidden != semVidro \{ capsula\.isHidden = semVidro \}/);
+  assert.doesNotMatch(swift, /capsula\.alpha/);
 });
 caso('a opacidade: um fundo escuro por baixo do vidro, nada a 0', () => {
   assert.equal(fundoDoVidro(0), null);

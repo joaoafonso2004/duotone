@@ -275,7 +275,14 @@ final class DuotoneSeparadoresView: ExpoView, UITabBarDelegate, UIGestureRecogni
    */
   private func colocarFundo() {
     let capsula = acharCapsula()
-    if let capsula { limparCapsula(capsula) }
+    if let capsula {
+      limparCapsula(capsula)
+      // Glass opacity a 0 (28/11, o João: "o mínimo de opacidade mesmo transparente"):
+      // sem a cápsula de vidro, os separadores soltos. Escondida, e não com alpha: o
+      // UIKit deixa de pôr o vidro numa vista quase transparente e não o volta a pôr.
+      let semVidro = opacidade <= 0
+      if capsula.isHidden != semVidro { capsula.isHidden = semVidro }
+    }
     let moldura = capsula.map { $0.convert($0.bounds, to: self) } ?? molduraDosBotoes()
     guard opacidade > 0, let r = moldura, r.width > 0, r.height > 0 else {
       fundo.isHidden = true

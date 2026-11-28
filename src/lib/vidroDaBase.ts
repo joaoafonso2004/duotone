@@ -98,6 +98,17 @@ export function fundoDoVidro(opacidade: number): string | null {
 }
 
 /**
+ * Há vidro, pela mesma opacidade? (28/11, o João: "queria que o mínimo de opacidade
+ * fosse mesmo transparente".) A 0 não há vidro nenhum: fica só o que está por cima
+ * dele, solto. De 1 a 100, o vidro limpo com o fundo escuro do `fundoDoVidro`. O
+ * vidro não se esbate até desaparecer: o UIKit deixa de o pôr numa vista quase
+ * transparente e não o volta a pôr (o aviso do `expo-glass-effect`).
+ */
+export function haVidro(opacidade: number): boolean {
+  return Number.isFinite(opacidade) && Math.round(opacidade) > 0;
+}
+
+/**
  * A barra de separadores nativa (28/11): a `UITabBar` do iOS 26, com a lente de
  * vidro que se arrasta de separador para separador (as screenshots 1 a 3 do João:
  * parada, a segurar, a arrastar). Os ícones são símbolos do sistema: o contorno e,

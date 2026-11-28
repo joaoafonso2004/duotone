@@ -1,5 +1,5 @@
 import { useNavigation, useRoute } from '@react-navigation/native';
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, View, type StyleProp, type ViewStyle } from 'react-native';
 import { CASCATA, entradaDaLinha, ESPERA_MAXIMA_MS, pedirVoo } from '../lib/vooDoQuadrado';
 import { useReducedMotion } from '../hooks/useReducedMotion';
@@ -8,6 +8,9 @@ import {
   dadosDoVoo, marcarAlvo, marcarCapaNoAr, marcarPaginaPronta, medirNoEcra, mudarFase, useVoos,
 } from '../state/vooDoQuadrado';
 import { temVoltaADeslizar, VoltaADeslizar } from './VoltaADeslizar';
+
+/** Se a pilha nunca avisar o fim da entrada (`transitionEnd`), a animação de sempre volta ao fim disto. */
+const ENTRADA_SEM_AVISO_MS = 1200;
 
 /** O voltar da página que abriu por um quadrado: encolhe até ele (24/11). */
 const VoltarDoQuadrado = createContext<(() => void) | null>(null);
@@ -24,7 +27,11 @@ const CascataDaPagina = createContext<Animated.Value | null>(null);
  */
 export function PaginaDoQuadrado({ voo, navigation, children }: {
   voo: string;
-  navigation: { goBack: () => void; setOptions: (o: object) => void };
+  navigation: {
+    goBack: () => void;
+    setOptions: (o: object) => void;
+    addListener?: (evento: 'transitionEnd', f: (e: { data?: { closing?: boolean } }) => void) => () => void;
+  };
   children: React.ReactNode;
 }) {
   const fase = useVoos((s) => s.fases[voo]);
@@ -41,6 +48,21 @@ export function PaginaDoQuadrado({ voo, navigation, children }: {
   }, [voo]);
   const comVolta = temVoltaADeslizar && !reduzido && cartao !== null;
 
+  /**
+   * A entrada sem animação já acabou na pilha nativa (28/11, o vídeo do João: abrir
+   * um artista e a página entrava A DESLIZAR por baixo da camada, com a grelha meio
+   * transparente por trás). A animação de sempre voltava quando a página se media,
+   * e esse `setOptions` às vezes chegava ao nativo ANTES do próprio push, que saía
+   * então com o deslizar. Agora só depois do `transitionEnd` da entrada (o
+   * `onAppear`, que também vem sem animação), ou de um prazo se ele nunca vier.
+   */
+  const [entrou, setEntrou] = useState(false);
+  useEffect(() => {
+    const parar = navigation.addListener?.('transitionEnd', (e) => { if (!e?.data?.closing) setEntrou(true); });
+    const prazo = setTimeout(() => setEntrou(true), ENTRADA_SEM_AVISO_MS);
+    return () => { parar?.(); clearTimeout(prazo); };
+  }, [navigation]);
+
   useEffect(() => {
     if (fase !== 'aberta') return;
     // Acende de uma vez, por baixo da camada que ainda a tapa toda; é a camada que
@@ -50,9 +72,13 @@ export function PaginaDoQuadrado({ voo, navigation, children }: {
     // E as linhas entram em cascata no mesmo instante (item 3 do plano de 25/11).
     pedirFluidez(CASCATA.duracaoMs + 100);
     Animated.timing(cascata, { toValue: 1, duration: CASCATA.duracaoMs, easing: Easing.linear, useNativeDriver: true }).start();
+  }, [fase, opacidade, cascata]);
+
+  useEffect(() => {
+    if (fase !== 'aberta' || !entrou) return;
     // Com o voltar a deslizar, o da borda sai: os dois pegavam no mesmo dedo.
     navigation.setOptions(comVolta ? { animation: 'default', gestureEnabled: false } : { animation: 'default' });
-  }, [fase, navigation, opacidade, cascata, comVolta]);
+  }, [fase, entrou, navigation, comVolta]);
 
   // Se a camada nunca a mandar acender (rebentou, ou não havia camada), acende sozinha.
   useEffect(() => {

@@ -25,7 +25,9 @@ caso('o Liquid Glass é o vidro do sistema, só no iOS 26, e só com a opção',
   const v = ler('src/components/Vidro.tsx');
   assert.match(v, /if \(Platform\.OS !== 'ios'\) return false;\n\s+try \{ return isLiquidGlassAvailable\(\); \} catch \{ return false; \}/);
   assert.match(v, /return ligado && temLiquidGlass;/);
-  assert.match(v, /<GlassView glassEffectStyle="clear" colorScheme="light"/, 'transparente e claro: o escuro sai lamacento no aparelho (28/11)');
+  assert.match(v, /<GlassView glassEffectStyle=\{estilo\} colorScheme="light"/, 'claro: o escuro sai lamacento no aparelho (28/11)');
+  assert.match(v, /const estilo = useMemo\(\(\) => \(\{ style: comVidro \? 'clear' as const : 'none' as const, animate: true \}\), \[comVidro\]\);/,
+    'transparente, e sem vidro nenhum a 0; o objeto não muda a cada desenho');
   const doca = ler('src/components/Doca.tsx');
   assert.match(doca, /const vidro = useVidro\(\);/);
   assert.match(doca, /<Animated\.View style=\{\[styles\.vidro, \{ height: altura, transform: \[\{ translateY: desvioDoVidro \}\] \}\]\}>\n\s+<BlurView/, 'sem a opção, o vidro desfocado de sempre');
@@ -36,10 +38,12 @@ caso('o Liquid Glass é o vidro do sistema, só no iOS 26, e só com a opção',
 });
 
 caso('a opacidade do vidro: uma barra que se arrasta, e cada peça de vidro a lê (28/11)', () => {
-  assert.equal(PADRAO.opacidadeDoVidro, 0, 'de origem, o vidro limpo de antes');
+  // 0 é sem vidro nenhum desde 28/11 ("o mínimo mesmo transparente"): de origem, 1, o vidro limpo de antes.
+  assert.equal(PADRAO.opacidadeDoVidro, 1, 'de origem, o vidro limpo de antes');
   assert.equal(lerAparencia({ opacidadeDoVidro: 37.4 }).opacidadeDoVidro, 37);
   assert.equal(lerAparencia({ opacidadeDoVidro: 140 }).opacidadeDoVidro, 100);
-  assert.equal(lerAparencia({ opacidadeDoVidro: 'muito' }).opacidadeDoVidro, 0);
+  assert.equal(lerAparencia({ opacidadeDoVidro: 0 }).opacidadeDoVidro, 0, 'o 0 guarda-se: é o transparente');
+  assert.equal(lerAparencia({ opacidadeDoVidro: 'muito' }).opacidadeDoVidro, 1);
   const p = ler('src/screens/PersonalizarScreen.tsx');
   assert.match(p, /\{temLiquidGlass && ap\.vidro \? \(\n\s+<LinhaAlta icone="contrast-outline" rotulo="Glass opacity">\n\s+<Deslizador valor=\{ap\.opacidadeDoVidro\}/);
   assert.match(p, /aoMudar=\{\(v\) => mudar\('opacidadeDoVidro', v\)\}/);

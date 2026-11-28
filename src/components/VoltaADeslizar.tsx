@@ -9,10 +9,10 @@ import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { raioDosCantosDoEcra } from '../lib/gaveta';
 import { amostrasDaVolta, capaDaVolta, decidirVolta, VEU_MAXIMO, VOLTA, type CapaDoVoo, type Retangulo } from '../lib/vooDoQuadrado';
-import { useAparencia } from '../state/aparencia';
 import { pedirFluidez, segurarFluidez } from '../state/fluidez';
 import { medirNoEcra } from '../state/vooDoQuadrado';
-import { colors, radii } from '../theme';
+import { radii } from '../theme';
+import { FundoDasPaginas } from './FundoDasPaginas';
 
 /** O binário tem o módulo que segura a página de trás (sem ele, o deslizar da borda de sempre). */
 export const temVoltaADeslizar = VistaDaVolta !== null;
@@ -60,7 +60,6 @@ export function VoltaADeslizar({ cartao, capaDoCartao = null, ativa, sair, medir
 }) {
   const ecra = useWindowDimensions();
   const reduzido = useReducedMotion();
-  const oled = useAparencia((s) => s.fundoApp) === 'oled';
   const [estado, setEstado] = useState<Estado>('parada');
   const [origem, setOrigem] = useState<Retangulo | null>(null);
   /** A capa da página quando o gesto pegou, na página (`null`: fora da vista; `undefined`: a medir). */
@@ -123,10 +122,13 @@ export function VoltaADeslizar({ cartao, capaDoCartao = null, ativa, sair, medir
           { scaleY: Animated.divide(1, sy) },
         ],
       },
-      // A cor da página por baixo do conteúdo (as páginas são transparentes, sobre o
-      // fundo da app): tapa a de trás dentro do recorte, e apaga-se no fim.
+      // O fundo da página por baixo do conteúdo (as páginas são transparentes, sobre o
+      // fundo da app): tapa a de trás dentro do recorte, e apaga-se no fim. SEMPRE, e
+      // não só com o dedo (28/11, o vídeo do João: largar sem fechar "pisca tudo"): ao
+      // voltar a abrir, a de trás ainda ficava uns fotogramas na janela depois de o
+      // fundo se tirar, e via-se através da página.
       fundo: {
-        opacity: Animated.multiply(tapado, p.interpolate({ inputRange: [VOLTA.corApagaDesde, 1], outputRange: [1, 0], extrapolate: 'clamp' })),
+        opacity: p.interpolate({ inputRange: [VOLTA.corApagaDesde, 1], outputRange: [1, 0], extrapolate: 'clamp' }),
       },
       veu: { opacity: Animated.multiply(tapado, p.interpolate({ inputRange: [0, 1], outputRange: [VEU_MAXIMO, 0], extrapolate: 'clamp' })) },
       // Sem a escala do recorte, como o conteúdo, mas sem se apagar: é aqui que
@@ -257,7 +259,13 @@ export function VoltaADeslizar({ cartao, capaDoCartao = null, ativa, sair, medir
         {Vista ? <Vista ref={vista} pointerEvents="none" style={styles.vista} /> : null}
         {aMexer && desenho ? <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.veu, desenho.veu]} /> : null}
         <Animated.View style={[StyleSheet.absoluteFill, desenho?.marco, aMexer && styles.recorta]}>
-          {desenho ? <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: oled ? '#000' : colors.bg }, desenho.fundo]} /> : null}
+          {/* O fundo das páginas (a imagem, a camada escura e a cor da música), preso ao
+              ecrã como o conteúdo: igual ao da app por trás, e opaco. */}
+          {desenho ? (
+            <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, desenho.semEscala, desenho.fundo, styles.fundoOpaco]}>
+              <FundoDasPaginas imediato />
+            </Animated.View>
+          ) : null}
           <Animated.View style={[StyleSheet.absoluteFill, desenho?.dentro]}>{children}</Animated.View>
           {aMexer && desenho && capa && capaDoCartao ? (
             <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, desenho.semEscala]}>
@@ -278,6 +286,8 @@ const styles = StyleSheet.create({
   cheia: { flex: 1 },
   vista: { position: 'absolute', width: 1, height: 1, left: 0, top: 0, opacity: 0 },
   veu: { backgroundColor: '#000' },
+  // O preto por baixo do fundo das páginas, como no `RootNavigator`.
+  fundoOpaco: { backgroundColor: '#000' },
   recorta: { overflow: 'hidden' },
   capa: { position: 'absolute', overflow: 'hidden' },
 });

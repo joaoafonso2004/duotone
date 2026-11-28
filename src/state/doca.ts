@@ -16,6 +16,20 @@ export const desvioDoVidro = new Animated.Value(0);
 /** Quanto os separadores descem: saem nos ecrãs abertos por cima das secções. */
 export const desvioDosIcones = new Animated.Value(0);
 
+/**
+ * O mini-player a deslizar para a direita para fechar (3/10, o PlayerRoot): o que
+ * fica depois de largar (`deslizeDoMini`) e o dedo (`dedoDoMini`, escrito pelo
+ * Gesture Handler no motor nativo). Aqui, e não no PlayerRoot, desde 28/11: a
+ * cápsula de vidro da música (`components/Doca.tsx`) vai com a linha (o João:
+ * "a barra do Liquid Glass deve ir também"); ficava vazia no sítio até a música sair.
+ */
+export const deslizeDoMini = new Animated.Value(0);
+export const dedoDoMini = new Animated.Value(0);
+/** O que se vê: os dois somados, só para a direita (era o `Math.max(0, dx)`). */
+export const deslizeDoMiniVisto = Animated.add(deslizeDoMini, dedoDoMini).interpolate({
+  inputRange: [0, 1], outputRange: [0, 1], extrapolateLeft: 'clamp', extrapolateRight: 'extend',
+});
+
 /** `position`: onde vai o pager, com o dedo (a cápsula do escolhido no Liquid Glass segue-o). */
 type Separadores = Pick<MaterialTopTabBarProps, 'state' | 'navigation'> & Partial<Pick<MaterialTopTabBarProps, 'position'>>;
 
