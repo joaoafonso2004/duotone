@@ -1,0 +1,20 @@
+# Uma opção da Customise com menu: tocar na linha, escolher o valor, e a prévia.
+# LINHA, VALOR e N vêm de quem chama.
+appId: com.joao.duotone
+---
+- scrollUntilVisible:
+    element: ${LINHA}
+    timeout: 10000
+    centerElement: true
+    optional: true
+- tapOn:
+    text: ${LINHA}
+    index: 0
+    optional: true
+- tapOn:
+    text: ${VALOR}
+    index: 0
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: ${N}

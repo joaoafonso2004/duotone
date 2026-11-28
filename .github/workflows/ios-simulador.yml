@@ -31,7 +31,7 @@ concurrency:
 jobs:
   simulador:
     runs-on: macos-latest
-    timeout-minutes: 90
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
 
@@ -146,30 +146,58 @@ jobs:
           curl -fsSL "https://get.maestro.mobile.dev" | bash
           echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
 
+      # Três passagens: a principal (com vídeo e as marcas de tempo), a mesma app com
+      # a letra do sistema grande, e um iPhone pequeno.
       - name: Correr os percursos (com vídeo)
         env:
           UDID: ${{ steps.sim.outputs.udid }}
           DUOTONE_TESTE_EMAIL: ${{ secrets.DUOTONE_TESTE_EMAIL }}
           DUOTONE_TESTE_PASSWORD: ${{ secrets.DUOTONE_TESTE_PASSWORD }}
         run: |
-          mkdir -p saida/capturas
+          set +e
+          mkdir -p saida/capturas saida/texto-grande saida/ecra-pequeno
+          correr() { # dispositivo, pasta, etiquetas
+            ( cd "saida/$2" && maestro --device "$1" test ../../.maestro $3 \
+                -e EMAIL="$DUOTONE_TESTE_EMAIL" -e PASSWORD="$DUOTONE_TESTE_PASSWORD" \
+                --format junit --output "../junit-$2.xml" >> ../maestro-resumo.txt 2>&1 )
+            echo "== $2: código $?" >> saida/maestro-resumo.txt
+          }
+
           xcrun simctl io "$UDID" recordVideo --codec=h264 --force saida/percursos.mp4 &
           GRAVADOR=$!
           sleep 2
-          set +e
-          cd saida/capturas
-          maestro --device "$UDID" test ../../.maestro \
-            -e EMAIL="$DUOTONE_TESTE_EMAIL" -e PASSWORD="$DUOTONE_TESTE_PASSWORD" \
-            --format junit --output ../maestro-junit.xml > ../maestro-resumo.txt 2>&1
-          RESULTADO=$?
-          cd ../..
+          echo "INICIO_DO_VIDEO $(python3 -c 'import time; print(int(time.time()*1000))')" >> saida/maestro-resumo.txt
+          correr "$UDID" capturas "--exclude-tags=texto-grande,ecra-pequeno"
           kill -INT "$GRAVADOR"; wait "$GRAVADOR" 2>/dev/null
-          # O resumo diz que percursos passaram; as linhas com o texto escrito saem.
+
+          xcrun simctl ui "$UDID" content_size accessibility-medium
+          correr "$UDID" texto-grande "--include-tags=texto-grande"
+          xcrun simctl ui "$UDID" content_size large
+          xcrun simctl shutdown "$UDID"
+
+          # O iPhone mais pequeno que o runtime mais recente tenha.
+          RUNTIME=$(xcrun simctl list runtimes -j | python3 -c '
+          import json, sys
+          rs = [r for r in json.load(sys.stdin)["runtimes"] if r.get("isAvailable") and r["name"].startswith("iOS")]
+          rs.sort(key=lambda r: [int(x) for x in r["version"].split(".")])
+          print(rs[-1]["identifier"])')
+          PEQUENO=""
+          for T in iPhone-SE-3rd-generation iPhone-16e iPhone-13-mini; do
+            PEQUENO=$(xcrun simctl create "Pequeno" "com.apple.CoreSimulator.SimDeviceType.$T" "$RUNTIME" 2>/dev/null) && break
+          done
+          if [ -n "$PEQUENO" ]; then
+            echo "Ecrã pequeno: $T" >> saida/maestro-resumo.txt
+            xcrun simctl boot "$PEQUENO"; xcrun simctl bootstatus "$PEQUENO" -b
+            xcrun simctl install "$PEQUENO" app-simulador/Duotone.app
+            correr "$PEQUENO" ecra-pequeno "--include-tags=ecra-pequeno"
+          fi
+
+          # O resumo diz que percursos passaram e onde estão as marcas; as linhas com o
+          # texto escrito nos campos saem.
           grep -viE 'input text|inputText' saida/maestro-resumo.txt > saida/resumo.txt || true
           rm -f saida/maestro-resumo.txt
-          cat saida/resumo.txt | tail -n 80
-          ls -la saida saida/capturas
-          echo "Percursos: código $RESULTADO"
+          grep -E '==|MARCA|INICIO_DO_VIDEO|FAILED|Flow' saida/resumo.txt | tail -n 120
+          ls -la saida saida/*/ | head -80
 
       - name: Guardar capturas e vídeo
         if: always()
@@ -178,8 +206,10 @@ jobs:
           name: simulador-${{ steps.chave.outputs.short_sha }}-${{ github.run_number }}
           path: |
             saida/capturas
+            saida/texto-grande
+            saida/ecra-pequeno
             saida/percursos.mp4
             saida/resumo.txt
-            saida/maestro-junit.xml
+            saida/junit-*.xml
           retention-days: 7
           if-no-files-found: warn

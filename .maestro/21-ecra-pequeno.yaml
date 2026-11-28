@@ -1,0 +1,62 @@
+# Num iPhone pequeno (o workflow arranca outro simulador): o que não cabe.
+appId: com.joao.duotone
+tags:
+  - ecra-pequeno
+---
+- launchApp:
+    appId: com.joao.duotone
+    clearState: true
+    permissions:
+      all: allow
+- runFlow: comum/abrir.yaml
+- takeScreenshot: 2100-pq-home
+- scroll
+- takeScreenshot: 2101-pq-home-rolada
+- runFlow:
+    file: comum/separador.yaml
+    env:
+      X: "30%"
+- takeScreenshot: 2102-pq-liked
+- runFlow:
+    file: comum/separador.yaml
+    env:
+      X: "50%"
+- takeScreenshot: 2103-pq-artists
+- runFlow:
+    file: comum/separador.yaml
+    env:
+      X: "90%"
+- takeScreenshot: 2104-pq-perfil
+- runFlow:
+    file: comum/separador.yaml
+    env:
+      X: "30%"
+- tapOn:
+    point: "45%, 45%"
+- waitForAnimationToEnd:
+    timeout: 6000
+- takeScreenshot: 2105-pq-leitor
+- tapOn:
+    point: "50%, 38%"
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: 2106-pq-letra
+- tapOn:
+    text: "Queue"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: 2107-pq-fila
+- swipe:
+    start: "50%, 50%"
+    end: "50%, 98%"
+    duration: 300
+    optional: true
+- tapOn:
+    text: "Minimize player"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 2108-pq-mini
+- runFlow: comum/customise.yaml
+- takeScreenshot: 2109-pq-customise

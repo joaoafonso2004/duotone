@@ -1,0 +1,23 @@
+# Um tema da Customise: a prévia, e depois a app real (a Home e o leitor).
+# TEMA (o nome do chip) e N (o prefixo das capturas) vêm de quem chama.
+appId: com.joao.duotone
+---
+- runFlow: customise.yaml
+- tapOn:
+    text: ${TEMA}
+    index: 0
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: ${N + '-previa'}
+- runFlow: voltar-a-home.yaml
+- takeScreenshot: ${N + '-home'}
+- tapOn:
+    point: "45%, 86%"
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: ${N + '-leitor'}
+- tapOn:
+    text: "Minimize player"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000

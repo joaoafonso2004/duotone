@@ -1,0 +1,71 @@
+# O Liquid Glass: ligar, a opacidade e o desfocado, e a app real (a barra do
+# sistema, a cápsula da música, o leitor).
+appId: com.joao.duotone
+---
+- runFlow: comum/abrir.yaml
+- runFlow: comum/customise.yaml
+- tapOn:
+    text: "Duotone"
+    index: 0
+    optional: true
+- tapOn:
+    text: "Liquid Glass"
+    checked: false
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 1000-previa-vidro
+- runFlow: comum/voltar-a-home.yaml
+- takeScreenshot: 1001-real-home-vidro
+- scroll
+- takeScreenshot: 1002-real-home-vidro-rolada
+- runFlow:
+    file: comum/separador.yaml
+    env:
+      X: "30%"
+- takeScreenshot: 1003-real-liked-vidro
+- evalScript: ${console.log('MARCA vidro-separadores ' + Date.now())}
+- runFlow:
+    file: comum/separador.yaml
+    env:
+      X: "70%"
+- takeScreenshot: 1004-real-playlists-vidro
+- tapOn:
+    point: "45%, 86%"
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: 1005-real-leitor-vidro
+- tapOn:
+    text: "Minimize player"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+# A opacidade e o desfocado a meio, e no máximo.
+- runFlow: comum/customise.yaml
+- scrollUntilVisible:
+    element: "Glass opacity"
+    timeout: 10000
+    centerElement: true
+    optional: true
+# Tocar no meio da barra (o Deslizador tem o rótulo dela): acerta nos 50 %.
+- tapOn:
+    text: "Glass opacity"
+    index: 1
+    optional: true
+- takeScreenshot: 1010-previa-opacidade-50
+- tapOn:
+    text: "Glass blur"
+    index: 1
+    optional: true
+- takeScreenshot: 1011-previa-desfocado-50
+- runFlow: comum/voltar-a-home.yaml
+- takeScreenshot: 1012-real-home-opacidade-e-desfocado
+- evalScript: ${console.log('MARCA vidro-mini-fechar ' + Date.now())}
+- swipe:
+    start: "30%, 86%"
+    end: "95%, 86%"
+    duration: 300
+- takeScreenshot: 1013-mini-a-sair
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 1014-sem-mini

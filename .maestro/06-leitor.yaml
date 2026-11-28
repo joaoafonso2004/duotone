@@ -1,0 +1,132 @@
+# O leitor: tocar uma música (abre a crescer), a capa e a letra, o menu, a fila
+# (folha nativa, meia e inteira), o EQ, o skip para a frente e para trás (o
+# Eclipse), minimizar, fechar a arrastar, e o mini.
+# O som pode não chegar (o YouTube corta servidores): o leitor abre na mesma.
+appId: com.joao.duotone
+---
+- runFlow: comum/abrir.yaml
+- runFlow:
+    file: comum/separador.yaml
+    env:
+      X: "30%"
+- evalScript: ${console.log('MARCA leitor-abrir ' + Date.now())}
+- tapOn:
+    point: "45%, 45%"
+- takeScreenshot: 0600-leitor-a-abrir
+- extendedWaitUntil:
+    visible: "Minimize player"
+    timeout: 15000
+- takeScreenshot: 0601-leitor-aberto
+- waitForAnimationToEnd:
+    timeout: 8000
+- takeScreenshot: 0602-leitor-parado
+# A capa vira para a letra, e volta.
+- evalScript: ${console.log('MARCA capa-para-letra ' + Date.now())}
+- tapOn:
+    point: "50%, 38%"
+- takeScreenshot: 0603-capa-a-virar
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: 0604-letra
+- tapOn:
+    point: "50%, 38%"
+- waitForAnimationToEnd:
+    timeout: 4000
+# O menu da música.
+- tapOn:
+    text: "Track options"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 0605-leitor-menu
+- tapOn:
+    point: "50%, 4%"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+# A fila.
+- evalScript: ${console.log('MARCA fila-abrir ' + Date.now())}
+- tapOn:
+    text: "Queue"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: 0606-fila-meia
+- swipe:
+    start: "50%, 52%"
+    end: "50%, 10%"
+    duration: 400
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: 0607-fila-inteira
+- scroll
+- takeScreenshot: 0608-fila-rolada
+- swipe:
+    start: "50%, 12%"
+    end: "50%, 98%"
+    duration: 300
+    optional: true
+- swipe:
+    start: "50%, 50%"
+    end: "50%, 98%"
+    duration: 300
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 4000
+# O EQ.
+- tapOn:
+    text: "EQ"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: 0609-eq
+- swipe:
+    start: "50%, 45%"
+    end: "50%, 98%"
+    duration: 300
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: 0610-leitor-depois-do-eq
+# O skip (o Eclipse), seguinte e anterior.
+- evalScript: ${console.log('MARCA skip-seguinte ' + Date.now())}
+- tapOn: "Next track"
+- takeScreenshot: 0611-skip-logo
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: 0612-skip-fim
+- evalScript: ${console.log('MARCA skip-anterior ' + Date.now())}
+- tapOn:
+    text: "Previous track"
+    optional: true
+- takeScreenshot: 0613-anterior-logo
+- waitForAnimationToEnd:
+    timeout: 4000
+- evalScript: ${console.log('MARCA skip-seguinte-2 ' + Date.now())}
+- tapOn: "Next track"
+- waitForAnimationToEnd:
+    timeout: 4000
+# Minimizar pelo botão.
+- evalScript: ${console.log('MARCA leitor-minimizar ' + Date.now())}
+- tapOn: "Minimize player"
+- takeScreenshot: 0614-leitor-a-descer
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: 0615-mini
+# Abrir pelo mini e fechar a arrastar.
+- evalScript: ${console.log('MARCA leitor-abrir-pelo-mini ' + Date.now())}
+- tapOn:
+    point: "45%, 86%"
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: 0616-aberto-pelo-mini
+- evalScript: ${console.log('MARCA leitor-fechar-a-arrastar ' + Date.now())}
+- swipe:
+    start: "50%, 25%"
+    end: "50%, 90%"
+    duration: 700
+- takeScreenshot: 0617-fechado-a-arrastar
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: 0618-mini-depois-de-arrastar

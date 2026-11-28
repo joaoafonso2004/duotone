@@ -1,0 +1,66 @@
+# Os cinco separadores pelo botão, o salto longo (sem deslizar), o deslizar entre
+# separadores, e o Social para lá do Perfil.
+appId: com.joao.duotone
+---
+- runFlow: comum/abrir.yaml
+- evalScript: ${console.log('MARCA separadores ' + Date.now())}
+- runFlow:
+    file: comum/separador.yaml
+    env:
+      X: "30%"
+- takeScreenshot: 0300-liked
+- runFlow:
+    file: comum/separador.yaml
+    env:
+      X: "50%"
+- takeScreenshot: 0301-artists
+- runFlow:
+    file: comum/separador.yaml
+    env:
+      X: "70%"
+- takeScreenshot: 0302-playlists
+- runFlow:
+    file: comum/separador.yaml
+    env:
+      X: "90%"
+- takeScreenshot: 0303-profile
+- evalScript: ${console.log('MARCA salto-longo ' + Date.now())}
+- tapOn:
+    point: "10%, 93%"
+- takeScreenshot: 0304-salto-longo-logo
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 0305-home-pelo-salto
+- evalScript: ${console.log('MARCA deslizar-separadores ' + Date.now())}
+- swipe:
+    start: "85%, 50%"
+    end: "15%, 50%"
+    duration: 350
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 0306-deslizou-para-liked
+- swipe:
+    start: "85%, 50%"
+    end: "15%, 50%"
+    duration: 350
+- swipe:
+    start: "85%, 50%"
+    end: "15%, 50%"
+    duration: 350
+- swipe:
+    start: "85%, 50%"
+    end: "15%, 50%"
+    duration: 350
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 0307-deslizou-ate-profile
+- evalScript: ${console.log('MARCA social ' + Date.now())}
+- swipe:
+    start: "85%, 50%"
+    end: "15%, 50%"
+    duration: 350
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: 0308-social
+- scroll
+- takeScreenshot: 0309-social-rolado

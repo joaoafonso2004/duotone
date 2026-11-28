@@ -1,12 +1,22 @@
 # Os percursos da análise no simulador (.github/workflows/ios-simulador.yml).
 # Cada um abre a app e entra se for preciso; um que falhe não pára os outros.
+# As marcas ("MARCA nome ms") vão para o resumo: dizem onde está cada animação no vídeo.
+# Os percursos com a etiqueta `texto-grande` ou `ecra-pequeno` correm à parte (o
+# workflow muda a letra do sistema, ou usa um iPhone pequeno).
 flows:
   - "*"
 executionOrder:
   continueOnFailure: true
   flowsOrder:
     - 01-entrar
-    - 02-separadores
-    - 03-leitor
-    - 04-customise-vidro
-    - 05-customise-opcoes
+    - 02-home
+    - 03-separadores
+    - 04-liked
+    - 05-artistas-playlists
+    - 06-leitor
+    - 07-perfil-definicoes
+    - 08-customise-temas
+    - 09-customise-opcoes
+    - 10-customise-vidro
+    - 20-texto-grande
+    - 21-ecra-pequeno

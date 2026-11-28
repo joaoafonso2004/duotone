@@ -1,0 +1,57 @@
+# As Liked Songs: o título que encolhe, rolar, segurar uma música (o menu que
+# levanta a linha), o "…", e o "Add to playlist".
+appId: com.joao.duotone
+---
+- runFlow: comum/abrir.yaml
+- runFlow:
+    file: comum/separador.yaml
+    env:
+      X: "30%"
+- takeScreenshot: 0400-liked-topo
+- evalScript: ${console.log('MARCA liked-rolar ' + Date.now())}
+- swipe:
+    start: "50%, 70%"
+    end: "50%, 55%"
+    duration: 400
+- takeScreenshot: 0401-liked-titulo-a-encolher
+- scroll
+- takeScreenshot: 0402-liked-rolada
+- scroll
+- scroll
+- takeScreenshot: 0403-liked-rolada-mais
+- runFlow:
+    file: comum/separador.yaml
+    env:
+      X: "30%"
+- evalScript: ${console.log('MARCA segurar-linha ' + Date.now())}
+- longPressOn:
+    point: "45%, 52%"
+- takeScreenshot: 0404-segurar-menu-a-abrir
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 0405-segurar-menu-aberto
+- tapOn:
+    point: "50%, 6%"
+- waitForAnimationToEnd:
+    timeout: 3000
+- tapOn:
+    text: "More options"
+    index: 0
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 0406-menu-das-reticencias
+- tapOn:
+    text: "Playlist"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: 0407-add-to-playlist
+- swipe:
+    start: "50%, 40%"
+    end: "50%, 98%"
+    duration: 300
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 0408-de-volta-as-liked

@@ -1,0 +1,45 @@
+# Cada tema: a prévia da Customise contra a Home e o leitor de verdade.
+appId: com.joao.duotone
+---
+- runFlow: comum/abrir.yaml
+- runFlow: comum/customise.yaml
+- takeScreenshot: 0800-customise-topo
+- scroll
+- takeScreenshot: 0801-customise-1
+- scroll
+- takeScreenshot: 0802-customise-2
+- scroll
+- takeScreenshot: 0803-customise-3
+- scroll
+- takeScreenshot: 0804-customise-4
+- tapOn:
+    text: "Back"
+    optional: true
+- tapOn:
+    text: "Back"
+    optional: true
+- runFlow:
+    file: comum/tema.yaml
+    env:
+      TEMA: "Minimal"
+      N: "0810-minimal"
+- runFlow:
+    file: comum/tema.yaml
+    env:
+      TEMA: "Glow"
+      N: "0820-glow"
+- runFlow:
+    file: comum/tema.yaml
+    env:
+      TEMA: "Poster"
+      N: "0830-poster"
+- runFlow:
+    file: comum/tema.yaml
+    env:
+      TEMA: "OLED"
+      N: "0840-oled"
+- runFlow:
+    file: comum/tema.yaml
+    env:
+      TEMA: "Duotone"
+      N: "0850-duotone"

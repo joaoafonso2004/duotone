@@ -1,0 +1,103 @@
+# A Home de cima a baixo, puxar para atualizar, a gaveta, e a pesquisa (abrir,
+# resultados, os filtros, um álbum).
+appId: com.joao.duotone
+---
+- runFlow: comum/abrir.yaml
+- takeScreenshot: 0200-home-topo
+- scroll
+- takeScreenshot: 0201-home-rolada-1
+- scroll
+- takeScreenshot: 0202-home-rolada-2
+- scroll
+- takeScreenshot: 0203-home-rolada-3
+- scroll
+- takeScreenshot: 0204-home-rolada-4
+# Tocar no separador onde se está: a lista volta ao topo.
+- runFlow:
+    file: comum/separador.yaml
+    env:
+      X: "10%"
+- takeScreenshot: 0205-home-de-volta-ao-topo
+# Puxar para atualizar.
+- evalScript: ${console.log('MARCA puxar-home ' + Date.now())}
+- swipe:
+    start: "50%, 30%"
+    end: "50%, 75%"
+    duration: 600
+- takeScreenshot: 0206-home-a-atualizar
+- waitForAnimationToEnd:
+    timeout: 6000
+# A gaveta.
+- evalScript: ${console.log('MARCA gaveta-abrir ' + Date.now())}
+- tapOn:
+    text: "Open your drawer"
+    optional: true
+- takeScreenshot: 0207-gaveta-a-abrir
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 0208-gaveta-aberta
+- evalScript: ${console.log('MARCA gaveta-fechar ' + Date.now())}
+- tapOn:
+    text: "Close the drawer"
+    optional: true
+- swipe:
+    start: "90%, 50%"
+    end: "10%, 50%"
+    duration: 300
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 0209-gaveta-fechada
+# A pesquisa: o cabeçalho compacta e a Home recua.
+- evalScript: ${console.log('MARCA pesquisa-abrir ' + Date.now())}
+- tapOn: "Songs, artists, playlists…"
+- takeScreenshot: 0210-pesquisa-a-abrir
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 0211-pesquisa-aberta
+- inputText: "The Weeknd"
+- waitForAnimationToEnd:
+    timeout: 8000
+- takeScreenshot: 0212-pesquisa-resultados
+- hideKeyboard:
+    optional: true
+- takeScreenshot: 0213-pesquisa-sem-teclado
+- scroll
+- takeScreenshot: 0214-pesquisa-rolada
+- tapOn:
+    text: "Artists"
+    index: 0
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: 0215-pesquisa-artistas
+- tapOn:
+    text: "Albums"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: 0216-pesquisa-albuns
+# Um álbum (abre pelo quadrado).
+- evalScript: ${console.log('MARCA album-abrir ' + Date.now())}
+- tapOn:
+    point: "50%, 32%"
+    optional: true
+- takeScreenshot: 0217-album-a-abrir
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: 0218-album-aberto
+- scroll
+- takeScreenshot: 0219-album-rolado
+- evalScript: ${console.log('MARCA album-voltar ' + Date.now())}
+- tapOn:
+    text: "Back"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: 0220-album-de-volta
+- tapOn:
+    text: "Cancel"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 0221-pesquisa-cancelada
