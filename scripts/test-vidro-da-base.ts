@@ -55,6 +55,9 @@ caso('a base: duas cápsulas, o raio no próprio vidro, nenhuma vista de fora a 
   assert.match(doca, /<Vidro style=\{\[StyleSheet\.absoluteFill, \{ borderRadius: MINI_PLAYER_HEIGHT \/ 2 \}\]\} \/>/);
   assert.match(doca, /<Vidro style=\{\[StyleSheet\.absoluteFill, \{ borderRadius: geo\.raio \}\]\} \/>/);
   assert.doesNotMatch(doca, /flutuante|RAIO_DO_CARTAO/, 'o cartão único da 7.2.8 saiu');
+  // A 7.3.0 escurecia o que passava por baixo (até 72% de preto) e o vidro ficava
+  // opaco ("é suposto não ser transparente?", 28/11).
+  assert.doesNotMatch(doca, /styles\.esbatido|rgba\(0,0,0,0\.72\)/, 'nada a escurecer por trás das cápsulas');
   const estilos = doca.slice(doca.indexOf('const styles = StyleSheet.create'));
   for (const nome of ['capsulaDaMusica', 'capsulaDosSeparadores']) {
     const bloco = estilos.slice(estilos.indexOf(`${nome}:`), estilos.indexOf('}', estilos.indexOf(`${nome}:`)));

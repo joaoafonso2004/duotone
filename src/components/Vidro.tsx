@@ -25,12 +25,15 @@ export function useVidro(): boolean {
 }
 
 /**
- * Uma peça de vidro: o fundo de quem a usa (os filhos vão por cima). Escura, porque
- * a app é escura, e `regular` (o vidro das barras do sistema).
+ * Uma peça de vidro: o fundo de quem a usa (os filhos vão por cima). `clear`, o
+ * vidro transparente: vê-se o que passa por baixo, como na maquete
+ * (`docs/personalizar-ao-vivo-maquete.html`). A 7.3.0 usava o `regular`, que no
+ * escuro fica fosco e cinzento ("é suposto não ser transparente?", 28/11). O
+ * `dark` só o escurece um pouco, para os nomes se lerem por cima das capas.
  */
 export function Vidro({ style, children, interativo = false }: {
   style?: StyleProp<ViewStyle>; children?: React.ReactNode; interativo?: boolean;
 }) {
   if (!temLiquidGlass) return <View style={style}>{children}</View>;
-  return <GlassView glassEffectStyle="regular" colorScheme="dark" isInteractive={interativo} style={style}>{children}</GlassView>;
+  return <GlassView glassEffectStyle="clear" colorScheme="dark" isInteractive={interativo} style={style}>{children}</GlassView>;
 }

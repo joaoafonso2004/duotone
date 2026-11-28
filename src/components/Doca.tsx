@@ -91,11 +91,8 @@ export function Doca() {
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
       {vidro ? <>
-        {/* O fundo a escurecer por trás das cápsulas: o que passa por baixo do vidro
-            não compete com os nomes (o "deliquify" das referências do iOS 26). */}
-        <Animated.View pointerEvents="none" style={[styles.esbatido, { height: altura + 28, transform: [{ translateY: desvioDoVidro }] }]}>
-          <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.5)', 'rgba(0,0,0,0.72)']} locations={[0, 0.55, 1]} style={StyleSheet.absoluteFill} />
-        </Animated.View>
+        {/* Nada por trás das cápsulas: o vidro mostra o que passa por baixo. A 7.3.0
+            tinha um esbatido preto (até 72%) que o deixava escuro e opaco. */}
         {/* A cápsula da música, por baixo da linha dela (que é do PlayerRoot). */}
         <Animated.View pointerEvents="none" style={[styles.capsulaDaMusica, {
           bottom: alturaDosSeparadores + insets.bottom + 4, opacity: musicaNoVidro, transform: [{ translateY: desvioDaMusica }],
@@ -180,7 +177,6 @@ const styles = StyleSheet.create({
   // cor do que passa continua a ver-se; as letras não.
   tinta: { backgroundColor: 'rgba(6,6,8,0.74)' },
   // O Liquid Glass (`lib/vidroDaBase.ts`).
-  esbatido: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   capsulaDaMusica: {
     position: 'absolute', left: MUSICA_NO_VIDRO.margem, right: MUSICA_NO_VIDRO.margem, height: MINI_PLAYER_HEIGHT,
   },

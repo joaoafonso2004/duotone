@@ -25,7 +25,7 @@ caso('o Liquid Glass é o vidro do sistema, só no iOS 26, e só com a opção',
   const v = ler('src/components/Vidro.tsx');
   assert.match(v, /if \(Platform\.OS !== 'ios'\) return false;\n\s+try \{ return isLiquidGlassAvailable\(\); \} catch \{ return false; \}/);
   assert.match(v, /return ligado && temLiquidGlass;/);
-  assert.match(v, /<GlassView glassEffectStyle="regular" colorScheme="dark"/);
+  assert.match(v, /<GlassView glassEffectStyle="clear" colorScheme="dark"/, 'o vidro transparente, como na maquete (28/11)');
   const doca = ler('src/components/Doca.tsx');
   assert.match(doca, /const vidro = useVidro\(\);/);
   assert.match(doca, /<Animated\.View style=\{\[styles\.vidro, \{ height: altura, transform: \[\{ translateY: desvioDoVidro \}\] \}\]\}>\n\s+<BlurView/, 'sem a opção, o vidro desfocado de sempre');
