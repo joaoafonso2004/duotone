@@ -59,7 +59,8 @@ caso('a lista de entrada e as prateleiras não se alteram', () => {
   assert.deepEqual(prateleira.map((t) => t.sourceId), ['x', 'y']);
 });
 caso('só se mostram numa playlist em que se pode mexer, sem pesquisa, depois da tabela', () => {
-  assert.match(PLAYLISTS, /\{canEdit && !query\.trim\(\) \? <SugestoesDaPlaylist faixas=\{tracks\} aoJuntar=\{juntarSugestao\} \/> : null\}<\/>\}<\/ContentScroll>/);
+  // Com a lista carregada (28/11: o cabeçalho desenha-se já a carregar, a lista não).
+  assert.match(PLAYLISTS, /\{canEdit && !query\.trim\(\) \? <SugestoesDaPlaylist faixas=\{tracks\} aoJuntar=\{juntarSugestao\} \/> : null\}<\/>\}<\/>\}<\/ContentScroll>/);
   assert.ok(PLAYLISTS.indexOf('<SugestoesDaPlaylist') > PLAYLISTS.indexOf('<TrackTable'));
 });
 caso('juntar é o `addTracksToPlaylist` de sempre, e relê-se por baixo (a lista e a contagem acertam)', () => {

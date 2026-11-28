@@ -129,5 +129,19 @@ caso('os Artists voltam com a grelha montada até onde estavam, e só uma pesqui
   assert.match(BIBLIOTECA, /if \(primeiraPesquisa\.current\) \{ primeiraPesquisa\.current = false; return; \}\n\s+setPedidos\(PRIMEIRO_LOTE\);/);
 });
 
+caso('a primeira abertura de uma playlist também voa: o mosaico está na página já a carregar (28/11)', () => {
+  const pagina = PLAYLISTS.slice(PLAYLISTS.indexOf('<View style={styles.paginaDaPlaylist}>'));
+  // O cabeçalho com o nome `portrait` não espera pelas músicas: só a lista espera.
+  assert.doesNotMatch(pagina, /\{loading \? <Carregando forma="linhas" quantas=\{10\} \/> : loadError \?/);
+  assert.ok(pagina.indexOf('viewTransitionName: NOME_DO_RETRATO') < pagina.indexOf('{loading ? <Carregando forma="linhas" quantas={10} /> : <><View style={styles.detailToolbar}>'),
+    'o mosaico antes do "a carregar" da lista');
+  // A carregar, o mosaico da grelha (é dele que a capa parte), e nada mexe quando as músicas chegam.
+  assert.match(PLAYLISTS, /: loading && !tracks\.length \? daLista\?\.artworks \?\? \[\]/);
+  assert.match(pagina, /\{loading \? \(daLista \? linhaDeMeta\(daLista\.trackCount, null\) : ' '\) : linhaDeMeta\(tracks\.length, duracaoTotal\)\}/);
+  assert.match(pagina, /\{loading \? <View pointerEvents="none" aria-hidden style=\{\[styles\.detailHeroActions, \{ opacity: 0 \}\]\}>/, 'o lugar dos botões guardado');
+  // A viagem fecha quando a rota entra, e não quando a página acaba de carregar.
+  assert.match(NAVEGADOR, /useEffect\(\(\) => \{ viagemChegou\(\); \}, \[route\]\);/);
+});
+
 if (falhas) { console.log(`\n${falhas} falha(s)`); process.exit(1); }
 console.log('\ntudo certo');

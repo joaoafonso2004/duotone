@@ -121,7 +121,7 @@ caso('aparece uma vez (o bloco copiado da grelha saiu)', () => {
   const pagina = pl.slice(pl.indexOf('<View style={styles.paginaDaPlaylist}>'));
   assert.ok(pl.includes('<View style={styles.paginaDaPlaylist}>'), 'a página de uma playlist existe');
   assert.ok(!/Playlists unavailable/.test(pagina.slice(0, 600)), 'sem "Playlists unavailable" na página de UMA playlist');
-  assert.match(pagina, /loadError \? <Empty icon="alert-circle-outline" title="Playlist unavailable"/);
+  assert.match(pagina, /loadError && !loading \? <Empty icon="alert-circle-outline" title="Playlist unavailable"/);
 });
 
 if (falhas) { console.log(`\n${falhas} falha(s)`); process.exit(1); }
