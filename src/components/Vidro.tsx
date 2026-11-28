@@ -29,11 +29,13 @@ export function useVidro(): boolean {
  * Uma peça de vidro: o fundo de quem a usa (os filhos vão por cima).
  *
  * O vidro é o `clear`, o transparente, como na maquete
- * (`docs/personalizar-ao-vivo-maquete.html`); escuro porque a app é escura (o
- * claro lava de branco o que mostra, e lia-se leitoso). O quanto se vê através é
- * do João (28/11): a opacidade da Customise põe um fundo escuro POR BAIXO do vidro
- * (`fundoDoVidro`), e o vidro mostra-o com o rebordo e a refração por cima. Por
- * baixo e não por cima: por cima tapava o rebordo.
+ * (`docs/personalizar-ao-vivo-maquete.html`), e em modo CLARO (28/11, depois da
+ * 7.3.2: "continua baço"): no iOS 26 o vidro em modo escuro sai cinzento e
+ * lamacento no aparelho (um relato nos fóruns da Apple, que a Apple reproduziu), e
+ * a 7.3.0 a 7.3.2 tinham-no escuro. O quanto se vê através é do João: a opacidade
+ * da Customise põe um fundo escuro POR BAIXO do vidro (`fundoDoVidro`), a camada
+ * que a Apple recomenda por baixo do vidro transparente, e o vidro mostra-o com o
+ * rebordo e a refração por cima. Por baixo e não por cima: por cima tapava o rebordo.
  *
  * O raio vai no próprio vidro e no fundo, nunca numa vista de fora com `overflow`
  * (cortado, o vidro perde o rebordo).
@@ -49,7 +51,7 @@ export function Vidro({ style, children, interativo = false }: {
   return (
     <View style={style}>
       {fundo ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, forma, { backgroundColor: fundo }]} /> : null}
-      <GlassView glassEffectStyle="clear" colorScheme="dark" isInteractive={interativo} style={[StyleSheet.absoluteFill, forma]} />
+      <GlassView glassEffectStyle="clear" colorScheme="light" isInteractive={interativo} style={[StyleSheet.absoluteFill, forma]} />
       {children}
     </View>
   );

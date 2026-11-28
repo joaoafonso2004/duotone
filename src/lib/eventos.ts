@@ -58,6 +58,9 @@ export type NomeDeEvento =
   /** Três faixas diferentes seguidas bloqueadas pelo YouTube: apareceu o aviso
    * de que a música vai parar com o ecrã bloqueado. Ver `lib/saudeDaReproducao.ts`. */
   | 'extracao_bloqueada'
+  /** A barra de separadores do sistema (28/11): as vistas que o UIKit montou, uma vez
+   * por arranque. Só sai do aparelho do administrador (não está na lista do servidor). */
+  | 'barra_do_sistema'
   | 'pesquisa_feita'
   | 'faixa_guardada'
   | 'playlist_criada'

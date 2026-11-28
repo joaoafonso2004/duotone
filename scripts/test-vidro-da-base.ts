@@ -109,7 +109,15 @@ caso('a barra do sistema: uma UITabBar sozinha, e a app degrada sem ela', () => 
   assert.doesNotMatch(swift.replace(/\/\*[\s\S]*?\*\//g, ''), /UITabBarController/, 'sem controlador: o pager do React Navigation fica');
   assert.match(swift, /func tabBar\(_ tabBar: UITabBar, didSelect item: UITabBarItem\)/);
   assert.match(swift, /return vista === self \? nil : vista/, 'fora da barra, o toque passa');
-  assert.match(swift, /Events\("onEscolher", "onAltura"\)/);
+  assert.match(swift, /Events\("onEscolher", "onAltura", "onDiagnostico"\)/);
+  // A opacidade na barra (28/11, "continua baço"): a cápsula dela no vidro
+  // transparente e claro, com o escurecimento por trás; e só se troca vidro por vidro.
+  assert.match(swift, /if capsula\.overrideUserInterfaceStyle != \.light \{ capsula\.overrideUserInterfaceStyle = \.light \}/);
+  assert.match(swift, /if capsula\.effect is UIGlassEffect, capsula\.effect !== efeitoLimpo \{\n\s+let limpo = UIGlassEffect\(style: \.clear\)/);
+  assert.match(swift, /if r\.height < alto - 1, r\.width > largo \/ 2, r\.width \* r\.height > area \{/, 'a cápsula, e não o fundo da barra inteira');
+  assert.match(ler('src/navigation/BarraDeSeparadores.tsx'), /registar\('barra_do_sistema', \{ arvore: String\(d\.arvore\)\.slice\(0, 4000\)/);
+  assert.doesNotMatch(ler('src/lib/eventos.ts').split('EVENTOS_QUE_O_SERVIDOR_GUARDA')[1].split(']')[0], /barra_do_sistema/,
+    'só os eventos do administrador: os dos outros nem saem do aparelho');
   const idx = ler('modules/duotone-separadores/index.ts');
   assert.match(idx, /requireOptionalNativeModule\('DuotoneSeparadores'\)/, 'num binário sem o módulo, null');
   const doca = ler('src/components/Doca.tsx');

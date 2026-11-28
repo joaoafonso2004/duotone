@@ -6,6 +6,7 @@ import React from 'react';
 import { Animated, InteractionManager, Pressable, processColor, StyleSheet, Text, View } from 'react-native';
 import { SeparadoresNativos } from '../../modules/duotone-separadores';
 import { traduzir } from '../i18n';
+import { registar } from '../lib/eventos';
 import { StateIcon } from '../components/StateIcon';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { ESTADO, SEPARADOR_ACTIVO } from '../lib/movimento';
@@ -233,6 +234,11 @@ export function SeparadoresDoSistema({ state, navigation, altura, aoMedir }: Pic
       opacidade={opacidade / 100}
       onEscolher={(e) => { const r = visiveis[e.nativeEvent.indice]; if (r) carregarNoSeparador(state, navigation, r); }}
       onAltura={(e) => aoMedir(e.nativeEvent.altura)}
+      // Como a barra está montada neste iPhone (28/11): só os eventos do João saem do aparelho.
+      onDiagnostico={(e) => {
+        const d = e.nativeEvent;
+        registar('barra_do_sistema', { arvore: String(d.arvore).slice(0, 4000), capsula: String(d.capsula), limpa: !!d.limpa, altura: Number(d.altura) || 0 });
+      }}
     />
   );
 }

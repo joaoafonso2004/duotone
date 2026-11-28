@@ -22,6 +22,8 @@ export type PropsDosSeparadores = ViewProps & {
   opacidade: number;
   onEscolher?: (e: NativeSyntheticEvent<{ indice: number }>) => void;
   onAltura?: (e: NativeSyntheticEvent<{ altura: number }>) => void;
+  /** Uma vez por arranque: as vistas da barra, a cápsula que se achou e se ficou transparente. */
+  onDiagnostico?: (e: NativeSyntheticEvent<{ arvore: string; capsula: string; limpa: boolean; altura: number }>) => void;
 };
 
 const nativo = Platform.OS === 'ios' ? requireOptionalNativeModule('DuotoneSeparadores') : null;

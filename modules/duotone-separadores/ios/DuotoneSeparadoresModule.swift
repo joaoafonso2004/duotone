@@ -28,7 +28,7 @@ public class DuotoneSeparadoresModule: Module {
     }
 
     View(DuotoneSeparadoresView.self) {
-      Events("onEscolher", "onAltura")
+      Events("onEscolher", "onAltura", "onDiagnostico")
 
       Prop("itens") { (view: DuotoneSeparadoresView, itens: [ItemDoSeparador]) in
         view.definirItens(itens)
@@ -63,6 +63,8 @@ struct ItemDoSeparador: Record {
 final class DuotoneSeparadoresView: ExpoView, UITabBarDelegate, UIGestureRecognizerDelegate {
   let onEscolher = EventDispatcher()
   let onAltura = EventDispatcher()
+  /** Uma vez por arranque: como a barra está montada neste iPhone (para o João ler nos eventos). */
+  let onDiagnostico = EventDispatcher()
 
   private let barra = UITabBar(frame: .zero)
   /**
@@ -85,6 +87,9 @@ final class DuotoneSeparadoresView: ExpoView, UITabBarDelegate, UIGestureRecogni
   private var cedo = -1
   private var alturaAvisada: CGFloat = -1
   private var porAplicar = false
+  /** O vidro transparente que se pôs na cápsula da barra (UIGlassEffect no iOS 26). */
+  private var efeitoLimpo: AnyObject?
+  private var diagnosticoFeito = false
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
@@ -245,6 +250,10 @@ final class DuotoneSeparadoresView: ExpoView, UITabBarDelegate, UIGestureRecogni
     colocarFundo()
     // A cápsula do vidro arruma-se dentro da barra depois disto: volta-se a medir.
     DispatchQueue.main.async { [weak self] in self?.colocarFundo() }
+    if !diagnosticoFeito, window != nil, !(barra.items ?? []).isEmpty, bounds.width > 0 {
+      diagnosticoFeito = true
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.mandarDiagnostico() }
+    }
   }
 
   override func safeAreaInsetsDidChange() {
@@ -253,16 +262,22 @@ final class DuotoneSeparadoresView: ExpoView, UITabBarDelegate, UIGestureRecogni
   }
 
   /**
-   * O fundo da opacidade na forma da cápsula da barra: a maior vista de efeito lá
-   * dentro (a cápsula de vidro; a lente é mais pequena). Sem ela, não há fundo.
+   * O vidro da cápsula e o escurecimento por trás dela (28/11, depois da 7.3.2: "a
+   * opacidade não muda, continua baço").
+   *
+   * Baço porque era escuro: no iOS 26 o vidro em modo escuro sai cinzento e
+   * lamacento no aparelho (um relato nos fóruns da Apple, reproduzido pela Apple), e
+   * a app força o escuro. A cápsula passa ao vidro transparente (`clear`) em modo
+   * claro, como as outras peças de vidro da app. O quanto se vê através é a
+   * opacidade da Customise: um fundo escuro POR TRÁS da cápsula, a camada que a
+   * Apple recomenda por baixo do vidro transparente. A barra em si (os nomes, os
+   * ícones, a lente) fica no escuro.
    */
   private func colocarFundo() {
-    guard opacidade > 0, let capsula = maiorVidro(em: barra) else {
-      fundo.isHidden = true
-      return
-    }
-    let r = capsula.convert(capsula.bounds, to: self)
-    guard r.width > 0, r.height > 0 else {
+    let capsula = acharCapsula()
+    if let capsula { limparCapsula(capsula) }
+    let moldura = capsula.map { $0.convert($0.bounds, to: self) } ?? molduraDosBotoes()
+    guard opacidade > 0, let r = moldura, r.width > 0, r.height > 0 else {
       fundo.isHidden = true
       return
     }
@@ -271,22 +286,88 @@ final class DuotoneSeparadoresView: ExpoView, UITabBarDelegate, UIGestureRecogni
     fundo.layer.cornerRadius = min(r.width, r.height) / 2
   }
 
-  private func maiorVidro(em raiz: UIView) -> UIView? {
-    var melhor: UIView?
+  /**
+   * A cápsula de vidro da barra: a maior vista de efeito lá dentro que não é o
+   * fundo da barra inteira (mais baixa do que a barra e mais larga do que metade
+   * dela; a lente é mais pequena).
+   */
+  private func acharCapsula() -> UIVisualEffectView? {
+    let alto = barra.bounds.height
+    let largo = barra.bounds.width
+    guard alto > 0, largo > 0 else { return nil }
+    var melhor: UIVisualEffectView?
     var area: CGFloat = 0
     func procurar(_ vista: UIView) {
       for filha in vista.subviews {
-        if filha is UIVisualEffectView {
-          let a = filha.bounds.width * filha.bounds.height
-          if a > area {
-            area = a
-            melhor = filha
+        if let efeito = filha as? UIVisualEffectView {
+          let r = efeito.convert(efeito.bounds, to: barra)
+          if r.height < alto - 1, r.width > largo / 2, r.width * r.height > area {
+            area = r.width * r.height
+            melhor = efeito
           }
         }
         procurar(filha)
       }
     }
-    procurar(raiz)
+    procurar(barra)
     return melhor
+  }
+
+  /** O vidro da cápsula: transparente e em modo claro. Só se troca vidro por vidro. */
+  private func limparCapsula(_ capsula: UIVisualEffectView) {
+    if capsula.overrideUserInterfaceStyle != .light { capsula.overrideUserInterfaceStyle = .light }
+    #if compiler(>=6.2)
+    if #available(iOS 26.0, *) {
+      if capsula.effect is UIGlassEffect, capsula.effect !== efeitoLimpo {
+        let limpo = UIGlassEffect(style: .clear)
+        efeitoLimpo = limpo
+        capsula.effect = limpo
+      }
+    }
+    #endif
+  }
+
+  /** Sem cápsula à vista: o fundo na forma dos botões (os que têm o nome de um separador). */
+  private func molduraDosBotoes() -> CGRect? {
+    var uniao: CGRect?
+    func procurar(_ vista: UIView) {
+      for filha in vista.subviews {
+        if filha is UIControl, let nome = filha.accessibilityLabel, itens.contains(where: { $0.titulo == nome }) {
+          let r = filha.convert(filha.bounds, to: self)
+          uniao = uniao.map { $0.union(r) } ?? r
+        } else {
+          procurar(filha)
+        }
+      }
+    }
+    procurar(barra)
+    return uniao?.insetBy(dx: -5, dy: -5)
+  }
+
+  /**
+   * As vistas da barra, com a classe, o efeito e o sítio de cada uma: o que o UIKit
+   * monta muda de uma versão do iOS para a outra, e sem isto só se adivinha. Vai
+   * uma vez por arranque para os eventos (`barra_do_sistema`, só os do João saem do
+   * aparelho).
+   */
+  private func mandarDiagnostico() {
+    var linhas: [String] = []
+    func andar(_ vista: UIView, _ nivel: Int) {
+      guard nivel <= 7, linhas.count < 80 else { return }
+      let r = vista.convert(vista.bounds, to: barra)
+      var nome = String(describing: type(of: vista))
+      if let efeito = (vista as? UIVisualEffectView)?.effect { nome += "[" + String(describing: type(of: efeito)) + "]" }
+      if vista.isHidden { nome += "(oculta)" }
+      linhas.append("\(nivel):\(nome)@\(Int(r.minX)),\(Int(r.minY)),\(Int(r.width))x\(Int(r.height))")
+      for filha in vista.subviews { andar(filha, nivel + 1) }
+    }
+    andar(barra, 0)
+    let capsula = acharCapsula()
+    onDiagnostico([
+      "arvore": linhas.joined(separator: " "),
+      "capsula": capsula.map { String(describing: type(of: $0)) } ?? "nenhuma",
+      "limpa": capsula?.effect === efeitoLimpo && efeitoLimpo != nil,
+      "altura": Double(barra.bounds.height),
+    ])
   }
 }
