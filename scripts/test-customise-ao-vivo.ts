@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { lerAparencia, PADRAO } from '../src/lib/aparencia.ts';
+import { FR } from '../src/i18n/fr.ts';
 
 let falhas = 0;
 function caso(nome: string, fn: () => void): void {
@@ -19,6 +20,21 @@ caso('de origem, a app fica como estava: sem vidro e sem o fundo da música', ()
   assert.equal(lerAparencia({ vidro: true, fundoDaMusica: true }).vidro, true);
   assert.equal(lerAparencia({ vidro: 'sim' }).vidro, false, 'um valor estragado fica o de origem');
   assert.equal(lerAparencia({ fundoDaMusica: true }).fundoDaMusica, true);
+});
+
+caso('o Glass blur: uma barra de 0 a 100, a 0 de origem (28/11, "faz uma draggable bar")', () => {
+  assert.equal(PADRAO.desfocadoDoVidro, 0, 'de origem, o vidro limpo');
+  assert.equal(lerAparencia({}).desfocadoDoVidro, 0, 'uma aparência guardada antes disto');
+  assert.equal(lerAparencia({ desfocadoDoVidro: 62.6 }).desfocadoDoVidro, 63);
+  assert.equal(lerAparencia({ desfocadoDoVidro: 500 }).desfocadoDoVidro, 100);
+  assert.equal(lerAparencia({ desfocadoDoVidro: 'sim' }).desfocadoDoVidro, 0, 'um valor estragado fica o de origem');
+  const p = ler('src/screens/PersonalizarScreen.tsx');
+  assert.match(p, /\{temLiquidGlass && ap\.vidro \? \(\n\s+<LinhaAlta icone="aperture-outline" rotulo="Glass blur">\n\s+<Deslizador valor=\{ap\.desfocadoDoVidro\}/,
+    'só com o Liquid Glass ligado, a seguir à opacidade');
+  assert.match(p, /aoMudar=\{\(v\) => mudar\('desfocadoDoVidro', v\)\}/);
+  assert.ok(p.indexOf('rotulo="Glass opacity">') < p.indexOf('rotulo="Glass blur"'));
+  assert.match(p, /k === 'desfocadoDoVidro'/, 'a pré-visualização acende a Home');
+  assert.ok(FR['Glass blur'], 'em francês');
 });
 
 caso('o Liquid Glass é o vidro do sistema, só no iOS 26, e só com a opção', () => {
@@ -74,7 +90,7 @@ caso('a pré-visualização ao vivo fica presa em cima, com dois ecrãs, e não 
   assert.match(p, /usePlayer\.getState\(\)\.upcomingQueue\(\)\.slice\(0, 4\)/, 'as próximas pela upcomingQueue');
   assert.doesNotMatch(p.slice(p.indexOf('function PreviaAoVivo')), /\.next\(\)|playTrack|skip/, '"Next song" não mexe no que toca');
   assert.match(p, /if \(k === 'listas'\) return 'lista';/);
-  assert.match(p, /k === 'vidro' \|\| k === 'opacidadeDoVidro' \|\| k === 'fundoDaMusica'/);
+  assert.match(p, /k === 'vidro' \|\| k === 'opacidadeDoVidro' \|\| k === 'desfocadoDoVidro' \|\| k === 'fundoDaMusica'/);
 });
 
 caso('a barra de cima das páginas fica opaca ao rolar, com o fundo das páginas preso ao ecrã (28/11)', () => {

@@ -387,6 +387,7 @@ const TESTES = [
   `${TS} scripts/test-aparencia.ts`,
   `${TS} scripts/test-customise-ao-vivo.ts`,
   `${TS} scripts/test-vidro-da-base.ts`,
+  `${TS} scripts/test-salto-de-separador.ts`,
   `${RESOLVER} scripts/test-procura-das-definicoes.ts`,
   `${TS} scripts/test-guardar-fila.ts`,
   `${TS} scripts/test-dialogo-da-fila.ts`,

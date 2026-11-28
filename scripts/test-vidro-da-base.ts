@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  botaoEscolhido, fundoDoVidro, geometriaDoVidro, MUSICA_NO_VIDRO, rotasComBotao, selecaoDoVidro, separadoresDaBarraNativa,
+  botaoEscolhido, DESFOCADO_DO_VIDRO, fundoDoVidro, geometriaDoVidro, MUSICA_NO_VIDRO, rotasComBotao, selecaoDoVidro, separadoresDaBarraNativa,
   SIMBOLOS_DOS_SEPARADORES, VIDRO_DA_BASE,
 } from '../src/lib/vidroDaBase.ts';
 
@@ -59,16 +59,31 @@ caso('a cápsula da música mais baixa do que a dos separadores, com a capa cent
   assert.equal(m.progressoEsquerda, m.dentro + m.capa + 10);
   assert.ok(m.progressoDireita > r - Math.sqrt(r ** 2 - (r - m.progressoFundo) ** 2) + 4);
 });
-caso('a 0 %, só o vidro limpo: nada por baixo dele (28/11, depois da 7.3.4)', () => {
-  // A 7.3.4 punha o material do sistema por baixo: desfocava muito e metia cinzento.
+caso('de origem, só o vidro limpo; o desfocado por baixo é uma opção (28/11, depois da 7.3.4)', () => {
+  // A 7.3.4 punha o material do sistema por baixo sempre: desfocava muito e metia
+  // cinzento. Ficou o "Glass blur" da Customise, desligado de origem.
+  assert.deepEqual(DESFOCADO_DO_VIDRO, { tint: 'systemUltraThinMaterialDark' });
   const v = ler('src/components/Vidro.tsx');
-  assert.doesNotMatch(v, /BlurView|expo-blur/, 'sem desfocado por baixo do vidro');
+  assert.match(v, /const desfocado = useAparencia\(\(s\) => s\.desfocadoDoVidro\);/);
+  assert.match(v, /\{desfocado > 0 \? \(\n\s+<BlurView pointerEvents="none" tint=\{DESFOCADO_DO_VIDRO\.tint\} intensity=\{desfocado\}/,
+    'a intensidade é a da barra "Glass blur"; a 0 não há');
+  const desfocado = v.indexOf('<BlurView');
   const escuro = v.indexOf('{fundo ? <View pointerEvents="none"');
   const vidro = v.indexOf('<GlassView glassEffectStyle="clear"');
-  assert.ok(escuro > 0 && escuro < vidro, 'só o escuro da opacidade por baixo, e o vidro por cima');
+  assert.ok(desfocado > 0 && desfocado < escuro && escuro < vidro, 'o desfocado por baixo, o escuro a seguir, o vidro por cima');
+  // Na barra do sistema: a mesma barra, pela prop `desfocado` (0 a 1). O UIKit não
+  // tem intensidade para o desfocado: corre-se a animação dele parada a meio, como
+  // o `expo-blur` faz nas outras peças.
   const swift = ler('modules/duotone-separadores/ios/DuotoneSeparadoresModule.swift');
-  assert.doesNotMatch(swift, /UIBlurEffect|desfocado\./, 'nem na barra do sistema');
-  assert.match(swift, /guard opacidade > 0, let r = moldura, r\.width > 0, r\.height > 0 else \{\n\s+fundo\.isHidden = true/);
+  assert.match(swift, /Prop\("desfocado"\) \{ \(view: DuotoneSeparadoresView, desfocado: Double\) in\n\s+view\.definirDesfocado\(desfocado\)/);
+  assert.match(swift, /private let desfocado = DesfocadoComIntensidade\(\)/);
+  assert.match(swift, /private let material = UIBlurEffect\(style: \.systemUltraThinMaterialDark\)/);
+  assert.match(swift, /novo\.fractionComplete = intensidade/);
+  assert.match(swift, /name: UIApplication\.willEnterForegroundNotification/, 'refaz-se ao voltar à app');
+  assert.match(swift, /let comDesfocado = intensidadeDoDesfocado > 0\n\s+desfocado\.isHidden = !comDesfocado/);
+  assert.ok(swift.indexOf('addSubview(desfocado)') < swift.indexOf('addSubview(fundo)') && swift.indexOf('addSubview(fundo)') < swift.indexOf('addSubview(barra)'),
+    'o desfocado por baixo do escuro, e os dois por baixo da barra');
+  assert.match(ler('src/navigation/BarraDeSeparadores.tsx'), /desfocado=\{desfocado \/ 100\}/);
   // Nunca se esconde a cápsula nem se lhe mexe no alpha: o UIKit deixava de pôr o vidro.
   assert.doesNotMatch(swift, /capsula\.isHidden|capsula\.alpha/);
 });

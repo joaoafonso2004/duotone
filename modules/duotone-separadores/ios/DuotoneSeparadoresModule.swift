@@ -48,6 +48,9 @@ public class DuotoneSeparadoresModule: Module {
       Prop("opacidade") { (view: DuotoneSeparadoresView, opacidade: Double) in
         view.definirOpacidade(opacidade)
       }
+      Prop("desfocado") { (view: DuotoneSeparadoresView, desfocado: Double) in
+        view.definirDesfocado(desfocado)
+      }
     }
   }
 }
@@ -72,6 +75,14 @@ final class DuotoneSeparadoresView: ExpoView, UITabBarDelegate, UIGestureRecogni
    * barra. O vidro dela mostra-o, com o rebordo e a lente por cima.
    */
   private let fundo = UIView()
+  /**
+   * O desfocado por baixo da cápsula, por baixo de tudo, com a intensidade do
+   * "Glass blur" da Customise (28/11, uma barra de 0 a 100): o material mais fino e
+   * escuro, o mesmo das peças de vidro da app (`DESFOCADO_DO_VIDRO`). A 0, de
+   * origem, não há: o vidro limpo.
+   */
+  private let desfocado = DesfocadoComIntensidade()
+  private var intensidadeDoDesfocado: CGFloat = 0
 
   private var itens: [ItemDoSeparador] = []
   private var comNomes = true
@@ -95,6 +106,12 @@ final class DuotoneSeparadoresView: ExpoView, UITabBarDelegate, UIGestureRecogni
     super.init(appContext: appContext)
     backgroundColor = .clear
     clipsToBounds = false
+
+    desfocado.isUserInteractionEnabled = false
+    desfocado.isHidden = true
+    desfocado.clipsToBounds = true
+    desfocado.layer.cornerCurve = .continuous
+    addSubview(desfocado)
 
     fundo.isUserInteractionEnabled = false
     fundo.backgroundColor = UIColor(red: 6 / 255, green: 6 / 255, blue: 8 / 255, alpha: 1)
@@ -129,6 +146,11 @@ final class DuotoneSeparadoresView: ExpoView, UITabBarDelegate, UIGestureRecogni
   func definirOpacidade(_ valor: Double) {
     opacidade = CGFloat(max(0, min(1, valor)))
     fundo.alpha = opacidade
+    colocarFundo()
+  }
+  func definirDesfocado(_ valor: Double) {
+    intensidadeDoDesfocado = CGFloat(max(0, min(1, valor)))
+    desfocado.definir(intensidadeDoDesfocado)
     colocarFundo()
   }
 
@@ -273,22 +295,30 @@ final class DuotoneSeparadoresView: ExpoView, UITabBarDelegate, UIGestureRecogni
    * Apple recomenda por baixo do vidro transparente. A barra em si (os nomes, os
    * ícones, a lente) fica no escuro.
    *
-   * Sem desfocado por baixo (28/11, depois da 7.3.4): o material do sistema que lá
-   * esteve desfocava muito e metia cinzento ("ainda assim não está transparente"). O
-   * baço de antes era o "Reduzir transparência" do iPhone do João, que torna fosco
-   * todo o vidro.
+   * O desfocado por baixo só com o "Glass blur" ligado (28/11, depois da 7.3.4): de
+   * origem, o vidro limpo. O material desfoca muito e mete cinzento ("ainda assim não
+   * está transparente"); o baço de antes era o "Reduzir transparência" do iPhone do
+   * João, que torna fosco todo o vidro.
    */
   private func colocarFundo() {
     let capsula = acharCapsula()
     if let capsula { limparCapsula(capsula) }
     let moldura = capsula.map { $0.convert($0.bounds, to: self) } ?? molduraDosBotoes()
-    guard opacidade > 0, let r = moldura, r.width > 0, r.height > 0 else {
+    guard let r = moldura, r.width > 0, r.height > 0 else {
+      desfocado.isHidden = true
       fundo.isHidden = true
       return
     }
-    fundo.isHidden = false
+    let raio = min(r.width, r.height) / 2
+    let comDesfocado = intensidadeDoDesfocado > 0
+    desfocado.isHidden = !comDesfocado
+    if comDesfocado {
+      desfocado.frame = r
+      desfocado.layer.cornerRadius = raio
+    }
+    fundo.isHidden = opacidade <= 0
     fundo.frame = r
-    fundo.layer.cornerRadius = min(r.width, r.height) / 2
+    fundo.layer.cornerRadius = raio
   }
 
   /**
@@ -374,5 +404,50 @@ final class DuotoneSeparadoresView: ExpoView, UITabBarDelegate, UIGestureRecogni
       "limpa": capsula?.effect === efeitoLimpo && efeitoLimpo != nil,
       "altura": Double(barra.bounds.height),
     ])
+  }
+}
+
+/**
+ * Um desfocado com intensidade, como o do `expo-blur` (o das peças de vidro da app):
+ * o UIKit não tem intensidade para o desfocado, por isso corre-se a animação que o
+ * liga e deixa-se parada na fração pedida. Ao voltar à app o iOS pode acabar as
+ * animações paradas: refaz-se a esse sinal.
+ */
+final class DesfocadoComIntensidade: UIVisualEffectView {
+  private let material = UIBlurEffect(style: .systemUltraThinMaterialDark)
+  private var animador: UIViewPropertyAnimator?
+  private var intensidade: CGFloat = 0
+
+  init() {
+    super.init(effect: nil)
+    NotificationCenter.default.addObserver(
+      self, selector: #selector(refazer), name: UIApplication.willEnterForegroundNotification, object: nil)
+  }
+
+  required init?(coder: NSCoder) { nil }
+
+  deinit {
+    NotificationCenter.default.removeObserver(self)
+    animador?.stopAnimation(true)
+  }
+
+  /** De 0 a 1. */
+  func definir(_ valor: CGFloat) {
+    let v = max(0, min(1, valor))
+    guard v != intensidade else { return }
+    intensidade = v
+    refazer()
+  }
+
+  @objc private func refazer() {
+    animador?.stopAnimation(true)
+    animador = nil
+    effect = nil
+    guard intensidade > 0 else { return }
+    let novo = UIViewPropertyAnimator(duration: 1, curve: .linear) { [unowned self] in
+      self.effect = self.material
+    }
+    novo.fractionComplete = intensidade
+    animador = novo
   }
 }

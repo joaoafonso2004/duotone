@@ -20,6 +20,8 @@ export type PropsDosSeparadores = ViewProps & {
   corOutros?: number | null;
   /** 0 a 1: o fundo escuro por baixo da cápsula (a opacidade da Customise). */
   opacidade: number;
+  /** 0 a 1: o desfocado por baixo da cápsula (o "Glass blur" da Customise, 28/11). */
+  desfocado?: number;
   onEscolher?: (e: NativeSyntheticEvent<{ indice: number }>) => void;
   onAltura?: (e: NativeSyntheticEvent<{ altura: number }>) => void;
   /** Uma vez por arranque: as vistas da barra, a cápsula que se achou e se ficou transparente. */

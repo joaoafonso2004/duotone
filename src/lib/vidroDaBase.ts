@@ -97,6 +97,13 @@ export function fundoDoVidro(opacidade: number): string | null {
   return o > 0 ? `rgba(6,6,8,${o / 100})` : null;
 }
 
+/**
+ * O desfocado por baixo do vidro, com a intensidade da barra "Glass blur" (28/11,
+ * `desfocadoDoVidro`, 0 a 100): o material mais fino e escuro do sistema, o da
+ * 7.3.4 (que era ele inteiro). O mesmo na barra de separadores do sistema
+ * (`UIBlurEffect(style: .systemUltraThinMaterialDark)`, no Swift).
+ */
+export const DESFOCADO_DO_VIDRO = { tint: 'systemUltraThinMaterialDark' } as const;
 
 /**
  * A barra de separadores nativa (28/11): a `UITabBar` do iOS 26, com a lente de

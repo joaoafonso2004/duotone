@@ -120,6 +120,13 @@ export type Aparencia = {
    */
   opacidadeDoVidro: number;
   /**
+   * O desfocado por baixo do vidro, de 0 a 100 (28/11, o João: "podes deixar essa
+   * setting como toggleable", e a seguir "faz uma draggable bar para ajustar o
+   * blur"): o material mais fino e escuro do sistema, o da 7.3.4, com esta
+   * intensidade. 0 de origem: o vidro limpo, com as capas a ver-se.
+   */
+  desfocadoDoVidro: number;
+  /**
    * O fundo da app a seguir a música (27/11): a cor da capa que toca a lavar o
    * topo das páginas, e a mudar devagar com a música. Desligado de origem.
    */
@@ -134,7 +141,7 @@ export const PADRAO: Aparencia = {
   topo: 'marca', titulo: 'centro', barra: 'fina', play: 'metal', metalNoPlay: true, controlos: 'destaque', posterImagem: 'artista', posterMono: false,
   botoes: ['fila', 'visibilidade', 'eq'], flutuar: true, fundoLeitor: 'capa', brilho: 50,
   titulos: 'padrao', tamanhoDasLetras: 'm', abrirNasLetras: false, molaNaLetra: false,
-  vidro: false, opacidadeDoVidro: 0, fundoDaMusica: false,
+  vidro: false, opacidadeDoVidro: 0, desfocadoDoVidro: 0, fundoDaMusica: false,
   secoesDaHome: [...SECOES_DA_HOME], escondidasDaHome: [],
 };
 
@@ -198,7 +205,7 @@ export function alternarBotao(botoes: readonly BotaoDoLeitor[], b: BotaoDoLeitor
   return botoes.length >= MAXIMO_DE_BOTOES ? [...botoes] : [...botoes, b];
 }
 
-type ChaveComValores = Exclude<keyof Aparencia, 'botoes' | 'brilho' | 'rotulos' | 'flutuar' | 'posterMono' | 'abrirNasLetras' | 'molaNaLetra' | 'vidro' | 'opacidadeDoVidro' | 'fundoDaMusica' | 'secoesDaHome' | 'escondidasDaHome' | 'metalNoPlay'>;
+type ChaveComValores = Exclude<keyof Aparencia, 'botoes' | 'brilho' | 'rotulos' | 'flutuar' | 'posterMono' | 'abrirNasLetras' | 'molaNaLetra' | 'vidro' | 'opacidadeDoVidro' | 'desfocadoDoVidro' | 'fundoDaMusica' | 'secoesDaHome' | 'escondidasDaHome' | 'metalNoPlay'>;
 const VALORES: { [K in ChaveComValores]: readonly Aparencia[K][] } = {
   fundoApp: ['dark', 'oled'],
   listas: ['comfortable', 'compact'],
@@ -229,6 +236,7 @@ export function lerAparencia(guardado: unknown): Aparencia {
   if (typeof g.abrirNasLetras === 'boolean') fora.abrirNasLetras = g.abrirNasLetras;
   if (typeof g.molaNaLetra === 'boolean') fora.molaNaLetra = g.molaNaLetra;
   if (typeof g.vidro === 'boolean') fora.vidro = g.vidro;
+  if (typeof g.desfocadoDoVidro === 'number' && Number.isFinite(g.desfocadoDoVidro)) fora.desfocadoDoVidro = Math.min(100, Math.max(0, Math.round(g.desfocadoDoVidro)));
   if (typeof g.fundoDaMusica === 'boolean') fora.fundoDaMusica = g.fundoDaMusica;
   // O play de metal passou a ser o de origem (23/11): o `cheio` de antes dele vira metal, uma vez.
   if (fora.play === 'cheio' && g.metalNoPlay !== true) fora.play = 'metal';

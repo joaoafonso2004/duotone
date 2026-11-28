@@ -82,7 +82,7 @@ export function PersonalizarScreen({ navigation }: Props) {
     fundoApp: s.fundoApp, listas: s.listas, rotulos: s.rotulos, topo: s.topo, titulo: s.titulo, barra: s.barra,
     play: s.play, metalNoPlay: s.metalNoPlay, controlos: s.controlos, posterImagem: s.posterImagem, posterMono: s.posterMono, botoes: s.botoes, flutuar: s.flutuar, fundoLeitor: s.fundoLeitor, brilho: s.brilho,
     titulos: s.titulos, tamanhoDasLetras: s.tamanhoDasLetras, abrirNasLetras: s.abrirNasLetras, molaNaLetra: s.molaNaLetra,
-    vidro: s.vidro, opacidadeDoVidro: s.opacidadeDoVidro, fundoDaMusica: s.fundoDaMusica,
+    vidro: s.vidro, opacidadeDoVidro: s.opacidadeDoVidro, desfocadoDoVidro: s.desfocadoDoVidro, fundoDaMusica: s.fundoDaMusica,
     secoesDaHome: s.secoesDaHome, escondidasDaHome: s.escondidasDaHome,
   })));
   const capa = useCapaIOS((s) => s.style);
@@ -310,6 +310,14 @@ export function PersonalizarScreen({ navigation }: Props) {
                 aoMudar={(v) => mudar('opacidadeDoVidro', v)} />
             </LinhaAlta>
           ) : null}
+          {/* O desfocado por baixo do vidro (28/11, o João: "faz uma draggable bar para
+              ajustar o blur"): 0 é o vidro limpo, 100 o desfocado inteiro da 7.3.4. */}
+          {temLiquidGlass && ap.vidro ? (
+            <LinhaAlta icone="aperture-outline" rotulo="Glass blur">
+              <Deslizador valor={ap.desfocadoDoVidro} rotulo="Glass blur" formatar={(v) => `${v}%`}
+                aoMudar={(v) => mudar('desfocadoDoVidro', v)} />
+            </LinhaAlta>
+          ) : null}
           <LinhaInterruptor icone="color-fill-outline" rotulo="Background follows the song" valor={ap.fundoDaMusica} aoMudar={(v) => mudar('fundoDaMusica', v)} />
           {linha('fundoApp')}
           {linha('listas')}
@@ -465,7 +473,7 @@ type EcraDaPrevia = 'np' | 'home' | 'lista';
 /** Que ecrã mostra o que uma opção muda (null: nenhum, como o tamanho da letra das músicas). */
 function ecraDaOpcao(k: keyof Aparencia): EcraDaPrevia | null {
   if (k === 'listas') return 'lista';
-  if (k === 'fundoApp' || k === 'rotulos' || k === 'vidro' || k === 'opacidadeDoVidro' || k === 'fundoDaMusica' || k === 'secoesDaHome' || k === 'escondidasDaHome') return 'home';
+  if (k === 'fundoApp' || k === 'rotulos' || k === 'vidro' || k === 'opacidadeDoVidro' || k === 'desfocadoDoVidro' || k === 'fundoDaMusica' || k === 'secoesDaHome' || k === 'escondidasDaHome') return 'home';
   if (k === 'tamanhoDasLetras' || k === 'abrirNasLetras' || k === 'molaNaLetra') return null;
   return 'np';
 }

@@ -7,6 +7,7 @@ import { Animated, InteractionManager, Pressable, processColor, StyleSheet, Text
 import { SeparadoresNativos } from '../../modules/duotone-separadores';
 import { traduzir } from '../i18n';
 import { registar } from '../lib/eventos';
+import { eSaltoLongo, saltarSemDeslizar } from '../state/saltoDeSeparador';
 import { StateIcon } from '../components/StateIcon';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { ESTADO, SEPARADOR_ACTIVO } from '../lib/movimento';
@@ -188,7 +189,10 @@ function carregarNoSeparador(state: MaterialTopTabBarProps['state'], navigation:
     return;
   }
   const evento = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-  if (!evento.defaultPrevented) navigation.navigate(route.name);
+  if (evento.defaultPrevented) return;
+  // Mais de um separador de distância: troca sem deslizar pelas páginas do meio (28/11).
+  if (eSaltoLongo(state.index, state.routes.findIndex((r) => r.key === route.key))) saltarSemDeslizar();
+  navigation.navigate(route.name);
 }
 
 /** Há a barra do sistema neste binário (o módulo `duotone-separadores`, 28/11). */
@@ -210,6 +214,7 @@ export function SeparadoresDoSistema({ state, navigation, altura, aoMedir }: Pic
 }) {
   const rotulos = useAparencia((s) => s.rotulos);
   const opacidade = useAparencia((s) => s.opacidadeDoVidro);
+  const desfocado = useAparencia((s) => s.desfocadoDoVidro);
   const hasNotification = useNotifications((s) => s.hasNotification);
   const theme = useTheme((s) => s.destino);
   const visiveis = rotasComBotao(state.routes);
@@ -232,6 +237,7 @@ export function SeparadoresDoSistema({ state, navigation, altura, aoMedir }: Pic
       corEscolhida={processColor(theme.color) as number | null}
       corOutros={processColor(colors.textTertiary) as number | null}
       opacidade={opacidade / 100}
+      desfocado={desfocado / 100}
       onEscolher={(e) => { const r = visiveis[e.nativeEvent.indice]; if (r) carregarNoSeparador(state, navigation, r); }}
       onAltura={(e) => aoMedir(e.nativeEvent.altura)}
       // Como a barra está montada neste iPhone (28/11): só os eventos do João saem do aparelho.

@@ -26,6 +26,7 @@ import {
   getFocusedRouteNameFromRoute,
 } from '@react-navigation/native';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
+import { useSaltoDeSeparador } from '../state/saltoDeSeparador';
 import { BarraDeSeparadores } from './BarraDeSeparadores';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React, { useEffect, useMemo } from 'react';
@@ -310,6 +311,8 @@ function naRaiz(route: Parameters<typeof getFocusedRouteNameFromRoute>[0] & { na
  */
 function Tabs() {
   const reducedMotion = useReducedMotion();
+  // Um salto de mais de um separador troca sem deslizar (28/11, `state/saltoDeSeparador.ts`).
+  const saltando = useSaltoDeSeparador((s) => s.saltando);
 
   return (
     <Tab.Navigator
@@ -326,7 +329,7 @@ function Tabs() {
         // Quem pediu menos animação continua a poder tocar nos separadores; o
         // que se lhe tira é a página a correr por baixo do dedo.
         swipeEnabled: !reducedMotion && naRaiz(route),
-        animationEnabled: !reducedMotion,
+        animationEnabled: !reducedMotion && !saltando,
       })}
     >
       <Tab.Screen name="Search" component={PilhaDaHome} />
