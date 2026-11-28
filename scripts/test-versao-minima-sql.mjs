@@ -59,8 +59,11 @@ recusado(await pedido({ versao: '6.1.0' }), 'a mínima de antes (16/11)');
 recusado(await pedido({ versao: '6.2.0' }), 'a última 6.2 do iPhone');
 recusado(await pedido({ versao: '7.0.7' }), 'a última 7.0 do Windows');
 recusado(await pedido({ versao: '7.0.10' }), 'uma 7.0 de número alto (compara números)');
-assert.equal(await pedido({ versao: '7.1.0' }), null, 'a mínima passa');
-assert.equal(await pedido({ versao: '7.1.10' }), null, 'acima passa (compara números)');
+recusado(await pedido({ versao: '7.1.0' }), 'a mínima de antes (26/11)');
+recusado(await pedido({ versao: '7.2.8' }), 'a última 7.2');
+recusado(await pedido({ versao: '7.3.2' }), 'a última antes da mínima (28/11)');
+assert.equal(await pedido({ versao: '7.3.3' }), null, 'a mínima passa');
+assert.equal(await pedido({ versao: '7.3.10' }), null, 'acima passa (compara números)');
 assert.equal(await pedido({ versao: '7.10.0' }), null, 'compara números, não texto');
 assert.equal(await pedido({ versao: '10.0.0' }), null, 'compara números, não texto');
 assert.equal(await pedido({ papel: 'service_role' }), null, 'o painel e o servidor passam sempre');
@@ -110,9 +113,9 @@ const banido = (e, como) => {
   assert.equal(JSON.parse(e.detail).status, 403, `${como}: 403`);
   assert.match(JSON.parse(e.message).message, /can no longer use Duotone/, `${como}: a mensagem`);
 };
-banido(await pedido({ versao: '7.1.0', conta: A }), 'a conta banida, mesmo numa versão nova');
-banido(await pedido({ versao: '7.1.0', conta: B, aparelho: 'iphone-de-a' }), 'uma conta nova no aparelho de quem foi banido');
-assert.equal(await pedido({ versao: '7.1.0', conta: B, aparelho: 'pc-de-b' }), null, 'os outros passam');
+banido(await pedido({ versao: '7.3.3', conta: A }), 'a conta banida, mesmo numa versão nova');
+banido(await pedido({ versao: '7.3.3', conta: B, aparelho: 'iphone-de-a' }), 'uma conta nova no aparelho de quem foi banido');
+assert.equal(await pedido({ versao: '7.3.3', conta: B, aparelho: 'pc-de-b' }), null, 'os outros passam');
 assert.equal(await pedido({ papel: 'service_role', conta: A }), null, 'o painel passa sempre');
 assert.equal((await db.query(`select has_table_privilege('authenticated', 'public.banidos', 'select') as pode`)).rows[0].pode, false,
   'ninguém lê a lista de fora do painel');
