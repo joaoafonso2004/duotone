@@ -21,8 +21,8 @@ appId: com.joao.duotone
 # Puxar para atualizar.
 - evalScript: ${console.log('MARCA puxar-home ' + Date.now())}
 - swipe:
-    start: "50%, 30%"
-    end: "50%, 75%"
+    start: "50%,30%"
+    end: "50%,75%"
     duration: 600
 - takeScreenshot: 0206-home-a-atualizar
 - waitForAnimationToEnd:
@@ -41,8 +41,8 @@ appId: com.joao.duotone
     text: "Close the drawer"
     optional: true
 - swipe:
-    start: "90%, 50%"
-    end: "10%, 50%"
+    start: "90%,50%"
+    end: "10%,50%"
     duration: 300
     optional: true
 - waitForAnimationToEnd:
@@ -80,7 +80,7 @@ appId: com.joao.duotone
 # Um álbum (abre pelo quadrado).
 - evalScript: ${console.log('MARCA album-abrir ' + Date.now())}
 - tapOn:
-    point: "50%, 32%"
+    point: "50%,32%"
     optional: true
 - takeScreenshot: 0217-album-a-abrir
 - waitForAnimationToEnd:

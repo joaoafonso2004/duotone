@@ -153,6 +153,9 @@ jobs:
           UDID: ${{ steps.sim.outputs.udid }}
           DUOTONE_TESTE_EMAIL: ${{ secrets.DUOTONE_TESTE_EMAIL }}
           DUOTONE_TESTE_PASSWORD: ${{ secrets.DUOTONE_TESTE_PASSWORD }}
+          # O driver do Maestro (um XCTest) leva minutos a instalar num runner frio, e
+          # o tempo de omissão não chegava ("iOS driver not ready in time", 28/11).
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: "900000"
         run: |
           set +e
           mkdir -p saida/capturas saida/texto-grande saida/ecra-pequeno

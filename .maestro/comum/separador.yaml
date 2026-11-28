@@ -3,6 +3,6 @@
 appId: com.joao.duotone
 ---
 - tapOn:
-    point: ${X + ", 93%"}
+    point: ${X + ",93%"}
 - waitForAnimationToEnd:
     timeout: 3000

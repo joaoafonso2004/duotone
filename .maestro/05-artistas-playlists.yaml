@@ -16,7 +16,7 @@ appId: com.joao.duotone
       X: "50%"
 - evalScript: ${console.log('MARCA artista-abrir ' + Date.now())}
 - tapOn:
-    point: "20%, 30%"
+    point: "20%,30%"
 - takeScreenshot: 0502-artista-a-abrir
 - waitForAnimationToEnd:
     timeout: 5000
@@ -27,8 +27,8 @@ appId: com.joao.duotone
 - takeScreenshot: 0505-artista-rolado-mais
 - evalScript: ${console.log('MARCA artista-voltar-deslizar ' + Date.now())}
 - swipe:
-    start: "40%, 50%"
-    end: "95%, 50%"
+    start: "40%,50%"
+    end: "95%,50%"
     duration: 500
 - takeScreenshot: 0506-artista-a-voltar
 - waitForAnimationToEnd:
@@ -47,7 +47,7 @@ appId: com.joao.duotone
       X: "70%"
 - evalScript: ${console.log('MARCA playlist-abrir ' + Date.now())}
 - tapOn:
-    point: "25%, 36%"
+    point: "25%,36%"
 - takeScreenshot: 0510-playlist-a-abrir
 - waitForAnimationToEnd:
     timeout: 5000
@@ -62,7 +62,7 @@ appId: com.joao.duotone
     timeout: 3000
 - takeScreenshot: 0513-playlist-menu
 - tapOn:
-    point: "50%, 6%"
+    point: "50%,6%"
     optional: true
 - waitForAnimationToEnd:
     timeout: 3000
@@ -76,10 +76,10 @@ appId: com.joao.duotone
 - takeScreenshot: 0515-playlists-de-volta
 - evalScript: ${console.log('MARCA segurar-cartao ' + Date.now())}
 - longPressOn:
-    point: "25%, 36%"
+    point: "25%,36%"
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: 0516-segurar-cartao
 - tapOn:
-    point: "50%, 6%"
+    point: "50%,6%"
     optional: true

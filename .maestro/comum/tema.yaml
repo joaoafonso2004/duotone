@@ -12,7 +12,7 @@ appId: com.joao.duotone
 - runFlow: voltar-a-home.yaml
 - takeScreenshot: ${N + '-home'}
 - tapOn:
-    point: "45%, 86%"
+    point: "45%,86%"
 - waitForAnimationToEnd:
     timeout: 5000
 - takeScreenshot: ${N + '-leitor'}

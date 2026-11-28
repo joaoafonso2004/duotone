@@ -13,22 +13,22 @@ appId: com.joao.duotone
       true: ${EMAIL && EMAIL.length > 0}
     commands:
       - tapOn:
-          point: "50%, 57%"
+          point: "50%,57%"
       - inputText: ${EMAIL}
       - tapOn:
-          point: "50%, 22%"
+          point: "50%,22%"
       - waitForAnimationToEnd:
           timeout: 2000
       - tapOn:
-          point: "45%, 63.7%"
+          point: "45%,64%"
       - inputText: ${PASSWORD}
       - tapOn:
-          point: "50%, 22%"
+          point: "50%,22%"
       - waitForAnimationToEnd:
           timeout: 2000
       - takeScreenshot: 0001-preenchido
       - tapOn:
-          point: "50%, 75.2%"
+          point: "50%,75%"
       # O iOS pode oferecer guardar a palavra-passe.
       - tapOn:
           text: "Not Now"

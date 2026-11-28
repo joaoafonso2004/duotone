@@ -28,7 +28,7 @@ tags:
     env:
       X: "30%"
 - tapOn:
-    point: "45%, 45%"
+    point: "45%,45%"
 - waitForAnimationToEnd:
     timeout: 6000
 - takeScreenshot: 2005-tg-leitor
@@ -39,7 +39,7 @@ tags:
     timeout: 3000
 - takeScreenshot: 2006-tg-leitor-menu
 - tapOn:
-    point: "50%, 4%"
+    point: "50%,4%"
     optional: true
 - tapOn:
     text: "Minimize player"

@@ -32,12 +32,12 @@ tags:
     env:
       X: "30%"
 - tapOn:
-    point: "45%, 45%"
+    point: "45%,45%"
 - waitForAnimationToEnd:
     timeout: 6000
 - takeScreenshot: 2105-pq-leitor
 - tapOn:
-    point: "50%, 38%"
+    point: "50%,38%"
 - waitForAnimationToEnd:
     timeout: 4000
 - takeScreenshot: 2106-pq-letra
@@ -48,8 +48,8 @@ tags:
     timeout: 4000
 - takeScreenshot: 2107-pq-fila
 - swipe:
-    start: "50%, 50%"
-    end: "50%, 98%"
+    start: "50%,50%"
+    end: "50%,98%"
     duration: 300
     optional: true
 - tapOn:

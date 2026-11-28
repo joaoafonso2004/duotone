@@ -26,38 +26,38 @@ appId: com.joao.duotone
 - takeScreenshot: 0303-profile
 - evalScript: ${console.log('MARCA salto-longo ' + Date.now())}
 - tapOn:
-    point: "10%, 93%"
+    point: "10%,93%"
 - takeScreenshot: 0304-salto-longo-logo
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: 0305-home-pelo-salto
 - evalScript: ${console.log('MARCA deslizar-separadores ' + Date.now())}
 - swipe:
-    start: "85%, 50%"
-    end: "15%, 50%"
+    start: "85%,50%"
+    end: "15%,50%"
     duration: 350
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: 0306-deslizou-para-liked
 - swipe:
-    start: "85%, 50%"
-    end: "15%, 50%"
+    start: "85%,50%"
+    end: "15%,50%"
     duration: 350
 - swipe:
-    start: "85%, 50%"
-    end: "15%, 50%"
+    start: "85%,50%"
+    end: "15%,50%"
     duration: 350
 - swipe:
-    start: "85%, 50%"
-    end: "15%, 50%"
+    start: "85%,50%"
+    end: "15%,50%"
     duration: 350
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: 0307-deslizou-ate-profile
 - evalScript: ${console.log('MARCA social ' + Date.now())}
 - swipe:
-    start: "85%, 50%"
-    end: "15%, 50%"
+    start: "85%,50%"
+    end: "15%,50%"
     duration: 350
 - waitForAnimationToEnd:
     timeout: 4000

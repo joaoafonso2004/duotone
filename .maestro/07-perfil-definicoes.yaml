@@ -32,19 +32,19 @@ appId: com.joao.duotone
           text: "Show all .* settings"
           optional: true
 - tapOn:
-    point: "50%, 6%"
+    point: "50%,6%"
     optional: true
 - swipe:
-    start: "50%, 25%"
-    end: "50%, 95%"
+    start: "50%,25%"
+    end: "50%,95%"
     duration: 150
 - swipe:
-    start: "50%, 25%"
-    end: "50%, 95%"
+    start: "50%,25%"
+    end: "50%,95%"
     duration: 150
 - swipe:
-    start: "50%, 25%"
-    end: "50%, 95%"
+    start: "50%,25%"
+    end: "50%,95%"
     duration: 150
 - takeScreenshot: 0704-definicoes-abertas-topo
 - scroll

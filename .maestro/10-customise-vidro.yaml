@@ -31,7 +31,7 @@ appId: com.joao.duotone
       X: "70%"
 - takeScreenshot: 1004-real-playlists-vidro
 - tapOn:
-    point: "45%, 86%"
+    point: "45%,86%"
 - waitForAnimationToEnd:
     timeout: 5000
 - takeScreenshot: 1005-real-leitor-vidro
@@ -62,8 +62,8 @@ appId: com.joao.duotone
 - takeScreenshot: 1012-real-home-opacidade-e-desfocado
 - evalScript: ${console.log('MARCA vidro-mini-fechar ' + Date.now())}
 - swipe:
-    start: "30%, 86%"
-    end: "95%, 86%"
+    start: "30%,86%"
+    end: "95%,86%"
     duration: 300
 - takeScreenshot: 1013-mini-a-sair
 - waitForAnimationToEnd:
